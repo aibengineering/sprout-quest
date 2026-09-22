@@ -319,7 +319,9 @@ button {
   font-size: 14px;
 }
 .tabs button.on { background: var(--accent); color: #fff; }
+.sheet header, .statline, .tabs { flex: none; }
 .body {
+  min-height: 0;
   padding: 0 12px 14px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
