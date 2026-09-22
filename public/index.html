@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#5fae4c" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Sprout Quest" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <title>Sprout Quest</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <canvas id="cv"></canvas>
+    <div id="touch"></div>
+    <div id="joy"><div id="joy-knob"></div></div>
+
+    <div id="hud" hidden>
+      <div class="card stat">
+        <div class="lv">Lv<b id="hud-lv">1</b></div>
+        <div class="bars">
+          <div class="bar hp"><i id="hud-hp"></i><span id="hud-hptext"></span></div>
+          <div class="bar xp"><i id="hud-xp"></i></div>
+        </div>
+      </div>
+      <div id="hud-zone" class="card zone"></div>
+      <button id="btn-menu" class="round" aria-label="Menu">🎒</button>
+    </div>
+
+    <div id="banner"><b></b><small></small></div>
+
+    <div id="ctl-world" class="ctl" hidden>
+      <button id="btn-act" class="act" hidden>Talk</button>
+    </div>
+
+    <div id="ctl-battle" class="ctl" hidden>
+      <button id="btn-run" class="pill">🏃 Run</button>
+      <button id="btn-potion" class="btn sm" aria-label="Potion">🧪<span id="potion-n" class="badge">0</span></button>
+      <button id="btn-skill" class="btn md" aria-label="Skill"><span>✨</span><small id="skill-name">Spin</small><i class="cd"></i></button>
+      <button id="btn-dodge" class="btn md" aria-label="Dodge"><span>💨</span><small>Dodge</small><i class="cd"></i></button>
+      <button id="btn-attack" class="btn lg" aria-label="Attack">⚔️</button>
+    </div>
+
+    <div id="modal" hidden><div class="sheet"></div></div>
+    <div id="toast"></div>
+
+    <div id="title">
+      <div class="logo">
+        <div class="sprout">🌱</div>
+        <h1>Sprout<br />Quest</h1>
+        <p>Fight cute monsters · Craft cool gear</p>
+      </div>
+      <div class="title-btns">
+        <button id="btn-continue" class="big-btn" hidden>Continue</button>
+        <button id="btn-new" class="big-btn alt">New Game</button>
+      </div>
+      <p class="hint">Drag anywhere to move · Tap buttons to fight<br />Best in portrait · Add to home screen for fullscreen</p>
+    </div>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

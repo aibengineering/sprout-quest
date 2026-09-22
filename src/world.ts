@@ -1,0 +1,178 @@
+// Overworld map generation and collision. Coordinates are in tiles.
+import { WORLD_H, WORLD_W, ZONES, zoneAtX, type Zone, type ZoneId } from './data';
+
+export const T = {
+  GROUND: 0,
+  GRASS: 1,
+  OBST: 2,
+  POOL: 3,
+  PATH: 4,
+  DECOR: 5,
+} as const;
+
+export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair';
+
+export interface WorldObj {
+  kind: ObjKind;
+  /** Solid box, top-left in tiles. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  label: string;
+  text?: string;
+}
+
+export function hash2(x: number, y: number, seed: number): number {
+  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(seed, 1442695041);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+function valueNoise(x: number, y: number, seed: number): number {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const s = (t: number) => t * t * (3 - 2 * t);
+  const u = s(x - xi), v = s(y - yi);
+  const a = hash2(xi, yi, seed), b = hash2(xi + 1, yi, seed);
+  const c = hash2(xi, yi + 1, seed), d = hash2(xi + 1, yi + 1, seed);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+const VILLAGE_END = ZONES[1].x0;
+const MID = Math.floor(WORLD_H / 2);
+
+/** The walkable path's row for a given column. Straight in the village, then winds east. */
+export function pathY(x: number): number {
+  const amp = Math.max(0, Math.min(1, (x - VILLAGE_END) / 8));
+  const y = MID + amp * (Math.sin(x * 0.13) * 3.5 + Math.sin(x * 0.051 + 1) * 2.5);
+  return Math.max(5, Math.min(WORLD_H - 7, Math.round(y)));
+}
+
+export class World {
+  readonly w = WORLD_W;
+  readonly h = WORLD_H;
+  readonly tiles = new Uint8Array(WORLD_W * WORLD_H);
+  readonly objs: WorldObj[] = [];
+
+  constructor(seed = 7) {
+    this.generate(seed);
+  }
+
+  tile(x: number, y: number): number {
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return T.OBST;
+    return this.tiles[y * this.w + x];
+  }
+
+  private set(x: number, y: number, t: number) {
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
+    this.tiles[y * this.w + x] = t;
+  }
+
+  zoneAt(x: number): Zone {
+    return zoneAtX(Math.floor(x));
+  }
+
+  entryPoint(id: ZoneId): { x: number; y: number } {
+    if (id === 'village') return { x: 4.5, y: MID + 0.5 };
+    const z = ZONES.find((z) => z.id === id)!;
+    const x = z.x0 + 2;
+    return { x: x + 0.5, y: pathY(x) + 1 };
+  }
+
+  private generate(seed: number) {
+    const { w, h } = this;
+    for (let x = 0; x < w; x++) {
+      const zone = zoneAtX(x);
+      const py = pathY(x);
+      for (let y = 0; y < h; y++) {
+        let t: number = T.GROUND;
+        const nearPath = y >= py - 1 && y <= py + 2;
+        if (y === py || y === py + 1) t = T.PATH;
+        else if (y < 2 || y >= h - 2 || x === 0 || x === w - 1) t = T.OBST;
+        else if (zone.id !== 'village' && x === zone.x0 && !nearPath) t = T.OBST;
+        else if (zone.id === 'village') t = this.villageTile(x, y, seed);
+        else if (!nearPath) {
+          const lx = x - zone.x0;
+          const edge = lx < 3 && Math.abs(y - py) < 5;
+          const pool = zone.theme.pool && valueNoise(x * 0.14, y * 0.14, seed + 2) > 0.8;
+          const obst = valueNoise(x * 0.22, y * 0.22, seed + 1) > 0.7 || hash2(x, y, seed + 5) < 0.035;
+          const grass = valueNoise(x * 0.18, y * 0.18, seed + 3) > 1 - zone.grassDensity;
+          if (edge) t = T.GROUND;
+          else if (pool) t = T.POOL;
+          else if (obst) t = T.OBST;
+          else if (grass) t = T.GRASS;
+          else if (hash2(x, y, seed + 9) < 0.07) t = T.DECOR;
+        } else if (hash2(x, y, seed + 11) < 0.25) {
+          // Grass sometimes creeps right up to the path edge.
+          t = valueNoise(x * 0.18, y * 0.18, seed + 3) > 1 - zone.grassDensity ? T.GRASS : T.GROUND;
+        }
+        this.set(x, y, t);
+      }
+    }
+    this.placeObjects();
+  }
+
+  private villageTile(x: number, y: number, seed: number): number {
+    const edgeTree = (y < 4 || y > this.h - 5 || x < 2) && hash2(x, y, seed + 21) < 0.55;
+    if (edgeTree) return T.OBST;
+    if (hash2(x, y, seed + 22) < 0.12) return T.DECOR;
+    return T.GROUND;
+  }
+
+  private placeObjects() {
+    const add = (o: WorldObj) => {
+      this.objs.push(o);
+      // Clear the tiles under and around each object so it never sits in a tree.
+      for (let y = Math.floor(o.y) - 1; y <= Math.ceil(o.y + o.h); y++)
+        for (let x = Math.floor(o.x) - 1; x <= Math.ceil(o.x + o.w); x++)
+          if (this.tile(x, y) !== T.PATH) this.set(x, y, T.GROUND);
+    };
+    add({ kind: 'forge', x: 5, y: 7, w: 4, h: 3, label: 'Craft', text: 'The Forge' });
+    add({ kind: 'house', x: 13, y: 6.5, w: 3, h: 3, label: '' });
+    add({ kind: 'house', x: 3, y: 17, w: 3, h: 3, label: '' });
+    add({ kind: 'fountain', x: 12, y: 17, w: 2, h: 2, label: 'Rest', text: 'Healing Fountain' });
+    add({
+      kind: 'sign', x: 18.6, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
+      text: 'East: Sunny Meadow. Walk through tall grass to find monsters. Bring back materials to the Forge!',
+    });
+    for (const z of ZONES.slice(1)) {
+      const x = z.x0 + 3;
+      add({
+        kind: 'sign', x: x + 0.1, y: pathY(x) - 2 + 0.2, w: 0.8, h: 0.6, label: 'Read',
+        text: `${z.name} — recommended Lv ${z.rec}+. Monsters here are Lv ${z.lv[0]}–${z.lv[1]}.`,
+      });
+    }
+    const lx = this.w - 5;
+    add({ kind: 'lair', x: lx, y: pathY(lx) - 1.5, w: 3, h: 2, label: 'Enter', text: "Emberwyrm's Lair" });
+  }
+
+  solidAt(x: number, y: number): boolean {
+    const t = this.tile(Math.floor(x), Math.floor(y));
+    if (t === T.OBST || t === T.POOL) return true;
+    for (const o of this.objs) if (x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
+    return false;
+  }
+
+  /** Whether a feet-box of half-width `r` whose bottom edge is at y overlaps anything solid. */
+  blocked(x: number, y: number, r: number): boolean {
+    const top = y - r, bot = y - 0.02;
+    return this.solidAt(x - r, top) || this.solidAt(x + r, top) || this.solidAt(x - r, bot) || this.solidAt(x + r, bot);
+  }
+
+  nearestObj(x: number, y: number, maxDist: number): WorldObj | null {
+    let best: WorldObj | null = null;
+    let bestD = maxDist;
+    for (const o of this.objs) {
+      if (!o.label) continue;
+      const cx = Math.max(o.x, Math.min(x, o.x + o.w));
+      const cy = Math.max(o.y, Math.min(y, o.y + o.h));
+      const d = Math.hypot(cx - x, cy - y);
+      if (d < bestD) {
+        bestD = d;
+        best = o;
+      }
+    }
+    return best;
+  }
+}

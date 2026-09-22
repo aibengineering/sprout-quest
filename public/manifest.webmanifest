@@ -1,0 +1,10 @@
+{
+  "name": "Sprout Quest",
+  "short_name": "Sprout Quest",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#2a1a30",
+  "theme_color": "#5fae4c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
