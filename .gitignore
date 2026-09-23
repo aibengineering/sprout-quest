@@ -1,2 +1,4 @@
 node_modules
 dist
+art/out
+__pycache__

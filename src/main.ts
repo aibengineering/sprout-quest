@@ -1,6 +1,7 @@
 // Entry point: owns the game loop, mode switching and glue between world, battles and UI.
+import { loadAssets } from './assets';
 import { Audio } from './audio';
-import { Battle, SKILL_NAMES, type BattleOutcome, type Foe } from './battle';
+import { Battle, type BattleOutcome, type Foe } from './battle';
 import { MAX_POTIONS, POTION_HEAL, ZONES, zoneById, type Zone, type ZoneId } from './data';
 import { Input } from './input';
 import { Overworld } from './overworld';
@@ -317,7 +318,7 @@ function frame(now: number) {
     battle.render(ctx, vw, vh);
     ui.hud(mode === 'battle' ? battle.p.hp : save.hp, over.currentZone.name);
     if (mode === 'battle') {
-      ui.battleHud(save.potions, battle.skillFrac, battle.dodgeFrac, SKILL_NAMES[battle.stats.style], !battle.setup.boss);
+      ui.battleHud(save.potions, battle.skillFrac, battle.dodgeFrac, battle.moves.skillName, !battle.setup.boss);
     }
   } else {
     const canAct = mode === 'world' && !busy;
@@ -372,6 +373,7 @@ function drawIris(q: number) {
 }
 
 ui.setMode('title');
+void loadAssets();
 requestAnimationFrame(frame);
 
 // Exposed for quick debugging from the console / automated smoke tests.

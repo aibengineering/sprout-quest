@@ -484,3 +484,8 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 900; opacity: 0.75; }
 .big-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #c85a3a; }
 .hint { color: #fff; font-size: 13px; font-weight: 700; opacity: 0.9; text-shadow: 0 1px 0 var(--ink); line-height: 1.5; }
 #modal:not([hidden]) ~ #toast { top: auto; bottom: calc(20px + var(--safe-b)); }
+img.icon { width: 44px; height: 44px; object-fit: contain; display: inline-block; vertical-align: middle; filter: drop-shadow(0 2px 0 rgba(74, 42, 90, 0.18)); }
+img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
+.result .chip img.icon.sm { width: 26px; height: 26px; vertical-align: -7px; }
+.mat .ico { height: 42px; display: flex; align-items: center; justify-content: center; }
+.slot .ico img.icon { width: 48px; height: 48px; }

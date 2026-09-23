@@ -3,6 +3,7 @@ import {
   GEAR, GEAR_ORDER, MATS, MAT_ORDER, MAX_POTIONS, POTION_HEAL, POTION_RECIPES, ZONES,
   type Gear, type MatId, type Recipe, type Slot, type ZoneId,
 } from './data';
+import { iconUrl } from './assets';
 import { hasMats, playerStats, xpToNext } from './rules';
 import type { SaveState } from './state';
 
@@ -29,6 +30,13 @@ export interface UIHooks {
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
+/** Blender-rendered icon with the emoji as a fallback if the image is missing. */
+export function icon(id: string, emoji: string, cls = 'icon') {
+  return `<img class="${cls}" src="${iconUrl(id)}" alt="" onerror="this.outerHTML='${emoji}'">`;
+}
+
+const STYLE_NAMES: Record<string, string> = { sword: 'Sword', spear: 'Spear', axe: 'Axe', hammer: 'Hammer', wand: 'Wand' };
+
 export function gearStats(g: Gear): string {
   const parts: string[] = [];
   if (g.atk) parts.push(`ATK +${g.atk}`);
@@ -37,7 +45,7 @@ export function gearStats(g: Gear): string {
   if (g.spd) parts.push(`SPD +${g.spd}%`);
   if (g.luck) parts.push(`Luck +${Math.round(g.luck * 100)}%`);
   if (g.regen) parts.push('Regen');
-  if (g.style) parts.push(g.style[0].toUpperCase() + g.style.slice(1));
+  if (g.style) parts.push(STYLE_NAMES[g.style] + (g.tier ? ' ' + '★'.repeat(g.tier) : ''));
   return parts.join(' · ');
 }
 
@@ -45,7 +53,7 @@ function recipeChips(s: SaveState, r: Recipe): string {
   return Object.entries(r)
     .map(([m, n]) => {
       const have = s.mats[m as MatId];
-      return `<span class="chip ${have >= (n ?? 0) ? '' : 'miss'}">${MATS[m as MatId].icon} ${have}/${n}</span>`;
+      return `<span class="chip ${have >= (n ?? 0) ? '' : 'miss'}">${icon(m, MATS[m as MatId].icon, 'icon sm')} ${have}/${n}</span>`;
     })
     .join('');
 }
@@ -183,7 +191,7 @@ export class UI {
         const mats = MAT_ORDER.map((m) => {
           const n = s.mats[m];
           const info = MATS[m];
-          return `<div class="mat ${n ? '' : 'empty'}"><div class="ico">${info.icon}</div><b>${n}</b>${esc(info.name)}<small>${esc(info.where)}</small></div>`;
+          return `<div class="mat ${n ? '' : 'empty'}"><div class="ico">${icon(m, info.icon)}</div><b>${n}</b>${esc(info.name)}<small>${esc(info.where)}</small></div>`;
         }).join('');
         const st = playerStats(s);
         return `
@@ -197,7 +205,7 @@ export class UI {
         const cur = slots.map(([slot, label]) => {
           const id = s.equip[slot];
           const g = id ? GEAR[id] : null;
-          return `<div class="slot"><span class="ico">${g ? g.icon : '➖'}</span>${g ? esc(g.name) : `No ${label}`}</div>`;
+          return `<div class="slot"><span class="ico">${g ? icon(g.id, g.icon) : '➖'}</span>${g ? esc(g.name) : `No ${label}`}</div>`;
         }).join('');
         const list = slots.map(([slot, label]) => {
           const owned = GEAR_ORDER.filter((id) => GEAR[id].slot === slot && s.owned.includes(id));
@@ -208,7 +216,7 @@ export class UI {
             const btn = slot === 'charm' && on
               ? `<button class="go alt" data-equip="${id}">Remove</button>`
               : `<button class="go" data-equip="${id}" ${on ? 'disabled' : ''}>${on ? 'Worn' : 'Equip'}</button>`;
-            return `<div class="row ${on ? 'on' : ''}"><div class="ico">${g.icon}</div><div class="info"><div class="name">${esc(g.name)}</div>
+            return `<div class="row ${on ? 'on' : ''}"><div class="ico">${icon(g.id, g.icon)}</div><div class="info"><div class="name">${esc(g.name)}</div>
               <div class="stats">${gearStats(g)}</div><div class="desc">${esc(g.desc)}</div></div>${btn}</div>`;
           }).join('');
         }).join('');
@@ -231,7 +239,7 @@ export class UI {
             const g = GEAR[id];
             const owned = s.owned.includes(id);
             const ok = at && !owned && hasMats(s, g.recipe!);
-            return `<div class="row"><div class="ico">${g.icon}</div><div class="info"><div class="name">${esc(g.name)}</div>
+            return `<div class="row"><div class="ico">${icon(g.id, g.icon)}</div><div class="info"><div class="name">${esc(g.name)}</div>
               <div class="stats">${gearStats(g)}</div><div class="chips">${owned ? '<span class="chip">Owned ✓</span>' : recipeChips(s, g.recipe!)}</div></div>
               ${owned ? '' : `<button class="go" data-craft="${id}" ${ok ? '' : 'disabled'}>Craft</button>`}</div>`;
           }).join('');
@@ -319,7 +327,7 @@ export class UI {
   result(o: { win: boolean; xp: number; levels: number; newLv: number; drops: Partial<Record<MatId, number>>; boss: boolean }) {
     let html: string;
     if (o.win) {
-      const drops = Object.entries(o.drops).map(([m, n]) => `<span class="chip">${MATS[m as MatId].icon} ${esc(MATS[m as MatId].name)} ×${n}</span>`).join('');
+      const drops = Object.entries(o.drops).map(([m, n]) => `<span class="chip">${icon(m, MATS[m as MatId].icon, 'icon sm')} ${esc(MATS[m as MatId].name)} ×${n}</span>`).join('');
       html = `<div class="big">${o.boss ? '🐉 Dragon defeated!' : 'Victory! ✨'}</div>
         <div class="sub">+${o.xp} XP</div>
         ${o.levels ? `<div class="lvup">⬆ Level up! Now Lv ${o.newLv}</div>` : ''}

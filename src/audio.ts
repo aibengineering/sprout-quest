@@ -2,7 +2,7 @@
 
 export type Sfx =
   | 'swing' | 'hit' | 'crit' | 'hurt' | 'kill' | 'levelup' | 'encounter' | 'victory'
-  | 'craft' | 'heal' | 'dodge' | 'shoot' | 'boom' | 'ui' | 'lose' | 'skill' | 'step';
+  | 'craft' | 'heal' | 'dodge' | 'shoot' | 'boom' | 'ui' | 'lose' | 'skill' | 'step' | 'heavy';
 
 export class Audio {
   private ctx: AudioContext | null = null;
@@ -62,6 +62,7 @@ export class Audio {
       fs.forEach((f, i) => this.tone(f, step * 1.6, type, vol, undefined, i * step));
     switch (s) {
       case 'swing': this.noise(0.08, 0.25, 2500); break;
+      case 'heavy': this.noise(0.16, 0.4, 900); this.tone(180, 0.15, 'triangle', 0.15, 90); break;
       case 'hit': this.tone(320, 0.08, 'square', 0.15, 140); this.noise(0.05, 0.2, 900); break;
       case 'crit': this.tone(520, 0.12, 'square', 0.18, 180); this.noise(0.08, 0.3, 1400); break;
       case 'hurt': this.tone(220, 0.18, 'sawtooth', 0.15, 90); break;

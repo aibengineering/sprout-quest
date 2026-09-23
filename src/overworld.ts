@@ -1,5 +1,6 @@
 // Overworld: walking around, tall-grass encounters and drawing the tile map.
 import { GEAR, zoneAtX, type Theme, type Zone } from './data';
+import { drawFrame, drawHero, frame } from './assets';
 import { Fx } from './fx';
 import type { Input } from './input';
 import { drawPlayer, rrect, shadow } from './sprites';
@@ -8,6 +9,8 @@ import { hash2, T, type World, type WorldObj } from './world';
 
 const TAU = Math.PI * 2;
 const ENCOUNTER_CHANCE = 0.11;
+/** Map tiles are 1.6 Blender units wide. */
+const TILE_BU = 1.6;
 
 export type WorldEvent = { type: 'encounter' } | { type: 'zone'; zone: Zone } | null;
 
@@ -182,10 +185,13 @@ export class Overworld {
 
   private drawHero(ctx: CanvasRenderingContext2D, ts: number) {
     const px = this.x * ts, py = this.y * ts;
-    drawPlayer(ctx, px, py, ts * 0.3, {
-      t: this.t, moving: this.moving, face: this.face,
-      armor: GEAR[this.save.equip.armor]?.color ?? '#6fa8ff',
-    });
+    shadow(ctx, px, py, ts * 0.27);
+    if (!drawHero(ctx, this.save.equip.armor, px, py, ts / 1.35, this.face, this.moving, this.t)) {
+      drawPlayer(ctx, px, py, ts * 0.3, {
+        t: this.t, moving: this.moving, face: this.face,
+        armor: GEAR[this.save.equip.armor]?.color ?? '#6fa8ff',
+      });
+    }
     // Tall grass hides your feet — cute and tells you you're in encounter territory.
     if (this.world.tile(Math.floor(this.x), Math.floor(this.y - 0.1)) === T.GRASS) {
       const th = this.zone.theme;
@@ -265,6 +271,14 @@ export class Overworld {
     ctx.globalAlpha = 0.35;
     ctx.fillRect(px, py, ts + 1, ts + 1);
     ctx.globalAlpha = 1;
+    const tuft = frame(`env/grass_${zoneAtX(x).id}`);
+    if (tuft) {
+      for (let i = 0; i < 2; i++) {
+        const sway = Math.sin(this.t * 2.2 + x * 0.8 + y * 0.5 + i) * 0.08;
+        drawFrame(ctx, tuft, px + ts * (0.28 + i * 0.44), py + ts * (0.55 + i * 0.4), ts / TILE_BU, { rot: sway, flip: ((x + y + i) & 1) === 1 });
+      }
+      return;
+    }
     for (let i = 0; i < 2; i++) {
       const cx = px + ts * (0.28 + i * 0.44), by = py + ts * (0.55 + i * 0.4);
       const sway = Math.sin(this.t * 2.2 + x * 0.8 + y * 0.5 + i) * ts * 0.06;
@@ -290,6 +304,12 @@ export class Overworld {
   private drawDecor(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
     const cx = px + ts * (0.25 + hash2(x, y, 7) * 0.5), cy = py + ts * (0.3 + hash2(x, y, 8) * 0.5);
     const h = hash2(x, y, 9);
+    const names = { flower: ['flower0', 'flower1', 'flower2', 'flower3'], mush: ['mush0', 'mush1'], gem: ['gem0', 'gem1'], pebble: ['pebble0', 'pebble1'] }[th.decor];
+    const deco = frame(`env/${names[Math.floor(h * names.length)]}`);
+    if (deco) {
+      drawFrame(ctx, deco, cx, cy + ts * 0.1, ts / TILE_BU);
+      return;
+    }
     switch (th.decor) {
       case 'flower': {
         const cols = ['#ff8ab0', '#ffd35a', '#ffffff', '#b08aff'];
@@ -341,6 +361,12 @@ export class Overworld {
     const cx = (x + 0.5) * ts + (hash2(x, y, 12) - 0.5) * ts * 0.15;
     const by = (y + 0.92) * ts;
     const v = hash2(x, y, 13);
+    const sprite = frame(`env/${th.obstacle}${Math.floor(v * 3)}`);
+    if (sprite) {
+      shadow(ctx, cx, by - ts * 0.05, ts * 0.42);
+      drawFrame(ctx, sprite, cx, by - ts * 0.05, ts / TILE_BU, { flip: v > 0.5, rot: th.obstacle === 'tree' || th.obstacle === 'pine' ? Math.sin(this.t * 1.2 + x) * 0.012 : 0 });
+      return;
+    }
     switch (th.obstacle) {
       case 'tree': {
         shadow(ctx, cx, by, ts * 0.42);
@@ -442,6 +468,16 @@ export class Overworld {
 
   private drawObj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
     const x = o.x * ts, y = o.y * ts, w = o.w * ts, h = o.h * ts;
+    const labelAt = (text: string, top: number) => {
+      ctx.font = `900 ${Math.round(ts * 0.34)}px ui-rounded, "Nunito", system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = ts * 0.1;
+      ctx.strokeStyle = 'rgba(60,30,60,0.8)';
+      ctx.strokeText(text, x + w / 2, top - ts * 0.25);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(text, x + w / 2, top - ts * 0.25);
+    };
     const label = (text: string) => {
       ctx.font = `900 ${Math.round(ts * 0.34)}px ui-rounded, "Nunito", system-ui, sans-serif`;
       ctx.textAlign = 'center';
@@ -452,6 +488,30 @@ export class Overworld {
       ctx.fillStyle = '#fff';
       ctx.fillText(text, x + w / 2, y - ts * 0.9);
     };
+    const spriteName = { forge: 'forge', house: o.x < 10 ? 'house_pink' : 'house_blue', fountain: 'fountain', sign: 'sign', lair: 'lair' }[o.kind];
+    const sprite = frame(`env/${spriteName}`);
+    if (sprite) {
+      // Model origins sit in the middle of their footprint; push them back so their fronts line up with the collision box.
+      const back = { forge: 0.42, house: 0.42, fountain: 0.45, sign: 0.05, lair: 0.4 }[o.kind];
+      const ax = x + w / 2, ay = y + h - back * ts;
+      if (o.kind !== 'sign') shadow(ctx, ax, ay, w * 0.52, 0.2);
+      drawFrame(ctx, sprite, ax, ay, ts / TILE_BU);
+      const top = ay - sprite.ay * (ts / TILE_BU / sprite.ppu);
+      if (o.kind === 'forge') {
+        if (Math.random() < 0.08) this.fx.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
+        labelAt('⚒ Forge', top);
+      } else if (o.kind === 'fountain') {
+        for (let i = 0; i < 3; i++) {
+          const q = (this.t * 1.5 + i / 3) % 1;
+          ctx.fillStyle = `rgba(190,240,255,${1 - q})`;
+          ctx.beginPath();
+          ctx.arc(ax + (i - 1) * q * ts * 0.5, top + ts * 0.15 - Math.sin(q * Math.PI) * ts * 0.4 + q * ts * 0.5, ts * 0.07, 0, TAU);
+          ctx.fill();
+        }
+        labelAt('💧 Fountain', top);
+      } else if (o.kind === 'lair') labelAt(this.save.bossWins ? '🐉 Lair (rematch)' : '🐉 Dragon Lair', top);
+      return;
+    }
     switch (o.kind) {
       case 'forge':
       case 'house': {

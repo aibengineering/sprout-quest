@@ -6,7 +6,8 @@
     "dev": "bun run server.ts",
     "build": "bun run build.ts",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "art": "bash art/build.sh"
   },
   "devDependencies": {
     "@types/bun": "latest",

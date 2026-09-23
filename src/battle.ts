@@ -1,26 +1,27 @@
 // Real-time arena battles. Units are "arena pixels"; the arena is a circle of radius ARENA_R centered at (0, 0).
+import { drawFrame, drawHero, frame } from './assets';
 import type { Audio } from './audio';
 import { vibrate } from './audio';
-import { GEAR, MATS, MONSTERS, POTION_HEAL, type MatId, type MonsterDef, type MonsterKind, type Style, type Zone } from './data';
+import { GEAR, MATS, MONSTERS, POTION_HEAL, type Fx as Element, type Gear, type MatId, type MonsterDef, type MonsterKind, type Zone } from './data';
 import { Fx } from './fx';
 import type { Input } from './input';
 import { calcDamage, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from './rules';
-import { drawMonster, drawPlayer, drawWeapon, rrect } from './sprites';
+import { drawMonster, drawPlayer, drawWeapon, rrect, shadow } from './sprites';
 import type { SaveState } from './state';
+import { MOVESETS, tierScale, type Moveset, type Strike } from './weapons';
 import { hash2 } from './world';
 
 const TAU = Math.PI * 2;
 export const ARENA_R = 210;
-
-const WEAPONS: Record<Style, { range: number; arc: number; cd: number; mult: number; kb: number }> = {
-  sword: { range: 58, arc: 2.0, cd: 0.34, mult: 1, kb: 170 },
-  spear: { range: 88, arc: 0.75, cd: 0.42, mult: 1.1, kb: 130 },
-  wand: { range: 0, arc: 0, cd: 0.36, mult: 0.85, kb: 70 },
-  hammer: { range: 70, arc: TAU, cd: 0.75, mult: 1.5, kb: 280 },
-};
 const SKILL_CD = 4.5;
+/** Arena units per Blender unit for sprites (drawn a little larger than their hitboxes so they read on phones). */
+const UNIT = 34;
 
-export const SKILL_NAMES: Record<Style, string> = { sword: 'Spin', spear: 'Lunge', wand: 'Nova', hammer: 'Quake' };
+const easeOut = (q: number) => 1 - (1 - q) ** 3;
+const easeIn = (q: number) => q * q * q;
+const easeInOut = (q: number) => (q < 0.5 ? 4 * q * q * q : 1 - (-2 * q + 2) ** 3 / 2);
+const clamp01 = (q: number) => Math.max(0, Math.min(1, q));
+const angDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
 type EState =
   | 'idle' | 'hop' | 'windup' | 'charge' | 'move' | 'puff' | 'circle' | 'dash' | 'recover'
@@ -55,6 +56,10 @@ interface Enemy {
   deathT: number;
   seed: number;
   hitId: number;
+  burn: number;
+  burnDmg: number;
+  burnTick: number;
+  squash: number;
 }
 
 interface Proj {
@@ -63,8 +68,26 @@ interface Proj {
 }
 
 interface Hazard { x: number; y: number; r: number; t: number; delay: number; atk: number; mult: number; done: boolean }
-interface Ring { x: number; y: number; r0: number; r1: number; t: number; dur: number; color: string }
-interface Swing { t: number; dur: number; angle: number; arc: number; range: number; spin: boolean }
+interface Ring { x: number; y: number; r0: number; r1: number; t: number; dur: number; color: string; width?: number }
+
+/** A strike in progress. Hitboxes sweep with the weapon, so what you see is what you hit. */
+interface Swing {
+  s: Strike;
+  t: number;
+  aim: number;
+  id: number;
+  prevAng: number | null;
+  impacted: boolean;
+  skill: boolean;
+  /** Recent weapon angles during the active frames, for drawing the slash trail. */
+  trail: { ang: number; t: number }[];
+}
+
+/** Traveling shockwave from hammer slams. */
+interface Wave { x: number; y: number; dir: number; dist: number; range: number; width: number; speed: number; mult: number; id: number; spikeAt: number }
+interface Spike { x: number; y: number; t: number; life: number; size: number; tilt: number }
+interface Crack { pts: [number, number][]; t: number }
+interface Spark { x: number; y: number; t: number; size: number; color: string; rot: number }
 
 export interface Foe { kind: MonsterKind; lv: number; golden: boolean }
 
@@ -84,6 +107,24 @@ export interface BattleOutcome {
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
+/** Per-monster display scale so every model reads at a similar size to its hitbox. */
+const SPRITE_SCALE: Partial<Record<MonsterKind, number>> = { wolf: 1.4, bunny: 1.25, bat: 1.2, imp: 1.2, shroom: 1.1, dragon: 1.1 };
+
+const SKILLS: Record<'spin' | 'quake', Strike> = {
+  spin: { anim: 'spin', shape: 'arc', windup: 0.06, active: 0.3, recover: 0.16, range: 100, size: TAU, mult: 1.7, kb: 260, turns: 1.5, shake: 7, hitstop: 0.06, move: 0.6, stun: 0.3 },
+  quake: { anim: 'slam', shape: 'circle', windup: 0.36, active: 0.1, recover: 0.42, range: 0, reach: 0, size: 150, mult: 2.2, kb: 360, shake: 16, hitstop: 0.12, move: 0.1, stun: 1.3 },
+};
+
+const ELEMENT_COLORS: Record<Element, string[]> = {
+  none: ['#ffffff', '#e8eef8'],
+  nature: ['#8ad85a', '#c8f0a0'],
+  jelly: ['#8af09a', '#ffb4c8'],
+  crystal: ['#c8b0ff', '#9af0ff'],
+  stone: ['#c8b8a0', '#9aa0b0'],
+  fire: ['#ffb03a', '#ff5a2a'],
+  dragon: ['#ff5a4a', '#ffd35a'],
+};
+
 export class Battle {
   t = 0;
   intro = 1.2;
@@ -91,25 +132,39 @@ export class Battle {
   private done = false;
   private outcome: BattleOutcome | null = null;
   readonly stats: PlayerStats;
+  readonly weapon: Gear;
+  readonly moves: Moveset;
+  private tier: number;
+  private reach: number;
+  private element: Element;
   readonly p = {
     x: 0, y: 120, vx: 0, vy: 0, kx: 0, ky: 0, r: 12,
     hp: 0, face: -Math.PI / 2, moving: false,
-    atkCd: 0, atkBuffer: 0, skillCd: 1, dodgeCd: 0, dodgeT: 0, dodgeDir: 0, iframes: 0, hurtT: 0,
+    atkBuffer: 0, skillCd: 1, dodgeCd: 0, dodgeT: 0, dodgeDir: 0, iframes: 0, hurtT: 0,
     lungeT: 0, lungeDir: 0, lungeId: 0, potionCd: 0, regenAcc: 0,
+    whirlT: 0, whirlTick: 0, whirlAng: 0,
     swing: null as Swing | null,
+    combo: 0,
+    comboT: 0,
   };
   enemies: Enemy[] = [];
   private projs: Proj[] = [];
   private hazards: Hazard[] = [];
   private rings: Ring[] = [];
+  private waves: Wave[] = [];
+  private spikes: Spike[] = [];
+  private cracks: Crack[] = [];
+  private sparks: Spark[] = [];
   private fx = new Fx();
   private shake = 0;
   private hitstop = 0;
+  private punch = 0;
   private runCd = 0;
   private xp = 0;
   private drops: Partial<Record<MatId, number>> = {};
   private defeated: string[] = [];
   private hitCounter = 1;
+  private burstIds = new Set<number>();
   private weaponColor: string;
   private armorColor: string;
 
@@ -122,7 +177,12 @@ export class Battle {
   ) {
     this.stats = playerStats(save);
     this.p.hp = save.hp;
-    this.weaponColor = GEAR[save.equip.weapon]?.color ?? '#ccc';
+    this.weapon = GEAR[save.equip.weapon] ?? GEAR.twig;
+    this.moves = MOVESETS[this.weapon.style ?? 'sword'];
+    this.tier = this.weapon.tier ?? 0;
+    this.reach = tierScale(this.tier);
+    this.element = this.weapon.fx ?? 'none';
+    this.weaponColor = this.weapon.color ?? '#ccc';
     this.armorColor = GEAR[save.equip.armor]?.color ?? '#6fa8ff';
     const n = setup.foes.length;
     setup.foes.forEach((f, i) => {
@@ -136,6 +196,7 @@ export class Battle {
         x: Math.cos(a) * dist, y: Math.sin(a) * dist - 10, vx: 0, vy: 0, kx: 0, ky: 0,
         r: def.r, z: 0, state: initialState(f.kind), t: rand(0.3, 1.2), dir: 0, face: 1, orb: a, sub: 0, last: null,
         windup: 0, flash: 0, stun: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
+        burn: 0, burnDmg: 0, burnTick: 0, squash: 0,
       });
     });
   }
@@ -148,8 +209,15 @@ export class Battle {
     this.t += dt;
     this.fx.update(dt);
     this.shake = Math.max(0, this.shake - dt * 30);
+    this.punch = Math.max(0, this.punch - dt * 0.25);
     for (const r of this.rings) r.t += dt;
     this.rings = this.rings.filter((r) => r.t < r.dur);
+    for (const s of this.spikes) s.t += dt;
+    this.spikes = this.spikes.filter((s) => s.t < s.life);
+    for (const c of this.cracks) c.t += dt;
+    this.cracks = this.cracks.filter((c) => c.t < 1.2);
+    for (const s of this.sparks) s.t += dt;
+    this.sparks = this.sparks.filter((s) => s.t < 0.22);
     for (const e of this.enemies) if (e.dead) e.deathT -= dt;
     if (this.done) return;
     if (this.intro > 0) {
@@ -174,6 +242,7 @@ export class Battle {
     for (const e of this.enemies) this.updateEnemy(e, dt);
     this.separate();
     this.updateProjs(dt);
+    this.updateWaves(dt);
     this.updateHazards(dt);
     this.checkEnd();
   }
@@ -182,12 +251,9 @@ export class Battle {
 
   private updatePlayer(dt: number) {
     const p = this.p, st = this.stats, inp = this.input;
-    p.atkCd -= dt; p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt;
-    p.potionCd -= dt; p.atkBuffer -= dt; this.runCd -= dt;
-    if (p.swing) {
-      p.swing.t += dt;
-      if (p.swing.t >= p.swing.dur) p.swing = null;
-    }
+    p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt;
+    p.potionCd -= dt; p.atkBuffer -= dt; p.comboT -= dt; this.runCd -= dt;
+    if (p.comboT <= 0 && !p.swing) p.combo = 0;
     if (st.regen && p.hp < st.maxHp) {
       p.regenAcc += st.regen * dt;
       if (p.regenAcc >= 1) {
@@ -197,8 +263,15 @@ export class Battle {
     }
     const a = inp.axis();
     p.moving = Math.hypot(a.x, a.y) > 0.1;
-    if (p.moving && !p.swing) p.face = Math.atan2(a.y, a.x);
-    const speed = 150 * (1 + st.spd / 100);
+    const busy = !!p.swing || p.whirlT > 0;
+    if (p.moving && !busy) p.face = Math.atan2(a.y, a.x);
+    let speed = 150 * (1 + st.spd / 100);
+    if (p.swing) {
+      const sw = p.swing;
+      // Heavy weapons root you while they swing; recovery lets you move again.
+      speed *= sw.t < sw.s.windup + sw.s.active ? sw.s.move : 0.5 + sw.s.move * 0.5;
+    }
+    if (p.whirlT > 0) speed *= 0.75;
     if (p.dodgeT > 0) {
       p.dodgeT -= dt;
       p.vx = Math.cos(p.dodgeDir) * speed * 3;
@@ -206,13 +279,14 @@ export class Battle {
       if (Math.random() < 0.6) this.fx.burst(p.x, p.y - 4, 'rgba(255,255,255,0.8)', 1, 30, { size: 4, grav: 0, life: 0.3 });
     } else if (p.lungeT > 0) {
       p.lungeT -= dt;
-      p.vx = Math.cos(p.lungeDir) * speed * 4.5;
-      p.vy = Math.sin(p.lungeDir) * speed * 4.5;
+      p.vx = Math.cos(p.lungeDir) * 150 * 4.8;
+      p.vy = Math.sin(p.lungeDir) * 150 * 4.8;
+      this.trailPuff(p.x, p.y - 12);
       for (const e of this.enemies) {
         if (e.dead || e.hitId === p.lungeId) continue;
-        if (Math.hypot(e.x - p.x, e.y - e.r * 0.6 - (p.y - 10)) < e.r + 26) {
+        if (Math.hypot(e.x - p.x, e.y - e.r * 0.6 - (p.y - 10)) < e.r + 30 * this.reach) {
           e.hitId = p.lungeId;
-          this.hitEnemy(e, 2.0, p.lungeDir, 200);
+          this.hitEnemy(e, 2.1, p.lungeDir, 220, 0.2, p.lungeId, 0.07);
         }
       }
     } else {
@@ -224,28 +298,52 @@ export class Battle {
     p.y += (p.vy + p.ky) * dt;
     p.kx *= decay;
     p.ky *= decay;
+    this.clampPlayer();
+
+    if (p.swing) this.updateSwing(dt);
+    if (p.whirlT > 0) this.updateWhirl(dt);
+
+    if (inp.consume('dodge') && p.dodgeCd <= 0 && p.lungeT <= 0) {
+      // Dodging cancels a swing's recovery — but not a committed windup.
+      if (!p.swing || p.swing.t > p.swing.s.windup) {
+        p.swing = null;
+        p.dodgeDir = p.moving ? Math.atan2(a.y, a.x) : p.face + Math.PI;
+        p.dodgeT = 0.2;
+        p.iframes = Math.max(p.iframes, 0.32);
+        p.dodgeCd = 0.7;
+        this.audio.play('dodge');
+      }
+    }
+    if (inp.consume('attack')) p.atkBuffer = 0.25;
+    const wantAttack = p.atkBuffer > 0 || inp.isHeld('attack');
+    if (wantAttack && this.canStrike() && p.dodgeT <= 0 && p.whirlT <= 0 && p.lungeT <= 0) {
+      p.atkBuffer = 0;
+      const combo = this.moves.combo;
+      const idx = p.combo % combo.length;
+      p.combo = idx + 1;
+      this.startSwing(combo[idx], false, idx === combo.length - 1);
+    }
+    // Skills cancel whatever swing is in progress, so they always come out when pressed.
+    if (inp.consume('skill') && p.skillCd <= 0 && p.dodgeT <= 0 && p.whirlT <= 0 && p.lungeT <= 0) this.skill();
+    if (inp.consume('potion')) this.drinkPotion();
+    if (inp.consume('run')) this.tryRun();
+  }
+
+  private clampPlayer() {
+    const p = this.p;
     const d = Math.hypot(p.x, p.y);
     const maxD = ARENA_R - p.r;
     if (d > maxD) {
       p.x *= maxD / d;
       p.y *= maxD / d;
     }
+  }
 
-    if (inp.consume('dodge') && p.dodgeCd <= 0 && p.lungeT <= 0) {
-      p.dodgeDir = p.moving ? Math.atan2(a.y, a.x) : p.face + Math.PI;
-      p.dodgeT = 0.2;
-      p.iframes = Math.max(p.iframes, 0.32);
-      p.dodgeCd = 0.7;
-      this.audio.play('dodge');
-    }
-    if (inp.consume('attack')) p.atkBuffer = 0.18;
-    if ((p.atkBuffer > 0 || inp.isHeld('attack')) && p.atkCd <= 0 && p.dodgeT <= 0) {
-      p.atkBuffer = 0;
-      this.attack();
-    }
-    if (inp.consume('skill') && p.skillCd <= 0 && p.dodgeT <= 0) this.skill();
-    if (inp.consume('potion')) this.drinkPotion();
-    if (inp.consume('run')) this.tryRun();
+  /** You can chain into the next strike once the current one is into its recovery. */
+  private canStrike() {
+    const sw = this.p.swing;
+    if (!sw) return true;
+    return sw.t >= sw.s.windup + sw.s.active + sw.s.recover * 0.35;
   }
 
   private nearestEnemy(maxD = 320): Enemy | null {
@@ -263,83 +361,278 @@ export class Battle {
     return e ? Math.atan2(e.y - e.r * 0.6 - (this.p.y - 10), e.x - this.p.x) : this.p.face;
   }
 
-  private attack() {
-    const p = this.p, st = this.stats, W = WEAPONS[st.style];
-    const ang = this.aim();
-    p.face = ang;
-    p.atkCd = W.cd;
-    p.swing = { t: 0, dur: Math.min(0.28, W.cd * 0.8), angle: ang, arc: W.arc, range: W.range, spin: false };
-    if (st.style === 'wand') {
-      this.shoot(ang, W.mult);
-      this.audio.play('shoot');
-      return;
-    }
-    this.audio.play('swing');
-    this.arcHit(ang, W.arc, W.range, W.mult, W.kb, 0);
-    if (st.style === 'hammer') {
-      this.rings.push({ x: p.x, y: p.y, r0: 10, r1: W.range + 10, t: 0, dur: 0.3, color: '255,255,255' });
-      this.shake = Math.max(this.shake, 4);
+  private startSwing(s: Strike, skill: boolean, finisher: boolean) {
+    const p = this.p;
+    const aim = this.aim();
+    p.face = aim;
+    p.swing = { s, t: 0, aim, id: ++this.hitCounter, prevAng: null, impacted: false, skill, trail: [] };
+    if (finisher && !skill) this.punch = Math.max(this.punch, 0.02);
+  }
+
+  /** The weapon's angle, forward offset and scale at this moment of the swing — drives both visuals and hitboxes. */
+  private pose(sw: Swing): { ang: number; off: number; scale: number } {
+    const s = sw.s, aim = sw.aim;
+    const qw = clamp01(sw.t / Math.max(0.001, s.windup));
+    const qa = clamp01((sw.t - s.windup) / s.active);
+    const inActive = sw.t >= s.windup;
+    const arc = s.size;
+    switch (s.anim) {
+      case 'slashR':
+      case 'slashL': {
+        const d = s.anim === 'slashR' ? 1 : -1;
+        const a0 = aim - (arc / 2) * d, a1 = aim + (arc / 2) * d;
+        if (!inActive) return { ang: a0 - 0.45 * d * easeOut(qw), off: 0, scale: 1 };
+        return { ang: a0 - 0.45 * d + (a1 - a0 + 0.45 * d) * easeOut(qa), off: 0, scale: 1 };
+      }
+      case 'chop':
+      case 'backchop': {
+        // Heavy overhead: lift way back (sprite grows to read as "raised"), then accelerate through.
+        const d = s.anim === 'chop' ? 1 : -1;
+        const a0 = aim - (arc / 2) * d, a1 = aim + (arc / 2) * d;
+        if (!inActive) return { ang: a0 - 0.9 * d * easeOut(qw), off: -4 * qw, scale: 1 + 0.25 * easeOut(qw) };
+        return { ang: a0 - 0.9 * d + (a1 - a0 + 0.9 * d) * easeIn(qa), off: 6 * qa, scale: 1.25 - 0.25 * qa };
+      }
+      case 'thrust': {
+        if (!inActive) return { ang: aim, off: -12 * easeOut(qw), scale: 1 };
+        const rec = clamp01((sw.t - s.windup - s.active) / Math.max(0.001, s.recover));
+        return { ang: aim, off: -12 + (s.range * 0.32 * this.reach + 12) * easeOut(qa) * (1 - rec * 0.7), scale: 1 };
+      }
+      case 'slam': {
+        // Over the top: swing from behind the head down onto the target.
+        const side = Math.cos(aim) >= 0 ? -1 : 1;
+        const back = aim + Math.PI * side;
+        if (!inActive) return { ang: aim + (back - aim) * easeOut(qw) * 0.95, off: 0, scale: 1 + 0.4 * easeOut(qw) };
+        return { ang: aim + (back - aim) * 0.95 * (1 - easeIn(qa)), off: 6 * qa, scale: 1.4 - 0.5 * easeIn(qa) };
+      }
+      case 'spin': {
+        const turns = s.turns ?? 1;
+        if (!inActive) return { ang: aim - 0.7 * easeOut(qw), off: 0, scale: 1 };
+        return { ang: aim - 0.7 + (turns * TAU + 0.7) * easeInOut(qa), off: 0, scale: 1.05 };
+      }
+      case 'cast':
+        return { ang: aim, off: inActive ? 10 * Math.sin(qa * Math.PI) : -4 * qw, scale: 1 };
     }
   }
 
-  private shoot(ang: number, mult: number) {
-    const p = this.p;
-    this.projs.push({
-      x: p.x + Math.cos(ang) * 14, y: p.y - 12 + Math.sin(ang) * 14,
-      vx: Math.cos(ang) * 380, vy: Math.sin(ang) * 380, r: 7,
-      atk: 0, mult, owner: 'p', life: 1.2, color: this.weaponColor,
-    });
+  private updateSwing(dt: number) {
+    const p = this.p, sw = p.swing!, s = sw.s;
+    const wasWindup = sw.t < s.windup;
+    sw.t += dt;
+    const total = s.windup + s.active + s.recover;
+    const activeEnd = s.windup + s.active;
+    if (wasWindup && sw.t >= s.windup) this.onActiveStart(sw);
+    if (sw.t >= s.windup && sw.t - dt < activeEnd) {
+      const pose = this.pose(sw);
+      if (s.lunge) {
+        const step = (s.lunge / s.active) * dt;
+        p.x += Math.cos(sw.aim) * step;
+        p.y += Math.sin(sw.aim) * step;
+        this.clampPlayer();
+      }
+      if (s.shape === 'arc') {
+        sw.trail.push({ ang: pose.ang, t: this.t });
+        if (sw.prevAng !== null) this.sweepHit(sw, sw.prevAng, pose.ang);
+        sw.prevAng = pose.ang;
+      } else if (s.shape === 'line') {
+        const q = clamp01((sw.t - s.windup) / s.active);
+        this.lineHit(sw, s.range * this.reach * easeOut(q), s.size * this.reach);
+      }
+    }
+    if (s.shape === 'circle' && !sw.impacted && sw.t >= activeEnd) this.impact(sw);
+    sw.trail = sw.trail.filter((k) => this.t - k.t < 0.14);
+    if (sw.t >= total) {
+      p.swing = null;
+      p.comboT = this.moves.window;
+    }
   }
 
-  private arcHit(ang: number, arc: number, range: number, mult: number, kb: number, stun: number) {
-    const p = this.p;
+  private onActiveStart(sw: Swing) {
+    const s = sw.s, p = this.p;
+    const heavy = s.mult >= 1.5 || this.moves.combo[0].windup > 0.12;
+    this.audio.play(s.shape === 'shot' ? 'shoot' : heavy ? 'heavy' : 'swing');
+    if (s.shape === 'shot') {
+      for (const off of s.shots ?? [0]) this.shoot(sw.aim + off, s.mult, s.size * (1 + this.tier * 0.06));
+    }
+    if (s.lunge) this.fx.burst(p.x, p.y, '#e8dcc8', 5, 60, { size: 3, grav: 0, life: 0.3 });
+  }
+
+  /** Hits every enemy whose direction falls inside the angle swept this frame. */
+  private sweepHit(sw: Swing, a0: number, a1: number) {
+    const p = this.p, s = sw.s;
+    const range = s.range * this.reach;
+    const lo = Math.min(a0, a1), hi = Math.max(a0, a1);
+    const full = hi - lo >= TAU - 0.01;
     for (const e of this.enemies) {
-      if (e.dead) continue;
+      if (e.dead || e.hitId === sw.id) continue;
       const ex = e.x - p.x, ey = e.y - e.r * 0.6 - (p.y - 10);
       const d = Math.hypot(ex, ey) - e.r;
       if (d > range) continue;
-      if (arc < TAU) {
-        let diff = Math.atan2(ey, ex) - ang;
-        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-        // Enemies hugging the player always count, even if slightly outside the arc.
-        if (Math.abs(diff) > arc / 2 && d > 6) continue;
-      }
-      this.hitEnemy(e, mult, Math.atan2(ey, ex), kb, stun);
+      let ea = Math.atan2(ey, ex);
+      while (ea < lo) ea += TAU;
+      while (ea - TAU >= lo) ea -= TAU;
+      // Enemies hugging you count too (their angle is unreliable up close).
+      if (!full && ea > hi + e.r / Math.max(20, d + e.r) && d > 8) continue;
+      e.hitId = sw.id;
+      this.hitEnemy(e, s.mult, Math.atan2(ey, ex), s.kb, s.stun ?? 0, sw.id, s.hitstop);
     }
   }
 
+  private lineHit(sw: Swing, reach: number, width: number) {
+    const p = this.p, s = sw.s;
+    const cx = Math.cos(sw.aim), cy = Math.sin(sw.aim);
+    for (const e of this.enemies) {
+      if (e.dead || e.hitId === sw.id) continue;
+      const ex = e.x - p.x, ey = e.y - e.r * 0.6 - (p.y - 10);
+      const along = ex * cx + ey * cy;
+      const perp = Math.abs(-ex * cy + ey * cx);
+      if (along < -e.r || along > reach + e.r || perp > width / 2 + e.r) continue;
+      e.hitId = sw.id;
+      this.hitEnemy(e, s.mult, sw.aim, s.kb, s.stun ?? 0, sw.id, s.hitstop);
+    }
+  }
+
+  /** Hammer impact: damage ring at the head, dust, cracks and a traveling shockwave. */
+  private impact(sw: Swing) {
+    sw.impacted = true;
+    const p = this.p, s = sw.s;
+    const reach = (s.reach ?? 0) * this.reach;
+    const ix = p.x + Math.cos(sw.aim) * reach, iy = p.y + Math.sin(sw.aim) * reach;
+    const radius = s.size * this.reach;
+    for (const e of this.enemies) {
+      if (e.dead || e.hitId === sw.id) continue;
+      if (Math.hypot(e.x - ix, e.y - iy) > radius + e.r) continue;
+      e.hitId = sw.id;
+      this.hitEnemy(e, s.mult, Math.atan2(e.y - iy, e.x - ix), s.kb, s.stun ?? 0, sw.id, s.hitstop);
+    }
+    const col = ELEMENT_COLORS[this.element];
+    this.rings.push({ x: ix, y: iy, r0: 8, r1: radius * 1.2, t: 0, dur: 0.35, color: '255,245,220', width: 8 });
+    this.fx.burst(ix, iy, '#c8b8a0', 14 + this.tier * 3, 200, { size: 5, life: 0.5 });
+    this.fx.burst(ix, iy, col[0], 6 + this.tier * 2, 160, { size: 4, star: true, life: 0.5 });
+    this.addCrack(ix, iy, sw.aim, radius * 1.4);
+    this.shake = Math.max(this.shake, s.shake * (1 + this.tier * 0.1));
+    this.audio.play('boom');
+    vibrate(30);
+    if (s.wave) {
+      const w = s.wave;
+      const width = w.width * this.reach * (this.element === 'stone' ? 1.25 : 1);
+      this.waves.push({ x: ix, y: iy, dir: sw.aim, dist: 0, range: w.range * this.reach, width, speed: w.speed, mult: w.mult, id: ++this.hitCounter, spikeAt: 0 });
+    }
+    if (sw.skill) {
+      // Quake: shockwaves burst out in every direction.
+      for (let i = 0; i < 8; i++) {
+        const dir = sw.aim + (i / 8) * TAU;
+        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: 190 * this.reach, width: 40, speed: 560, mult: 0.9, id: ++this.hitCounter, spikeAt: 0 });
+      }
+    }
+  }
+
+  private addCrack(x: number, y: number, dir: number, len: number) {
+    for (let k = 0; k < 3; k++) {
+      const a = dir + (k - 1) * 0.9 + rand(-0.3, 0.3);
+      const pts: [number, number][] = [[x, y]];
+      let cx = x, cy = y;
+      for (let i = 0; i < 4; i++) {
+        const aa = a + rand(-0.5, 0.5);
+        cx += Math.cos(aa) * (len / 4);
+        cy += Math.sin(aa) * (len / 4) * 0.7;
+        pts.push([cx, cy]);
+      }
+      this.cracks.push({ pts, t: 0 });
+    }
+  }
+
+  private updateWaves(dt: number) {
+    for (const w of this.waves) {
+      w.dist += w.speed * dt;
+      const cx = Math.cos(w.dir), cy = Math.sin(w.dir);
+      while (w.spikeAt < Math.min(w.dist, w.range)) {
+        const sx = w.x + cx * w.spikeAt, sy = w.y + cy * w.spikeAt;
+        this.spikes.push({ x: sx + rand(-4, 4), y: sy + rand(-3, 3), t: 0, life: 0.5, size: w.width * rand(0.32, 0.45), tilt: rand(-0.3, 0.3) });
+        if (Math.random() < 0.5) this.fx.burst(sx, sy, '#c8b8a0', 2, 90, { size: 3, life: 0.4 });
+        w.spikeAt += 15;
+      }
+      for (const e of this.enemies) {
+        if (e.dead || e.hitId === w.id) continue;
+        const ex = e.x - w.x, ey = e.y - w.y;
+        const along = ex * cx + ey * cy, perp = Math.abs(-ex * cy + ey * cx);
+        if (along < w.dist - 40 || along > w.dist + e.r || perp > w.width / 2 + e.r) continue;
+        e.hitId = w.id;
+        this.hitEnemy(e, w.mult, w.dir, 200, 0.25, w.id, 0.04);
+      }
+    }
+    this.waves = this.waves.filter((w) => w.dist < w.range);
+  }
+
   private skill() {
-    const p = this.p, st = this.stats;
+    const p = this.p;
     p.skillCd = SKILL_CD;
+    p.swing = null;
     this.audio.play('skill');
     const ang = this.aim();
-    switch (st.style) {
-      case 'sword':
-        p.swing = { t: 0, dur: 0.35, angle: ang, arc: TAU, range: 95, spin: true };
-        this.arcHit(ang, TAU, 95, 1.6, 240, 0.3);
-        this.rings.push({ x: p.x, y: p.y - 10, r0: 20, r1: 100, t: 0, dur: 0.3, color: '255,255,200' });
+    const col = ELEMENT_COLORS[this.element];
+    switch (this.moves.skill) {
+      case 'spin':
+        this.startSwing(SKILLS.spin, true, true);
+        this.rings.push({ x: p.x, y: p.y - 10, r0: 20, r1: 110 * this.reach, t: 0, dur: 0.35, color: '255,255,200' });
+        if (this.element === 'fire' || this.element === 'dragon') {
+          for (let i = 0; i < 16; i++) {
+            const a = (i / 16) * TAU;
+            this.fx.burst(p.x + Math.cos(a) * 80, p.y + Math.sin(a) * 60, col[i % 2], 2, 80, { size: 5, grav: -80, life: 0.6 });
+          }
+        }
         break;
-      case 'spear':
-        p.lungeT = 0.22;
+      case 'lunge':
+        p.lungeT = 0.24;
         p.lungeDir = ang;
         p.lungeId = ++this.hitCounter;
-        p.iframes = Math.max(p.iframes, 0.35);
+        p.iframes = Math.max(p.iframes, 0.38);
         p.face = ang;
-        p.swing = { t: 0, dur: 0.25, angle: ang, arc: 0.3, range: 90, spin: false };
         break;
-      case 'wand':
-        for (let i = 0; i < 12; i++) this.shoot(ang + (i / 12) * TAU, 1.1);
-        this.rings.push({ x: p.x, y: p.y - 10, r0: 10, r1: 60, t: 0, dur: 0.3, color: '160,230,255' });
+      case 'whirl':
+        p.whirlT = 1.2;
+        p.whirlTick = 0;
+        p.whirlAng = ang;
         break;
-      case 'hammer':
-        p.swing = { t: 0, dur: 0.3, angle: ang, arc: TAU, range: 150, spin: false };
-        this.arcHit(ang, TAU, 150, 2.2, 320, 1.3);
-        this.rings.push({ x: p.x, y: p.y, r0: 20, r1: 160, t: 0, dur: 0.45, color: '255,200,120' });
-        this.fx.burst(p.x, p.y, '#b8a080', 24, 220, { size: 5 });
-        this.shake = 12;
-        this.audio.play('boom');
+      case 'quake':
+        this.startSwing(SKILLS.quake, true, true);
+        break;
+      case 'nova':
+        for (let i = 0; i < 14; i++) this.shoot(ang + (i / 14) * TAU, 1.1, 8);
+        this.rings.push({ x: p.x, y: p.y - 10, r0: 10, r1: 70, t: 0, dur: 0.3, color: '160,230,255' });
         break;
     }
+  }
+
+  private updateWhirl(dt: number) {
+    const p = this.p;
+    p.whirlT -= dt;
+    p.whirlTick -= dt;
+    p.whirlAng += dt * 20;
+    p.face = p.whirlAng;
+    if (p.whirlTick <= 0) {
+      p.whirlTick = 0.16;
+      const id = ++this.hitCounter;
+      const range = 92 * this.reach;
+      for (const e of this.enemies) {
+        if (e.dead) continue;
+        if (Math.hypot(e.x - p.x, e.y - e.r * 0.6 - (p.y - 10)) - e.r > range) continue;
+        this.hitEnemy(e, 0.8, Math.atan2(e.y - p.y, e.x - p.x), 160, 0.1, id, 0.02);
+      }
+      this.audio.play('swing');
+    }
+  }
+
+  private shoot(ang: number, mult: number, r: number) {
+    const p = this.p;
+    this.projs.push({
+      x: p.x + Math.cos(ang) * 16, y: p.y - 12 + Math.sin(ang) * 16,
+      vx: Math.cos(ang) * 400, vy: Math.sin(ang) * 400, r,
+      atk: 0, mult, owner: 'p', life: 1.2, color: this.weapon.trail ?? this.weaponColor,
+    });
+  }
+
+  private trailPuff(x: number, y: number) {
+    if (Math.random() < 0.7) this.fx.burst(x, y, this.weapon.trail ?? '#fff', 1, 40, { size: 5, grav: 0, life: 0.3 });
   }
 
   private drinkPotion() {
@@ -378,22 +671,63 @@ export class Battle {
     }
   }
 
-  private hitEnemy(e: Enemy, mult: number, ang: number, kb: number, stun = 0) {
+  private hitEnemy(e: Enemy, mult: number, ang: number, kb: number, stun = 0, strikeId = 0, hitstop = 0.035) {
     if (e.dead) return;
     const st = this.stats;
-    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult, 0.08 + st.luck * 0.2);
+    const critChance = 0.08 + st.luck * 0.2 + (this.element === 'crystal' ? 0.12 : 0);
+    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult, critChance);
     e.hp -= dmg;
     e.flash = 0.12;
+    e.squash = 0.18;
     const kbk = e.def.boss ? 0.12 : 1;
     e.kx += Math.cos(ang) * kb * kbk;
     e.ky += Math.sin(ang) * kb * kbk;
     if (stun) e.stun = Math.max(e.stun, e.def.boss ? stun * 0.3 : stun);
-    this.fx.text(e.x, e.y - e.r * 2 - e.z, crit ? `${dmg}!` : `${dmg}`, crit ? '#ffd84a' : '#ffffff', crit ? 22 : 17);
-    this.fx.burst(e.x, e.y - e.r * 0.8 - e.z, '#ffffff', crit ? 9 : 5, 140, { size: 3 });
+    const hx = e.x, hy = e.y - e.r * 0.8 - e.z;
+    const heavy = mult >= 1.5;
+    const size = (crit ? 22 : 17) * (heavy ? 1.2 : 1);
+    this.fx.text(e.x, e.y - e.r * 2 - e.z, crit ? `${dmg}!` : `${dmg}`, crit ? '#ffd84a' : '#ffffff', size);
+    const col = ELEMENT_COLORS[this.element];
+    this.sparks.push({ x: hx, y: hy, t: 0, size: (14 + this.tier * 3) * (heavy ? 1.35 : 1) * (crit ? 1.3 : 1), color: col[0], rot: Math.random() * TAU });
+    this.fx.burst(hx, hy, '#ffffff', crit ? 9 : 5, 140, { size: 3 });
+    if (this.tier >= 1) this.fx.burst(hx, hy, col[1], 2 + this.tier, 120, { size: 3, star: this.tier >= 3 });
+    switch (this.element) {
+      case 'fire':
+      case 'dragon':
+        e.burn = 1.6;
+        e.burnDmg = Math.max(1, Math.round(dmg * 0.12));
+        this.fx.burst(hx, hy, '#ff9a3a', 5, 120, { size: 4, grav: -60 });
+        break;
+      case 'crystal':
+        if (crit) this.fx.burst(hx, hy, '#c8f0ff', 10, 200, { size: 4, star: true });
+        break;
+    }
+    // Dragon weapons: once per strike, dragonfire erupts at the first enemy hit.
+    if (this.element === 'dragon' && strikeId && !this.burstIds.has(strikeId)) {
+      this.burstIds.add(strikeId);
+      this.dragonBurst(e.x, e.y, e);
+    }
     this.audio.play(crit ? 'crit' : 'hit');
-    this.hitstop = Math.max(this.hitstop, crit ? 0.07 : 0.035);
-    this.shake = Math.max(this.shake, crit ? 6 : 3);
+    this.hitstop = Math.max(this.hitstop, hitstop * (crit ? 1.4 : 1));
+    this.shake = Math.max(this.shake, (crit ? 5 : 3) * (heavy ? 1.6 : 1) * (1 + this.tier * 0.08));
     if (e.hp <= 0) this.kill(e);
+  }
+
+  private dragonBurst(x: number, y: number, skip: Enemy) {
+    this.rings.push({ x, y, r0: 10, r1: 55, t: 0, dur: 0.3, color: '255,140,60', width: 7 });
+    this.fx.burst(x, y - 10, '#ff7a3a', 16, 180, { size: 6, grav: -120, life: 0.6 });
+    this.fx.burst(x, y - 10, '#ffd35a', 8, 120, { size: 5, star: true });
+    for (const o of this.enemies) {
+      if (o === skip || o.dead) continue;
+      if (Math.hypot(o.x - x, o.y - y) > 55 + o.r) continue;
+      const { dmg } = calcDamage(this.stats.atk, o.dfn, 0.5, 0);
+      o.hp -= dmg;
+      o.flash = 0.1;
+      o.burn = 1.6;
+      o.burnDmg = Math.max(1, Math.round(dmg * 0.12));
+      this.fx.text(o.x, o.y - o.r * 2, `${dmg}`, '#ffb03a', 15);
+      if (o.hp <= 0) this.kill(o);
+    }
   }
 
   private kill(e: Enemy) {
@@ -401,6 +735,7 @@ export class Battle {
     e.hp = 0;
     e.deathT = 0.45;
     e.windup = 0;
+    e.burn = 0;
     const cols: Record<MonsterKind, string> = {
       slime: '#6fdc7a', magma: '#ff7a3a', bunny: '#ffffff', shroom: '#e8505a', wolf: '#9aa4c8',
       bat: '#7a5ab8', golem: '#9aa0b0', imp: '#e8505a', dragon: '#e8603c',
@@ -470,6 +805,21 @@ export class Battle {
     if (e.dead) return;
     const p = this.p;
     e.flash -= dt;
+    e.squash = Math.max(0, e.squash - dt);
+    if (e.burn > 0) {
+      e.burn -= dt;
+      e.burnTick -= dt;
+      if (e.burnTick <= 0) {
+        e.burnTick = 0.4;
+        e.hp -= e.burnDmg;
+        e.flash = 0.05;
+        this.fx.text(e.x + rand(-8, 8), e.y - e.r * 2 - e.z, `${e.burnDmg}`, '#ffb03a', 13);
+        if (e.hp <= 0) {
+          this.kill(e);
+          return;
+        }
+      }
+    }
     const decay = Math.exp(-8 * dt);
     e.x += e.kx * dt;
     e.y += e.ky * dt;
@@ -786,7 +1136,7 @@ export class Battle {
         for (const e of this.enemies) {
           if (e.dead) continue;
           if (Math.hypot(pr.x - e.x, pr.y - (e.y - e.r * 0.7 - e.z)) < pr.r + e.r) {
-            this.hitEnemy(e, pr.mult, Math.atan2(pr.vy, pr.vx), WEAPONS.wand.kb);
+            this.hitEnemy(e, pr.mult, Math.atan2(pr.vy, pr.vx), 70, 0, 0, 0.025);
             this.fx.burst(pr.x, pr.y, pr.color, 6, 100, { star: true, size: 3 });
             pr.life = 0;
             break;
@@ -829,7 +1179,8 @@ export class Battle {
 
   render(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
     const th = this.setup.zone.theme;
-    const { k, cx, cy } = this.layout(vw, vh);
+    const { k: k0, cx, cy } = this.layout(vw, vh);
+    const k = k0 * (1 + this.punch);
     ctx.fillStyle = th.outside;
     ctx.fillRect(0, 0, vw, vh);
     const sx = (Math.random() - 0.5) * this.shake, sy = (Math.random() - 0.5) * this.shake;
@@ -838,6 +1189,17 @@ export class Battle {
     ctx.scale(k, k);
     this.drawArena(ctx, vw / k, vh / k);
 
+    // Ground cracks from hammer impacts
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const c of this.cracks) {
+      ctx.strokeStyle = `rgba(60,35,50,${0.45 * (1 - c.t / 1.2)})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      c.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.stroke();
+    }
+
     // Telegraphed danger zones
     for (const h of this.hazards) {
       const prog = Math.min(1, h.t / h.delay);
@@ -845,7 +1207,7 @@ export class Battle {
       ctx.beginPath();
       ctx.arc(h.x, h.y, h.r, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = `rgba(255,70,60,${0.25})`;
+      ctx.fillStyle = 'rgba(255,70,60,0.25)';
       ctx.beginPath();
       ctx.arc(h.x, h.y, h.r * prog, 0, TAU);
       ctx.fill();
@@ -875,6 +1237,7 @@ export class Battle {
       if (e.dead && e.deathT <= 0) continue;
       actors.push({ y: e.y, draw: () => this.drawEnemy(ctx, e) });
     }
+    for (const s of this.spikes) actors.push({ y: s.y, draw: () => this.drawSpike(ctx, s) });
     actors.push({ y: this.p.y, draw: () => this.drawHero(ctx) });
     actors.sort((a, b) => a.y - b.y);
     for (const a of actors) a.draw();
@@ -896,12 +1259,14 @@ export class Battle {
     }
     for (const r of this.rings) {
       const q = r.t / r.dur;
+      const rad = r.r0 + (r.r1 - r.r0) * easeOut(q);
       ctx.strokeStyle = `rgba(${r.color},${1 - q})`;
-      ctx.lineWidth = 6 * (1 - q) + 1;
+      ctx.lineWidth = (r.width ?? 6) * (1 - q) + 1;
       ctx.beginPath();
-      ctx.ellipse(r.x, r.y, r.r0 + (r.r1 - r.r0) * q, (r.r0 + (r.r1 - r.r0) * q) * 0.6, 0, 0, TAU);
+      ctx.ellipse(r.x, r.y, rad, rad * 0.62, 0, 0, TAU);
       ctx.stroke();
     }
+    for (const s of this.sparks) this.drawSpark(ctx, s);
     this.fx.draw(ctx);
     ctx.restore();
 
@@ -911,12 +1276,17 @@ export class Battle {
   private drawArena(ctx: CanvasRenderingContext2D, w: number, h: number) {
     const th = this.setup.zone.theme;
     const R = ARENA_R;
+    const tuft = frame(`env/grass_${this.setup.zone.id}`) ?? frame('env/grass_meadow');
     // Scenery tufts outside the ring.
     ctx.fillStyle = th.grass;
     for (let i = 0; i < 90; i++) {
       const x = (hash2(i, 1, 3) - 0.5) * w * 1.1, y = (hash2(i, 2, 3) - 0.5) * h * 1.1;
       if (Math.hypot(x, y) < R + 30) continue;
       const sway = Math.sin(this.t * 2 + i) * 2;
+      if (tuft) {
+        drawFrame(ctx, tuft, x, y, 30, { rot: sway * 0.02 });
+        continue;
+      }
       ctx.beginPath();
       ctx.moveTo(x - 7, y);
       ctx.lineTo(x - 3 + sway, y - 14);
@@ -970,30 +1340,63 @@ export class Battle {
 
   private drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy) {
     const alpha = e.dead ? Math.max(0, e.deathT / 0.45) : 1;
-    ctx.save();
-    if (e.dead) {
-      const s = 1 + (1 - alpha) * 0.4;
-      ctx.translate(e.x, e.y);
-      ctx.scale(s, 1 / s);
-      ctx.translate(-e.x, -e.y);
+    const fi = Math.floor(this.t * (e.def.boss ? 5 : 7) + e.seed) % 6;
+    const f = frame(`mon/${e.kind}${e.golden ? '_gold' : ''}/${fi}`);
+    const flying = e.kind === 'bat' || e.kind === 'imp';
+    if (f) {
+      shadow(ctx, e.x, e.y, e.r * (flying ? 0.7 : 1.05) * (1 - Math.min(0.4, e.z / 60)));
+      let sxk = 1, syk = 1;
+      if (e.squash > 0) {
+        sxk = 1 + e.squash * 1.3;
+        syk = 1 - e.squash * 0.9;
+      }
+      if (e.windup > 0) {
+        sxk *= 1 + e.windup * 0.12;
+        syk *= 1 - e.windup * 0.1;
+      }
+      if ((e.kind === 'slime' || e.kind === 'magma') && e.z > 2) {
+        sxk *= 0.9;
+        syk *= 1.12;
+      }
+      if (e.dead) {
+        const s = 1 + (1 - alpha) * 0.5;
+        sxk *= s;
+        syk /= s;
+      }
+      const shake = e.windup > 0 ? Math.sin(this.t * 60) * e.r * 0.08 * e.windup : 0;
+      drawFrame(ctx, f, e.x + shake, e.y - e.z, UNIT * (SPRITE_SCALE[e.kind] ?? 1), {
+        flip: e.face < 0, alpha, sx: sxk, sy: syk,
+        flash: e.flash > 0 || (e.dead && alpha > 0.7) ? 1 : 0,
+        tint: e.burn > 0 ? '#ff7a2a' : e.windup > 0.5 ? '#ff4a4a' : undefined,
+        tintAmount: e.burn > 0 ? 0.25 + Math.sin(this.t * 20) * 0.1 : (e.windup - 0.5) * 0.5,
+      });
+    } else {
+      ctx.save();
+      if (e.dead) {
+        const s = 1 + (1 - alpha) * 0.4;
+        ctx.translate(e.x, e.y);
+        ctx.scale(s, 1 / s);
+        ctx.translate(-e.x, -e.y);
+      }
+      drawMonster(ctx, e.kind, e.x, e.y, e.r, {
+        t: this.t, flash: e.flash > 0 || (e.dead && alpha > 0.7), golden: e.golden, dir: e.face,
+        z: e.z, windup: e.windup, seed: e.seed, alpha,
+      });
+      ctx.restore();
     }
-    drawMonster(ctx, e.kind, e.x, e.y, e.r, {
-      t: this.t, flash: e.flash > 0 || (e.dead && alpha > 0.7), golden: e.golden, dir: e.face,
-      z: e.z, windup: e.windup, seed: e.seed, alpha,
-    });
-    ctx.restore();
     if (e.golden && !e.dead && Math.random() < 0.15) this.fx.burst(e.x + rand(-e.r, e.r), e.y - rand(0, e.r * 2), '#fff6a0', 1, 20, { star: true, size: 3, grav: -20 });
+    if (e.burn > 0 && !e.dead && Math.random() < 0.3) this.fx.burst(e.x + rand(-e.r, e.r) * 0.6, e.y - rand(0, e.r * 1.5) - e.z, Math.random() < 0.5 ? '#ffb03a' : '#ff5a2a', 1, 30, { size: 4, grav: -90, life: 0.5 });
     if (e.stun > 0 && !e.dead) {
       for (let i = 0; i < 3; i++) {
         const a = this.t * 5 + (i / 3) * TAU;
         ctx.fillStyle = '#ffe04a';
         ctx.beginPath();
-        ctx.arc(e.x + Math.cos(a) * e.r * 0.8, e.y - e.r * 2.2 + Math.sin(a) * 4, 3, 0, TAU);
+        ctx.arc(e.x + Math.cos(a) * e.r * 0.8, e.y - e.r * 2.4 - e.z + Math.sin(a) * 4, 3, 0, TAU);
         ctx.fill();
       }
     }
     if (!e.dead && !e.def.boss && e.hp < e.maxHp) {
-      const w = Math.max(26, e.r * 2), y = e.y - e.r * 2.4 - e.z - 6;
+      const w = Math.max(26, e.r * 2), y = e.y - e.r * 2.6 - e.z - 6;
       ctx.fillStyle = 'rgba(40,20,50,0.7)';
       rrect(ctx, e.x - w / 2 - 1.5, y - 1.5, w + 3, 7, 3.5);
       ctx.fill();
@@ -1003,58 +1406,195 @@ export class Battle {
     }
   }
 
+  private drawSpike(ctx: CanvasRenderingContext2D, s: Spike) {
+    const grow = s.t < 0.07 ? s.t / 0.07 : s.t > s.life - 0.18 ? Math.max(0, (s.life - s.t) / 0.18) : 1;
+    const h = s.size * 1.5 * easeOut(grow), w = s.size * 0.55;
+    const pal: Record<string, [string, string]> = {
+      jelly: ['#ff9ab0', '#e8505a'], fire: ['#ff9a4a', '#c8402a'], dragon: ['#ff7a3a', '#b8302a'], stone: ['#c8b8a0', '#8a7a68'],
+    };
+    const [light, dark] = pal[this.element] ?? ['#d8c8b0', '#9a8a78'];
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.tilt);
+    ctx.fillStyle = dark;
+    ctx.beginPath();
+    ctx.moveTo(-w, 0);
+    ctx.lineTo(0, -h);
+    ctx.lineTo(w, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = light;
+    ctx.beginPath();
+    ctx.moveTo(-w, 0);
+    ctx.lineTo(0, -h);
+    ctx.lineTo(w * 0.1, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(58,36,72,0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-w, 0);
+    ctx.lineTo(0, -h);
+    ctx.lineTo(w, 0);
+    ctx.stroke();
+    if (this.element === 'fire' || this.element === 'dragon') {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = 'rgba(255,150,50,0.35)';
+      ctx.beginPath();
+      ctx.arc(0, -h * 0.4, w * 1.2, 0, TAU);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.restore();
+  }
+
+  private drawSpark(ctx: CanvasRenderingContext2D, s: Spark) {
+    const q = s.t / 0.22;
+    const r = s.size * (0.5 + easeOut(q) * 0.8);
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.rot);
+    ctx.globalAlpha = 1 - q;
+    for (const [col, k] of [[s.color, 1], ['#ffffff', 0.55]] as const) {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const rr = (i % 2 ? r * 0.18 : r) * k;
+        const a = (i / 8) * TAU;
+        ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+      }
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /** Crescent slash trail following the recorded weapon angles. */
+  private drawArcTrail(ctx: CanvasRenderingContext2D, sw: Swing) {
+    if (sw.trail.length < 2) return;
+    const p = this.p;
+    const cx = p.x, cy = p.y - 10;
+    const R = sw.s.range * this.reach + 4;
+    const Ri = R * 0.3;
+    const pts: { a: number; k: number }[] = [];
+    for (let i = 0; i < sw.trail.length - 1; i++) {
+      const a0 = sw.trail[i].ang, a1 = sw.trail[i + 1].ang;
+      for (let j = 0; j < 4; j++) pts.push({ a: a0 + ((a1 - a0) * j) / 4, k: (i + j / 4) / (sw.trail.length - 1) });
+    }
+    pts.push({ a: sw.trail[sw.trail.length - 1].ang, k: 1 });
+    const col = this.weapon.trail ?? '#ffffff';
+    const layers = this.tier >= 3 ? 2 : 1;
+    for (let L = 0; L < layers; L++) {
+      ctx.save();
+      if (L === 1) ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = L === 1 ? 0.35 : 0.75;
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      const grow = L === 1 ? 1.12 : 1;
+      for (const { a, k } of pts) ctx.lineTo(cx + Math.cos(a) * R * grow, cy + Math.sin(a) * R * grow * 0.9);
+      for (let i = pts.length - 1; i >= 0; i--) {
+        const { a, k } = pts[i];
+        const r = R - (R - Ri) * (0.25 + 0.75 * k);
+        ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.9);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2 + this.tier * 0.4;
+    ctx.beginPath();
+    for (const { a } of pts.slice(Math.floor(pts.length * 0.4))) ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R * 0.9);
+    ctx.stroke();
+  }
+
+  private drawThrustTrail(ctx: CanvasRenderingContext2D, sw: Swing) {
+    const s = sw.s, p = this.p;
+    const q = (sw.t - s.windup) / s.active;
+    if (q < 0 || q > 1.8) return;
+    const fade = q > 1 ? 1 - (q - 1) / 0.8 : 1;
+    const reach = s.range * this.reach * easeOut(Math.min(1, q));
+    const w = s.size * this.reach * 0.5;
+    const cx = p.x, cy = p.y - 10, dx = Math.cos(sw.aim), dy = Math.sin(sw.aim);
+    ctx.save();
+    ctx.globalAlpha = 0.7 * fade;
+    ctx.fillStyle = this.weapon.trail ?? '#fff';
+    ctx.beginPath();
+    ctx.moveTo(cx - dy * w, cy + dx * w);
+    ctx.lineTo(cx + dx * reach, cy + dy * reach);
+    ctx.lineTo(cx + dy * w, cy - dx * w);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 0.9 * fade;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(cx - dy * w * 0.3, cy + dx * w * 0.3);
+    ctx.lineTo(cx + dx * reach, cy + dy * reach);
+    ctx.lineTo(cx + dy * w * 0.3, cy - dx * w * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   private drawHero(ctx: CanvasRenderingContext2D) {
-    const p = this.p, st = this.stats;
+    const p = this.p;
+    const style = this.weapon.style ?? 'sword';
     const blink = p.iframes > 0 && p.dodgeT <= 0 && p.lungeT <= 0 && Math.floor(this.t * 20) % 2 === 0;
+    const alpha = blink ? 0.35 : 1;
     const cosF = Math.cos(p.face);
-    const handX = p.x + (cosF >= 0 ? 9 : -9), handY = p.y - 11;
-    let wAng = cosF >= 0 ? -1.0 : Math.PI + 1.0;
-    let wx = handX, wy = handY;
+    const heavy = style === 'axe' || style === 'hammer';
+    let ang = cosF >= 0 ? (heavy ? -1.35 : -1.05) : Math.PI + (heavy ? 1.35 : 1.05);
+    let off = 0, scale = 1, flipY = cosF >= 0 ? 1 : -1;
     const sw = p.swing;
     if (sw) {
-      const q = Math.min(1, sw.t / sw.dur);
-      const ease = 1 - (1 - q) * (1 - q);
-      if (st.style === 'spear' || st.style === 'wand') {
-        wAng = sw.angle;
-        const push = Math.sin(q * Math.PI) * (st.style === 'spear' ? 16 : 6);
-        wx += Math.cos(sw.angle) * push;
-        wy += Math.sin(sw.angle) * push;
-      } else if (sw.spin || sw.arc >= TAU) {
-        wAng = sw.angle + ease * TAU;
-      } else {
-        wAng = sw.angle - sw.arc / 2 + ease * sw.arc;
-      }
-      // Slash trail
-      if (st.style !== 'wand' && st.style !== 'spear') {
-        ctx.fillStyle = `rgba(255,255,255,${0.4 * (1 - q)})`;
+      ({ ang, off, scale } = this.pose(sw));
+      if (sw.s.shape === 'arc') {
+        const d = sw.s.anim === 'slashL' || sw.s.anim === 'backchop' ? -1 : 1;
+        flipY = d > 0 ? -1 : 1;
+        if (sw.s.anim === 'spin') flipY = -1;
+      } else flipY = Math.cos(ang) >= 0 ? 1 : -1;
+      if (sw.s.shape === 'arc') this.drawArcTrail(ctx, sw);
+      if (sw.s.shape === 'line') this.drawThrustTrail(ctx, sw);
+    } else if (p.whirlT > 0) {
+      ang = p.whirlAng;
+      flipY = -1;
+      scale = 1.05;
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = this.weapon.trail ?? '#fff';
+      ctx.lineWidth = 16;
+      const R = 80 * this.reach;
+      for (let k = 0; k < 3; k++) {
         ctx.beginPath();
-        const arc = sw.arc >= TAU ? TAU : sw.arc;
-        const a0 = sw.arc >= TAU ? 0 : sw.angle - arc / 2;
-        ctx.moveTo(p.x, p.y - 10);
-        ctx.arc(p.x, p.y - 10, sw.range + 6, a0, a0 + arc * ease);
-        ctx.closePath();
-        ctx.fill();
-      } else if (st.style === 'spear') {
-        ctx.strokeStyle = `rgba(255,255,255,${0.5 * (1 - q)})`;
-        ctx.lineWidth = 10;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y - 10);
-        ctx.lineTo(p.x + Math.cos(sw.angle) * (sw.range + 4), p.y - 10 + Math.sin(sw.angle) * (sw.range + 4));
+        ctx.ellipse(p.x, p.y - 10, R, R * 0.8, 0, ang - 1.4 + (k * TAU) / 3, ang + (k * TAU) / 3);
         ctx.stroke();
       }
+      ctx.restore();
+    } else if (p.lungeT > 0) {
+      ang = p.lungeDir;
+      off = 16;
+      flipY = Math.cos(ang) >= 0 ? 1 : -1;
     }
-    const behind = Math.sin(wAng) < -0.2;
-    const alpha = blink ? 0.35 : 1;
-    ctx.globalAlpha = alpha;
-    if (behind) drawWeapon(ctx, st.style, wx, wy, wAng, 12, this.weaponColor);
-    drawPlayer(ctx, p.x, p.y, 12, {
-      t: this.t, moving: p.moving, face: p.face, armor: this.armorColor, hurt: p.hurtT > 0,
-      squash: p.dodgeT > 0 ? 1.25 : 1, alpha,
+    const handX = p.x + Math.cos(ang) * (7 + off), handY = p.y - 17 + Math.sin(ang) * (4 + off * 0.8);
+    const behind = Math.sin(ang) < -0.35 && !(sw && sw.s.anim === 'slam' && sw.t > sw.s.windup);
+    const wf = frame(`wpn/${this.weapon.id}`);
+    const weaponUnit = 34 * this.moves.size * scale;
+    const drawW = () => {
+      if (wf) drawFrame(ctx, wf, handX, handY, weaponUnit, { rot: ang, sy: flipY, alpha });
+      else drawWeapon(ctx, style === 'axe' ? 'hammer' : style, handX, handY, ang, 12 * scale, this.weaponColor);
+    };
+    shadow(ctx, p.x, p.y, 14);
+    if (behind) drawW();
+    const armor = this.save.equip.armor;
+    const ok = drawHero(ctx, armor, p.x, p.y, UNIT, p.face, p.moving && !sw, this.t, {
+      alpha, flash: p.hurtT > 0 ? 0.7 : 0, sx: p.dodgeT > 0 ? 1.2 : 1, sy: p.dodgeT > 0 ? 0.82 : 1,
     });
-    ctx.globalAlpha = alpha;
-    if (!behind) drawWeapon(ctx, st.style, wx, wy, wAng, 12, this.weaponColor);
-    ctx.globalAlpha = 1;
+    if (!ok) {
+      drawPlayer(ctx, p.x, p.y, 12, {
+        t: this.t, moving: p.moving, face: p.face, armor: this.armorColor, hurt: p.hurtT > 0,
+        squash: p.dodgeT > 0 ? 1.25 : 1, alpha,
+      });
+    }
+    if (!behind) drawW();
   }
 
   private drawOverlay(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
