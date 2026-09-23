@@ -226,7 +226,7 @@ export class Overworld {
     };
     if (sx > left && sx < right && sy > top - ts && sy < bottom) {
       // On screen: bob above the target.
-      const ay = wy - ts * 1.9 - bounce;
+      const ay = wy - ts * 1.1 - bounce;
       ctx.fillStyle = 'rgba(255,211,90,0.25)';
       ctx.beginPath();
       ctx.ellipse(wx, wy, ts * (0.5 + 0.1 * Math.sin(this.t * 4)), ts * 0.22, 0, 0, TAU);

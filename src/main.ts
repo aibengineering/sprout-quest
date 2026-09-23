@@ -577,7 +577,8 @@ function objective(): { x: number; y: number } | null {
   const q = currentQuest(save);
   if (!q) return null;
   const g = q.goal;
-  const center = (o?: { x: number; y: number; w: number; h: number }) => (o ? { x: o.x + o.w / 2, y: o.y + o.h } : null);
+  // Point at the spot in front of the object, where the player actually stands to interact.
+  const center = (o?: { x: number; y: number; w: number; h: number }) => (o ? { x: o.x + o.w / 2, y: o.y + o.h + 0.7 } : null);
   switch (g.type) {
     case 'talk':
       return center(world.obj('elder'));
@@ -593,9 +594,11 @@ function objective(): { x: number; y: number } | null {
       return g.project === 'forge' ? center(world.obj('forge')) : center(world.obj('plot', g.project));
     case 'boss': {
       if (g.kind === 'dragon') return center(world.obj('lair'));
-      const zone = ZONES.find((z) => z.guardian?.kind === g.kind);
-      return zone ? center(world.obj('gate', zone.id)) : null;
+      const gate = world.obj('gate', ZONES.find((z) => z.guardian?.kind === g.kind)?.id);
+      // The guardian stands on the path just west of its gate.
+      return gate ? { x: gate.x - 0.8, y: gate.y + 2.6 } : null;
     }
+    case 'mats':
     case 'kills': {
       const z = zoneById(g.zone);
       // Outside the zone: head for its entrance. Inside: point at the nearest tall grass (none needed if standing in it).

@@ -1,5 +1,5 @@
 // Story progression: evaluates the current quest's goal against the save and advances the chain.
-import { MAX_POTIONS, MONSTERS, PROJECTS, QUESTS, ZONES, type Quest } from './data';
+import { MATS, MAX_POTIONS, MONSTERS, PROJECTS, QUESTS, ZONES, type MatId, type Quest } from './data';
 import { mergeDrops } from './rules';
 import type { SaveState } from './state';
 
@@ -17,6 +17,16 @@ export function progress(s: SaveState, q: Quest): { cur: number; max: number; la
     case 'kills': {
       const zone = ZONES.find((z) => z.id === g.zone)!;
       return { cur: Math.min(g.count, s.questKills), max: g.count, label: `Monsters in ${zone.name}` };
+    }
+    case 'mats': {
+      // Count each material only up to what's needed, so the bar fills as you collect.
+      let cur = 0, max = 0;
+      for (const [m, n] of Object.entries(g.need)) {
+        cur += Math.min(n ?? 0, s.mats[m as MatId] ?? 0);
+        max += n ?? 0;
+      }
+      const names = Object.entries(g.need).map(([m, n]) => `${n} ${MATS[m as MatId].name}`).join(' + ');
+      return { cur, max, label: `Collect ${names}` };
     }
     case 'craft':
       return { cur: s.crafted > 0 ? 1 : 0, max: 1, label: 'Craft new gear' };

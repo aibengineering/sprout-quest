@@ -96,13 +96,22 @@ export class UI {
   private menuOpen = false;
   private resolveDialog: ((v: string) => void) | null = null;
   private last: Record<string, string> = {};
+  /**
+   * Whether a touch has started inside the current sheet. A tap on a HUD button opens the menu while the finger is
+   * still down; when it lifts, the browser fires a "click" at that spot, which would hit whatever tab or button just
+   * appeared under it (e.g. "More" under the bottom-right action button). Only clicks that began on the sheet count.
+   */
+  private armed = false;
 
   constructor(private hooks: UIHooks) {
     this.sheet.addEventListener('click', (e) => this.onClick(e));
-    this.modal.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.modal.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.armed = true;
+    });
     // Tapping outside the menu sheet closes it (dialogs still need an explicit choice).
     this.modal.addEventListener('click', (e) => {
-      if (e.target === this.modal && this.menuOpen) this.closeMenu();
+      if (e.target === this.modal && this.menuOpen && this.armed) this.closeMenu();
     });
     // Swipe the menu down from its header to dismiss it.
     let startY: number | null = null;
@@ -316,6 +325,7 @@ export class UI {
     if (!this.tabOpen(this.tab)) this.tab = (['items', 'journey', 'forge', 'village'] as Tab[]).find((t) => this.tabOpen(t)) ?? 'settings';
     this.focus = focus;
     this.menuOpen = true;
+    this.armed = false;
     this.modal.hidden = false;
     this.renderMenu(true);
   }
@@ -541,6 +551,7 @@ export class UI {
   }
 
   private onClick(e: Event) {
+    if (!this.armed) return;
     const el = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null;
     if (!el || el.disabled) return;
     const d = el.dataset;
@@ -581,6 +592,7 @@ export class UI {
   /** Shows a centered dialog; resolves with the chosen button's value. */
   dialog(html: string, buttons: [string, string, string?][], cls = ''): Promise<string> {
     this.menuOpen = false;
+    this.armed = false;
     this.modal.hidden = false;
     this.sheet.className = `sheet ${cls}`;
     const btns = buttons.map(([value, label, c]) => `<button class="go ${c ?? ''}" data-dialog="${value}">${label}</button>`).join('');

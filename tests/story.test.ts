@@ -17,12 +17,13 @@ describe('story', () => {
     s.flags.push('village');
     advanceQuests(s);
     expect(currentQuest(s)!.id).toBe('meadow');
-    recordKills(s, 'woods', 10); // wrong zone doesn't count
-    expect(advanceQuests(s)).toHaveLength(0);
+    // Defeating monsters isn't enough: you need the actual repair materials.
     recordKills(s, 'meadow', 3);
+    Object.assign(s.mats, { goo: 4, fluff: 1 });
+    expect(advanceQuests(s)).toHaveLength(0);
+    s.mats.fluff = 3;
     expect(advanceQuests(s).map((q) => q.id)).toEqual(['meadow']);
     expect(currentQuest(s)!.id).toBe('repair');
-    Object.assign(s.mats, { goo: 4, fluff: 3 });
     expect(build(s, 'forge')).toBe('ok');
     expect(advanceQuests(s).map((q) => q.id)).toEqual(['repair']);
     expect(currentQuest(s)!.id).toBe('gear');
@@ -116,10 +117,16 @@ describe('onboarding unlocks', () => {
     s.wins = 2;
     advanceQuests(s);
     expect(ids()).toEqual(['journal']); // arriving in the village
-    recordKills(s, 'meadow', 3);
+    Object.assign(s.mats, { goo: 4, fluff: 3 });
     s.wins = 3;
     advanceQuests(s);
     expect(ids()).toEqual(['skill', 'village']); // time to repair the forge
     expect(s.unlocked).not.toContain('forge');
   });
+});
+
+test('the repair quest only sends you back once you can afford the repair', () => {
+  const { PROJECTS, QUESTS } = require('../src/data');
+  const gather = QUESTS.find((q: { id: string }) => q.id === 'meadow').goal.need;
+  expect(gather).toEqual(PROJECTS.forge.levels[0].cost);
 });

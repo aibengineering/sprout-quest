@@ -322,6 +322,8 @@ export type Goal =
   | { type: 'talk' }
   | { type: 'flag'; flag: string; label: string }
   | { type: 'kills'; zone: ZoneId; count: number }
+  /** Have these materials in the bag (monsters in `zone` drop them). */
+  | { type: 'mats'; zone: ZoneId; need: Recipe }
   | { type: 'craft' }
   | { type: 'build'; project: ProjectId; level: number }
   | { type: 'boss'; kind: MonsterKind };
@@ -357,7 +359,7 @@ export const QUESTS: Quest[] = [
     hint: 'Follow the path east', text: 'The path leads east, toward chimney smoke. There must be a village!',
   },
   {
-    id: 'meadow', chapter: 'Chapter 1', title: 'Gather Materials', goal: { type: 'kills', zone: 'meadow', count: 3 }, hint: 'Defeat monsters in Sunny Meadow',
+    id: 'meadow', chapter: 'Chapter 1', title: 'Gather Materials', goal: { type: 'mats', zone: 'meadow', need: { goo: 4, fluff: 3 } }, hint: 'Collect 4 Slime Goo and 3 Bunny Fluff',
     text: 'To fix our forge we need Slime Goo and Bunny Fluff. Monsters in Sunny Meadow, just east of here, drop them. They hide in the tall grass!',
     reward: { potions: 1 },
   },
