@@ -31,13 +31,16 @@
 
     <!-- Frequently used menus live bottom-left, within thumb reach. -->
     <div id="dock" class="dock">
-      <button id="btn-bag" class="dock-btn" aria-label="Bag" hidden><span>🎒</span><small>Bag</small><i class="dot"></i></button>
-      <button id="btn-journal" class="dock-btn" aria-label="Journal" hidden><span>📜</span><small>Journal</small><i class="dot"></i></button>
+      <button id="btn-bag" class="dock-btn" aria-label="Bag" hidden><span>🎒</span><small>Bag</small><i class="dot"></i><kbd class="key">B</kbd></button>
+      <button id="btn-journal" class="dock-btn" aria-label="Journal" hidden><span>📜</span><small>Journal</small><i class="dot"></i><kbd class="key">Q</kbd></button>
     </div>
     <button id="quest-pill" class="quest-pill" hidden></button>
     <div id="unlock-card" class="unlock-card" hidden></div>
     <div id="coach" class="coach" hidden></div>
-    <div id="drag-hint" class="drag-hint" hidden><div class="hand">👆</div><b>Drag anywhere to move</b></div>
+    <div id="drag-hint" class="drag-hint" hidden>
+      <div class="hand touch-only">👆</div><b class="touch-only">Drag anywhere to move</b>
+      <div class="keys kbd-only"><kbd>W</kbd><span><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span></div><b class="kbd-only">Move with WASD or the arrow keys</b>
+    </div>
     <div id="banner"><b></b><small></small></div>
 
     <div id="ctl-world" class="ctl" hidden>
@@ -45,11 +48,11 @@
     </div>
 
     <div id="ctl-battle" class="ctl" hidden>
-      <button id="btn-run" class="pill">🏃 Run</button>
-      <button id="btn-potion" class="btn sm" aria-label="Potion">🧪<span id="potion-n" class="badge">0</span></button>
-      <button id="btn-skill" class="btn md" aria-label="Skill"><span>✨</span><small id="skill-name">Spin</small><i class="cd"></i></button>
-      <button id="btn-dodge" class="btn md" aria-label="Dodge"><span>💨</span><small>Dodge</small><i class="cd"></i></button>
-      <button id="btn-attack" class="btn lg" aria-label="Attack">⚔️</button>
+      <button id="btn-run" class="pill">🏃 Run<kbd class="key">R</kbd></button>
+      <button id="btn-potion" class="btn sm" aria-label="Potion">🧪<span id="potion-n" class="badge">0</span><kbd class="key">H</kbd></button>
+      <button id="btn-skill" class="btn md" aria-label="Skill"><span>✨</span><small id="skill-name">Spin</small><i class="cd"></i><kbd class="key">L</kbd></button>
+      <button id="btn-dodge" class="btn md" aria-label="Dodge"><span>💨</span><small>Dodge</small><i class="cd"></i><kbd class="key">K</kbd></button>
+      <button id="btn-attack" class="btn lg" aria-label="Attack">⚔️<kbd class="key">J</kbd></button>
     </div>
 
     <div id="modal" hidden><div class="sheet"></div></div>
@@ -62,10 +65,10 @@
         <p>Fight cute monsters · Craft cool gear</p>
       </div>
       <div class="title-btns">
-        <button id="btn-continue" class="big-btn" hidden>Continue</button>
-        <button id="btn-new" class="big-btn alt">New Game</button>
+        <button id="btn-continue" class="big-btn" hidden>Continue<kbd class="key">Enter</kbd></button>
+        <button id="btn-new" class="big-btn alt">New Game<kbd class="key" id="new-key">N</kbd></button>
       </div>
-      <p class="hint">Drag anywhere to move · Tap buttons to fight<br />Best in portrait · Add to home screen for fullscreen</p>
+      <p class="hint"><span class="touch-only">Drag anywhere to move · Tap buttons to fight</span><span class="kbd-only">WASD to move · J attack · K dodge · L skill · E interact · B bag · Q journal</span><br /><span class="touch-only">Best in portrait · Add to home screen for fullscreen</span></p>
     </div>
 
     <script type="module" src="main.js"></script>

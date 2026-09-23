@@ -10,6 +10,8 @@ export interface Unlock {
   icon: string;
   title: string;
   text: string;
+  /** Keyboard shortcut, mentioned on desktop. */
+  key?: string;
   when: (s: SaveState) => boolean;
 }
 
@@ -17,17 +19,17 @@ const reached = (s: SaveState, questId: string) => s.quest >= QUESTS.findIndex((
 
 export const UNLOCKS: Unlock[] = [
   {
-    id: 'journal', icon: '📜', title: 'Journal',
+    id: 'journal', icon: '📜', title: 'Journal', key: 'Q',
     text: 'Your goals, the world map and the story live here. Tap 📜 or the goal banner anytime.',
     when: (s) => s.flags.includes('village'),
   },
   {
-    id: 'bag', icon: '🎒', title: 'Your Bag',
+    id: 'bag', icon: '🎒', title: 'Your Bag', key: 'B',
     text: 'Monsters drop materials! Tap 🎒 to see your gear and everything you have collected. Potions are ready in battle too.',
     when: (s) => s.wins > 0,
   },
   {
-    id: 'skill', icon: '✨', title: 'Weapon Skill',
+    id: 'skill', icon: '✨', title: 'Weapon Skill', key: 'L',
     text: 'Tap ✨ in battle for your weapon’s special move. It recharges after each use.',
     when: (s) => s.wins > 2,
   },

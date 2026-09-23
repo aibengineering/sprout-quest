@@ -3,7 +3,7 @@ import { loadAssets } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
 import { GEAR, MAX_POTIONS, MONSTERS, POTION_HEAL, PROJECTS, QUESTS, ZONES, zoneById, type MonsterKind, type Zone, type ZoneId } from './data';
-import { Input } from './input';
+import { Input, trackInputDevice, usingKeyboard } from './input';
 import { Overworld } from './overworld';
 import { advanceQuests, currentQuest, recordKills } from './quests';
 import { checkUnlocks, has } from './unlocks';
@@ -27,6 +27,7 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
+trackInputDevice();
 const audio = new Audio();
 const input = new Input(document.getElementById('touch')!, document.getElementById('joy')!, document.getElementById('joy-knob')!);
 const world = new World();
@@ -517,6 +518,15 @@ function startGame(fresh: boolean) {
 }
 
 document.getElementById('btn-continue')!.hidden = !loadState();
+document.getElementById('new-key')!.textContent = loadState() ? 'N' : 'Enter';
+// Title screen: Enter continues (or starts), N starts a new game.
+window.addEventListener('keydown', (e) => {
+  if (mode !== 'title' || ui.isOpen || e.repeat) return;
+  const cont = document.getElementById('btn-continue')!;
+  if (e.code === 'Enter' || e.code === 'Space') (cont.hidden ? document.getElementById('btn-new')! : cont).click();
+  else if (e.code === 'KeyN') document.getElementById('btn-new')!.click();
+});
+
 const openFromHud = (tab: 'journey' | 'items') => {
   if (mode !== 'world' || trans) return;
   audio.play('ui');
@@ -617,6 +627,9 @@ function objective(): { x: number; y: number } | null {
   }
 }
 
+/** "Tap ⚔️" on touch screens, "Press J" with a keyboard. */
+const press = (key: string, emoji: string) => (usingKeyboard() ? `Press ${key}` : `Tap ${emoji}`);
+
 /** Gentle in-battle tutorial: attack first, then dodge, later skills and potions. */
 function coachBattle(b: Battle) {
   coachT += 1 / 60;
@@ -624,7 +637,7 @@ function coachBattle(b: Battle) {
   if (save.wins === 0) {
     if (coachStep === 0) {
       if (b.hits > 0) { coachStep = 1; coachT = 0; }
-      return ui.coach('Tap ⚔️ to attack! It aims for you.', 'btn-attack');
+      return ui.coach(`${press('J', '⚔️')} to attack! It aims for you.`, 'btn-attack');
     }
     return ui.coach(null);
   }
@@ -633,17 +646,17 @@ function coachBattle(b: Battle) {
     if (coachStep === 0) {
       if (b.dodgeFrac > 0) { coachStep = 1; return ui.coach(null); }
       const winding = b.enemies.some((e) => !e.dead && e.windup > 0.2);
-      return ui.coach(winding ? 'It\'s winding up! Tap 💨 NOW!' : 'Hopbuns wiggle, then charge. Tap 💨 to dodge through them!', 'btn-dodge');
+      return ui.coach(winding ? `It's winding up! ${press('K', '💨')} NOW!` : `Hopbuns wiggle, then charge. ${press('K', '💨')} to dodge through them!`, 'btn-dodge');
     }
     return ui.coach(null);
   }
   if (has(save, 'skill') && !save.tips.includes('coach-skill')) {
     if (b.skillFrac > 0.5) save.tips.push('coach-skill');
-    return ui.coach('New! Tap ✨ for your weapon skill.', 'btn-skill');
+    return ui.coach(`New! ${press('L', '✨')} for your weapon skill.`, 'btn-skill');
   }
   if (has(save, 'bag') && save.potions > 0 && b.p.hp < b.stats.maxHp * 0.4 && !save.tips.includes('coach-potion')) {
     if (b.p.potionCd > 0) save.tips.push('coach-potion');
-    return ui.coach('Low HP! Tap 🧪 to drink a potion.', 'btn-potion');
+    return ui.coach(`Low HP! ${press('H', '🧪')} to drink a potion.`, 'btn-potion');
   }
   ui.coach(null);
 }
@@ -680,6 +693,8 @@ function frame(now: number) {
     }
   } else {
     const canAct = mode === 'world' && !busy;
+    if (canAct && input.consume('bag') && has(save, 'bag')) openFromHud('items');
+    if (canAct && input.consume('journal') && has(save, 'journal')) openFromHud('journey');
     if (canAct && input.consume('menu') && (has(save, 'bag') || has(save, 'journal'))) {
       audio.play('ui');
       mode = 'dialog';
@@ -714,6 +729,7 @@ function frame(now: number) {
     const near = canAct ? over.nearbyObject() : null;
     ui.setAction(near ? near.label : null);
     over.objective = mode === 'world' ? objective() : null;
+    over.keyHints = usingKeyboard();
     ui.dragHint(mode === 'world' && !trans && !save.tips.includes('moved'));
     ui.dock(mode === 'world');
     over.render(ctx, vw, vh);

@@ -640,7 +640,7 @@ h3 small { font-size: 11px; opacity: 0.7; font-weight: 700; }
   font-weight: 700; line-height: 1.45; text-align: left; box-shadow: 0 2px 0 rgba(74, 42, 90, 0.1);
 }
 .bubble::before { content: ''; position: absolute; top: -8px; left: 50%; margin-left: -8px; border: 8px solid transparent; border-top: 0; border-bottom-color: #fff; }
-.hint { font-weight: 800; font-size: 14px; margin-bottom: 14px; color: #c85a3a; }
+.result .hint { font-weight: 800; font-size: 14px; margin-bottom: 14px; color: #c85a3a; }
 .big-art { margin: 0 auto 6px; width: auto; height: auto; background: none; }
 .lvcmp { display: inline-block; font-weight: 900; padding: 6px 12px; border-radius: 12px; margin-bottom: 14px; }
 .lvcmp.good { background: #e8f8e8; }
@@ -751,3 +751,34 @@ body.cinema #hud, body.cinema #quest-pill, body.cinema .ctl, body.cinema #drag-h
 .grab { flex: none; width: 44px; height: 5px; border-radius: 3px; background: #e2d2dc; margin: 8px auto 0; }
 .sheet.menu .mhead, .sheet.menu .grab { touch-action: none; }
 .sheet.menu { transition: transform 0.15s; }
+
+/* ================= Keyboard hints (desktop) ================= */
+.key, .kbd-only { display: none; }
+body.kbd .kbd-only { display: revert; }
+body.kbd .touch-only { display: none; }
+kbd, .key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: 11px; line-height: 1;
+  color: var(--ink); background: #fff; border-radius: 6px; padding: 3px 5px; min-width: 18px; text-align: center;
+  box-shadow: inset 0 -2px 0 rgba(74, 42, 90, 0.25), 0 0 0 1px rgba(74, 42, 90, 0.25);
+}
+body.kbd .key { display: inline-block; }
+/* Round battle/dock buttons: the cap sits on the top-left rim. */
+body.kbd .btn .key, body.kbd .dock-btn .key, body.kbd .act .key {
+  position: absolute; top: -8px; left: -8px; font-size: 15px; padding: 5px 8px; border-radius: 8px; z-index: 2;
+}
+.btn, .dock-btn, .act { overflow: visible; }
+.btn .cd { overflow: hidden; }
+body.kbd .btn.lg .key { top: -2px; left: -2px; font-size: 16px; }
+/* Inline caps on text buttons. */
+body.kbd .go .key, body.kbd .pill .key, body.kbd .big-btn .key { margin-left: 8px; vertical-align: 1px; background: rgba(255, 255, 255, 0.9); }
+body.kbd .big-btn .key { font-size: 13px; vertical-align: 3px; }
+body.kbd .tabbar .key { position: absolute; top: 3px; left: 6px; font-size: 9px; padding: 2px 4px; opacity: 0.75; }
+body.kbd .tabbar .tab-close .key { position: static; margin-top: 2px; opacity: 1; }
+.drag-hint .keys { display: none; flex-direction: column; align-items: center; gap: 4px; }
+body.kbd .drag-hint .keys { display: flex; }
+.drag-hint .keys kbd { font-size: 18px; padding: 6px 10px; margin: 0 2px; animation: keytap 1.6s infinite; }
+.drag-hint .keys span kbd:nth-child(2) { animation-delay: 0.4s; }
+.drag-hint .keys span kbd:nth-child(3) { animation-delay: 0.8s; }
+.drag-hint .keys span kbd:nth-child(1) { animation-delay: 1.2s; }
+@keyframes keytap { 0%, 30%, 100% { transform: none; } 15% { transform: translateY(3px); box-shadow: inset 0 -1px 0 rgba(74, 42, 90, 0.25); } }
+.u-key { margin-top: 6px !important; font-weight: 800 !important; }

@@ -8,6 +8,7 @@ import { currentQuest, progress } from './quests';
 import { canBuild, hasMats, playerStats, xpToNext } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
+import { usingKeyboard } from './input';
 
 /** Which unlock reveals each menu tab (settings is always there). */
 const TAB_UNLOCK: Partial<Record<Tab, UnlockId>> = { journey: 'journal', items: 'bag', forge: 'forge', village: 'village' };
@@ -109,6 +110,7 @@ export class UI {
       e.stopPropagation();
       this.armed = true;
     });
+    window.addEventListener('keydown', (e) => this.onKey(e), true);
     // Tapping outside the menu sheet closes it (dialogs still need an explicit choice).
     this.modal.addEventListener('click', (e) => {
       if (e.target === this.modal && this.menuOpen && this.armed) this.closeMenu();
@@ -236,7 +238,8 @@ export class UI {
     }
     this.unlockShowing = true;
     el.hidden = false;
-    el.innerHTML = `<div class="u-ico">${u.icon}</div><div><div class="u-new">✨ New unlocked</div><b>${esc(u.title)}</b><p>${esc(u.text)}</p></div>`;
+    const key = u.key && usingKeyboard() ? `<p class="u-key">⌨️ Shortcut: <kbd>${u.key}</kbd></p>` : '';
+    el.innerHTML = `<div class="u-ico">${u.icon}</div><div><div class="u-new">✨ New unlocked</div><b>${esc(u.title)}</b><p>${esc(u.text)}</p>${key}</div>`;
     requestAnimationFrame(() => el.classList.add('show'));
     window.setTimeout(() => {
       el.classList.remove('show');
@@ -291,8 +294,69 @@ export class UI {
     this.set('act', label ?? '', () => {
       const b = $('btn-act');
       b.hidden = !label;
-      if (label) b.textContent = label;
+      if (label) b.innerHTML = `${esc(label)}<kbd class="key">E</kbd>`;
     });
+  }
+
+  /**
+   * Keyboard control for anything shown in the modal. Runs in the capture phase and swallows the keys it uses, so
+   * e.g. the Enter that confirms a dialog doesn't also reach the game as "interact" a frame later.
+   */
+  private onKey(e: KeyboardEvent) {
+    if (this.modal.hidden || e.repeat) return;
+    const k = e.code;
+    const swallow = () => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    if (this.resolveDialog) {
+      const btns = [...this.sheet.querySelectorAll<HTMLButtonElement>('[data-dialog]')];
+      const primary = btns[btns.length - 1], secondary = btns.length > 1 ? btns[0] : null;
+      if (k === 'Enter' || k === 'Space' || k === 'KeyE' || k === 'NumpadEnter') {
+        swallow();
+        this.armed = true;
+        primary?.click();
+      } else if (k === 'Escape' && secondary) {
+        swallow();
+        this.armed = true;
+        secondary.click();
+      } else if (k === 'Escape') swallow();
+      return;
+    }
+    if (!this.menuOpen) return;
+    const tabs = [...this.sheet.querySelectorAll<HTMLButtonElement>('[data-tab]')];
+    const idx = tabs.findIndex((t) => t.dataset.tab === this.tab);
+    const go = (i: number) => {
+      const t = tabs[(i + tabs.length) % tabs.length];
+      if (!t) return;
+      this.tab = t.dataset.tab as Tab;
+      this.focus = undefined;
+      this.renderMenu(true);
+    };
+    if (k === 'Escape' || k === 'KeyM' || (k === 'KeyB' && this.tab === 'items') || (k === 'KeyQ' && this.tab === 'journey')) {
+      swallow();
+      this.closeMenu();
+    } else if (k === 'KeyB' && this.tabOpen('items')) {
+      swallow();
+      go(tabs.findIndex((t) => t.dataset.tab === 'items'));
+    } else if (k === 'KeyQ' && this.tabOpen('journey')) {
+      swallow();
+      go(tabs.findIndex((t) => t.dataset.tab === 'journey'));
+    } else if (k === 'ArrowRight' || k === 'KeyD' || k === 'Tab') {
+      swallow();
+      go(idx + (e.shiftKey && k === 'Tab' ? -1 : 1));
+    } else if (k === 'ArrowLeft' || k === 'KeyA') {
+      swallow();
+      go(idx - 1);
+    } else if (/^Digit[1-9]$/.test(k)) {
+      swallow();
+      go(Number(k.slice(5)) - 1);
+    } else if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'KeyS' || k === 'KeyW') {
+      swallow();
+      this.sheet.querySelector('.body')?.scrollBy({ top: k === 'ArrowDown' || k === 'KeyS' ? 120 : -120, behavior: 'smooth' });
+    } else if (k === 'KeyE' || k === 'KeyJ' || k === 'Space' || k === 'Enter' || k === 'KeyK' || k === 'KeyL' || k === 'KeyH' || k === 'KeyR') {
+      swallow(); // don't let gameplay keys leak through while the menu is up
+    }
   }
 
   toast(msg: string, ms = 2200) {
@@ -367,7 +431,7 @@ export class UI {
       <div class="statrow"><span>⚔️ <b>${st.atk}</b></span><span>🛡️ <b>${st.def}</b></span><span>🧪 <b>${s.potions}/${MAX_POTIONS}</b></span>${
         st.spd ? `<span>💨 <b>+${st.spd}%</b></span>` : ''}${st.luck ? `<span>🍀 <b>+${Math.round(st.luck * 100)}%</b></span>` : ''}</div>
       <div class="body">${this.renderTab(s)}</div>
-      <nav class="tabbar" style="grid-template-columns:auto repeat(${tabs.length},1fr)"><button class="tab-close" data-do="close" aria-label="Close menu"><span>✕</span>Close</button>${tabs.map(([id, ico, label]) => `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}</button>`).join('')}</nav>`;
+      <nav class="tabbar" style="grid-template-columns:auto repeat(${tabs.length},1fr)"><button class="tab-close" data-do="close" aria-label="Close menu"><span>✕</span>Close<kbd class="key">Esc</kbd></button>${tabs.map(([id, ico, label], i) => `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}<kbd class="key">${i + 1}</kbd></button>`).join('')}</nav>`;
     const body = this.sheet.querySelector('.body') as HTMLElement;
     body.scrollTop = scroll;
     if (fresh && this.focus) {
@@ -595,7 +659,10 @@ export class UI {
     this.armed = false;
     this.modal.hidden = false;
     this.sheet.className = `sheet ${cls}`;
-    const btns = buttons.map(([value, label, c]) => `<button class="go ${c ?? ''}" data-dialog="${value}">${label}</button>`).join('');
+    const btns = buttons.map(([value, label, c], i) => {
+      const cap = i === buttons.length - 1 ? 'Enter' : i === 0 ? 'Esc' : '';
+      return `<button class="go ${c ?? ''}" data-dialog="${value}">${label}${cap ? `<kbd class="key">${cap}</kbd>` : ''}</button>`;
+    }).join('');
     this.sheet.innerHTML = `<div class="result">${html}<div class="btns">${btns}</div></div>`;
     return new Promise((res) => (this.resolveDialog = res));
   }

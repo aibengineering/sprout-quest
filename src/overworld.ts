@@ -29,6 +29,8 @@ export class Overworld {
   ts = 40;
   /** Current goal's location in tiles; drawn as a bouncing waypoint arrow. */
   objective: { x: number; y: number } | null = null;
+  /** Show "E" on interaction bubbles when a keyboard is in use. */
+  keyHints = false;
   /** Camera position in tiles. It follows the hero, or glides to `camTarget` during cutscenes. */
   camX = 0;
   camY = 0;
@@ -186,7 +188,7 @@ export class Overworld {
     if (near && this.alert <= 0) {
       const bx = (near.x + near.w / 2) * ts, by = near.y * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
       ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
-      const label = near.label;
+      const label = this.keyHints ? `[E] ${near.label}` : near.label;
       const tw = ctx.measureText(label).width + ts * 0.4;
       ctx.fillStyle = 'rgba(255,255,255,0.95)';
       rrect(ctx, bx - tw / 2, by - ts * 0.5, tw, ts * 0.55, ts * 0.2);

@@ -114,7 +114,9 @@ guides you through a chain of chapters, and the current goal is always shown in 
 - **Crafting**: 13 weapons, 7 armors (each changes how your hero looks), 4 charms and 3 potion recipes at the Forge. The 🗺️ Map lets you warp home
   from anywhere and hop to discovered areas from the village.
 
-Keyboard also works: WASD/arrows, J/Space attack, K dodge, L skill, H potion, E interact, M menu, R run.
+On a computer the game shows key hints on every button (switching back to touch hints as soon as you touch the screen):
+WASD/arrows move, J/Space attack (hold to combo), K dodge, L skill, H potion, R run, E interact, B bag, Q journal.
+In menus and dialogs: Enter/Space confirms, Esc cancels or closes, 1–5 or ←/→ switch tabs.
 
 ## Art pipeline (Blender)
 

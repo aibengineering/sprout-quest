@@ -1,11 +1,28 @@
 // Touch-first input: a floating joystick anywhere on the canvas, DOM buttons for actions, keyboard fallback.
 
-export type Action = 'attack' | 'skill' | 'dodge' | 'potion' | 'act' | 'menu' | 'run';
+export type Action = 'attack' | 'skill' | 'dodge' | 'potion' | 'act' | 'menu' | 'run' | 'bag' | 'journal';
 
 const KEY_ACTIONS: Record<string, Action> = {
   Space: 'attack', KeyJ: 'attack', KeyK: 'dodge', ShiftLeft: 'dodge', KeyL: 'skill', KeyH: 'potion',
-  KeyE: 'act', Enter: 'act', KeyM: 'menu', Escape: 'menu', KeyR: 'run',
+  KeyE: 'act', Enter: 'act', KeyM: 'menu', Escape: 'menu', KeyR: 'run', KeyB: 'bag', KeyQ: 'journal',
 };
+
+/**
+ * Keyboard vs touch: show key hints when a keyboard is in use. Starts from "does this device have a fine pointer
+ * (mouse/trackpad)?", then follows whatever the player actually uses last.
+ */
+export function trackInputDevice() {
+  const set = (kbd: boolean) => document.body.classList.toggle('kbd', kbd);
+  set(window.matchMedia?.('(hover: hover) and (pointer: fine)').matches ?? false);
+  window.addEventListener('keydown', (e) => {
+    if (!['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) set(true);
+  }, true);
+  window.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') set(false);
+  }, true);
+}
+
+export const usingKeyboard = () => document.body.classList.contains('kbd');
 
 const JOY_RADIUS = 56;
 
