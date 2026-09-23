@@ -44,6 +44,17 @@ guides you through a chain of chapters, and the current goal is always shown in 
 - **Village construction**: Home (Tent → Cottage → Manor, +max HP), Forge (levels gate ★★★ and ★★★★+ recipes),
   Garden (more free potions), Training Yard (+attack) and Warp Stone (fast travel). Buildings visibly change in the village.
 
+## Areas
+
+| Area | Lv | Monsters | Materials |
+| --- | --- | --- | --- |
+| 🏡 Sprout Village | – | – | Forge, Fountain, Elder Bloom, building plots |
+| 🌼 Sunny Meadow | 1–3 | Slime, Hopbun | Goo, Fluff, Clover |
+| 🌲 Whisper Woods | 4–7 | Sporecap, Woolf | Shroom Cap, Bark, Fang |
+| 💎 Crystal Cave | 8–12 | Flapper, Pebblor | Bat Wing, Crystal, Golem Core |
+| 🌋 Ember Peak | 13–17 | Impy, Magma Slime | Ember, Imp Horn |
+| 🐉 Dragon Lair | 20 | Emberwyrm (boss) | Dragon Scale |
+
 - **Encounters**: walking in tall grass has a chance to start a battle with 1–3 monsters from that area
   (4% chance of a ✨ golden one with double loot).
 - **Battles**: real-time in a round arena. Drag to move; ⚔️ attack auto-aims at the nearest enemy (hold to
