@@ -1,5 +1,33 @@
 # 🌱 Sprout Quest
 
+> **This game is a test of Claude Opus 5.5's capabilities, built on release day (22–23 September 2026).**
+>
+> Everything here (the game code, the Blender art pipeline and every 3D model, the tests and this repo) was written by
+> Claude Opus 5.5 in [Claude Code](https://claude.com/claude-code) from a single conversation of plain-language requests.
+> A human played it on their phone and gave feedback between turns; no code or art was written by hand.
+
+**▶ Play it: https://aibengineering.github.io/sprout-quest/** (best on a phone, in portrait)
+
+### How it was built, by the numbers
+
+Measured from the Claude Code session log, up to the first push of this repo:
+
+| | |
+| --- | --- |
+| Human prompts to build the game end to end | **11** (plus 3 more to set up GitHub and this repo) |
+| Wall-clock time | ~4 h 25 min, from first prompt to published repo |
+| Model calls | ~230 |
+| Tool calls (shell commands, file edits, Blender renders, headless browser tests…) | ~245 |
+| Output tokens | ~565K |
+| Input tokens | ~99M total: ~450 uncached + ~716K cache writes + ~98.4M cache reads (the conversation is re-read from cache on every call) |
+
+The prompts, roughly: *make a cute mobile adventure game with a fight → level → craft loop* · *use Bun* ·
+*give me a link to play it* · *fix clipped menu text* · *install Blender and make cute 3D art; make weapons feel
+different and powerful* · *add story, bosses and milestones that gate progression* · *make the first-time
+experience less overwhelming* · *start with a prologue before the village* · *move the bag near the thumbs* ·
+*let me close the menu from the bottom* · *fix two bugs with the forge quest*.
+
+
 A cute, mobile-first little adventure game. Wander from Sprout Village through tall grass, get pulled into
 real-time arena battles, level up, collect monster materials and craft better gear at the Forge — then push
 further east toward stronger monsters and the dragon at the end of Ember Peak.
@@ -15,6 +43,9 @@ bun run dev        # http://localhost:3000 — also prints a LAN URL to open on 
 ```
 
 On a phone, "Add to Home Screen" for a fullscreen, app-like experience. Progress saves automatically (localStorage).
+
+Every push to `main` runs the typecheck and tests, builds the site and deploys it to GitHub Pages
+(`.github/workflows/deploy.yml`).
 
 ## Build
 
