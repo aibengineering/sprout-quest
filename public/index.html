@@ -27,12 +27,13 @@
         </div>
       </div>
       <div id="hud-zone" class="card zone"></div>
-      <div class="dock">
-        <button id="btn-journal" class="round" aria-label="Journal" hidden>📜<i class="dot"></i></button>
-        <button id="btn-bag" class="round" aria-label="Bag" hidden>🎒<i class="dot"></i></button>
-      </div>
     </div>
 
+    <!-- Frequently used menus live bottom-left, within thumb reach. -->
+    <div id="dock" class="dock">
+      <button id="btn-bag" class="dock-btn" aria-label="Bag" hidden><span>🎒</span><small>Bag</small><i class="dot"></i></button>
+      <button id="btn-journal" class="dock-btn" aria-label="Journal" hidden><span>📜</span><small>Journal</small><i class="dot"></i></button>
+    </div>
     <button id="quest-pill" class="quest-pill" hidden></button>
     <div id="unlock-card" class="unlock-card" hidden></div>
     <div id="coach" class="coach" hidden></div>
