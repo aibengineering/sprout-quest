@@ -1,5 +1,5 @@
 // Overworld map generation and collision. Coordinates are in tiles.
-import { WORLD_H, WORLD_W, ZONES, zoneAtX, type ProjectId, type Zone, type ZoneId } from './data';
+import { WORLD_H, WORLD_W, ZONES, zoneAtX, type MonsterKind, type ProjectId, type Zone, type ZoneId } from './data';
 
 export const T = {
   GROUND: 0,
@@ -10,7 +10,7 @@ export const T = {
   DECOR: 5,
 } as const;
 
-export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot';
+export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -27,6 +27,9 @@ export interface WorldObj {
   project?: ProjectId;
   /** Hidden objects are neither drawn nor solid (opened gates, unlit camps). */
   hidden?: boolean;
+  /** Story flag set when this scripted object is resolved (sword picked up, prologue foe beaten). */
+  flag?: string;
+  monster?: MonsterKind;
 }
 
 export function hash2(x: number, y: number, seed: number): number {
@@ -45,7 +48,10 @@ function valueNoise(x: number, y: number, seed: number): number {
   return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
 }
 
-const VILLAGE_END = ZONES[1].x0;
+const VILLAGE_END = ZONES.find((z) => z.id === 'meadow')!.x0;
+const V = ZONES.find((z) => z.id === 'village')!.x0;
+/** Where the glade's forest path begins (the clearing is west of it). */
+const GLADE_PATH_X = 7;
 const MID = Math.floor(WORLD_H / 2);
 
 /** The walkable path's row for a given column. Straight in the village, then winds east. */
@@ -91,7 +97,8 @@ export class World {
   }
 
   entryPoint(id: ZoneId): { x: number; y: number } {
-    if (id === 'village') return { x: 4.5, y: MID + 0.5 };
+    if (id === 'glade') return { x: 3.5, y: MID + 0.9 };
+    if (id === 'village') return { x: V + 4.5, y: MID + 0.5 };
     const z = ZONES.find((z) => z.id === id)!;
     const x = z.x0 + 2;
     return { x: x + 0.5, y: pathY(x) + 1 };
@@ -105,10 +112,12 @@ export class World {
       for (let y = 0; y < h; y++) {
         let t: number = T.GROUND;
         const nearPath = y >= py - 1 && y <= py + 2;
-        if (y === py || y === py + 1) t = T.PATH;
+        const gladeClearing = zone.id === 'glade' && x < GLADE_PATH_X;
+        if ((y === py || y === py + 1) && !gladeClearing) t = T.PATH;
         else if (y < 2 || y >= h - 2 || x === 0 || x === w - 1) t = T.OBST;
+        else if (zone.id === 'glade') t = this.gladeTile(x, y, nearPath, seed);
         else if (zone.id !== 'village' && x === zone.x0 && !nearPath) t = T.OBST;
-        else if (zone.id === 'village') t = this.villageTile(x, y, seed);
+        else if (zone.id === 'village') t = this.villageTile(x, y, seed, nearPath);
         else if (!nearPath) {
           const lx = x - zone.x0;
           const edge = lx < 3 && Math.abs(y - py) < 5;
@@ -130,8 +139,16 @@ export class World {
     this.placeObjects();
   }
 
-  private villageTile(x: number, y: number, seed: number): number {
-    const edgeTree = (y < 4 || y > this.h - 5 || x < 2) && hash2(x, y, seed + 21) < 0.55;
+  /** A small sunny clearing ringed by trees, with a narrow forest path leading east. */
+  private gladeTile(x: number, y: number, nearPath: boolean, seed: number): number {
+    const inClearing = x >= 1 && x < GLADE_PATH_X + 2 && Math.abs(y - (MID + 0.5)) <= 4.2;
+    const inCorridor = x >= GLADE_PATH_X && nearPath;
+    if (!inClearing && !inCorridor) return T.OBST;
+    return hash2(x, y, seed + 31) < 0.14 ? T.DECOR : T.GROUND;
+  }
+
+  private villageTile(x: number, y: number, seed: number, nearPath: boolean): number {
+    const edgeTree = (y < 4 || y > this.h - 5 || (x - V < 2 && !nearPath)) && hash2(x, y, seed + 21) < 0.55;
     if (edgeTree) return T.OBST;
     if (hash2(x, y, seed + 22) < 0.12) return T.DECOR;
     return T.GROUND;
@@ -146,19 +163,24 @@ export class World {
         for (let x = Math.floor(o.x) - 1; x <= Math.ceil(o.x + o.w); x++)
           if (this.tile(x, y) !== T.PATH) this.set(x, y, T.GROUND);
     };
-    add({ kind: 'forge', x: 5, y: 7, w: 4, h: 3, label: 'Forge', text: 'The Forge' });
-    add({ kind: 'house', x: 13, y: 6.5, w: 3, h: 3, label: '' });
-    add({ kind: 'elder', x: 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Bloom' });
-    add({ kind: 'plot', project: 'home', x: 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
-    add({ kind: 'plot', project: 'garden', x: 7.2, y: 18.4, w: 3, h: 1.6, label: 'Build', text: 'Garden' });
-    add({ kind: 'plot', project: 'training', x: 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
-    add({ kind: 'plot', project: 'warp', x: 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Warp Stone' });
-    add({ kind: 'fountain', x: 12, y: 17, w: 2, h: 2, label: 'Rest', text: 'Healing Fountain' });
+    // Prologue: the sword in the grass, then two monsters blocking the forest path.
+    add({ kind: 'pickup', flag: 'sword', x: 4.2, y: MID - 1.4, w: 0.6, h: 0.5, label: 'Pick up', text: 'Twig Sword' });
+    const gy = pathY(10) - 1;
+    add({ kind: 'foe', flag: 'glade1', monster: 'slime', x: 10, y: gy, w: 1, h: 4, label: 'Fight', text: 'Slime' }, false);
+    add({ kind: 'foe', flag: 'glade2', monster: 'bunny', x: 13, y: gy, w: 1, h: 4, label: 'Fight', text: 'Hopbun' }, false);
+    add({ kind: 'forge', x: V + 5, y: 7, w: 4, h: 3, label: 'Forge', text: 'The Forge' });
+    add({ kind: 'house', x: V + 13, y: 6.5, w: 3, h: 3, label: '' });
+    add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Bloom' });
+    add({ kind: 'plot', project: 'home', x: V + 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
+    add({ kind: 'plot', project: 'garden', x: V + 7.2, y: 18.4, w: 3, h: 1.6, label: 'Build', text: 'Garden' });
+    add({ kind: 'plot', project: 'training', x: V + 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
+    add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Warp Stone' });
+    add({ kind: 'fountain', x: V + 12, y: 17, w: 2, h: 2, label: 'Rest', text: 'Healing Fountain' });
     add({
-      kind: 'sign', x: 18.6, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
+      kind: 'sign', x: V + 18.6, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
       text: 'East: Sunny Meadow. Walk through tall grass to find monsters. Bring back materials to the Forge!',
     });
-    for (const z of ZONES.slice(1)) {
+    for (const z of ZONES.filter((z) => z.monsters.length)) {
       const x = z.x0 + 3;
       add({
         kind: 'sign', x: x + 0.1, y: pathY(x) - 2 + 0.2, w: 0.8, h: 0.6, label: 'Read',

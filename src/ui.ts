@@ -35,7 +35,7 @@ export interface UIHooks {
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-const ZONE_EMOJI: Record<ZoneId, string> = { village: '🏡', meadow: '🌼', woods: '🌲', cave: '💎', peak: '🌋' };
+const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', meadow: '🌼', woods: '🌲', cave: '💎', peak: '🌋' };
 const STYLE_NAMES: Record<string, string> = { sword: 'Sword', spear: 'Spear', axe: 'Axe', hammer: 'Hammer', wand: 'Wand' };
 
 /** Blender-rendered icon with the emoji as a fallback if the image is missing. */
@@ -383,7 +383,7 @@ export class UI {
     }
     const warp = s.build.warp > 0;
     const here = this.ctx.inVillage;
-    const zones = ZONES.map((z) => {
+    const zones = ZONES.filter((z) => z.id !== 'glade').map((z) => {
       const g = z.guardian;
       const beaten = !g || s.bosses.includes(g.kind);
       const seen = s.visited.includes(z.id);
@@ -598,6 +598,30 @@ export class UI {
        <div class="bubble">${esc(q.text)}</div>
        <div class="hint">🎯 ${esc(q.hint)}</div>`,
       [['ok', "Let's go!"]],
+    );
+  }
+
+  /** Letterbox bars for cutscenes. */
+  cinema(on: boolean) {
+    document.body.classList.toggle('cinema', on);
+  }
+
+  /** A story caption along the bottom of the screen; the world stays visible behind it. */
+  async caption(text: string, speaker: 'elder' | 'narrator') {
+    this.modal.classList.add('cine');
+    const who = speaker === 'elder' ? `<div class="speaker small">${icon('npc_elder', '🌿', 'icon sm')}<b>Elder Bloom</b></div>` : '';
+    const r = await this.dialog(`${who}<div class="caption-text ${speaker}">${esc(text)}</div>`, [['ok', '▶']], 'caption');
+    this.modal.classList.remove('cine');
+    return r;
+  }
+
+  itemFound(id: string, name: string, text: string) {
+    return this.dialog(
+      `<div class="confetti">✨🌟✨</div><div class="qchap">You found</div>
+       <div class="qart big-art">${icon(id, '🗡️', 'icon xxl')}</div>
+       <div class="big" style="font-size:28px">${esc(name)}!</div><p>${esc(text)}</p>`,
+      [['ok', 'Take it!']],
+      'celebrate',
     );
   }
 

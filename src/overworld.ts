@@ -29,6 +29,10 @@ export class Overworld {
   ts = 40;
   /** Current goal's location in tiles; drawn as a bouncing waypoint arrow. */
   objective: { x: number; y: number } | null = null;
+  /** Camera position in tiles. It follows the hero, or glides to `camTarget` during cutscenes. */
+  camX = 0;
+  camY = 0;
+  camTarget: { x: number; y: number } | null = null;
 
   constructor(private world: World, private save: SaveState) {
     this.x = save.pos.x;
@@ -40,6 +44,8 @@ export class Overworld {
       this.y = p.y;
     }
     this.zone = world.zoneAt(this.x);
+    this.camX = this.x;
+    this.camY = this.y;
   }
 
   get currentZone(): Zone {
@@ -49,6 +55,8 @@ export class Overworld {
   teleport(x: number, y: number) {
     this.x = x;
     this.y = y;
+    this.camX = x;
+    this.camY = y;
     this.grace = 3;
     this.zone = this.world.zoneAt(x);
   }
@@ -66,6 +74,10 @@ export class Overworld {
   update(dt: number, input: Input, frozen: boolean): WorldEvent {
     this.t += dt;
     this.fx.update(dt);
+    const target = this.camTarget ?? { x: this.x, y: this.y };
+    const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : 12));
+    this.camX += (target.x - this.camX) * k;
+    this.camY += (target.y - this.camY) * k;
     if (this.alert > 0) {
       this.alert -= dt;
       this.moving = false;
@@ -120,8 +132,8 @@ export class Overworld {
     const ts = (this.ts = Math.round(Math.max(32, Math.min(60, Math.min(vw, vh) / 9.5))));
     const W = this.world;
     const mapW = W.w * ts, mapH = W.h * ts;
-    let camX = this.x * ts - vw / 2;
-    let camY = (this.y - 0.5) * ts - vh / 2;
+    let camX = this.camX * ts - vw / 2;
+    let camY = (this.camY - 0.5) * ts - vh / 2;
     camX = mapW <= vw ? (mapW - vw) / 2 : Math.max(0, Math.min(mapW - vw, camX));
     camY = mapH <= vh ? (mapH - vh) / 2 : Math.max(0, Math.min(mapH - vh, camY));
     camX = Math.round(camX);
@@ -600,11 +612,33 @@ export class Overworld {
         return;
       }
     }
+    if (o.kind === 'pickup') {
+      const f = frame('wpn/twig');
+      const ax = x + w / 2, ay = y + h;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(255,230,120,${0.25 + Math.sin(this.t * 4) * 0.1})`;
+      ctx.beginPath();
+      ctx.ellipse(ax, ay, ts * 0.6, ts * 0.25, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      // Stuck in the ground, blade down, gently wobbling.
+      if (f) drawFrame(ctx, f, ax + ts * 0.05, ay - ts * 0.75, ts / TILE_BU * 1.2, { rot: Math.PI / 2 + 0.2 + Math.sin(this.t * 2) * 0.04 });
+      if (Math.random() < 0.12) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.5, ay - Math.random() * ts, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.6, life: 0.8 });
+      return;
+    }
+    if (o.kind === 'foe') {
+      const f = frame(`mon/${o.monster}/${Math.floor(this.t * 6) % 6}`);
+      const ax = x + w / 2, ay = y + ts * 2.7;
+      shadow(ctx, ax, ay, ts * 0.45, 0.25);
+      if (f) drawFrame(ctx, f, ax, ay, (ts / TILE_BU) * 1.5, { flip: true });
+      return;
+    }
     const lv = (id: keyof SaveState['build']) => this.save.build[id];
     let spriteName: string;
     let back = 0.42;
     switch (o.kind) {
-      case 'forge': spriteName = ['forge', 'forge2', 'forge3'][lv('forge') - 1] ?? 'forge'; break;
+      case 'forge': spriteName = ['forge0', 'forge', 'forge2', 'forge3'][lv('forge')] ?? 'forge'; break;
       case 'house': spriteName = 'house_blue'; break;
       case 'fountain': spriteName = 'fountain'; back = 0.45; break;
       case 'sign': spriteName = 'sign'; back = 0.05; break;
@@ -636,8 +670,9 @@ export class Overworld {
       drawFrame(ctx, sprite, ax, ay, unit);
       const top = ay - sprite.ay * (unit / sprite.ppu);
       if (o.kind === 'forge') {
-        if (Math.random() < 0.08) this.fx.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
-        labelAt('⚒ Forge', top);
+        const lit = lv('forge') > 0;
+        if (lit && Math.random() < 0.08) this.fx.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
+        labelAt(lit ? '⚒ Forge' : '⚒ Old Forge', top);
       } else if (o.kind === 'fountain') {
         for (let i = 0; i < 3; i++) {
           const q = (this.t * 1.5 + i / 3) % 1;

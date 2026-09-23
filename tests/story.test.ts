@@ -6,18 +6,25 @@ import { newState } from '../src/state';
 import { World } from '../src/world';
 
 describe('story', () => {
-  test('the chain advances in order, only when each goal is met', () => {
+  test('the prologue and chapter 1 advance in order, only when each goal is met', () => {
     const s = newState();
-    expect(currentQuest(s)!.id).toBe('hello');
+    expect(currentQuest(s)!.id).toBe('wake');
     expect(advanceQuests(s)).toHaveLength(0);
-    s.talked = true;
-    expect(advanceQuests(s).map((q) => q.id)).toEqual(['hello']);
+    s.flags.push('sword');
+    expect(advanceQuests(s).map((q) => q.id)).toEqual(['wake']);
+    s.flags.push('glade1', 'glade2');
+    expect(advanceQuests(s).map((q) => q.id)).toEqual(['firstfight', 'dodge']);
+    s.flags.push('village');
+    advanceQuests(s);
+    expect(currentQuest(s)!.id).toBe('meadow');
     recordKills(s, 'woods', 10); // wrong zone doesn't count
     expect(advanceQuests(s)).toHaveLength(0);
-    recordKills(s, 'meadow', 6);
-    const done = advanceQuests(s);
-    expect(done.map((q) => q.id)).toEqual(['meadow']);
-    expect(s.mats.clover).toBe(1); // reward
+    recordKills(s, 'meadow', 3);
+    expect(advanceQuests(s).map((q) => q.id)).toEqual(['meadow']);
+    expect(currentQuest(s)!.id).toBe('repair');
+    Object.assign(s.mats, { goo: 4, fluff: 3 });
+    expect(build(s, 'forge')).toBe('ok');
+    expect(advanceQuests(s).map((q) => q.id)).toEqual(['repair']);
     expect(currentQuest(s)!.id).toBe('gear');
   });
 
@@ -56,6 +63,8 @@ describe('village', () => {
   test('forge level gates higher-tier recipes', () => {
     const s = newState();
     for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 99;
+    expect(craftGear(s, 'jelly')).toBe('forge');
+    s.build.forge = 1;
     expect(craftGear(s, 'geode')).toBe('forge');
     expect(craftGear(s, 'jelly')).toBe('ok');
     s.build.forge = 2;
@@ -98,16 +107,19 @@ describe('onboarding unlocks', () => {
   const { checkUnlocks } = require('../src/unlocks');
   test('systems reveal one at a time as the story progresses', () => {
     const s = newState();
-    expect(checkUnlocks(s)).toHaveLength(0);
-    s.talked = true;
-    advanceQuests(s);
-    expect(checkUnlocks(s).map((u: { id: string }) => u.id)).toEqual(['journal']);
+    const ids = () => checkUnlocks(s).map((u: { id: string }) => u.id);
+    expect(ids()).toEqual([]);
+    s.flags.push('sword', 'glade1');
     s.wins = 1;
-    expect(checkUnlocks(s).map((u: { id: string }) => u.id)).toEqual(['bag']);
+    expect(ids()).toEqual(['bag']); // loot from the first prologue fight
+    s.flags.push('glade2', 'village');
     s.wins = 2;
-    recordKills(s, 'meadow', 3);
     advanceQuests(s);
-    expect(checkUnlocks(s).map((u: { id: string }) => u.id)).toEqual(['skill', 'forge']);
-    expect(s.unlocked).not.toContain('village');
+    expect(ids()).toEqual(['journal']); // arriving in the village
+    recordKills(s, 'meadow', 3);
+    s.wins = 3;
+    advanceQuests(s);
+    expect(ids()).toEqual(['skill', 'village']); // time to repair the forge
+    expect(s.unlocked).not.toContain('forge');
   });
 });

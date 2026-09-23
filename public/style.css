@@ -710,3 +710,22 @@ h3 small { font-size: 11px; opacity: 0.7; font-weight: 700; }
   70% { transform: translate(40px, -10px) scale(0.9); opacity: 1; }
   100% { transform: translate(40px, -10px) scale(1); opacity: 0; }
 }
+
+/* ================= Cutscenes ================= */
+body::before, body::after {
+  content: ''; position: fixed; left: 0; right: 0; height: 0; background: #1a1020; z-index: 19;
+  transition: height 0.5s ease; pointer-events: none;
+}
+body::before { top: 0; }
+body::after { bottom: 0; }
+body.cinema::before, body.cinema::after { height: 9vh; }
+body.cinema #hud, body.cinema #quest-pill, body.cinema .ctl, body.cinema #drag-hint { opacity: 0; pointer-events: none; }
+#hud, #quest-pill, .ctl { transition: opacity 0.4s; }
+#modal.cine { background: transparent; align-items: flex-end; padding-bottom: calc(10vh + var(--safe-b)); }
+.sheet.caption { width: min(520px, 100%); border-radius: 22px; background: rgba(255, 248, 238, 0.97); margin-bottom: 0; }
+.sheet.caption .result { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.sheet.caption .speaker.small { justify-content: flex-start; margin: 0; }
+.caption-text { font-weight: 700; font-size: 16px; line-height: 1.45; }
+.caption-text.narrator { font-style: italic; text-align: center; padding: 6px 4px; }
+.sheet.caption .btns { justify-content: flex-end; }
+.sheet.caption .go { padding: 8px 18px; font-size: 16px; }

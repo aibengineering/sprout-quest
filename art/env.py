@@ -78,6 +78,31 @@ def house(roof_color):
     return root
 
 
+def forge_ruins():
+    """The old forge before you repair it: cracked walls, a caved-in roof, rubble and a cold window."""
+    root = empty('forge0')
+    w = 4 * TILE * 0.9
+    d = 3 * TILE * 0.55
+    box((0, 0, 0.75), (w, d, 1.5), toon('#a89c98'), root, bevel=0.1)
+    for i in range(6):
+        for j in range(2):
+            box((-w / 2 + 0.45 + i * (w - 0.9) / 5 + (j % 2) * 0.2, -d / 2 - 0.01, 0.35 + j * 0.55), (0.5, 0.04, 0.22), toon('#968a86'), root, bevel=0.04, line=0.008)
+    # Half a roof, sagging, with a hole.
+    profile([(-w / 2 - 0.35, 1.45), (-0.4, 2.6), (0.2, 2.2), (0.5, 2.5), (0.9, 1.45)], d + 0.5, toon('#8a4a3a'), root, bevel=0.08)
+    for x, y, z, r in ((1.0, -d / 2 - 0.4, 0.15, 0.3), (1.6, -d / 2 - 0.2, 0.12, -0.4), (2.0, -d / 2 - 0.6, 0.1, 0.8), (0.6, -d / 2 - 0.8, 0.08, 0.2)):
+        box((x, y, z), (0.5, 0.3, 0.22), toon('#9a8a86'), root, bevel=0.05, rot=(0, 0, r))
+    for x, y in ((1.3, -d / 2 - 0.9), (2.3, -d / 2 - 0.3)):
+        box((x, y, 0.1), (0.9, 0.18, 0.12), toon('#8a5a3a'), root, bevel=0.03, rot=(0, 0, 0.6))
+    box((-0.6, -d / 2 - 0.02, 0.6), (0.8, 0.1, 1.05), toon('#4a3a3a'), root, bevel=0.3)
+    box((1.2, -d / 2 - 0.02, 0.95), (0.9, 0.1, 0.6), toon('#3a3040'), root, bevel=0.15)
+    box((1.8, 0.2, 1.9), (0.5, 0.5, 0.9), toon('#8a8090'), root, bevel=0.08, rot=(0.15, 0.2, 0))
+    an = empty('anvil', root, (-1.9, -d / 2 - 0.55, 0))
+    box((0, 0, 0.12), (0.6, 0.28, 0.16), toon('#5a5a6a'), an, bevel=0.05, rot=(0.3, 0.2, 0.4))
+    for x in (-2.3, 2.6):
+        sphere((x, -d / 2 - 0.2, 0.2), (0.35, 0.25, 0.25), toon('#6ab85a'), root)
+    return root
+
+
 def forge(level=1):
     root = empty('forge')
     w = 4 * TILE * 0.9
@@ -351,6 +376,7 @@ for i in range(3):
     SCENERY[f'pine{i}'] = (lambda i=i: pine(i), 130, 200)
     SCENERY[f'crystal{i}'] = (lambda i=i: crystals(i), 130, 150)
     SCENERY[f'rock{i}'] = (lambda i=i: rock(i), 130, 110)
+SCENERY['forge0'] = (forge_ruins, 480, 380)
 SCENERY['forge'] = (forge, 480, 420)
 SCENERY['forge2'] = (lambda: forge(2), 520, 420)
 SCENERY['forge3'] = (lambda: forge(3), 520, 420)

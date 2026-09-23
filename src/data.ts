@@ -171,7 +171,7 @@ export const POTION_RECIPES: { id: string; name: string; recipe: Recipe }[] = [
   { id: 'embertonic', name: 'Ember Tonic', recipe: { ember: 2 } },
 ];
 
-export type ZoneId = 'village' | 'meadow' | 'woods' | 'cave' | 'peak';
+export type ZoneId = 'glade' | 'village' | 'meadow' | 'woods' | 'cave' | 'peak';
 
 export interface Theme {
   ground: string;
@@ -209,26 +209,30 @@ export interface Zone {
 
 export const ZONES: Zone[] = [
   {
-    id: 'village', name: 'Sprout Village', x0: 0, w: 22, rec: 1, lv: [1, 1], maxEnemies: 0, monsters: [], grassDensity: 0,
+    id: 'glade', name: 'Quiet Glade', x0: 0, w: 16, rec: 1, lv: [1, 1], maxEnemies: 0, monsters: [], grassDensity: 0,
+    theme: { ground: '#8fd672', ground2: '#88cf6a', grass: '#5fbf4a', grassTip: '#86dc5e', path: '#e4d2a4', obstacle: 'tree', pool: 'water', decor: 'flower', outside: '#4f9a42' },
+  },
+  {
+    id: 'village', name: 'Sprout Village', x0: 16, w: 22, rec: 1, lv: [1, 1], maxEnemies: 0, monsters: [], grassDensity: 0,
     theme: { ground: '#9be07a', ground2: '#93d872', grass: '#5fbf4a', grassTip: '#86dc5e', path: '#ecd9aa', obstacle: 'tree', pool: 'water', decor: 'flower', outside: '#5fae4c' },
   },
   {
-    id: 'meadow', name: 'Sunny Meadow', x0: 22, w: 40, rec: 1, lv: [1, 3], maxEnemies: 2, grassDensity: 0.5,
+    id: 'meadow', name: 'Sunny Meadow', x0: 38, w: 40, rec: 1, lv: [1, 3], maxEnemies: 2, grassDensity: 0.5,
     monsters: [{ kind: 'slime', w: 3 }, { kind: 'bunny', w: 2 }],
     theme: { ground: '#a8e27f', ground2: '#9fd975', grass: '#4fb043', grassTip: '#86dc5e', path: '#ecd9aa', obstacle: 'tree', pool: 'water', decor: 'flower', outside: '#62b451' },
   },
   {
-    id: 'woods', name: 'Whisper Woods', guardian: { kind: 'kingslime', lv: 5, gate: 'bramble' }, x0: 62, w: 40, rec: 4, lv: [4, 7], maxEnemies: 3, grassDensity: 0.46,
+    id: 'woods', name: 'Whisper Woods', guardian: { kind: 'kingslime', lv: 5, gate: 'bramble' }, x0: 78, w: 40, rec: 4, lv: [4, 7], maxEnemies: 3, grassDensity: 0.46,
     monsters: [{ kind: 'shroom', w: 3 }, { kind: 'wolf', w: 2.5 }, { kind: 'bunny', w: 0.5 }],
     theme: { ground: '#72ad5e', ground2: '#6aa556', grass: '#3a8a3e', grassTip: '#5aa84a', path: '#cdb88c', obstacle: 'pine', pool: 'water', decor: 'mush', outside: '#3f7a3c' },
   },
   {
-    id: 'cave', name: 'Crystal Cave', guardian: { kind: 'alphawolf', lv: 9, gate: 'crystal' }, x0: 102, w: 40, rec: 8, lv: [8, 12], maxEnemies: 3, grassDensity: 0.48,
+    id: 'cave', name: 'Crystal Cave', guardian: { kind: 'alphawolf', lv: 9, gate: 'crystal' }, x0: 118, w: 40, rec: 8, lv: [8, 12], maxEnemies: 3, grassDensity: 0.48,
     monsters: [{ kind: 'bat', w: 3 }, { kind: 'golem', w: 1.5 }, { kind: 'shroom', w: 0.7 }],
     theme: { ground: '#8e89ad', ground2: '#8581a4', grass: '#6a5fb0', grassTip: '#a898f0', path: '#b8b2cc', obstacle: 'crystal', pool: null, decor: 'gem', outside: '#4a4566' },
   },
   {
-    id: 'peak', name: 'Ember Peak', guardian: { kind: 'crystalking', lv: 14, gate: 'rock' }, x0: 142, w: 44, rec: 13, lv: [13, 17], maxEnemies: 3, grassDensity: 0.46,
+    id: 'peak', name: 'Ember Peak', guardian: { kind: 'crystalking', lv: 14, gate: 'rock' }, x0: 158, w: 44, rec: 13, lv: [13, 17], maxEnemies: 3, grassDensity: 0.46,
     monsters: [{ kind: 'imp', w: 3 }, { kind: 'magma', w: 2 }, { kind: 'golem', w: 0.8 }],
     theme: { ground: '#b8806a', ground2: '#ae775f', grass: '#8a4a3a', grassTip: '#e0804a', path: '#dcbb96', obstacle: 'rock', pool: 'lava', decor: 'pebble', outside: '#6a3a30' },
   },
@@ -283,7 +287,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
   forge: {
     name: 'Forge', icon: '⚒',
     levels: [
-      { name: 'Forge', cost: {}, perk: 'Craft ★ and ★★ gear' },
+      { name: 'Forge', cost: { goo: 4, fluff: 3 }, perk: 'Repaired! Craft ★ and ★★ gear' },
       { name: 'Smithy', cost: { royaljelly: 1, cap: 5, bark: 5 }, perk: 'Craft ★★★ gear' },
       { name: 'Master Forge', cost: { kingcrystal: 1, ember: 6, core: 1 }, perk: 'Craft ★★★★ and legendary gear' },
     ],
@@ -316,6 +320,7 @@ export const PROJECT_ORDER: ProjectId[] = ['home', 'forge', 'garden', 'training'
 
 export type Goal =
   | { type: 'talk' }
+  | { type: 'flag'; flag: string; label: string }
   | { type: 'kills'; zone: ZoneId; count: number }
   | { type: 'craft' }
   | { type: 'build'; project: ProjectId; level: number }
@@ -336,17 +341,34 @@ export interface Quest {
 
 export const QUESTS: Quest[] = [
   {
-    id: 'hello', quiet: true, chapter: 'Prologue', title: 'Meet Elder Bloom', goal: { type: 'talk' }, hint: 'Talk to Elder Bloom next to the Forge',
-    text: "Oh! A little sprout, all grown up! Smoke from Ember Peak has made the monsters grumpy, and big guardians are blocking our roads. Will you help Sprout Village?",
+    id: 'wake', quiet: true, chapter: 'Prologue', title: 'A Quiet Glade', goal: { type: 'flag', flag: 'sword', label: 'Find something to fight with' },
+    hint: 'Pick up the glowing sword', text: 'You wake up in a quiet glade. Your head is fuzzy… but something glints in the grass nearby.',
   },
   {
-    id: 'meadow', chapter: 'Chapter 1', title: 'Grumpy Meadow', goal: { type: 'kills', zone: 'meadow', count: 3 }, hint: 'Defeat monsters in Sunny Meadow',
-    text: 'Start small! Calm 3 monsters in Sunny Meadow, just east of here. They hide in the tall grass. Follow the arrow!',
-    reward: { potions: 1, mats: { clover: 1 } },
+    id: 'firstfight', quiet: true, chapter: 'Prologue', title: 'A Slime in the Way', goal: { type: 'flag', flag: 'glade1', label: 'Defeat the slime' },
+    hint: 'Defeat the slime blocking the path', text: 'A grumpy slime is blocking the forest path. Time to try out that sword!',
+  },
+  {
+    id: 'dodge', quiet: true, chapter: 'Prologue', title: 'Hop to It', goal: { type: 'flag', flag: 'glade2', label: 'Defeat the Hopbun' },
+    hint: 'Defeat the Hopbun. Dodge its charge!', text: 'A Hopbun! They wind up and charge. Watch it closely and dodge out of the way.',
+  },
+  {
+    id: 'village', quiet: true, chapter: 'Prologue', title: 'Smoke on the Horizon', goal: { type: 'flag', flag: 'village', label: 'Follow the path east' },
+    hint: 'Follow the path east', text: 'The path leads east, toward chimney smoke. There must be a village!',
+  },
+  {
+    id: 'meadow', chapter: 'Chapter 1', title: 'Gather Materials', goal: { type: 'kills', zone: 'meadow', count: 3 }, hint: 'Defeat monsters in Sunny Meadow',
+    text: 'To fix our forge we need Slime Goo and Bunny Fluff. Monsters in Sunny Meadow, just east of here, drop them. They hide in the tall grass!',
+    reward: { potions: 1 },
+  },
+  {
+    id: 'repair', chapter: 'Chapter 1', title: 'Rekindle the Forge', goal: { type: 'build', project: 'forge', level: 1 }, hint: 'Repair the Forge',
+    text: "Wonderful! Bring those materials to the old forge and let's get it burning again.",
+    reward: { mats: { goo: 2, fluff: 1 } },
   },
   {
     id: 'gear', chapter: 'Chapter 1', title: 'Gear Up', goal: { type: 'craft' }, hint: 'Craft any gear at the Forge',
-    text: "Look at all those materials! I've lit the Forge for you. Go craft yourself something new!",
+    text: "Listen to it roar! Now craft yourself something better than that old twig.",
     reward: { mats: { goo: 3, fluff: 2 } },
   },
   {

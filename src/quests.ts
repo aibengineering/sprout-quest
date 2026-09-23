@@ -12,6 +12,8 @@ export function progress(s: SaveState, q: Quest): { cur: number; max: number; la
   switch (g.type) {
     case 'talk':
       return { cur: s.talked ? 1 : 0, max: 1, label: 'Talk to Elder Bloom' };
+    case 'flag':
+      return { cur: s.flags.includes(g.flag) ? 1 : 0, max: 1, label: g.label };
     case 'kills': {
       const zone = ZONES.find((z) => z.id === g.zone)!;
       return { cur: Math.min(g.count, s.questKills), max: g.count, label: `Monsters in ${zone.name}` };

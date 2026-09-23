@@ -143,7 +143,7 @@ elif GROUP == 'icons2':
         path = os.path.join(OUT, 'icons2', 'npc_elder.png')
         lib.render_fit(path, 128, math.radians(12))
         frames.append({'name': 'icon/npc_elder', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
-    for name in ('home1', 'home2', 'home3', 'forge', 'forge2', 'forge3', 'garden1', 'garden2', 'garden3',
+    for name in ('home1', 'home2', 'home3', 'forge0', 'forge', 'forge2', 'forge3', 'garden1', 'garden2', 'garden3',
                  'training1', 'training2', 'training3', 'warp0', 'warp1', 'campfire', 'plot'):
         if not wanted(name):
             continue

@@ -26,18 +26,19 @@ bun run typecheck
 
 ## Story and progression
 
-**New players start small.** They spawn next to Elder Bloom, a drag hint and a waypoint arrow show the way, and the
-first fight is a single slime with only ⚔️ and 💨 (plus coaching bubbles). Systems unlock one at a time with a small
-card: 📜 Journal, then 🎒 Bag (after the first win), then ✨ weapon skill, then the ⚒ Forge, then 🏡 Village building,
-and new building plots after guardians fall. The HUD and menu only show what has been unlocked, with dots on anything new.
+**Prologue.** You wake up in the Quiet Glade west of the village, pick up a Twig Sword, and fight your way down the
+forest path: a slime (attack) and then a Hopbun (its charge teaches dodging), with only ⚔️ and 💨 on screen and coaching
+bubbles. Reaching Sprout Village plays a letterboxed camera tour with Elder Bloom (the empty plots, the ruined forge, the
+guarded roads east). From there systems unlock one at a time with a small card: 🎒 Bag, 📜 Journal, ✨ weapon skill,
+🏡 Village building (starting with repairing the forge), ⚒ crafting, then new building plots as guardians fall.
 
 Smoke from Ember Peak has made the monsters grumpy, and guardians block the roads. Elder Bloom (by the Forge)
 guides you through a chain of chapters, and the current goal is always shown in the 📜 tracker at the top of the screen.
 
 | Chapter | Goal |
 | --- | --- |
-| Prologue | Meet Elder Bloom |
-| 1 | Calm 6 meadow monsters → craft gear → build a Cottage |
+| Prologue | Wake in the glade → find a sword → beat a slime and a Hopbun → reach the village |
+| 1 | Gather materials in the meadow → repair the Forge → craft gear → build a Cottage |
 | 2 | 👑 **Slime King** (Lv 5) guards Whisper Woods → upgrade the Forge to a Smithy |
 | 3 | 🐺 **Alpha Woolf** (Lv 9) guards Crystal Cave → build the Warp Stone |
 | 4 | 💎 **Crystal King** (Lv 14) guards Ember Peak → upgrade to a Master Forge |
@@ -53,6 +54,7 @@ guides you through a chain of chapters, and the current goal is always shown in 
 
 | Area | Lv | Monsters | Materials |
 | --- | --- | --- | --- |
+| 🌳 Quiet Glade | – | Prologue only | Where your story begins |
 | 🏡 Sprout Village | – | – | Forge, Fountain, Elder Bloom, building plots |
 | 🌼 Sunny Meadow | 1–3 | Slime, Hopbun | Goo, Fluff, Clover |
 | 🌲 Whisper Woods | 4–7 | Sporecap, Woolf | Shroom Cap, Bark, Fang |

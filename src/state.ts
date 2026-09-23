@@ -31,6 +31,8 @@ export interface SaveState {
   unlocked: string[];
   fresh: string[];
   wins: number;
+  /** Story flags set by scripted events (prologue fights, arriving in the village…). */
+  flags: string[];
 }
 
 const KEY = 'sprout-quest-save';
@@ -46,9 +48,9 @@ export function newState(): SaveState {
     owned: ['twig', 'tunic'],
     equip: { weapon: 'twig', armor: 'tunic', charm: null },
     potions: 2,
-    // Start right next to Elder Bloom so the story begins immediately.
-    pos: { x: 9.2, y: 13.2 },
-    visited: ['village'],
+    // New adventures begin in the Quiet Glade, west of the village.
+    pos: { x: 3.5, y: 13.9 },
+    visited: ['glade'],
     bossWins: 0,
     muted: false,
     tips: [],
@@ -57,12 +59,13 @@ export function newState(): SaveState {
     talked: false,
     crafted: 0,
     bosses: [],
-    build: { home: 1, forge: 1, garden: 0, training: 0, warp: 0 },
+    build: { home: 1, forge: 0, garden: 0, training: 0, warp: 0 },
     camps: [],
-    respawn: 'village',
+    respawn: 'glade',
     unlocked: [],
     fresh: [],
     wins: 0,
+    flags: [],
   };
 }
 
@@ -81,6 +84,19 @@ export function loadState(): SaveState | null {
       build: { ...base.build, ...data.build },
     } as SaveState;
     // Saves from before the story update: credit progress that already happened.
+    if (data.flags === undefined) {
+      // Saves from before the prologue existed: the world gained a 16-tile glade on the west, and the story gained
+      // four prologue steps. Shift everything over and treat the prologue as done.
+      merged.flags = ['sword', 'glade1', 'glade2', 'village'];
+      merged.pos = { x: (data.pos?.x ?? 4.5) + 16, y: data.pos?.y ?? 13.5 };
+      const oldOrder = ['hello', 'meadow', 'gear', 'cottage', 'kingslime', 'smithy', 'alphawolf', 'warp', 'crystalking', 'master', 'dragon', 'legend'];
+      const newOrder = ['wake', 'firstfight', 'dodge', 'village', 'meadow', 'repair', 'gear', 'cottage', 'kingslime', 'smithy', 'alphawolf', 'warp', 'crystalking', 'master', 'dragon', 'legend'];
+      const id = oldOrder[data.quest ?? 0] ?? 'meadow';
+      merged.quest = newOrder.indexOf(id === 'hello' ? 'meadow' : id);
+      if (merged.respawn === ('glade' as ZoneId)) merged.respawn = 'village';
+      if (data.build?.forge === undefined) merged.build.forge = 1;
+      if (!merged.visited.includes('village')) merged.visited.push('village');
+    }
     if (data.unlocked === undefined) {
       // Existing players keep everything they've already seen: count past fights as wins so unlocks catch up silently.
       merged.wins = merged.lv > 1 || merged.owned.length > 2 ? 10 : 0;

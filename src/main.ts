@@ -2,7 +2,7 @@
 import { loadAssets } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
-import { GEAR, MAX_POTIONS, MONSTERS, POTION_HEAL, PROJECTS, QUESTS, ZONES, zoneById, type Zone, type ZoneId } from './data';
+import { GEAR, MAX_POTIONS, MONSTERS, POTION_HEAL, PROJECTS, QUESTS, ZONES, zoneById, type MonsterKind, type Zone, type ZoneId } from './data';
 import { Input } from './input';
 import { Overworld } from './overworld';
 import { advanceQuests, currentQuest, recordKills } from './quests';
@@ -144,7 +144,8 @@ function syncWorld() {
       if (o.project === 'warp') o.hidden = !has(save, 'warpplot');
       if (o.project === 'home') o.label = has(save, 'village') ? 'Build' : 'Rest';
     }
-    if (o.kind === 'forge') o.label = has(save, 'forge') ? 'Forge' : 'Look';
+    if (o.kind === 'forge') o.label = save.build.forge === 0 ? (has(save, 'village') ? 'Repair' : 'Look') : has(save, 'forge') ? 'Forge' : 'Look';
+    if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = save.flags.includes(o.flag!);
   }
 }
 
@@ -182,7 +183,8 @@ async function progressQuests(): Promise<boolean> {
     const next = currentQuest(save);
     if (next) {
       if (!save.tips.includes(`elder:${next.id}`)) save.tips.push(`elder:${next.id}`);
-      await ui.questIntro(next);
+      if (next.chapter === 'Prologue') await ui.caption(next.text, 'narrator');
+      else await ui.questIntro(next);
     } else {
       await ui.message('🌟 The End… for now!', 'Every chapter is complete. Sprout Village is safe, and you are its hero! Keep exploring, crafting and rematching bosses.');
     }
@@ -202,7 +204,7 @@ function persist() {
 }
 
 function showZoneBanner(z: Zone) {
-  const sub = z.id === 'village' ? 'Safe · Forge & Fountain' : `Monsters Lv ${z.lv[0]}–${z.lv[1]}${save.lv < z.rec ? ' · ⚠️ Dangerous!' : ''}`;
+  const sub = z.id === 'village' ? 'Safe · Home of Elder Bloom' : z.id === 'glade' ? 'A peaceful clearing' : `Monsters Lv ${z.lv[0]}–${z.lv[1]}${save.lv < z.rec ? ' · ⚠️ Dangerous!' : ''}`;
   ui.banner(z.name, sub);
   if (!save.visited.includes(z.id)) {
     save.visited.push(z.id);
@@ -231,9 +233,10 @@ function rollFoes(z: Zone): Foe[] {
   }));
 }
 
-function startBattle(zone: Zone, foes: Foe[], boss: boolean) {
+function startBattle(zone: Zone, foes: Foe[], boss: boolean, flag?: string) {
   audio.play('encounter');
   mode = 'dialog';
+  battleFlag = flag;
   transition(() => {
     battle = new Battle({ zone, foes, boss }, save, input, audio, onBattleEnd);
     mode = 'battle';
@@ -256,6 +259,10 @@ async function onBattleEnd(o: BattleOutcome) {
   if (o.result === 'win') {
     save.hp = o.hp;
     save.wins++;
+    if (battleFlag && !save.flags.includes(battleFlag)) {
+      save.flags.push(battleFlag);
+      syncWorld();
+    }
     const levels = gainXp(save, o.xp);
     mergeDrops(save.mats, o.drops);
     if (!boss) recordKills(save, b.setup.zone.id, o.defeated.length);
@@ -287,7 +294,7 @@ async function onBattleEnd(o: BattleOutcome) {
     await ui.result({ win: false, xp: 0, levels: 0, newLv: save.lv, drops: {}, boss, respawn: save.respawn });
     transition(() => {
       save.hp = playerStats(save).maxHp;
-      const p = save.respawn === 'village' ? world.entryPoint('village') : world.campPoint(save.respawn);
+      const p = save.respawn === 'village' || save.respawn === 'glade' ? world.entryPoint(save.respawn) : world.campPoint(save.respawn);
       over.teleport(p.x, p.y);
       backToWorld();
       showZoneBanner(over.currentZone);
@@ -308,6 +315,49 @@ function backToWorld() {
 
 // ------------------------------------------------------------------ interactions
 
+/** Prologue monsters block the forest path; walking into one starts a scripted fight. */
+function challengeFoe(o: { flag?: string; monster?: MonsterKind }) {
+  if (!save.flags.includes('sword')) {
+    ui.toast('😰 You need something to fight with! Something was glinting back in the clearing…');
+    return;
+  }
+  startBattle(zoneById('glade'), [{ kind: o.monster!, lv: 1, golden: false }], false, o.flag);
+}
+
+/** Letterboxed camera tour with captions. */
+async function cutscene(shots: { x: number; y: number; text: string; speaker?: 'elder' | 'narrator' }[]) {
+  mode = 'dialog';
+  ui.cinema(true);
+  input.reset();
+  for (const shot of shots) {
+    over.camTarget = { x: shot.x, y: shot.y };
+    await new Promise((r) => setTimeout(r, 700));
+    await ui.caption(shot.text, shot.speaker ?? 'elder');
+  }
+  over.camTarget = null;
+  ui.cinema(false);
+  await new Promise((r) => setTimeout(r, 400));
+  mode = 'world';
+  input.reset();
+}
+
+/** The first time you walk into Sprout Village, Elder Bloom shows you around. */
+async function arriveAtVillage() {
+  const elder = world.obj('elder')!, forge = world.obj('forge')!, home = world.obj('plot', 'home')!, sign = world.objs.find((o) => o.kind === 'sign' && o.x > elder.x)!;
+  await cutscene([
+    { x: elder.x + 0.4, y: elder.y + 1, text: 'Oh my! A traveler, and you made it through the glade all by yourself? Welcome to Sprout Village, little sprout!' },
+    { x: home.x + 3, y: home.y + 1.5, text: "It isn't much right now. A tent, a dry garden patch and a lot of empty ground…" },
+    { x: forge.x + 2, y: forge.y + 2, text: 'Even our old forge has crumbled. Ever since smoke started drifting from Ember Peak, the monsters have been grumpy and nobody dares travel.' },
+    { x: sign.x + 3, y: sign.y + 2, text: 'Out east, big guardians now block every road. We are cut off from the rest of the world.' },
+    { x: over.x, y: over.y, text: "But I have a feeling about you. With your help, this little village could grow into something wonderful. Will you stay and help us?" },
+  ]);
+  save.flags.push('village');
+  save.respawn = 'village';
+  if (!save.visited.includes('village')) save.visited.push('village');
+  persist();
+  await progressQuests();
+}
+
 async function talkToElder() {
   mode = 'dialog';
   const q = currentQuest(save);
@@ -326,6 +376,15 @@ async function interact() {
   audio.play('ui');
   switch (o.kind) {
     case 'forge':
+      if (save.build.forge === 0) {
+        if (!has(save, 'village')) {
+          ui.toast('🏚 The old forge has fallen to pieces. Maybe someone in the village knows how to fix it…');
+          break;
+        }
+        mode = 'dialog';
+        ui.openMenu(menuCtx(), 'village', 'forge');
+        break;
+      }
       if (!has(save, 'forge')) {
         ui.toast('🔒 The forge is cold. Elder Bloom will light it when you are ready.');
         break;
@@ -346,6 +405,21 @@ async function interact() {
       break;
     case 'elder':
       await talkToElder();
+      break;
+    case 'pickup': {
+      mode = 'dialog';
+      audio.play('levelup');
+      await ui.itemFound('twig', 'Twig Sword', "It's just a stick… but it feels right in your hand.");
+      save.flags.push('sword');
+      syncWorld();
+      mode = 'world';
+      input.reset();
+      persist();
+      void progressQuests();
+      break;
+    }
+    case 'foe':
+      challengeFoe(o);
       break;
     case 'gate': {
       const z = zoneById(o.zone!);
@@ -425,6 +499,14 @@ function startGame(fresh: boolean) {
   mode = 'world';
   ui.setMode('world');
   input.reset();
+  if (fresh) {
+    // Waking up in the glade.
+    mode = 'dialog';
+    void ui.caption(QUESTS[0].text, 'narrator').then(() => {
+      mode = 'world';
+      input.reset();
+    });
+  }
   // Old saves catch up on unlocks quietly; new players get them one at a time.
   const catchUp = save.unlocked.length === 0 && (save.lv > 1 || save.quest > 0);
   unlocks(catchUp);
@@ -472,6 +554,7 @@ document.addEventListener('visibilitychange', () => {
 // ------------------------------------------------------------------ loop
 
 let movedDist = 0;
+let battleFlag: string | undefined;
 let autoTalked = false;
 let coachStep = 0;
 let coachT = 0;
@@ -498,6 +581,12 @@ function objective(): { x: number; y: number } | null {
   switch (g.type) {
     case 'talk':
       return center(world.obj('elder'));
+    case 'flag': {
+      if (g.flag === 'sword') return center(world.objs.find((o) => o.kind === 'pickup'));
+      if (g.flag === 'village') return world.entryPoint('village');
+      const foe = world.objs.find((o) => o.kind === 'foe' && o.flag === g.flag);
+      return foe ? { x: foe.x + 0.5, y: foe.y + 2.7 } : null;
+    }
     case 'craft':
       return has(save, 'forge') ? center(world.obj('forge')) : null;
     case 'build':
@@ -534,9 +623,14 @@ function coachBattle(b: Battle) {
       if (b.hits > 0) { coachStep = 1; coachT = 0; }
       return ui.coach('Tap ⚔️ to attack! It aims for you.', 'btn-attack');
     }
-    if (coachStep === 1) {
-      if (b.dodgeFrac > 0 || coachT > 5) { coachStep = 2; return ui.coach(null); }
-      return ui.coach('Monsters wiggle before they attack. Tap 💨 to dodge!', 'btn-dodge');
+    return ui.coach(null);
+  }
+  if (save.wins === 1) {
+    // The Hopbun fight: its charge is the perfect thing to dodge.
+    if (coachStep === 0) {
+      if (b.dodgeFrac > 0) { coachStep = 1; return ui.coach(null); }
+      const winding = b.enemies.some((e) => !e.dead && e.windup > 0.2);
+      return ui.coach(winding ? 'It\'s winding up! Tap 💨 NOW!' : 'Hopbuns wiggle, then charge. Tap 💨 to dodge through them!', 'btn-dodge');
     }
     return ui.coach(null);
   }
@@ -576,10 +670,10 @@ function frame(now: number) {
     ui.questPill(false);
     ui.dock(false);
     ui.dragHint(false);
-    ui.battleButtons(has(save, 'skill'), has(save, 'bag'));
+    ui.battleButtons(has(save, 'skill'), has(save, 'bag') && save.flags.includes('village'));
     if (mode === 'battle') coachBattle(battle);
     if (mode === 'battle') {
-      ui.battleHud(save.potions, battle.skillFrac, battle.dodgeFrac, battle.moves.skillName, !battle.setup.boss && save.wins > 0);
+      ui.battleHud(save.potions, battle.skillFrac, battle.dodgeFrac, battle.moves.skillName, !battle.setup.boss && !battleFlag && save.flags.includes('village'));
     }
   } else {
     const canAct = mode === 'world' && !busy;
@@ -600,7 +694,15 @@ function frame(now: number) {
         if (movedDist > 2) save.tips.push('moved');
       }
       if (canAct) maybeAutoTalk();
-      if (ev?.type === 'zone') showZoneBanner(ev.zone);
+      if (ev?.type === 'zone') {
+        showZoneBanner(ev.zone);
+        if (ev.zone.id === 'village' && !save.flags.includes('village')) void arriveAtVillage();
+      }
+      if (canAct && save.flags.includes('sword')) {
+        // Bumping into the monster's blocking box starts the fight.
+        const foe = world.objs.find((o) => o.kind === 'foe' && !o.hidden && over.x > o.x - 1.1 && over.x < o.x + o.w + 1.1 && over.y > o.y && over.y < o.y + o.h + 0.4);
+        if (foe) challengeFoe(foe);
+      }
       if (ev?.type === 'encounter') {
         const z = over.currentZone;
         startBattle(z, rollFoes(z), false);
@@ -656,7 +758,7 @@ requestAnimationFrame(frame);
   get battle() { return battle; },
   get over() { return over; },
   fight(kind: Foe['kind'] = 'slime', lv = 1, n = 1) {
-    startBattle(over.currentZone.id === 'village' ? ZONES[1] : over.currentZone, Array.from({ length: n }, () => ({ kind, lv, golden: false })), !!MONSTERS[kind].boss);
+    startBattle(over.currentZone.monsters.length ? over.currentZone : zoneById('meadow'), Array.from({ length: n }, () => ({ kind, lv, golden: false })), !!MONSTERS[kind].boss);
   },
   warp(id: ZoneId) {
     const p = world.entryPoint(id);

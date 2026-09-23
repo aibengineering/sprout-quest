@@ -19,7 +19,7 @@ export const UNLOCKS: Unlock[] = [
   {
     id: 'journal', icon: '📜', title: 'Journal',
     text: 'Your goals, the world map and the story live here. Tap 📜 or the goal banner anytime.',
-    when: (s) => reached(s, 'meadow'),
+    when: (s) => s.flags.includes('village'),
   },
   {
     id: 'bag', icon: '🎒', title: 'Your Bag',
@@ -29,7 +29,7 @@ export const UNLOCKS: Unlock[] = [
   {
     id: 'skill', icon: '✨', title: 'Weapon Skill',
     text: 'Tap ✨ in battle for your weapon’s special move. It recharges after each use.',
-    when: (s) => s.wins > 1,
+    when: (s) => s.wins > 2,
   },
   {
     id: 'forge', icon: '⚒', title: 'The Forge',
@@ -38,8 +38,8 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'village', icon: '🏡', title: 'Village Building',
-    text: 'Upgrade your home and build new places for permanent boosts. Look for Build signs in the village!',
-    when: (s) => reached(s, 'cottage'),
+    text: 'Repair and build up Sprout Village for permanent boosts. Walk up to the old forge or a building plot to start!',
+    when: (s) => reached(s, 'repair'),
   },
   {
     id: 'plots', icon: '🌱', title: 'New Building Plots',

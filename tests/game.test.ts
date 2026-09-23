@@ -24,6 +24,8 @@ describe('rules', () => {
 
   test('crafting spends materials once and equipping applies stats', () => {
     const s = newState();
+    expect(craftGear(s, 'jelly')).toBe('forge'); // the forge starts in ruins
+    s.build.forge = 1;
     expect(craftGear(s, 'jelly')).toBe('missing');
     s.mats.goo = 6;
     s.mats.fluff = 2;
