@@ -27,6 +27,8 @@ export class Overworld {
   private zone: Zone;
   private fx = new Fx();
   ts = 40;
+  /** Current goal's location in tiles; drawn as a bouncing waypoint arrow. */
+  objective: { x: number; y: number } | null = null;
 
   constructor(private world: World, private save: SaveState) {
     this.x = save.pos.x;
@@ -165,6 +167,7 @@ export class Overworld {
     for (const it of items) it.draw();
 
     this.fx.draw(ctx);
+    if (this.objective) this.drawObjective(ctx, camX, camY, vw, vh, ts);
 
     // Interaction hint bubble
     const near = this.nearbyObject();
@@ -182,6 +185,55 @@ export class Overworld {
       ctx.fillText(label, bx, by - ts * 0.22);
     }
     ctx.restore();
+  }
+
+  /** A golden arrow over the goal, or pinned to the screen edge pointing toward it when it's off-screen. */
+  private drawObjective(ctx: CanvasRenderingContext2D, camX: number, camY: number, vw: number, vh: number, ts: number) {
+    const o = this.objective!;
+    const wx = o.x * ts, wy = o.y * ts;
+    const sx = wx - camX, sy = wy - camY;
+    const top = 130, bottom = vh - 150, left = 30, right = vw - 30;
+    const bounce = Math.abs(Math.sin(this.t * 4)) * ts * 0.18;
+    const arrow = (x: number, y: number, ang: number, size: number) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(ang);
+      ctx.beginPath();
+      ctx.moveTo(size * 0.6, 0);
+      ctx.lineTo(-size * 0.4, -size * 0.5);
+      ctx.lineTo(-size * 0.2, 0);
+      ctx.lineTo(-size * 0.4, size * 0.5);
+      ctx.closePath();
+      ctx.fillStyle = '#ffd35a';
+      ctx.strokeStyle = '#6a3a5a';
+      ctx.lineWidth = size * 0.1;
+      ctx.lineJoin = 'round';
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    };
+    if (sx > left && sx < right && sy > top - ts && sy < bottom) {
+      // On screen: bob above the target.
+      const ay = wy - ts * 1.9 - bounce;
+      ctx.fillStyle = 'rgba(255,211,90,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(wx, wy, ts * (0.5 + 0.1 * Math.sin(this.t * 4)), ts * 0.22, 0, 0, TAU);
+      ctx.fill();
+      arrow(wx, ay, Math.PI / 2, ts * 0.7);
+      return;
+    }
+    // Off screen: pin to the edge, pointing the way.
+    const cx = vw / 2, cy = (top + bottom) / 2;
+    const dx = sx - cx, dy = sy - cy;
+    const k = Math.min((dx > 0 ? right - cx : left - cx) / (dx || 1e-6), (dy > 0 ? bottom - cy : top - cy) / (dy || 1e-6));
+    const ex = cx + dx * Math.abs(k), ey = cy + dy * Math.abs(k);
+    const ang = Math.atan2(dy, dx);
+    const pulse = 1 + Math.sin(this.t * 5) * 0.08;
+    ctx.fillStyle = 'rgba(74,42,90,0.55)';
+    ctx.beginPath();
+    ctx.arc(camX + ex, camY + ey, ts * 0.55 * pulse, 0, TAU);
+    ctx.fill();
+    arrow(camX + ex, camY + ey, ang, ts * 0.75 * pulse);
   }
 
   private drawHero(ctx: CanvasRenderingContext2D, ts: number) {

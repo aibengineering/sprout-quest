@@ -27,6 +27,10 @@ export interface SaveState {
   camps: ZoneId[];
   /** Where you wake up after fainting. */
   respawn: ZoneId | 'village';
+  /** Systems revealed so far (see unlocks.ts) and those not yet looked at ("new" dots). */
+  unlocked: string[];
+  fresh: string[];
+  wins: number;
 }
 
 const KEY = 'sprout-quest-save';
@@ -42,7 +46,8 @@ export function newState(): SaveState {
     owned: ['twig', 'tunic'],
     equip: { weapon: 'twig', armor: 'tunic', charm: null },
     potions: 2,
-    pos: { x: 4.5, y: 13.5 },
+    // Start right next to Elder Bloom so the story begins immediately.
+    pos: { x: 9.2, y: 13.2 },
     visited: ['village'],
     bossWins: 0,
     muted: false,
@@ -55,6 +60,9 @@ export function newState(): SaveState {
     build: { home: 1, forge: 1, garden: 0, training: 0, warp: 0 },
     camps: [],
     respawn: 'village',
+    unlocked: [],
+    fresh: [],
+    wins: 0,
   };
 }
 
@@ -73,6 +81,11 @@ export function loadState(): SaveState | null {
       build: { ...base.build, ...data.build },
     } as SaveState;
     // Saves from before the story update: credit progress that already happened.
+    if (data.unlocked === undefined) {
+      // Existing players keep everything they've already seen: count past fights as wins so unlocks catch up silently.
+      merged.wins = merged.lv > 1 || merged.owned.length > 2 ? 10 : 0;
+      merged.fresh = [];
+    }
     if (data.quest === undefined) {
       merged.crafted = Math.max(0, merged.owned.length - 2);
       if ((data.bossWins ?? 0) > 0) merged.bosses = ['dragon'];

@@ -170,6 +170,8 @@ export class Battle {
   private drops: Partial<Record<MatId, number>> = {};
   private defeated: string[] = [];
   private hitCounter = 1;
+  /** How many times the player has landed a hit (drives the first-battle tutorial). */
+  hits = 0;
   private burstIds = new Set<number>();
   private weaponColor: string;
   private armorColor: string;
@@ -700,6 +702,7 @@ export class Battle {
 
   private hitEnemy(e: Enemy, mult: number, ang: number, kb: number, stun = 0, strikeId = 0, hitstop = 0.035) {
     if (e.dead) return;
+    this.hits++;
     const st = this.stats;
     const critChance = 0.08 + st.luck * 0.2 + (this.element === 'crystal' ? 0.12 : 0);
     const { dmg, crit } = calcDamage(st.atk, e.dfn, mult, critChance);

@@ -2,14 +2,15 @@
 import { loadAssets } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
-import { MAX_POTIONS, MONSTERS, POTION_HEAL, PROJECTS, QUESTS, ZONES, zoneById, type ProjectId, type Zone, type ZoneId } from './data';
+import { GEAR, MAX_POTIONS, MONSTERS, POTION_HEAL, PROJECTS, QUESTS, ZONES, zoneById, type Zone, type ZoneId } from './data';
 import { Input } from './input';
 import { Overworld } from './overworld';
 import { advanceQuests, currentQuest, recordKills } from './quests';
+import { checkUnlocks, has } from './unlocks';
 import { build, craftGear, craftPotion, equip, gainXp, mergeDrops, playerStats, potionRefill, weightedPick } from './rules';
 import { clearState, loadState, newState, saveState, type SaveState } from './state';
 import { UI } from './ui';
-import { World } from './world';
+import { T, World } from './world';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -44,14 +45,17 @@ function transition(mid: () => void, dur = 0.7) {
 
 const ui = new UI({
   save: () => save,
-  craftGear(id) {
-    const r = craftGear(save, id);
-    if (r === 'ok') {
-      audio.play('craft');
-      ui.toast('✨ Crafted! Equip it from the Items tab.');
-      persist();
-      void progressQuests();
-    }
+  async craftGear(id) {
+    const g = GEAR[id];
+    const current = g.slot === 'charm' ? (save.equip.charm ? GEAR[save.equip.charm] : null) : GEAR[save.equip[g.slot]];
+    if (craftGear(save, id) !== 'ok') return;
+    audio.play('craft');
+    persist();
+    const choice = await ui.newGear(g, current);
+    if (choice === 'equip' && equip(save, id)) audio.play('levelup');
+    persist();
+    const advanced = await progressQuests();
+    if (!advanced) ui.openMenu(menuCtx(true), 'forge');
   },
   build(id) {
     if (build(save, id) === 'ok') {
@@ -61,6 +65,7 @@ const ui = new UI({
       // Upgrades that raise max HP also top you up.
       save.hp = Math.min(playerStats(save).maxHp, save.hp + 10);
       persist();
+      syncWorld();
       void progressQuests();
     }
   },
@@ -128,28 +133,49 @@ const ui = new UI({
   },
 });
 
-/** Opens gates whose guardians are beaten and lights their campfires. */
+/** Opens gates whose guardians are beaten, lights campfires and reveals building plots as they unlock. */
 function syncWorld() {
   for (const o of world.objs) {
     const z = o.zone ? zoneById(o.zone) : null;
     if (o.kind === 'gate' && z?.guardian) o.hidden = save.bosses.includes(z.guardian.kind);
     if (o.kind === 'camp') o.hidden = !save.camps.includes(o.zone!);
+    if (o.kind === 'plot') {
+      if (o.project === 'garden' || o.project === 'training') o.hidden = !has(save, 'plots');
+      if (o.project === 'warp') o.hidden = !has(save, 'warpplot');
+      if (o.project === 'home') o.label = has(save, 'village') ? 'Build' : 'Rest';
+    }
+    if (o.kind === 'forge') o.label = has(save, 'forge') ? 'Forge' : 'Look';
+  }
+}
+
+/** Reveals newly earned systems with a small card (or silently when catching up an old save). */
+function unlocks(silent = false) {
+  const fresh = checkUnlocks(save);
+  if (silent) save.fresh = [];
+  else for (const u of fresh) ui.unlockCard(u);
+  if (fresh.length) {
+    syncWorld();
+    persist();
   }
 }
 
 let questBusy = false;
 /** Completes finished story steps one by one with a little celebration, then introduces the next. */
-async function progressQuests() {
-  if (questBusy) return;
+async function progressQuests(): Promise<boolean> {
+  if (questBusy) return false;
   questBusy = true;
   try {
     const done = advanceQuests(save);
-    if (!done.length) return;
+    if (!done.length) {
+      unlocks();
+      return false;
+    }
     persist();
     const prev = mode;
     mode = 'dialog';
     ui.closeMenu(true);
     for (const q of done) {
+      if (q.quiet) continue;
       audio.play('victory');
       await ui.questComplete(q);
     }
@@ -163,6 +189,8 @@ async function progressQuests() {
     persist();
     mode = prev === 'battle' ? 'world' : prev === 'dialog' ? 'world' : prev;
     input.reset();
+    unlocks();
+    return true;
   } finally {
     questBusy = false;
   }
@@ -192,6 +220,8 @@ function tip(id: string, text: string) {
 // ------------------------------------------------------------------ battles
 
 function rollFoes(z: Zone): Foe[] {
+  // A gentle first fight: one little slime.
+  if (save.wins === 0) return [{ kind: 'slime', lv: 1, golden: false }];
   const r = Math.random();
   const n = Math.min(z.maxEnemies, r < 0.5 ? 1 : r < 0.85 ? 2 : 3);
   return Array.from({ length: n }, () => ({
@@ -209,8 +239,8 @@ function startBattle(zone: Zone, foes: Foe[], boss: boolean) {
     mode = 'battle';
     ui.setMode('battle');
     input.reset();
+    coachStep = 0;
     if (foes.some((f) => f.golden)) ui.toast('✨ A golden monster! Double loot!');
-    else if (!save.tips.includes('battle')) tip('battle', 'Tap ⚔️ to attack (it auto-aims). Tap 💨 to dodge!');
   }, 0.9);
 }
 
@@ -225,6 +255,7 @@ async function onBattleEnd(o: BattleOutcome) {
   }
   if (o.result === 'win') {
     save.hp = o.hp;
+    save.wins++;
     const levels = gainXp(save, o.xp);
     mergeDrops(save.mats, o.drops);
     if (!boss) recordKills(save, b.setup.zone.id, o.defeated.length);
@@ -266,6 +297,7 @@ async function onBattleEnd(o: BattleOutcome) {
 
 function backToWorld() {
   battle = null;
+  ui.coach(null);
   mode = 'world';
   ui.setMode('world');
   over.resetGrace(3);
@@ -276,31 +308,45 @@ function backToWorld() {
 
 // ------------------------------------------------------------------ interactions
 
+async function talkToElder() {
+  mode = 'dialog';
+  const q = currentQuest(save);
+  if (q?.goal.type === 'talk') save.talked = true;
+  if (q && !save.tips.includes(`elder:${q.id}`)) save.tips.push(`elder:${q.id}`);
+  await ui.elderSays(q ? q.text : 'The skies are clear thanks to you! Why not build up the village, or give the Emberwyrm a friendly rematch?', q?.hint);
+  mode = 'world';
+  input.reset();
+  persist();
+  void progressQuests();
+}
+
 async function interact() {
   const o = over.nearbyObject();
   if (!o) return;
   audio.play('ui');
   switch (o.kind) {
     case 'forge':
+      if (!has(save, 'forge')) {
+        ui.toast('🔒 The forge is cold. Elder Bloom will light it when you are ready.');
+        break;
+      }
       mode = 'dialog';
       ui.openMenu(menuCtx(true), 'forge');
       break;
     case 'plot':
+      if (!has(save, 'village')) {
+        save.hp = playerStats(save).maxHp;
+        audio.play('heal');
+        ui.toast('🏕 Your cozy tent. You feel rested!');
+        persist();
+        break;
+      }
       mode = 'dialog';
       ui.openMenu(menuCtx(), 'village', o.project);
       break;
-    case 'elder': {
-      mode = 'dialog';
-      const q = currentQuest(save);
-      if (q?.goal.type === 'talk') save.talked = true;
-      if (q && !save.tips.includes(`elder:${q.id}`)) save.tips.push(`elder:${q.id}`);
-      await ui.elderSays(q ? q.text : 'The skies are clear thanks to you! Why not build up the village, or give the Emberwyrm a friendly rematch?', q?.hint);
-      mode = 'world';
-      input.reset();
-      persist();
-      void progressQuests();
+    case 'elder':
+      await talkToElder();
       break;
-    }
     case 'gate': {
       const z = zoneById(o.zone!);
       const g = z.guardian!;
@@ -379,20 +425,25 @@ function startGame(fresh: boolean) {
   mode = 'world';
   ui.setMode('world');
   input.reset();
+  // Old saves catch up on unlocks quietly; new players get them one at a time.
+  const catchUp = save.unlocked.length === 0 && (save.lv > 1 || save.quest > 0);
+  unlocks(catchUp);
   syncWorld();
   showZoneBanner(over.currentZone);
-  tip('move', '👆 Drag anywhere to move. Elder Bloom (the "!" by the forge) has something to ask you!');
   persist();
   void progressQuests();
 }
 
 document.getElementById('btn-continue')!.hidden = !loadState();
-document.getElementById('quest-pill')!.addEventListener('click', () => {
-  if (mode !== 'world') return;
+const openFromHud = (tab: 'journey' | 'items') => {
+  if (mode !== 'world' || trans) return;
   audio.play('ui');
   mode = 'dialog';
-  ui.openMenu(menuCtx(), 'journey');
-});
+  ui.openMenu(menuCtx(), tab);
+};
+document.getElementById('quest-pill')!.addEventListener('click', () => has(save, 'journal') && openFromHud('journey'));
+document.getElementById('btn-journal')!.addEventListener('click', () => openFromHud('journey'));
+document.getElementById('btn-bag')!.addEventListener('click', () => openFromHud('items'));
 document.getElementById('btn-continue')!.addEventListener('click', () => startGame(false));
 document.getElementById('btn-new')!.addEventListener('click', async () => {
   if (loadState()) {
@@ -412,7 +463,6 @@ bind('btn-dodge', 'dodge');
 bind('btn-potion', 'potion');
 bind('btn-run', 'run');
 bind('btn-act', 'act');
-bind('btn-menu', 'menu');
 // Any touch also unlocks audio on iOS.
 window.addEventListener('pointerdown', () => audio.unlock(), { passive: true });
 document.addEventListener('visibilitychange', () => {
@@ -420,6 +470,86 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ------------------------------------------------------------------ loop
+
+let movedDist = 0;
+let autoTalked = false;
+let coachStep = 0;
+let coachT = 0;
+
+/** Elder Bloom calls you over the first time you walk up to her. */
+function maybeAutoTalk() {
+  const q = currentQuest(save);
+  const elder = world.obj('elder');
+  if (!elder || q?.goal.type !== 'talk') return;
+  const d = Math.hypot(over.x - (elder.x + elder.w / 2), over.y - (elder.y + elder.h));
+  if (d > 3.2) autoTalked = false;
+  else if (d < 2.2 && !autoTalked) {
+    autoTalked = true;
+    void talkToElder();
+  }
+}
+
+/** Where the waypoint arrow should point for the current goal. */
+function objective(): { x: number; y: number } | null {
+  const q = currentQuest(save);
+  if (!q) return null;
+  const g = q.goal;
+  const center = (o?: { x: number; y: number; w: number; h: number }) => (o ? { x: o.x + o.w / 2, y: o.y + o.h } : null);
+  switch (g.type) {
+    case 'talk':
+      return center(world.obj('elder'));
+    case 'craft':
+      return has(save, 'forge') ? center(world.obj('forge')) : null;
+    case 'build':
+      return g.project === 'forge' ? center(world.obj('forge')) : center(world.obj('plot', g.project));
+    case 'boss': {
+      if (g.kind === 'dragon') return center(world.obj('lair'));
+      const zone = ZONES.find((z) => z.guardian?.kind === g.kind);
+      return zone ? center(world.obj('gate', zone.id)) : null;
+    }
+    case 'kills': {
+      const z = zoneById(g.zone);
+      // Outside the zone: head for its entrance. Inside: point at the nearest tall grass (none needed if standing in it).
+      if (over.currentZone.id !== g.zone) return world.entryPoint(g.zone);
+      const tx = Math.floor(over.x), ty = Math.floor(over.y - 0.1);
+      if (world.tile(tx, ty) === T.GRASS) return null;
+      let best: { x: number; y: number } | null = null, bd = Infinity;
+      for (let y = 0; y < world.h; y++)
+        for (let x = z.x0; x < z.x0 + z.w; x++) {
+          if (world.tile(x, y) !== T.GRASS) continue;
+          const d = (x + 0.5 - over.x) ** 2 + (y + 0.5 - over.y) ** 2;
+          if (d < bd) { bd = d; best = { x: x + 0.5, y: y + 0.8 }; }
+        }
+      return best;
+    }
+  }
+}
+
+/** Gentle in-battle tutorial: attack first, then dodge, later skills and potions. */
+function coachBattle(b: Battle) {
+  coachT += 1 / 60;
+  if (b.intro > 0) return ui.coach(null);
+  if (save.wins === 0) {
+    if (coachStep === 0) {
+      if (b.hits > 0) { coachStep = 1; coachT = 0; }
+      return ui.coach('Tap ⚔️ to attack! It aims for you.', 'btn-attack');
+    }
+    if (coachStep === 1) {
+      if (b.dodgeFrac > 0 || coachT > 5) { coachStep = 2; return ui.coach(null); }
+      return ui.coach('Monsters wiggle before they attack. Tap 💨 to dodge!', 'btn-dodge');
+    }
+    return ui.coach(null);
+  }
+  if (has(save, 'skill') && !save.tips.includes('coach-skill')) {
+    if (b.skillFrac > 0.5) save.tips.push('coach-skill');
+    return ui.coach('New! Tap ✨ for your weapon skill.', 'btn-skill');
+  }
+  if (has(save, 'bag') && save.potions > 0 && b.p.hp < b.stats.maxHp * 0.4 && !save.tips.includes('coach-potion')) {
+    if (b.p.potionCd > 0) save.tips.push('coach-potion');
+    return ui.coach('Low HP! Tap 🧪 to drink a potion.', 'btn-potion');
+  }
+  ui.coach(null);
+}
 
 let last = performance.now();
 let saveTimer = 0;
@@ -444,12 +574,16 @@ function frame(now: number) {
     battle.render(ctx, vw, vh);
     ui.hud(mode === 'battle' ? battle.p.hp : save.hp, over.currentZone.name);
     ui.questPill(false);
+    ui.dock(false);
+    ui.dragHint(false);
+    ui.battleButtons(has(save, 'skill'), has(save, 'bag'));
+    if (mode === 'battle') coachBattle(battle);
     if (mode === 'battle') {
-      ui.battleHud(save.potions, battle.skillFrac, battle.dodgeFrac, battle.moves.skillName, !battle.setup.boss);
+      ui.battleHud(save.potions, battle.skillFrac, battle.dodgeFrac, battle.moves.skillName, !battle.setup.boss && save.wins > 0);
     }
   } else {
     const canAct = mode === 'world' && !busy;
-    if (canAct && input.consume('menu')) {
+    if (canAct && input.consume('menu') && (has(save, 'bag') || has(save, 'journal'))) {
       audio.play('ui');
       mode = 'dialog';
       ui.openMenu(menuCtx());
@@ -459,7 +593,13 @@ function frame(now: number) {
     if (canAct && input.consume('act')) void interact();
     if (mode === 'title') over.t += dt;
     else {
+      const px = over.x, py = over.y;
       const ev = over.update(dt, input, !canAct);
+      if (!save.tips.includes('moved')) {
+        movedDist += Math.hypot(over.x - px, over.y - py);
+        if (movedDist > 2) save.tips.push('moved');
+      }
+      if (canAct) maybeAutoTalk();
       if (ev?.type === 'zone') showZoneBanner(ev.zone);
       if (ev?.type === 'encounter') {
         const z = over.currentZone;
@@ -468,6 +608,9 @@ function frame(now: number) {
     }
     const near = canAct ? over.nearbyObject() : null;
     ui.setAction(near ? near.label : null);
+    over.objective = mode === 'world' ? objective() : null;
+    ui.dragHint(mode === 'world' && !trans && !save.tips.includes('moved'));
+    ui.dock(mode === 'world');
     over.render(ctx, vw, vh);
     if (mode === 'title') {
       // Soft overlay so the title text pops over the live world behind it.

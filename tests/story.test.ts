@@ -93,3 +93,21 @@ describe('world gates', () => {
     }
   });
 });
+
+describe('onboarding unlocks', () => {
+  const { checkUnlocks } = require('../src/unlocks');
+  test('systems reveal one at a time as the story progresses', () => {
+    const s = newState();
+    expect(checkUnlocks(s)).toHaveLength(0);
+    s.talked = true;
+    advanceQuests(s);
+    expect(checkUnlocks(s).map((u: { id: string }) => u.id)).toEqual(['journal']);
+    s.wins = 1;
+    expect(checkUnlocks(s).map((u: { id: string }) => u.id)).toEqual(['bag']);
+    s.wins = 2;
+    recordKills(s, 'meadow', 3);
+    advanceQuests(s);
+    expect(checkUnlocks(s).map((u: { id: string }) => u.id)).toEqual(['skill', 'forge']);
+    expect(s.unlocked).not.toContain('village');
+  });
+});

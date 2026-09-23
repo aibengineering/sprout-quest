@@ -7,6 +7,10 @@ import {
 import { currentQuest, progress } from './quests';
 import { canBuild, hasMats, playerStats, xpToNext } from './rules';
 import type { SaveState } from './state';
+import type { Unlock, UnlockId } from './unlocks';
+
+/** Which unlock reveals each menu tab (settings is always there). */
+const TAB_UNLOCK: Partial<Record<Tab, UnlockId>> = { journey: 'journal', items: 'bag', forge: 'forge', village: 'village' };
 
 export type Tab = 'journey' | 'items' | 'forge' | 'village' | 'settings';
 
@@ -84,7 +88,9 @@ export class UI {
   private toastTimer = 0;
   private bannerTimer = 0;
   private tab: Tab = 'journey';
-  private sub: Record<string, string> = { items: 'equip', forge: 'weapon' };
+  private sub: Record<string, string> = { forge: 'weapon' };
+  private unlockQueue: Unlock[] = [];
+  private unlockShowing = false;
   private focus: string | undefined;
   private ctx: MenuCtx = { atForge: false, inVillage: false };
   private menuOpen = false;
@@ -145,6 +151,14 @@ export class UI {
     });
   }
 
+  /** Hides battle buttons the player hasn't learned about yet. */
+  battleButtons(skill: boolean, potion: boolean) {
+    this.set('bb', `${skill}|${potion}`, () => {
+      $('btn-skill').hidden = !skill;
+      $('btn-potion').hidden = !potion;
+    });
+  }
+
   battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean) {
     this.set('pot', String(potions), () => {
       $('potion-n').textContent = String(potions);
@@ -155,6 +169,79 @@ export class UI {
     this.set('dodge', dg, () => ($('btn-dodge').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', dg)));
     this.set('skname', skillName, () => ($('skill-name').textContent = skillName));
     this.set('run', String(canRun), () => ($('btn-run').hidden = !canRun));
+  }
+
+  /** Corner shortcut buttons (📜 journal, 🎒 bag), shown once unlocked, with a dot for anything new. */
+  dock(show: boolean) {
+    const s = this.hooks.save();
+    const j = show && s.unlocked.includes('journal'), b = show && s.unlocked.includes('bag');
+    const jDot = s.fresh.includes('journal'), bDot = s.fresh.some((f) => f === 'bag' || f === 'forge' || f === 'village');
+    this.set('dock', `${j}${b}${jDot}${bDot}`, () => {
+      $('btn-journal').hidden = !j;
+      $('btn-bag').hidden = !b;
+      $('btn-journal').classList.toggle('has-dot', jDot);
+      $('btn-bag').classList.toggle('has-dot', bDot);
+    });
+  }
+
+  /** A friendly non-blocking card announcing a newly unlocked system. */
+  unlockCard(u: Unlock) {
+    this.unlockQueue.push(u);
+    if (!this.unlockShowing) this.nextUnlock();
+  }
+
+  private nextUnlock() {
+    const u = this.unlockQueue.shift();
+    const el = $('unlock-card');
+    if (!u) {
+      this.unlockShowing = false;
+      el.classList.remove('show');
+      window.setTimeout(() => { if (!this.unlockShowing) el.hidden = true; }, 300);
+      return;
+    }
+    this.unlockShowing = true;
+    el.hidden = false;
+    el.innerHTML = `<div class="u-ico">${u.icon}</div><div><div class="u-new">✨ New unlocked</div><b>${esc(u.title)}</b><p>${esc(u.text)}</p></div>`;
+    requestAnimationFrame(() => el.classList.add('show'));
+    window.setTimeout(() => {
+      el.classList.remove('show');
+      window.setTimeout(() => this.nextUnlock(), 350);
+    }, 4800);
+  }
+
+  /** Tutorial bubble pointing at a button (or centered on screen). */
+  coach(text: string | null, anchorId?: string) {
+    this.set('coach', `${text}|${anchorId}`, () => {
+      const el = $('coach');
+      document.querySelectorAll('.coached').forEach((b) => b.classList.remove('coached'));
+      if (!text) {
+        el.hidden = true;
+        return;
+      }
+      el.hidden = false;
+      el.textContent = text;
+      el.className = 'coach';
+      const anchor = anchorId ? document.getElementById(anchorId) : null;
+      if (anchor) {
+        anchor.classList.add('coached');
+        const r = anchor.getBoundingClientRect();
+        el.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+        el.style.bottom = `${window.innerHeight - r.top + 14}px`;
+        el.style.left = 'auto';
+        el.style.top = 'auto';
+        el.classList.add('above');
+      } else {
+        el.style.left = '50%';
+        el.style.right = 'auto';
+        el.style.top = '38%';
+        el.style.bottom = 'auto';
+        el.classList.add('center');
+      }
+    });
+  }
+
+  dragHint(show: boolean) {
+    this.set('drag', String(show), () => ($('drag-hint').hidden = !show));
   }
 
   setMode(mode: 'title' | 'world' | 'battle' | 'none') {
@@ -192,9 +279,15 @@ export class UI {
 
   // ------------------------------------------------------------ Menu
 
+  private tabOpen(t: Tab) {
+    const key = TAB_UNLOCK[t];
+    return !key || this.hooks.save().unlocked.includes(key);
+  }
+
   openMenu(ctx: MenuCtx, tab?: Tab, focus?: string) {
     this.ctx = ctx;
     if (tab) this.tab = tab;
+    if (!this.tabOpen(this.tab)) this.tab = (['items', 'journey', 'forge', 'village'] as Tab[]).find((t) => this.tabOpen(t)) ?? 'settings';
     this.focus = focus;
     this.menuOpen = true;
     this.modal.hidden = false;
@@ -216,9 +309,13 @@ export class UI {
   private renderMenu(fresh: boolean) {
     const s = this.hooks.save();
     const st = playerStats(s);
-    const tabs: [Tab, string, string][] = [
-      ['journey', '📜', 'Journey'], ['items', '🎒', 'Items'], ['forge', '⚒', 'Forge'], ['village', '🏡', 'Village'], ['settings', '⚙️', 'More'],
-    ];
+    const tabs = ([
+      ['journey', '📜', 'Journal'], ['items', '🎒', 'Bag'], ['forge', '⚒', 'Forge'], ['village', '🏡', 'Village'], ['settings', '⚙️', 'More'],
+    ] as [Tab, string, string][]).filter(([t]) => this.tabOpen(t));
+    // Looking at a tab clears its "new" dot.
+    const seenKey = TAB_UNLOCK[this.tab];
+    if (seenKey) s.fresh = s.fresh.filter((f) => f !== seenKey);
+    const dot = (t: Tab) => (TAB_UNLOCK[t] && s.fresh.includes(TAB_UNLOCK[t]!) ? '<i class="dot on"></i>' : '');
     const scroll = fresh ? 0 : this.sheet.querySelector('.body')?.scrollTop ?? 0;
     this.sheet.className = 'sheet menu';
     this.sheet.innerHTML = `
@@ -234,7 +331,7 @@ export class UI {
       <div class="statrow"><span>⚔️ <b>${st.atk}</b></span><span>🛡️ <b>${st.def}</b></span><span>🧪 <b>${s.potions}/${MAX_POTIONS}</b></span>${
         st.spd ? `<span>💨 <b>+${st.spd}%</b></span>` : ''}${st.luck ? `<span>🍀 <b>+${Math.round(st.luck * 100)}%</b></span>` : ''}</div>
       <div class="body">${this.renderTab(s)}</div>
-      <nav class="tabbar">${tabs.map(([id, ico, label]) => `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}</button>`).join('')}</nav>`;
+      <nav class="tabbar" style="grid-template-columns:repeat(${tabs.length},1fr)">${tabs.map(([id, ico, label]) => `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}</button>`).join('')}</nav>`;
     const body = this.sheet.querySelector('.body') as HTMLElement;
     body.scrollTop = scroll;
     if (fresh && this.focus) {
@@ -311,38 +408,35 @@ export class UI {
   }
 
   private items(s: SaveState): string {
-    const seg = this.seg('items', [['equip', '🗡️ Equipment'], ['mats', '💎 Materials']]);
-    if (this.sub.items === 'mats') {
-      const st = playerStats(s);
-      const mats = MAT_ORDER.filter((m) => s.mats[m] > 0 || !['royaljelly', 'alphapelt', 'kingcrystal', 'scale'].includes(m)).map((m) => {
-        const n = s.mats[m];
-        return `<div class="mat ${n ? '' : 'empty'}"><div class="ico">${icon(m, MATS[m].icon)}</div><b>${n}</b><span>${esc(MATS[m].name)}</span><small>${esc(MATS[m].where)}</small></div>`;
-      }).join('');
-      return `${seg}
-        <div class="mcard row"><div class="ico">🧪</div><div class="info"><div class="name">Potions ${s.potions}/${MAX_POTIONS}</div>
-          <div class="desc">Heals ${Math.round(POTION_HEAL * 100)}% HP. Brew more at the Forge.</div></div>
-          <button class="go" data-do="drink" ${s.potions > 0 && s.hp < st.maxHp ? '' : 'disabled'}>Drink</button></div>
-        <div class="grid">${mats}</div>`;
-    }
+    const st = playerStats(s);
     const slots: [Slot, string][] = [['weapon', 'Weapon'], ['armor', 'Armor'], ['charm', 'Charm']];
     const cur = slots.map(([slot, label]) => {
       const id = s.equip[slot];
       const g = id ? GEAR[id] : null;
       return `<div class="slot"><small>${label}</small>${g ? icon(g.id, g.icon) : '<span class="emo">➖</span>'}<span>${g ? esc(g.name) : 'None'}</span></div>`;
     }).join('');
-    const lists = slots.map(([slot, label]) => {
-      const owned = GEAR_ORDER.filter((id) => GEAR[id].slot === slot && s.owned.includes(id));
-      if (!owned.length) return '';
-      const cards = owned.map((id) => {
-        const g = GEAR[id];
-        const on = s.equip[slot] === id;
-        return `<button class="gcard ${on ? 'on' : ''}" data-equip="${id}" ${on && slot !== 'charm' ? 'disabled' : ''}>
-          ${on ? '<span class="badge-on">Equipped</span>' : ''}${icon(g.id, g.icon, 'icon lg')}
-          <span class="name">${esc(g.name)}</span>${stars(g)}<span class="stats">${gearStats(g)}</span></button>`;
-      }).join('');
-      return `<h3>${label}s <small>tap to equip</small></h3><div class="ggrid">${cards}</div>`;
+    const owned = GEAR_ORDER.filter((id) => s.owned.includes(id));
+    const cards = owned.map((id) => {
+      const g = GEAR[id];
+      const on = s.equip[g.slot] === id;
+      return `<button class="gcard ${on ? 'on' : ''}" data-equip="${id}" ${on && g.slot !== 'charm' ? 'disabled' : ''}>
+        ${on ? '<span class="badge-on">Equipped</span>' : ''}${icon(g.id, g.icon, 'icon lg')}
+        <span class="name">${esc(g.name)}</span>${stars(g)}<span class="stats">${gearStats(g)}</span></button>`;
     }).join('');
-    return `${seg}<div class="slots">${cur}</div>${lists}`;
+    const gearHint = owned.length <= 2 && s.unlocked.includes('forge')
+      ? `<div class="note">⚒ Craft new gear at the Forge, then equip it here (or right from the Forge).</div>` : '';
+    const mats = MAT_ORDER.filter((m) => s.mats[m] > 0).map((m) => {
+      const n = s.mats[m];
+      return `<div class="mat"><div class="ico">${icon(m, MATS[m].icon)}</div><b>${n}</b><span>${esc(MATS[m].name)}</span><small>${esc(MATS[m].where)}</small></div>`;
+    }).join('');
+    return `
+      <h3>Wearing</h3><div class="slots">${cur}</div>
+      <h3>Gear <small>tap to equip</small></h3>${gearHint}<div class="ggrid">${cards}</div>
+      <h3>Potions</h3>
+      <div class="mcard row"><div class="ico">🧪</div><div class="info"><div class="name">${s.potions}/${MAX_POTIONS} potions</div>
+        <div class="desc">Heals ${Math.round(POTION_HEAL * 100)}% HP. Free refills at the village fountain.</div></div>
+        <button class="go" data-do="drink" ${s.potions > 0 && s.hp < st.maxHp ? '' : 'disabled'}>Drink</button></div>
+      <h3>Materials</h3>${mats ? `<div class="grid">${mats}</div>` : '<p class="sub">Defeat monsters to collect materials.</p>'}`;
   }
 
   private forge(s: SaveState): string {
@@ -504,6 +598,26 @@ export class UI {
        <div class="bubble">${esc(q.text)}</div>
        <div class="hint">🎯 ${esc(q.hint)}</div>`,
       [['ok', "Let's go!"]],
+    );
+  }
+
+  /** Shown right after crafting: celebrate the new item and offer to equip it on the spot. */
+  newGear(g: Gear, current: Gear | null) {
+    const cmp = (k: 'atk' | 'def' | 'hp') => {
+      const a = current?.[k] ?? 0, b = g[k] ?? 0;
+      if (!a && !b) return '';
+      const d = b - a;
+      return `<span class="chip ${d >= 0 ? 'ok' : 'miss'}">${k.toUpperCase()} ${a} → <b>${b}</b></span>`;
+    };
+    return this.dialog(
+      `<div class="confetti">✨⚒✨</div>
+       <div class="qchap">New ${g.slot}!</div>
+       <div class="qart big-art">${icon(g.id, g.icon, 'icon xxl')}</div>
+       <div class="big" style="font-size:26px">${esc(g.name)}</div>
+       <p>${esc(g.desc)}</p>
+       <div class="chips">${cmp('atk')}${cmp('def')}${cmp('hp')}</div><br>`,
+      [['later', 'Keep in bag'], ['equip', 'Equip now!']],
+      'celebrate',
     );
   }
 

@@ -323,6 +323,8 @@ export type Goal =
 
 export interface Quest {
   id: string;
+  /** Skip the "chapter complete" fanfare (for tiny tutorial steps). */
+  quiet?: boolean;
   chapter: string;
   title: string;
   goal: Goal;
@@ -334,17 +336,17 @@ export interface Quest {
 
 export const QUESTS: Quest[] = [
   {
-    id: 'hello', chapter: 'Prologue', title: 'Meet Elder Bloom', goal: { type: 'talk' }, hint: 'Talk to Elder Bloom next to the Forge',
+    id: 'hello', quiet: true, chapter: 'Prologue', title: 'Meet Elder Bloom', goal: { type: 'talk' }, hint: 'Talk to Elder Bloom next to the Forge',
     text: "Oh! A little sprout, all grown up! Smoke from Ember Peak has made the monsters grumpy, and big guardians are blocking our roads. Will you help Sprout Village?",
   },
   {
-    id: 'meadow', chapter: 'Chapter 1', title: 'Grumpy Meadow', goal: { type: 'kills', zone: 'meadow', count: 6 }, hint: 'Defeat monsters in Sunny Meadow',
-    text: 'Start small! Calm 6 monsters in Sunny Meadow, east of here. Walk through the tall grass to find them.',
+    id: 'meadow', chapter: 'Chapter 1', title: 'Grumpy Meadow', goal: { type: 'kills', zone: 'meadow', count: 3 }, hint: 'Defeat monsters in Sunny Meadow',
+    text: 'Start small! Calm 3 monsters in Sunny Meadow, just east of here. They hide in the tall grass. Follow the arrow!',
     reward: { potions: 1, mats: { clover: 1 } },
   },
   {
     id: 'gear', chapter: 'Chapter 1', title: 'Gear Up', goal: { type: 'craft' }, hint: 'Craft any gear at the Forge',
-    text: 'Monsters drop materials. Bring them to the Forge and make yourself something new!',
+    text: "Look at all those materials! I've lit the Forge for you. Go craft yourself something new!",
     reward: { mats: { goo: 3, fluff: 2 } },
   },
   {

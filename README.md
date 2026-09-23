@@ -26,6 +26,11 @@ bun run typecheck
 
 ## Story and progression
 
+**New players start small.** They spawn next to Elder Bloom, a drag hint and a waypoint arrow show the way, and the
+first fight is a single slime with only ⚔️ and 💨 (plus coaching bubbles). Systems unlock one at a time with a small
+card: 📜 Journal, then 🎒 Bag (after the first win), then ✨ weapon skill, then the ⚒ Forge, then 🏡 Village building,
+and new building plots after guardians fall. The HUD and menu only show what has been unlocked, with dots on anything new.
+
 Smoke from Ember Peak has made the monsters grumpy, and guardians block the roads. Elder Bloom (by the Forge)
 guides you through a chain of chapters, and the current goal is always shown in the 📜 tracker at the top of the screen.
 
