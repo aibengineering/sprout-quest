@@ -4,7 +4,8 @@ export type MatId =
   | 'goo' | 'fluff' | 'clover'
   | 'cap' | 'bark' | 'fang'
   | 'wing' | 'crystal' | 'core'
-  | 'ember' | 'horn' | 'scale';
+  | 'ember' | 'horn' | 'scale'
+  | 'royaljelly' | 'alphapelt' | 'kingcrystal';
 
 export type Recipe = Partial<Record<MatId, number>>;
 
@@ -21,13 +22,17 @@ export const MATS: Record<MatId, { name: string; icon: string; where: string }> 
   ember: { name: 'Ember', icon: '🔥', where: 'Ember Peak' },
   horn: { name: 'Imp Horn', icon: '😈', where: 'Impys · Peak' },
   scale: { name: 'Dragon Scale', icon: '🐉', where: 'Emberwyrm' },
+  royaljelly: { name: 'Royal Jelly', icon: '👑', where: 'Trophy · Slime King' },
+  alphapelt: { name: 'Alpha Pelt', icon: '🐺', where: 'Trophy · Alpha Woolf' },
+  kingcrystal: { name: 'King Crystal', icon: '💠', where: 'Trophy · Crystal King' },
 };
 
 export const MAT_ORDER = Object.keys(MATS) as MatId[];
 
 export type MonsterKind =
   | 'slime' | 'bunny' | 'shroom' | 'wolf' | 'bat'
-  | 'golem' | 'imp' | 'magma' | 'dragon';
+  | 'golem' | 'imp' | 'magma' | 'dragon'
+  | 'kingslime' | 'alphawolf' | 'crystalking';
 
 export interface Drop { mat: MatId; chance: number; min: number; max: number }
 
@@ -42,6 +47,8 @@ export interface MonsterDef {
   xp: number;
   drops: Drop[];
   boss?: boolean;
+  /** Short title shown on boss bars and gates. */
+  title?: string;
 }
 
 export const MONSTERS: Record<MonsterKind, MonsterDef> = {
@@ -78,8 +85,20 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
     drops: [{ mat: 'ember', chance: 0.9, min: 1, max: 3 }, { mat: 'core', chance: 0.1, min: 1, max: 1 }],
   },
   dragon: {
-    name: 'Emberwyrm', lv: 20, hp: 1100, atk: 38, def: 18, spd: 70, r: 44, xp: 600, boss: true,
+    name: 'Emberwyrm', lv: 20, hp: 1100, atk: 38, def: 18, spd: 70, r: 44, xp: 600, boss: true, title: 'Dragon of Ember Peak',
     drops: [{ mat: 'scale', chance: 1, min: 3, max: 4 }, { mat: 'ember', chance: 1, min: 3, max: 5 }],
+  },
+  kingslime: {
+    name: 'Slime King', lv: 5, hp: 280, atk: 11, def: 3, spd: 60, r: 34, xp: 120, boss: true, title: 'Guardian of the Woods Road',
+    drops: [{ mat: 'royaljelly', chance: 1, min: 2, max: 2 }, { mat: 'goo', chance: 1, min: 4, max: 6 }],
+  },
+  alphawolf: {
+    name: 'Alpha Woolf', lv: 9, hp: 460, atk: 17, def: 6, spd: 110, r: 26, xp: 260, boss: true, title: 'Guardian of the Cave Road',
+    drops: [{ mat: 'alphapelt', chance: 1, min: 2, max: 2 }, { mat: 'fang', chance: 1, min: 3, max: 5 }],
+  },
+  crystalking: {
+    name: 'Crystal King', lv: 14, hp: 820, atk: 27, def: 14, spd: 45, r: 38, xp: 520, boss: true, title: 'Guardian of the Peak Road',
+    drops: [{ mat: 'kingcrystal', chance: 1, min: 2, max: 2 }, { mat: 'crystal', chance: 1, min: 4, max: 6 }, { mat: 'core', chance: 1, min: 1, max: 1 }],
   },
 };
 
@@ -166,8 +185,17 @@ export interface Theme {
   outside: string;
 }
 
+export interface Guardian {
+  kind: MonsterKind;
+  lv: number;
+  /** What the roadblock looks like until the guardian is beaten. */
+  gate: 'bramble' | 'crystal' | 'rock';
+}
+
 export interface Zone {
   id: ZoneId;
+  /** Boss blocking the road into this zone. */
+  guardian?: Guardian;
   name: string;
   x0: number;
   w: number;
@@ -190,17 +218,17 @@ export const ZONES: Zone[] = [
     theme: { ground: '#a8e27f', ground2: '#9fd975', grass: '#4fb043', grassTip: '#86dc5e', path: '#ecd9aa', obstacle: 'tree', pool: 'water', decor: 'flower', outside: '#62b451' },
   },
   {
-    id: 'woods', name: 'Whisper Woods', x0: 62, w: 40, rec: 4, lv: [4, 7], maxEnemies: 3, grassDensity: 0.46,
+    id: 'woods', name: 'Whisper Woods', guardian: { kind: 'kingslime', lv: 5, gate: 'bramble' }, x0: 62, w: 40, rec: 4, lv: [4, 7], maxEnemies: 3, grassDensity: 0.46,
     monsters: [{ kind: 'shroom', w: 3 }, { kind: 'wolf', w: 2.5 }, { kind: 'bunny', w: 0.5 }],
     theme: { ground: '#72ad5e', ground2: '#6aa556', grass: '#3a8a3e', grassTip: '#5aa84a', path: '#cdb88c', obstacle: 'pine', pool: 'water', decor: 'mush', outside: '#3f7a3c' },
   },
   {
-    id: 'cave', name: 'Crystal Cave', x0: 102, w: 40, rec: 8, lv: [8, 12], maxEnemies: 3, grassDensity: 0.48,
+    id: 'cave', name: 'Crystal Cave', guardian: { kind: 'alphawolf', lv: 9, gate: 'crystal' }, x0: 102, w: 40, rec: 8, lv: [8, 12], maxEnemies: 3, grassDensity: 0.48,
     monsters: [{ kind: 'bat', w: 3 }, { kind: 'golem', w: 1.5 }, { kind: 'shroom', w: 0.7 }],
     theme: { ground: '#8e89ad', ground2: '#8581a4', grass: '#6a5fb0', grassTip: '#a898f0', path: '#b8b2cc', obstacle: 'crystal', pool: null, decor: 'gem', outside: '#4a4566' },
   },
   {
-    id: 'peak', name: 'Ember Peak', x0: 142, w: 44, rec: 13, lv: [13, 17], maxEnemies: 3, grassDensity: 0.46,
+    id: 'peak', name: 'Ember Peak', guardian: { kind: 'crystalking', lv: 14, gate: 'rock' }, x0: 142, w: 44, rec: 13, lv: [13, 17], maxEnemies: 3, grassDensity: 0.46,
     monsters: [{ kind: 'imp', w: 3 }, { kind: 'magma', w: 2 }, { kind: 'golem', w: 0.8 }],
     theme: { ground: '#b8806a', ground2: '#ae775f', grass: '#8a4a3a', grassTip: '#e0804a', path: '#dcbb96', obstacle: 'rock', pool: 'lava', decor: 'pebble', outside: '#6a3a30' },
   },
@@ -217,3 +245,147 @@ export function zoneAtX(x: number): Zone {
   for (let i = ZONES.length - 1; i >= 0; i--) if (x >= ZONES[i].x0) return ZONES[i];
   return ZONES[0];
 }
+
+// ----------------------------------------------------------------------------- forge gating
+
+/** Forge level needed to craft each recipe — keeps gear upgrades in step with the story. */
+export function forgeLevelFor(g: Gear): number {
+  if (g.slot === 'weapon') return (g.tier ?? 0) >= 4 ? 3 : (g.tier ?? 0) >= 3 ? 2 : 1;
+  return ({ batcloak: 2, crystalmail: 2, crystalheart: 2, magmamail: 3, dragonmail: 3, impring: 3 } as Record<string, number>)[g.id] ?? 1;
+}
+
+// ----------------------------------------------------------------------------- village construction
+
+export type ProjectId = 'home' | 'forge' | 'garden' | 'training' | 'warp';
+
+export interface ProjectLevel {
+  name: string;
+  cost: Recipe;
+  perk: string;
+}
+
+export interface Project {
+  name: string;
+  icon: string;
+  /** levels[0] is level 1. */
+  levels: ProjectLevel[];
+}
+
+export const PROJECTS: Record<ProjectId, Project> = {
+  home: {
+    name: 'Home', icon: '🏠',
+    levels: [
+      { name: 'Tent', cost: {}, perk: 'A cozy tent to call your own.' },
+      { name: 'Cottage', cost: { goo: 8, fluff: 6, clover: 1 }, perk: '+10% max HP' },
+      { name: 'Manor', cost: { bark: 10, crystal: 8, ember: 6 }, perk: '+20% max HP' },
+    ],
+  },
+  forge: {
+    name: 'Forge', icon: '⚒',
+    levels: [
+      { name: 'Forge', cost: {}, perk: 'Craft ★ and ★★ gear' },
+      { name: 'Smithy', cost: { royaljelly: 1, cap: 5, bark: 5 }, perk: 'Craft ★★★ gear' },
+      { name: 'Master Forge', cost: { kingcrystal: 1, ember: 6, core: 1 }, perk: 'Craft ★★★★ and legendary gear' },
+    ],
+  },
+  garden: {
+    name: 'Garden', icon: '🌱',
+    levels: [
+      { name: 'Sprout Patch', cost: { goo: 4, clover: 1 }, perk: 'Fountain refills potions to 3' },
+      { name: 'Berry Garden', cost: { cap: 6, bark: 4 }, perk: 'Fountain refills potions to 4' },
+      { name: 'Bloom Garden', cost: { ember: 4, wing: 4 }, perk: 'Fountain refills potions to 5' },
+    ],
+  },
+  training: {
+    name: 'Training Yard', icon: '🎯',
+    levels: [
+      { name: 'Straw Dummy', cost: { goo: 5, fluff: 5 }, perk: '+5% attack' },
+      { name: 'Training Yard', cost: { fang: 6, royaljelly: 1 }, perk: '+10% attack' },
+      { name: 'Dojo', cost: { horn: 5, core: 1 }, perk: '+15% attack' },
+    ],
+  },
+  warp: {
+    name: 'Warp Stone', icon: '🔮',
+    levels: [{ name: 'Warp Stone', cost: { alphapelt: 1, wing: 3, crystal: 3 }, perk: 'Fast travel to any campfire you have lit' }],
+  },
+};
+
+export const PROJECT_ORDER: ProjectId[] = ['home', 'forge', 'garden', 'training', 'warp'];
+
+// ----------------------------------------------------------------------------- story
+
+export type Goal =
+  | { type: 'talk' }
+  | { type: 'kills'; zone: ZoneId; count: number }
+  | { type: 'craft' }
+  | { type: 'build'; project: ProjectId; level: number }
+  | { type: 'boss'; kind: MonsterKind };
+
+export interface Quest {
+  id: string;
+  chapter: string;
+  title: string;
+  goal: Goal;
+  /** What Elder Bloom says about this step. */
+  text: string;
+  hint: string;
+  reward?: { mats?: Recipe; potions?: number };
+}
+
+export const QUESTS: Quest[] = [
+  {
+    id: 'hello', chapter: 'Prologue', title: 'Meet Elder Bloom', goal: { type: 'talk' }, hint: 'Talk to Elder Bloom next to the Forge',
+    text: "Oh! A little sprout, all grown up! Smoke from Ember Peak has made the monsters grumpy, and big guardians are blocking our roads. Will you help Sprout Village?",
+  },
+  {
+    id: 'meadow', chapter: 'Chapter 1', title: 'Grumpy Meadow', goal: { type: 'kills', zone: 'meadow', count: 6 }, hint: 'Defeat monsters in Sunny Meadow',
+    text: 'Start small! Calm 6 monsters in Sunny Meadow, east of here. Walk through the tall grass to find them.',
+    reward: { potions: 1, mats: { clover: 1 } },
+  },
+  {
+    id: 'gear', chapter: 'Chapter 1', title: 'Gear Up', goal: { type: 'craft' }, hint: 'Craft any gear at the Forge',
+    text: 'Monsters drop materials. Bring them to the Forge and make yourself something new!',
+    reward: { mats: { goo: 3, fluff: 2 } },
+  },
+  {
+    id: 'cottage', chapter: 'Chapter 1', title: 'A Real Home', goal: { type: 'build', project: 'home', level: 2 }, hint: 'Upgrade your Home to a Cottage',
+    text: "A hero can't sleep in a tent forever. Build a cottage on your plot, and you'll feel sturdier for it!",
+    reward: { potions: 1 },
+  },
+  {
+    id: 'kingslime', chapter: 'Chapter 2', title: 'The Slime King', goal: { type: 'boss', kind: 'kingslime' }, hint: 'Defeat the Slime King at the Whisper Woods gate',
+    text: "The Slime King has plopped himself in front of Whisper Woods. He's bouncy and he brings friends. Be at least level 5!",
+  },
+  {
+    id: 'smithy', chapter: 'Chapter 2', title: 'A Hotter Forge', goal: { type: 'build', project: 'forge', level: 2 }, hint: 'Upgrade the Forge to a Smithy',
+    text: "That Royal Jelly is just what the forge needs! Upgrade it and you'll be able to craft ★★★ gear.",
+    reward: { mats: { bark: 2 } },
+  },
+  {
+    id: 'alphawolf', chapter: 'Chapter 3', title: 'Howl in the Woods', goal: { type: 'boss', kind: 'alphawolf' }, hint: 'Defeat the Alpha Woolf at the Crystal Cave gate',
+    text: "Deep in Whisper Woods, the Alpha Woolf guards the road to Crystal Cave. It's fast, and its pack comes when it howls. Level 9 or so, please!",
+  },
+  {
+    id: 'warp', chapter: 'Chapter 3', title: 'The Warp Stone', goal: { type: 'build', project: 'warp', level: 1 }, hint: 'Build the Warp Stone in the village',
+    text: "With an Alpha Pelt we can wake the old Warp Stone. Then you can zip to any campfire you've lit!",
+    reward: { potions: 1 },
+  },
+  {
+    id: 'crystalking', chapter: 'Chapter 4', title: 'The Crystal King', goal: { type: 'boss', kind: 'crystalking' }, hint: 'Defeat the Crystal King at the Ember Peak gate',
+    text: 'The Crystal King sits on the road to Ember Peak. Its crystals burst out of the ground, so watch for the red marks! Level 14 would be wise.',
+  },
+  {
+    id: 'master', chapter: 'Chapter 4', title: 'Master Forge', goal: { type: 'build', project: 'forge', level: 3 }, hint: 'Upgrade the Forge to a Master Forge',
+    text: 'A King Crystal! Now the forge can work ember and dragon steel. Upgrade it and gear up for the peak.',
+    reward: { mats: { ember: 3 } },
+  },
+  {
+    id: 'dragon', chapter: 'Finale', title: 'Calm the Emberwyrm', goal: { type: 'boss', kind: 'dragon' }, hint: 'Defeat the Emberwyrm in its lair',
+    text: 'This is it, little sprout. The Emberwyrm waits at the far end of Ember Peak. The whole village believes in you!',
+  },
+  {
+    id: 'legend', chapter: 'Epilogue', title: 'Village Legend', goal: { type: 'build', project: 'home', level: 3 }, hint: 'Build yourself a Manor',
+    text: "You did it! The skies are clear again. Now let's make Sprout Village the coziest place in the world. Build yourself a Manor!",
+    reward: { potions: 2 },
+  },
+];

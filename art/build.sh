@@ -13,13 +13,16 @@ render() {
 export -f render
 export BLENDER
 
-if [ $# -gt 0 ]; then
+if [ $# -eq 2 ]; then
+  # A single item within a group (e.g. `bun run art monsters kingslime`): keep the rest of the group.
+  render "$@"
+elif [ $# -eq 1 ]; then
   rm -rf "out/$1" out/"$1".*json out/"$1".json
   render "$@"
 else
   rm -rf out
   # The hero is the biggest job, so split it per armor and run everything a few at a time.
-  jobs=(monsters weapons env icons)
+  jobs=(monsters weapons env icons icons2 npc)
   for a in tunic fluffvest shroomhood batcloak crystalmail magmamail dragonmail; do jobs+=("hero $a"); done
   printf '%s\n' "${jobs[@]}" | xargs -P "${ART_JOBS:-3}" -I{} bash -c 'render {}'
 fi

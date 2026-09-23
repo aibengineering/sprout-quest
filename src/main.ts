@@ -2,10 +2,11 @@
 import { loadAssets } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
-import { MAX_POTIONS, POTION_HEAL, ZONES, zoneById, type Zone, type ZoneId } from './data';
+import { MAX_POTIONS, MONSTERS, POTION_HEAL, PROJECTS, QUESTS, ZONES, zoneById, type ProjectId, type Zone, type ZoneId } from './data';
 import { Input } from './input';
 import { Overworld } from './overworld';
-import { craftGear, craftPotion, equip, gainXp, mergeDrops, playerStats, weightedPick } from './rules';
+import { advanceQuests, currentQuest, recordKills } from './quests';
+import { build, craftGear, craftPotion, equip, gainXp, mergeDrops, playerStats, potionRefill, weightedPick } from './rules';
 import { clearState, loadState, newState, saveState, type SaveState } from './state';
 import { UI } from './ui';
 import { World } from './world';
@@ -47,8 +48,20 @@ const ui = new UI({
     const r = craftGear(save, id);
     if (r === 'ok') {
       audio.play('craft');
-      ui.toast('✨ Crafted! Equip it from the Gear tab.');
+      ui.toast('✨ Crafted! Equip it from the Items tab.');
       persist();
+      void progressQuests();
+    }
+  },
+  build(id) {
+    if (build(save, id) === 'ok') {
+      audio.play('levelup');
+      const lvl = PROJECTS[id].levels[save.build[id] - 1];
+      ui.toast(`🏗 Built the ${lvl.name}! ${lvl.perk}`, 3200);
+      // Upgrades that raise max HP also top you up.
+      save.hp = Math.min(playerStats(save).maxHp, save.hp + 10);
+      persist();
+      void progressQuests();
     }
   },
   craftPotion(id) {
@@ -74,7 +87,7 @@ const ui = new UI({
   travel(id) {
     ui.closeMenu();
     transition(() => {
-      const p = world.entryPoint(id);
+      const p = id === 'village' ? world.entryPoint(id) : zoneById(id).guardian ? world.campPoint(id) : world.entryPoint(id);
       over.teleport(p.x, p.y);
       persist();
       showZoneBanner(over.currentZone);
@@ -114,6 +127,46 @@ const ui = new UI({
     input.flush();
   },
 });
+
+/** Opens gates whose guardians are beaten and lights their campfires. */
+function syncWorld() {
+  for (const o of world.objs) {
+    const z = o.zone ? zoneById(o.zone) : null;
+    if (o.kind === 'gate' && z?.guardian) o.hidden = save.bosses.includes(z.guardian.kind);
+    if (o.kind === 'camp') o.hidden = !save.camps.includes(o.zone!);
+  }
+}
+
+let questBusy = false;
+/** Completes finished story steps one by one with a little celebration, then introduces the next. */
+async function progressQuests() {
+  if (questBusy) return;
+  questBusy = true;
+  try {
+    const done = advanceQuests(save);
+    if (!done.length) return;
+    persist();
+    const prev = mode;
+    mode = 'dialog';
+    ui.closeMenu(true);
+    for (const q of done) {
+      audio.play('victory');
+      await ui.questComplete(q);
+    }
+    const next = currentQuest(save);
+    if (next) {
+      if (!save.tips.includes(`elder:${next.id}`)) save.tips.push(`elder:${next.id}`);
+      await ui.questIntro(next);
+    } else {
+      await ui.message('🌟 The End… for now!', 'Every chapter is complete. Sprout Village is safe, and you are its hero! Keep exploring, crafting and rematching bosses.');
+    }
+    persist();
+    mode = prev === 'battle' ? 'world' : prev === 'dialog' ? 'world' : prev;
+    input.reset();
+  } finally {
+    questBusy = false;
+  }
+}
 
 function persist() {
   save.pos = { x: over.x, y: over.y };
@@ -174,16 +227,36 @@ async function onBattleEnd(o: BattleOutcome) {
     save.hp = o.hp;
     const levels = gainXp(save, o.xp);
     mergeDrops(save.mats, o.drops);
-    if (boss) save.bossWins++;
+    if (!boss) recordKills(save, b.setup.zone.id, o.defeated.length);
+    const bossKind = b.setup.foes[0]?.kind;
+    const firstClear = boss && bossKind && !save.bosses.includes(bossKind);
+    if (boss && bossKind === 'dragon') save.bossWins++;
+    if (firstClear) {
+      save.bosses.push(bossKind);
+      // Beating a guardian opens its road and lights the campfire checkpoint beyond it.
+      const gz = ZONES.find((z) => z.guardian?.kind === bossKind);
+      if (gz && !save.camps.includes(gz.id)) {
+        save.camps.push(gz.id);
+        save.respawn = gz.id;
+      }
+      syncWorld();
+    }
     persist();
     if (levels) audio.play('levelup');
     await ui.result({ win: true, xp: o.xp, levels, newLv: save.lv, drops: o.drops, boss });
-    transition(() => backToWorld());
+    if (firstClear) {
+      const gz = ZONES.find((z) => z.guardian?.kind === bossKind);
+      if (gz) await ui.roadOpened(MONSTERS[bossKind].name, gz.name, bossKind);
+    }
+    transition(() => {
+      backToWorld();
+      void progressQuests();
+    });
   } else {
-    await ui.result({ win: false, xp: 0, levels: 0, newLv: save.lv, drops: {}, boss });
+    await ui.result({ win: false, xp: 0, levels: 0, newLv: save.lv, drops: {}, boss, respawn: save.respawn });
     transition(() => {
       save.hp = playerStats(save).maxHp;
-      const p = world.entryPoint('village');
+      const p = save.respawn === 'village' ? world.entryPoint('village') : world.campPoint(save.respawn);
       over.teleport(p.x, p.y);
       backToWorld();
       showZoneBanner(over.currentZone);
@@ -198,7 +271,7 @@ function backToWorld() {
   over.resetGrace(3);
   input.reset();
   persist();
-  if (save.lv >= 3 && !save.tips.includes('forge')) tip('forge', '🎒 Got materials? Visit the ⚒ Forge in the village to craft gear!');
+
 }
 
 // ------------------------------------------------------------------ interactions
@@ -210,16 +283,57 @@ async function interact() {
   switch (o.kind) {
     case 'forge':
       mode = 'dialog';
-      ui.openMenu({ atForge: true, inVillage: true }, 'forge');
+      ui.openMenu(menuCtx(true), 'forge');
       break;
+    case 'plot':
+      mode = 'dialog';
+      ui.openMenu(menuCtx(), 'village', o.project);
+      break;
+    case 'elder': {
+      mode = 'dialog';
+      const q = currentQuest(save);
+      if (q?.goal.type === 'talk') save.talked = true;
+      if (q && !save.tips.includes(`elder:${q.id}`)) save.tips.push(`elder:${q.id}`);
+      await ui.elderSays(q ? q.text : 'The skies are clear thanks to you! Why not build up the village, or give the Emberwyrm a friendly rematch?', q?.hint);
+      mode = 'world';
+      input.reset();
+      persist();
+      void progressQuests();
+      break;
+    }
+    case 'gate': {
+      const z = zoneById(o.zone!);
+      const g = z.guardian!;
+      const m = MONSTERS[g.kind];
+      mode = 'dialog';
+      const r = await ui.challenge(g.kind, m.name, m.title ?? '', g.lv, save.lv, z.name);
+      input.reset();
+      const here = ZONES[ZONES.indexOf(z) - 1];
+      if (r === 'yes') startBattle(here, [{ kind: g.kind, lv: g.lv, golden: false }], true);
+      else mode = 'world';
+      break;
+    }
+    case 'camp': {
+      save.hp = playerStats(save).maxHp;
+      save.respawn = o.zone!;
+      audio.play('heal');
+      persist();
+      if (save.build.warp) {
+        mode = 'dialog';
+        ui.toast('🔥 Rested. Checkpoint saved!');
+        ui.openMenu(menuCtx(), 'journey');
+      } else ui.toast('🔥 Rested by the fire. Checkpoint saved!');
+      break;
+    }
     case 'fountain': {
       const st = playerStats(save);
       save.hp = st.maxHp;
+      save.respawn = 'village';
       const potBefore = save.potions;
-      // A free potion top-up keeps early game gentle; beyond that you brew your own.
-      if (save.potions < 2) save.potions = 2;
+      // A free potion top-up keeps things gentle; the Garden raises how many you get.
+      save.potions = Math.max(save.potions, potionRefill(save));
       audio.play('heal');
-      ui.toast(`💧 Fully healed!${save.potions > potBefore ? ' The fountain filled your potion bottles.' : ''}`);
+      ui.toast(`💧 Fully healed!${save.potions > potBefore ? ` Potions refilled to ${save.potions}.` : ''}`);
       persist();
       break;
     }
@@ -238,7 +352,7 @@ async function interact() {
         [['no', 'Not yet'], ['yes', 'Fight!', 'alt']],
       );
       input.reset();
-      if (r === 'yes') startBattle(zoneById('peak'), [{ kind: 'dragon', lv: 20 + save.bossWins * 2, golden: false }], true);
+      if (r === 'yes') startBattle(zoneById('peak'), [{ kind: 'dragon', lv: 20 + Math.max(0, save.bossWins) * 2, golden: false }], true);
       else mode = 'world';
       break;
     }
@@ -248,6 +362,10 @@ async function interact() {
 }
 
 // ------------------------------------------------------------------ title
+
+function menuCtx(atForge = false) {
+  return { atForge, inVillage: over.currentZone.id === 'village' };
+}
 
 function startGame(fresh: boolean) {
   audio.unlock();
@@ -261,12 +379,20 @@ function startGame(fresh: boolean) {
   mode = 'world';
   ui.setMode('world');
   input.reset();
+  syncWorld();
   showZoneBanner(over.currentZone);
-  tip('move', '👆 Drag anywhere to move. Head east into the tall grass to find monsters!');
+  tip('move', '👆 Drag anywhere to move. Elder Bloom (the "!" by the forge) has something to ask you!');
   persist();
+  void progressQuests();
 }
 
 document.getElementById('btn-continue')!.hidden = !loadState();
+document.getElementById('quest-pill')!.addEventListener('click', () => {
+  if (mode !== 'world') return;
+  audio.play('ui');
+  mode = 'dialog';
+  ui.openMenu(menuCtx(), 'journey');
+});
 document.getElementById('btn-continue')!.addEventListener('click', () => startGame(false));
 document.getElementById('btn-new')!.addEventListener('click', async () => {
   if (loadState()) {
@@ -317,6 +443,7 @@ function frame(now: number) {
     battle.update(busy ? 0 : dt);
     battle.render(ctx, vw, vh);
     ui.hud(mode === 'battle' ? battle.p.hp : save.hp, over.currentZone.name);
+    ui.questPill(false);
     if (mode === 'battle') {
       ui.battleHud(save.potions, battle.skillFrac, battle.dodgeFrac, battle.moves.skillName, !battle.setup.boss);
     }
@@ -325,7 +452,7 @@ function frame(now: number) {
     if (canAct && input.consume('menu')) {
       audio.play('ui');
       mode = 'dialog';
-      ui.openMenu({ atForge: false, inVillage: over.currentZone.id === 'village' });
+      ui.openMenu(menuCtx());
     } else if (mode === 'dialog' && ui.isOpen && input.consume('menu')) {
       ui.closeMenu();
     }
@@ -347,7 +474,10 @@ function frame(now: number) {
       ctx.fillStyle = 'rgba(42,26,48,0.15)';
       ctx.fillRect(0, 0, vw, vh);
     }
-    if (mode !== 'title') ui.hud(save.hp, over.currentZone.name);
+    if (mode !== 'title') {
+      ui.hud(save.hp, over.currentZone.name);
+      ui.questPill(mode === 'world' || mode === 'dialog');
+    }
     saveTimer += dt;
     if (saveTimer > 5 && mode === 'world') {
       saveTimer = 0;
@@ -383,12 +513,20 @@ requestAnimationFrame(frame);
   get battle() { return battle; },
   get over() { return over; },
   fight(kind: Foe['kind'] = 'slime', lv = 1, n = 1) {
-    startBattle(over.currentZone.id === 'village' ? ZONES[1] : over.currentZone, Array.from({ length: n }, () => ({ kind, lv, golden: false })), kind === 'dragon');
+    startBattle(over.currentZone.id === 'village' ? ZONES[1] : over.currentZone, Array.from({ length: n }, () => ({ kind, lv, golden: false })), !!MONSTERS[kind].boss);
   },
   warp(id: ZoneId) {
     const p = world.entryPoint(id);
     over.teleport(p.x, p.y);
   },
+  beat(kind: string) {
+    if (!save.bosses.includes(kind)) save.bosses.push(kind);
+    const gz = ZONES.find((z) => z.guardian?.kind === kind);
+    if (gz && !save.camps.includes(gz.id)) save.camps.push(gz.id);
+    syncWorld();
+    void progressQuests();
+  },
+  quests: QUESTS,
   give(n = 20) {
     for (const k in save.mats) save.mats[k as keyof typeof save.mats] += n;
     save.potions = MAX_POTIONS;

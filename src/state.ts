@@ -1,4 +1,4 @@
-import { MAT_ORDER, type MatId, type ZoneId } from './data';
+import { MAT_ORDER, type MatId, type ProjectId, type ZoneId } from './data';
 
 export interface SaveState {
   version: 1;
@@ -14,6 +14,19 @@ export interface SaveState {
   bossWins: number;
   muted: boolean;
   tips: string[];
+  /** Index into QUESTS of the current story step. */
+  quest: number;
+  /** Progress counters for the current step. */
+  questKills: number;
+  talked: boolean;
+  crafted: number;
+  /** Guardians (and the dragon) defeated. */
+  bosses: string[];
+  build: Record<ProjectId, number>;
+  /** Zones whose campfire checkpoint has been lit. */
+  camps: ZoneId[];
+  /** Where you wake up after fainting. */
+  respawn: ZoneId | 'village';
 }
 
 const KEY = 'sprout-quest-save';
@@ -34,6 +47,14 @@ export function newState(): SaveState {
     bossWins: 0,
     muted: false,
     tips: [],
+    quest: 0,
+    questKills: 0,
+    talked: false,
+    crafted: 0,
+    bosses: [],
+    build: { home: 1, forge: 1, garden: 0, training: 0, warp: 0 },
+    camps: [],
+    respawn: 'village',
   };
 }
 
@@ -45,7 +66,18 @@ export function loadState(): SaveState | null {
     if (data.version !== 1) return null;
     // Merge onto defaults so newly-added fields and materials are always present.
     const base = newState();
-    return { ...base, ...data, mats: { ...base.mats, ...data.mats }, equip: { ...base.equip, ...data.equip } } as SaveState;
+    const merged = {
+      ...base, ...data,
+      mats: { ...base.mats, ...data.mats },
+      equip: { ...base.equip, ...data.equip },
+      build: { ...base.build, ...data.build },
+    } as SaveState;
+    // Saves from before the story update: credit progress that already happened.
+    if (data.quest === undefined) {
+      merged.crafted = Math.max(0, merged.owned.length - 2);
+      if ((data.bossWins ?? 0) > 0) merged.bosses = ['dragon'];
+    }
+    return merged;
   } catch {
     return null;
   }

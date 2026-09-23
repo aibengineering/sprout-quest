@@ -1,5 +1,5 @@
 // Pure game rules: stats, damage, leveling, drops and crafting. No DOM access, so it's unit-testable.
-import { GEAR, MAX_POTIONS, POTION_RECIPES, type MatId, type MonsterDef, type Recipe, type Style } from './data';
+import { GEAR, MAX_POTIONS, POTION_RECIPES, PROJECTS, forgeLevelFor, type MatId, type MonsterDef, type ProjectId, type Recipe, type Style } from './data';
 import type { SaveState } from './state';
 
 export type Rng = () => number;
@@ -21,9 +21,10 @@ export function xpToNext(lv: number): number {
 export function playerStats(s: SaveState): PlayerStats {
   const gear = [s.equip.weapon, s.equip.armor, s.equip.charm].map((id) => (id ? GEAR[id] : undefined)).filter((g) => !!g);
   const sum = (k: 'atk' | 'def' | 'hp' | 'spd' | 'luck' | 'regen') => gear.reduce((a, g) => a + (g[k] ?? 0), 0);
+  const home = s.build?.home ?? 1, training = s.build?.training ?? 0;
   return {
-    maxHp: 24 + 6 * s.lv + sum('hp'),
-    atk: Math.round(2 + 1.5 * s.lv) + sum('atk'),
+    maxHp: Math.round((24 + 6 * s.lv + sum('hp')) * (1 + 0.1 * (home - 1))),
+    atk: Math.round((Math.round(2 + 1.5 * s.lv) + sum('atk')) * (1 + 0.05 * training)),
     def: Math.floor(s.lv * 0.8) + sum('def'),
     spd: sum('spd'),
     luck: sum('luck'),
@@ -94,15 +95,37 @@ function spend(s: SaveState, recipe: Recipe) {
   for (const [m, n] of Object.entries(recipe)) s.mats[m as MatId] -= n ?? 0;
 }
 
-export type CraftResult = 'ok' | 'owned' | 'missing' | 'full' | 'unknown';
+export type CraftResult = 'ok' | 'owned' | 'missing' | 'full' | 'unknown' | 'forge' | 'maxed';
+
+/** How many potions the fountain tops you up to — grows with the Garden. */
+export function potionRefill(s: SaveState): number {
+  return Math.min(MAX_POTIONS, 2 + (s.build?.garden ?? 0));
+}
+
+export function canBuild(s: SaveState, id: ProjectId): CraftResult {
+  const p = PROJECTS[id];
+  const lv = s.build[id];
+  if (lv >= p.levels.length) return 'maxed';
+  return hasMats(s, p.levels[lv].cost) ? 'ok' : 'missing';
+}
+
+export function build(s: SaveState, id: ProjectId): CraftResult {
+  const r = canBuild(s, id);
+  if (r !== 'ok') return r;
+  spend(s, PROJECTS[id].levels[s.build[id]].cost);
+  s.build[id]++;
+  return 'ok';
+}
 
 export function craftGear(s: SaveState, id: string): CraftResult {
   const g = GEAR[id];
   if (!g?.recipe) return 'unknown';
   if (s.owned.includes(id)) return 'owned';
+  if ((s.build?.forge ?? 1) < forgeLevelFor(g)) return 'forge';
   if (!hasMats(s, g.recipe)) return 'missing';
   spend(s, g.recipe);
   s.owned.push(id);
+  s.crafted = (s.crafted ?? 0) + 1;
   return 'ok';
 }
 

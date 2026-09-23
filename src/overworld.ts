@@ -1,5 +1,6 @@
 // Overworld: walking around, tall-grass encounters and drawing the tile map.
-import { GEAR, zoneAtX, type Theme, type Zone } from './data';
+import { GEAR, MONSTERS, ZONES, zoneAtX, type Theme, type Zone } from './data';
+import { currentQuest } from './quests';
 import { drawFrame, drawHero, frame } from './assets';
 import { Fx } from './fx';
 import type { Input } from './input';
@@ -220,6 +221,39 @@ export class Overworld {
       ctx.fillText('!', 0, -ts * 0.27);
       ctx.restore();
     }
+  }
+
+  /** A guardian's roadblock: a barrier on each blocked tile and the boss standing watch in front of it. */
+  private drawGate(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): boolean {
+    const zone = ZONES.find((z) => z.id === o.zone);
+    const g = zone?.guardian;
+    const barrier = g && frame(`env/gate_${g.gate}`);
+    if (!g || !barrier) return false;
+    const unit = ts / TILE_BU;
+    for (let i = 0; i < o.h; i++) {
+      const bx = (o.x + 0.5) * ts, by = (o.y + i + 0.92) * ts;
+      shadow(ctx, bx, by, ts * 0.45, 0.2);
+      drawFrame(ctx, barrier, bx, by, unit, { flip: i % 2 === 1 });
+    }
+    const mf = frame(`mon/${g.kind}/${Math.floor(this.t * 5) % 6}`);
+    const gx = (o.x - 0.8) * ts, gy = (o.y + 2.6) * ts;
+    if (mf) {
+      shadow(ctx, gx, gy, ts * 0.6, 0.25);
+      drawFrame(ctx, mf, gx, gy, unit * 0.8, { flip: true });
+    }
+    const m = MONSTERS[g.kind];
+    const text = `👑 ${m.name} · Lv ${g.lv}`;
+    ctx.font = `900 ${Math.round(ts * 0.3)}px ui-rounded, "Nunito", system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(text).width + ts * 0.4;
+    const ty = gy - ts * 2.1 + Math.sin(this.t * 2) * 3;
+    ctx.fillStyle = this.save.lv >= g.lv ? 'rgba(90,60,110,0.9)' : 'rgba(200,60,70,0.92)';
+    rrect(ctx, gx - tw / 2, ty - ts * 0.24, tw, ts * 0.48, ts * 0.2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(text, gx, ty);
+    return true;
   }
 
   private drawPath(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
@@ -488,15 +522,67 @@ export class Overworld {
       ctx.fillStyle = '#fff';
       ctx.fillText(text, x + w / 2, y - ts * 0.9);
     };
-    const spriteName = { forge: 'forge', house: o.x < 10 ? 'house_pink' : 'house_blue', fountain: 'fountain', sign: 'sign', lair: 'lair' }[o.kind];
+    if (o.hidden) return;
+    const unit = ts / TILE_BU;
+    if (o.kind === 'gate' && this.drawGate(ctx, o, ts)) return;
+    if (o.kind === 'elder') {
+      const f = frame(`npc/elder/${Math.floor(this.t * 3) % 4}`);
+      if (f) {
+        const ax = x + w / 2, ay = y + h;
+        shadow(ctx, ax, ay, ts * 0.27);
+        drawFrame(ctx, f, ax, ay, ts / 1.35);
+        const q = currentQuest(this.save);
+        const top = ay - f.ay * (ts / 1.35 / f.ppu);
+        // A bouncing "!" when Elder Bloom has something new to say.
+        if (q?.goal.type === 'talk' || (q && !this.save.tips.includes(`elder:${q.id}`))) {
+          const by = top - ts * 0.35 + Math.abs(Math.sin(this.t * 4)) * -ts * 0.12;
+          ctx.fillStyle = '#ffd35a';
+          rrect(ctx, ax - ts * 0.17, by - ts * 0.46, ts * 0.34, ts * 0.46, ts * 0.12);
+          ctx.fill();
+          ctx.fillStyle = '#5a3a6a';
+          ctx.font = `900 ${Math.round(ts * 0.36)}px ui-rounded, system-ui, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('!', ax, by - ts * 0.22);
+        }
+        return;
+      }
+    }
+    const lv = (id: keyof SaveState['build']) => this.save.build[id];
+    let spriteName: string;
+    let back = 0.42;
+    switch (o.kind) {
+      case 'forge': spriteName = ['forge', 'forge2', 'forge3'][lv('forge') - 1] ?? 'forge'; break;
+      case 'house': spriteName = 'house_blue'; break;
+      case 'fountain': spriteName = 'fountain'; back = 0.45; break;
+      case 'sign': spriteName = 'sign'; back = 0.05; break;
+      case 'lair': spriteName = 'lair'; back = 0.4; break;
+      case 'camp': spriteName = 'campfire'; back = 0.05; break;
+      case 'plot': {
+        const p = o.project!, l = lv(p);
+        if (p === 'home') spriteName = `home${l}`;
+        else if (p === 'warp') { spriteName = `warp${l}`; back = 0.1; }
+        else { spriteName = l ? `${p}${l}` : 'plot'; back = 0.28; }
+        break;
+      }
+      default: spriteName = '';
+    }
     const sprite = frame(`env/${spriteName}`);
     if (sprite) {
       // Model origins sit in the middle of their footprint; push them back so their fronts line up with the collision box.
-      const back = { forge: 0.42, house: 0.42, fountain: 0.45, sign: 0.05, lair: 0.4 }[o.kind];
       const ax = x + w / 2, ay = y + h - back * ts;
-      if (o.kind !== 'sign') shadow(ctx, ax, ay, w * 0.52, 0.2);
-      drawFrame(ctx, sprite, ax, ay, ts / TILE_BU);
-      const top = ay - sprite.ay * (ts / TILE_BU / sprite.ppu);
+      if (o.kind !== 'sign' && o.kind !== 'camp') shadow(ctx, ax, ay, w * 0.52, 0.2);
+      if (o.kind === 'camp') {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = `rgba(255,150,60,${0.16 + Math.sin(this.t * 9) * 0.04})`;
+        ctx.beginPath();
+        ctx.ellipse(ax, ay - ts * 0.1, ts * 1.1, ts * 0.7, 0, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      drawFrame(ctx, sprite, ax, ay, unit);
+      const top = ay - sprite.ay * (unit / sprite.ppu);
       if (o.kind === 'forge') {
         if (Math.random() < 0.08) this.fx.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
         labelAt('⚒ Forge', top);
@@ -509,7 +595,13 @@ export class Overworld {
           ctx.fill();
         }
         labelAt('💧 Fountain', top);
-      } else if (o.kind === 'lair') labelAt(this.save.bossWins ? '🐉 Lair (rematch)' : '🐉 Dragon Lair', top);
+      } else if (o.kind === 'camp') {
+        if (Math.random() < 0.3) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.3, ay - ts * 0.35, Math.random() < 0.5 ? '#ffb03a' : '#ff7a2a', 1, ts * 0.4, { size: ts * 0.06, grav: -ts * 1.5, life: 0.7 });
+      } else if (o.kind === 'plot') {
+        const p = o.project!;
+        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Warp Stone' } as Record<string, string>)[p] ?? '';
+        if (!lv(p) || p === 'home') labelAt(name, top);
+      } else if (o.kind === 'lair') labelAt(this.save.bosses.includes('dragon') ? '🐉 Lair (rematch)' : '🐉 Dragon Lair', top);
       return;
     }
     switch (o.kind) {

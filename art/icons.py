@@ -149,8 +149,36 @@ def scale():
     return r
 
 
+def royaljelly():
+    r = empty('i')
+    from lib import lathe
+    lathe([(0.0001, -0.4), (0.3, -0.4), (0.36, -0.1), (0.3, 0.2), (0.22, 0.28), (0.0001, 0.28)], toon('#8ac8ff', rim=0.5), r, seg=24)
+    cylinder((0, 0, 0.32), 0.2, 0.1, toon('#ffd35a'), r, seg=20)
+    for i in range(5):
+        a = i / 5 * math.tau
+        cone((math.cos(a) * 0.18, math.sin(a) * 0.18, 0.42), 0.04, 0.12, toon('#ffd35a'), r, seg=6, line=0.01)
+    sphere((-0.12, -0.3, 0.0), (0.06, 0.03, 0.1), toon('#ffffff', rim=0), r, line=0)
+    return r
+
+
+def alphapelt():
+    r = empty('i')
+    profile([(-0.45, 0.3), (-0.2, 0.42), (0.2, 0.42), (0.45, 0.3), (0.4, -0.2), (0.2, -0.4), (0, -0.3), (-0.2, -0.4), (-0.4, -0.2)], 0.1, toon('#5a6488'), r, bevel=0.06)
+    profile([(-0.25, 0.2), (0.25, 0.2), (0.2, -0.15), (0, -0.25), (-0.2, -0.15)], 0.12, toon('#f0f4ff'), r, bevel=0.04, line=0)
+    return r
+
+
+def kingcrystal():
+    r = empty('i')
+    crystal((0, 0, -0.45), 0.2, 0.9, toon('#e0c8ff', rim=0.5), r)
+    crystal((-0.25, 0.05, -0.45), 0.12, 0.55, toon('#b8a0ff', rim=0.5), r, rot=(0, -0.4, 0))
+    crystal((0.25, 0.05, -0.45), 0.12, 0.55, toon('#b8a0ff', rim=0.5), r, rot=(0, 0.4, 0))
+    return r
+
+
 CHARMS = {'clovercharm': clovercharm, 'toothcharm': toothcharm, 'crystalheart': crystalheart, 'impring': impring}
 MATERIALS = {
     'goo': goo, 'fluff': fluff, 'clover': clover, 'cap': cap, 'bark': bark, 'fang': fang, 'wing': wing,
     'crystal': crystal_mat, 'core': core, 'ember': ember, 'horn': horn, 'scale': scale,
+    'royaljelly': royaljelly, 'alphapelt': alphapelt, 'kingcrystal': kingcrystal,
 }

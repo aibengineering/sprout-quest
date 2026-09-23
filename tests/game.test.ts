@@ -62,7 +62,7 @@ describe('rules', () => {
 describe('world', () => {
   const w = new World();
 
-  test('the path connects the village to the dragon lair', () => {
+  const lairReachable = () => {
     const start = w.entryPoint('village');
     const seen = new Uint8Array(w.w * w.h);
     const q: [number, number][] = [[Math.floor(start.x), Math.floor(start.y - 0.5)]];
@@ -74,8 +74,15 @@ describe('world', () => {
       q.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
     }
     const lair = w.objs.find((o) => o.kind === 'lair')!;
-    const near = [0, 1, 2, 3].some((dx) => seen[Math.floor(lair.y + lair.h + 0.5) * w.w + Math.floor(lair.x) + dx]);
-    expect(near).toBe(true);
+    return [0, 1, 2, 3].some((dx) => seen[Math.floor(lair.y + lair.h + 0.5) * w.w + Math.floor(lair.x) + dx]);
+  };
+
+  test('guardian gates block the way to the dragon until they are opened', () => {
+    expect(lairReachable()).toBe(false);
+    const gates = w.objs.filter((o) => o.kind === 'gate');
+    gates.forEach((g) => (g.hidden = true));
+    expect(lairReachable()).toBe(true);
+    gates.forEach((g) => (g.hidden = false));
   });
 
   test('zone entry points are walkable and every monster zone has grass', () => {

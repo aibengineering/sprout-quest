@@ -26,7 +26,7 @@ const angDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a
 type EState =
   | 'idle' | 'hop' | 'windup' | 'charge' | 'move' | 'puff' | 'circle' | 'dash' | 'recover'
   | 'flutter' | 'swoop' | 'retreat' | 'walk' | 'slam' | 'float' | 'cast'
-  | 'ring' | 'triple' | 'stomp';
+  | 'ring' | 'triple' | 'stomp' | 'howl' | 'spikes' | 'shards';
 
 interface Enemy {
   kind: MonsterKind;
@@ -60,6 +60,12 @@ interface Enemy {
   burnDmg: number;
   burnTick: number;
   squash: number;
+  /** Hop/charge target for bosses. */
+  tx: number;
+  ty: number;
+  /** One-shot boss phase flag (e.g. the Alpha's howl). */
+  flag: boolean;
+  minion: boolean;
 }
 
 interface Proj {
@@ -186,19 +192,40 @@ export class Battle {
     this.armorColor = GEAR[save.equip.armor]?.color ?? '#6fa8ff';
     const n = setup.foes.length;
     setup.foes.forEach((f, i) => {
-      const def = MONSTERS[f.kind];
-      const s = scaleMonster(def, f.lv, f.golden);
       const a = n === 1 ? -Math.PI / 2 : -Math.PI * 0.8 + (i / (n - 1)) * Math.PI * 0.6;
-      const dist = def.boss ? 90 : 120;
-      this.enemies.push({
-        kind: f.kind, def, lv: f.lv, golden: f.golden,
-        hp: s.hp, maxHp: s.hp, atk: s.atk, dfn: s.def, xp: s.xp, spd: def.spd * (f.golden ? 1.1 : 1),
-        x: Math.cos(a) * dist, y: Math.sin(a) * dist - 10, vx: 0, vy: 0, kx: 0, ky: 0,
-        r: def.r, z: 0, state: initialState(f.kind), t: rand(0.3, 1.2), dir: 0, face: 1, orb: a, sub: 0, last: null,
-        windup: 0, flash: 0, stun: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
-        burn: 0, burnDmg: 0, burnTick: 0, squash: 0,
-      });
+      const dist = MONSTERS[f.kind].boss ? 90 : 120;
+      this.spawn(f, Math.cos(a) * dist, Math.sin(a) * dist - 10, false);
     });
+  }
+
+  private spawn(f: Foe, x: number, y: number, minion: boolean): Enemy {
+    const def = MONSTERS[f.kind];
+    const s = scaleMonster(def, f.lv, f.golden);
+    const e: Enemy = {
+      kind: f.kind, def, lv: f.lv, golden: f.golden,
+      hp: s.hp, maxHp: s.hp, atk: s.atk, dfn: s.def, xp: s.xp, spd: def.spd * (f.golden ? 1.1 : 1),
+      x, y, vx: 0, vy: 0, kx: 0, ky: 0,
+      r: def.r, z: 0, state: initialState(f.kind), t: rand(0.3, 1.2), dir: 0, face: 1, orb: Math.atan2(y, x), sub: 0, last: null,
+      windup: 0, flash: 0, stun: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
+      burn: 0, burnDmg: 0, burnTick: 0, squash: 0, tx: 0, ty: 0, flag: false, minion,
+    };
+    this.enemies.push(e);
+    return e;
+  }
+
+  /** Bosses call in helpers — they pop in with a puff. */
+  private summon(kind: MonsterKind, lv: number, near: Enemy, count: number) {
+    const alive = this.enemies.filter((e) => e.minion && !e.dead).length;
+    for (let i = 0; i < Math.min(count, 4 - alive); i++) {
+      const a = Math.random() * TAU;
+      let x = near.x + Math.cos(a) * 70, y = near.y + Math.sin(a) * 50;
+      const d = Math.hypot(x, y);
+      if (d > ARENA_R - 30) { x *= (ARENA_R - 30) / d; y *= (ARENA_R - 30) / d; }
+      const m = this.spawn({ kind, lv, golden: false }, x, y, true);
+      m.t = 0.8;
+      this.fx.burst(x, y - 10, '#ffffff', 14, 120, { size: 5 });
+      this.fx.burst(x, y - 10, '#fff6a0', 6, 90, { star: true, size: 4 });
+    }
   }
 
   get skillFrac() { return Math.max(0, this.p.skillCd) / SKILL_CD; }
@@ -739,6 +766,7 @@ export class Battle {
     const cols: Record<MonsterKind, string> = {
       slime: '#6fdc7a', magma: '#ff7a3a', bunny: '#ffffff', shroom: '#e8505a', wolf: '#9aa4c8',
       bat: '#7a5ab8', golem: '#9aa0b0', imp: '#e8505a', dragon: '#e8603c',
+      kingslime: '#8ac8ff', alphawolf: '#5a6488', crystalking: '#b8a0ff',
     };
     this.fx.burst(e.x, e.y - e.r * 0.7, e.golden ? '#ffd84a' : cols[e.kind], 18, 180, { size: 5 });
     this.fx.burst(e.x, e.y - e.r * 0.7, '#fff6a0', 8, 120, { star: true, size: 5, grav: -30 });
@@ -750,6 +778,8 @@ export class Battle {
     let i = 0;
     for (const m in d) this.fx.text(e.x + (i++ - 0.5) * 18, e.y - e.r * 2.6, MATS[m as MatId].icon, '#fff', 18);
     if (e.def.boss) {
+      // The guardian's helpers scatter when it falls.
+      for (const m of this.enemies) if (m.minion && !m.dead) this.kill(m);
       this.shake = 20;
       this.audio.play('boom');
       for (let k = 0; k < 4; k++) this.fx.burst(e.x + rand(-40, 40), e.y - rand(20, 90), '#ffb03a', 20, 220, { size: 6 });
@@ -854,7 +884,7 @@ export class Battle {
       }
     }
     // Contact damage (slimes mid-hop sail over you).
-    const airborne = (e.kind === 'slime' || e.kind === 'magma') && e.z > 10;
+    const airborne = (e.kind === 'slime' || e.kind === 'magma' || e.kind === 'kingslime') && e.z > 10;
     if (!airborne && Math.hypot(p.x - e.x, p.y - e.y) < p.r + e.r * 0.85) {
       const fast = e.state === 'charge' || e.state === 'dash' || e.state === 'swoop';
       this.hurtPlayer(e.atk, (e.def.boss ? 0.8 : 1) * (fast ? 1.2 : 1), e.x, e.y);
@@ -1025,6 +1055,15 @@ export class Battle {
       case 'dragon':
         this.dragonAi(e, dt, dist, toP, rage);
         break;
+      case 'kingslime':
+        this.kingSlimeAi(e, rage);
+        break;
+      case 'alphawolf':
+        this.alphaAi(e, dt, dist, toP, rage);
+        break;
+      case 'crystalking':
+        this.crystalKingAi(e, dist, toP, rage);
+        break;
     }
   }
 
@@ -1092,6 +1131,151 @@ export class Battle {
         }
         break;
       }
+      default:
+        e.state = 'walk';
+    }
+  }
+
+  /** Slime King: huge telegraphed belly-flops that splash goo, and he calls little slimes every few landings. */
+  private kingSlimeAi(e: Enemy, rage: number) {
+    const p = this.p;
+    if (e.state === 'idle') {
+      e.vx = e.vy = 0;
+      e.z = 0;
+      e.windup = e.t < 0.5 ? 1 - e.t / 0.5 : 0;
+      if (e.t <= 0) {
+        e.state = 'hop';
+        const dur = 0.95 * rage;
+        e.t = dur;
+        e.windup = 0;
+        // Aim a little ahead of where you're running.
+        let tx = p.x + p.vx * 0.35, ty = p.y + p.vy * 0.35;
+        const d = Math.hypot(tx, ty);
+        if (d > ARENA_R - e.r) { tx *= (ARENA_R - e.r) / d; ty *= (ARENA_R - e.r) / d; }
+        e.tx = tx;
+        e.ty = ty;
+        e.vx = (tx - e.x) / dur;
+        e.vy = (ty - e.y) / dur;
+        this.hazards.push({ x: tx, y: ty, r: 72, t: 0, delay: dur, atk: e.atk, mult: 1.4, done: false });
+      }
+    } else if (e.state === 'hop') {
+      const dur = 0.95 * rage;
+      e.z = Math.sin((1 - Math.max(0, e.t) / dur) * Math.PI) * 70;
+      if (e.t <= 0) {
+        e.state = 'idle';
+        e.t = rand(0.7, 1.1) * rage;
+        e.z = 0;
+        e.vx = e.vy = 0;
+        e.squash = 0.25;
+        this.shake = Math.max(this.shake, 10);
+        const n = rage < 1 ? 10 : 6, off = Math.random() * TAU;
+        for (let i = 0; i < n; i++) this.enemyShoot(e, off + (i / n) * TAU, 130, 8, '#8ac8ff', 0.7);
+        this.fx.burst(e.x, e.y, '#bfe4ff', 16, 180, { size: 5 });
+        e.sub++;
+        if (e.sub % 3 === 0) this.summon('slime', Math.max(1, e.lv - 2), e, 2);
+      }
+    }
+  }
+
+  /** Alpha Woolf: circles, then chains dashes (three when angry) and howls for its pack once. */
+  private alphaAi(e: Enemy, dt: number, dist: number, toP: number, rage: number) {
+    const p = this.p;
+    if (!e.flag && e.hp < e.maxHp * 0.6 && e.state !== 'dash') {
+      e.flag = true;
+      e.state = 'howl';
+      e.t = 1.0;
+      e.vx = e.vy = 0;
+    }
+    switch (e.state) {
+      case 'howl':
+        e.windup = 1;
+        if (Math.random() < 0.3) this.rings.push({ x: e.x, y: e.y - 20, r0: 10, r1: 90, t: 0, dur: 0.4, color: '220,230,255' });
+        if (e.t <= 0) {
+          e.windup = 0;
+          this.summon('wolf', Math.max(4, e.lv - 3), e, 2);
+          e.state = 'circle';
+          e.t = 1;
+        }
+        break;
+      case 'circle': {
+        e.orb += dt * 1.3;
+        const tx = p.x + Math.cos(e.orb) * 150, ty = p.y + Math.sin(e.orb) * 150;
+        this.moveToward(e, Math.atan2(ty - e.y, tx - e.x), e.spd * 1.2 * Math.min(1, Math.hypot(tx - e.x, ty - e.y) / 30));
+        if (e.t <= 0) { e.state = 'windup'; e.t = 0.45 * rage; e.sub = 0; }
+        break;
+      }
+      case 'windup':
+        e.vx = e.vy = 0;
+        e.windup = 1 - e.t / (0.45 * rage);
+        if (e.t > 0.1) e.dir = toP;
+        if (e.t <= 0) { e.state = 'dash'; e.t = 0.34; e.windup = 0; this.moveToward(e, e.dir, e.spd * 4.6); }
+        break;
+      case 'dash':
+        if (Math.random() < 0.5) this.fx.burst(e.x, e.y, '#dfe6f0', 1, 30, { size: 4, grav: 0, life: 0.3 });
+        if (e.t <= 0) {
+          e.sub++;
+          if (e.sub < (rage < 1 ? 3 : 2)) { e.state = 'windup'; e.t = 0.28; e.vx = e.vy = 0; }
+          else { e.state = 'recover'; e.t = 0.7; e.vx = e.vy = 0; }
+        }
+        break;
+      default:
+        e.vx = e.vy = 0;
+        if (e.t <= 0) { e.state = 'circle'; e.t = rand(1.1, 1.8) * rage; e.orb = Math.atan2(e.y - p.y, e.x - p.x); }
+    }
+    void dist;
+  }
+
+  /** Crystal King: ground slams, lines of erupting crystal spikes, and crystal shard rings. */
+  private crystalKingAi(e: Enemy, dist: number, toP: number, rage: number) {
+    switch (e.state) {
+      case 'walk': {
+        this.moveToward(e, toP, dist > 70 ? e.spd : 0);
+        if (e.t <= 0) {
+          const opts = (['slam', 'spikes', 'shards'] as EState[]).filter((s) => s !== e.last || dist < 90);
+          e.state = dist < 120 && e.last !== 'slam' ? 'slam' : opts[Math.floor(Math.random() * opts.length)];
+          e.last = e.state;
+          e.vx = e.vy = 0;
+          if (e.state === 'slam') {
+            e.t = 1.0 * rage;
+            this.hazards.push({ x: e.x, y: e.y, r: 125, t: 0, delay: 1.0 * rage, atk: e.atk, mult: 1.3, done: false });
+          } else if (e.state === 'spikes') {
+            e.t = 0.9;
+            const lines = rage < 1 ? [-0.4, 0, 0.4] : [0];
+            for (const off of lines) {
+              for (let i = 0; i < 7; i++) {
+                const d = 55 + i * 42, a = toP + off;
+                const x = e.x + Math.cos(a) * d, y = e.y + Math.sin(a) * d;
+                if (Math.hypot(x, y) > ARENA_R) break;
+                this.hazards.push({ x, y, r: 30, t: 0, delay: 0.65 + i * 0.07, atk: e.atk, mult: 1.1, done: false });
+              }
+            }
+          } else {
+            e.t = 0.6;
+          }
+        }
+        break;
+      }
+      case 'slam':
+        e.windup = 1 - e.t / (1.0 * rage);
+        if (e.t <= 0) { e.state = 'walk'; e.t = 1.1 * rage; e.windup = 0; }
+        break;
+      case 'spikes':
+        e.windup = 0.6;
+        if (e.t <= 0) { e.state = 'walk'; e.t = 1.2 * rage; e.windup = 0; }
+        break;
+      case 'shards':
+        e.windup = 1 - e.t / 0.6;
+        if (e.t <= 0) {
+          const off = Math.random() * TAU;
+          for (let ring = 0; ring < (rage < 1 ? 2 : 1); ring++) {
+            for (let i = 0; i < 12; i++) this.enemyShoot(e, off + ring * 0.26 + (i / 12) * TAU, 150 - ring * 30, 9, '#d8c0ff');
+          }
+          this.audio.play('shoot');
+          e.state = 'walk';
+          e.t = 1.2 * rage;
+          e.windup = 0;
+        }
+        break;
       default:
         e.state = 'walk';
     }
@@ -1366,7 +1550,8 @@ export class Battle {
       const shake = e.windup > 0 ? Math.sin(this.t * 60) * e.r * 0.08 * e.windup : 0;
       drawFrame(ctx, f, e.x + shake, e.y - e.z, UNIT * (SPRITE_SCALE[e.kind] ?? 1), {
         flip: e.face < 0, alpha, sx: sxk, sy: syk,
-        flash: e.flash > 0 || (e.dead && alpha > 0.7) ? 1 : 0,
+        // Bosses get hit constantly, so their flash is softer to keep them readable.
+        flash: e.flash > 0 || (e.dead && alpha > 0.7) ? (e.def.boss && !e.dead ? 0.45 : 1) : 0,
         tint: e.burn > 0 ? '#ff7a2a' : e.windup > 0.5 ? '#ff4a4a' : undefined,
         tintAmount: e.burn > 0 ? 0.25 + Math.sin(this.t * 20) * 0.1 : (e.windup - 0.5) * 0.5,
       });
@@ -1646,5 +1831,8 @@ function initialState(kind: MonsterKind): EState {
     case 'golem': return 'walk';
     case 'imp': return 'float';
     case 'dragon': return 'walk';
+    case 'kingslime': return 'idle';
+    case 'alphawolf': return 'circle';
+    case 'crystalking': return 'walk';
   }
 }

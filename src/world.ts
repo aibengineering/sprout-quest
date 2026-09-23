@@ -1,5 +1,5 @@
 // Overworld map generation and collision. Coordinates are in tiles.
-import { WORLD_H, WORLD_W, ZONES, zoneAtX, type Zone, type ZoneId } from './data';
+import { WORLD_H, WORLD_W, ZONES, zoneAtX, type ProjectId, type Zone, type ZoneId } from './data';
 
 export const T = {
   GROUND: 0,
@@ -10,7 +10,7 @@ export const T = {
   DECOR: 5,
 } as const;
 
-export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair';
+export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -21,6 +21,12 @@ export interface WorldObj {
   h: number;
   label: string;
   text?: string;
+  /** Zone this object belongs to (gates, camps). */
+  zone?: ZoneId;
+  /** Construction project on this plot. */
+  project?: ProjectId;
+  /** Hidden objects are neither drawn nor solid (opened gates, unlit camps). */
+  hidden?: boolean;
 }
 
 export function hash2(x: number, y: number, seed: number): number {
@@ -73,6 +79,17 @@ export class World {
     return zoneAtX(Math.floor(x));
   }
 
+  /** Standing spot next to a zone's campfire (the warp/respawn point past its gate). */
+  campPoint(id: ZoneId): { x: number; y: number } {
+    const camp = this.objs.find((o) => o.kind === 'camp' && o.zone === id);
+    if (!camp) return this.entryPoint(id);
+    return { x: camp.x + camp.w / 2, y: pathY(Math.floor(camp.x)) + 1.9 };
+  }
+
+  obj(kind: ObjKind, key?: string): WorldObj | undefined {
+    return this.objs.find((o) => o.kind === kind && (key === undefined || o.zone === key || o.project === key));
+  }
+
   entryPoint(id: ZoneId): { x: number; y: number } {
     if (id === 'village') return { x: 4.5, y: MID + 0.5 };
     const z = ZONES.find((z) => z.id === id)!;
@@ -121,16 +138,21 @@ export class World {
   }
 
   private placeObjects() {
-    const add = (o: WorldObj) => {
+    const add = (o: WorldObj, clear = true) => {
       this.objs.push(o);
+      if (!clear) return;
       // Clear the tiles under and around each object so it never sits in a tree.
       for (let y = Math.floor(o.y) - 1; y <= Math.ceil(o.y + o.h); y++)
         for (let x = Math.floor(o.x) - 1; x <= Math.ceil(o.x + o.w); x++)
           if (this.tile(x, y) !== T.PATH) this.set(x, y, T.GROUND);
     };
-    add({ kind: 'forge', x: 5, y: 7, w: 4, h: 3, label: 'Craft', text: 'The Forge' });
+    add({ kind: 'forge', x: 5, y: 7, w: 4, h: 3, label: 'Forge', text: 'The Forge' });
     add({ kind: 'house', x: 13, y: 6.5, w: 3, h: 3, label: '' });
-    add({ kind: 'house', x: 3, y: 17, w: 3, h: 3, label: '' });
+    add({ kind: 'elder', x: 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Bloom' });
+    add({ kind: 'plot', project: 'home', x: 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
+    add({ kind: 'plot', project: 'garden', x: 7.2, y: 18.4, w: 3, h: 1.6, label: 'Build', text: 'Garden' });
+    add({ kind: 'plot', project: 'training', x: 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
+    add({ kind: 'plot', project: 'warp', x: 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Warp Stone' });
     add({ kind: 'fountain', x: 12, y: 17, w: 2, h: 2, label: 'Rest', text: 'Healing Fountain' });
     add({
       kind: 'sign', x: 18.6, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
@@ -143,6 +165,14 @@ export class World {
         text: `${z.name} — recommended Lv ${z.rec}+. Monsters here are Lv ${z.lv[0]}–${z.lv[1]}.`,
       });
     }
+    // Guardians block the road into their zone; a campfire checkpoint waits just past each gate.
+    for (const z of ZONES) {
+      if (!z.guardian) continue;
+      const py = pathY(z.x0);
+      add({ kind: 'gate', zone: z.id, x: z.x0, y: py - 1, w: 1, h: 4, label: 'Challenge', text: z.name }, false);
+      const cx = z.x0 + 5;
+      add({ kind: 'camp', zone: z.id, x: cx, y: pathY(cx) + 2.3, w: 0.8, h: 0.6, label: 'Rest', text: 'Campfire' });
+    }
     const lx = this.w - 5;
     add({ kind: 'lair', x: lx, y: pathY(lx) - 1.5, w: 3, h: 2, label: 'Enter', text: "Emberwyrm's Lair" });
   }
@@ -150,7 +180,7 @@ export class World {
   solidAt(x: number, y: number): boolean {
     const t = this.tile(Math.floor(x), Math.floor(y));
     if (t === T.OBST || t === T.POOL) return true;
-    for (const o of this.objs) if (x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
+    for (const o of this.objs) if (!o.hidden && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
     return false;
   }
 
@@ -164,7 +194,7 @@ export class World {
     let best: WorldObj | null = null;
     let bestD = maxDist;
     for (const o of this.objs) {
-      if (!o.label) continue;
+      if (!o.label || o.hidden) continue;
       const cx = Math.max(o.x, Math.min(x, o.x + o.w));
       const cy = Math.max(o.y, Math.min(y, o.y + o.h));
       const d = Math.hypot(cx - x, cy - y);

@@ -383,3 +383,31 @@ def clear_objects(keep=('Key', 'Cam')):
     for m in list(bpy.data.meshes):
         if m.users == 0:
             bpy.data.meshes.remove(m)
+
+
+def render_fit(path, size, elevation=ELEVATION, pad=0.86):
+    """Renders a square icon, auto-framing every visible mesh in the scene."""
+    sc = bpy.context.scene
+    sc.render.resolution_x = sc.render.resolution_y = size
+    sc.render.resolution_percentage = 100
+    cam = camera(20, elevation)
+    cam.data.shift_x = cam.data.shift_y = 0
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    pts = []
+    for o in sc.objects:
+        if o.type != 'MESH':
+            continue
+        ev = o.evaluated_get(dg)
+        pts += [ev.matrix_world @ Vector(c) for c in ev.bound_box]
+    proj = [world_to_camera_view(sc, cam, p) for p in pts]
+    x0, x1 = min(p.x for p in proj), max(p.x for p in proj)
+    y0, y1 = min(p.y for p in proj), max(p.y for p in proj)
+    span = max(x1 - x0, y1 - y0)
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    rot = cam.matrix_world.to_3x3()
+    cam.location += rot @ Vector(((cx - 0.5) * 20, (cy - 0.5) * 20, 0))
+    cam.data.ortho_scale = 20 * span / pad
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    sc.render.filepath = path
+    bpy.ops.render.render(write_still=True)

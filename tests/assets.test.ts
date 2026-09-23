@@ -29,6 +29,14 @@ describe('rendered assets', () => {
     }
   });
 
+  test('Elder Bloom and every boss and building have art', () => {
+    for (let f = 0; f < 4; f++) expect(atlas.frames[`npc/elder/${f}`]).toBeDefined();
+    for (const k of ['kingslime', 'alphawolf', 'crystalking', 'dragon']) expect(existsSync(`public/assets/icons/boss_${k}.webp`)).toBe(true);
+    for (const n of ['home1', 'home2', 'home3', 'forge2', 'forge3', 'garden1', 'garden2', 'garden3', 'training1', 'training2', 'training3', 'warp0', 'warp1', 'plot', 'campfire', 'gate_bramble', 'gate_crystal', 'gate_rock']) {
+      expect(atlas.frames[`env/${n}`]).toBeDefined();
+    }
+  });
+
   test('every material and charm has an icon', () => {
     for (const id of [...Object.keys(MATS), ...Object.values(GEAR).map((g) => g.id)]) {
       expect(existsSync(`public/assets/icons/${id}.webp`)).toBe(true);

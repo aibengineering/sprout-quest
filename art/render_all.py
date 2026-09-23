@@ -36,7 +36,7 @@ def shot(name, w, h, ppu, **kw):
 
 
 def wanted(key):
-    return ONLY is None or key == ONLY
+    return ONLY is None or key in ONLY.split(',')
 
 
 lib.reset()
@@ -60,12 +60,12 @@ elif GROUP == 'monsters':
         if not wanted(kind):
             continue
         for gold in (False, True):
-            if gold and kind == 'dragon':
+            if gold and (kind == 'dragon' or kind in monsters.BOSS_SCALE):
                 continue
             lib.clear_objects()
             P, anim = monsters.build(kind, gold)
             P['root'].rotation_euler = (0, 0, math.radians(MONSTER_YAW))
-            size = (520, 460) if kind == 'dragon' else (240, 240)
+            size = (520, 460) if kind == 'dragon' else (400, 400) if kind in monsters.BOSS_SCALE else (240, 240)
             for f in range(6):
                 anim(P, f / 6)
                 shot(f"mon/{kind}{'_gold' if gold else ''}/{f}", *size, 80)
@@ -116,10 +116,47 @@ elif GROUP == 'icons':
         fn()
         shot(f'icon/{name}', 128, 128, 120, elevation=math.radians(12), fit_origin=0.5)
 
+elif GROUP == 'npc':
+    lib.clear_objects()
+    P = hero.build_elder()
+    for f in range(4):
+        ph = f / 4 * math.tau
+        P['body'].scale = (1 + 0.02 * math.sin(ph), 1, 1 - 0.025 * math.sin(ph))
+        P['hat'].rotation_euler = (0, 0.06 * math.sin(ph), 0)
+        shot(f'npc/elder/{f}', 200, 220, 80)
+
+elif GROUP == 'icons2':
+    # Auto-framed icons for guardians and village buildings.
+    for kind in ('kingslime', 'alphawolf', 'crystalking', 'dragon'):
+        if not wanted(kind):
+            continue
+        lib.clear_objects()
+        P, anim = monsters.build(kind)
+        P['root'].rotation_euler = (0, 0, math.radians(20))
+        anim(P, 0.25)
+        path = os.path.join(OUT, 'icons2', f'{kind}.png')
+        lib.render_fit(path, 128, math.radians(15))
+        frames.append({'name': f'icon/boss_{kind}', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
+    if wanted('npc_elder'):
+        lib.clear_objects()
+        hero.build_elder()
+        path = os.path.join(OUT, 'icons2', 'npc_elder.png')
+        lib.render_fit(path, 128, math.radians(12))
+        frames.append({'name': 'icon/npc_elder', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
+    for name in ('home1', 'home2', 'home3', 'forge', 'forge2', 'forge3', 'garden1', 'garden2', 'garden3',
+                 'training1', 'training2', 'training3', 'warp0', 'warp1', 'campfire', 'plot'):
+        if not wanted(name):
+            continue
+        lib.clear_objects()
+        env.SCENERY[name][0]()
+        path = os.path.join(OUT, 'icons2', f'{name}.png')
+        lib.render_fit(path, 128, math.radians(25))
+        frames.append({'name': f'icon/b_{name}', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
+
 else:
     raise SystemExit(f'unknown group {GROUP}')
 
-suffix = f'.{ONLY}' if ONLY else ''
+suffix = f".{ONLY.replace(',', '_')}" if ONLY else ''
 with open(os.path.join(OUT, f'{GROUP}{suffix}.json'), 'w') as f:
     json.dump(frames, f, indent=1)
 print(f'RENDERED {len(frames)} frames for {GROUP}{suffix}')

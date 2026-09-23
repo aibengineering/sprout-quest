@@ -24,16 +24,25 @@ bun test           # rules + map sanity tests
 bun run typecheck
 ```
 
-## The loop
+## Story and progression
 
-| Area | Lv | Monsters | Materials |
-| --- | --- | --- | --- |
-| 🏡 Sprout Village | – | – | Forge (craft) & Fountain (heal) |
-| 🌼 Sunny Meadow | 1–3 | Slime, Hopbun | Goo, Fluff, Clover |
-| 🌲 Whisper Woods | 4–7 | Sporecap, Woolf | Shroom Cap, Bark, Fang |
-| 💎 Crystal Cave | 8–12 | Flapper, Pebblor | Bat Wing, Crystal, Golem Core |
-| 🌋 Ember Peak | 13–17 | Impy, Magma Slime | Ember, Imp Horn |
-| 🐉 Dragon Lair | 20 | Emberwyrm (boss) | Dragon Scale |
+Smoke from Ember Peak has made the monsters grumpy, and guardians block the roads. Elder Bloom (by the Forge)
+guides you through a chain of chapters, and the current goal is always shown in the 📜 tracker at the top of the screen.
+
+| Chapter | Goal |
+| --- | --- |
+| Prologue | Meet Elder Bloom |
+| 1 | Calm 6 meadow monsters → craft gear → build a Cottage |
+| 2 | 👑 **Slime King** (Lv 5) guards Whisper Woods → upgrade the Forge to a Smithy |
+| 3 | 🐺 **Alpha Woolf** (Lv 9) guards Crystal Cave → build the Warp Stone |
+| 4 | 💎 **Crystal King** (Lv 14) guards Ember Peak → upgrade to a Master Forge |
+| Finale | 🐉 **Emberwyrm** (Lv 20) → then build your Manor |
+
+- **Guardian gates**: each road is physically blocked until you beat its guardian, like gyms. Guardians have their
+  own attack patterns and summon helpers. Beating one opens the road, lights a 🔥 **campfire checkpoint** (heal, respawn,
+  warp point) and drops a **trophy** needed for the next village upgrade.
+- **Village construction**: Home (Tent → Cottage → Manor, +max HP), Forge (levels gate ★★★ and ★★★★+ recipes),
+  Garden (more free potions), Training Yard (+attack) and Warp Stone (fast travel). Buildings visibly change in the village.
 
 - **Encounters**: walking in tall grass has a chance to start a battle with 1–3 monsters from that area
   (4% chance of a ✨ golden one with double loot).
@@ -85,6 +94,7 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
 - `src/weapons.ts` — per-weapon-type movesets (combo timings, hitbox shapes, animations)
 - `src/assets.ts` — sprite atlas loading and drawing
 - `src/sprites.ts` — procedurally drawn chibi characters and monsters
-- `src/data.ts` — monsters, zones, gear, recipes (tweak balance here)
+- `src/data.ts` — monsters, zones, guardians, gear, recipes, village projects and story chapters (tweak balance here)
+- `src/quests.ts` — story progression logic
 - `src/rules.ts` — pure stat/damage/XP/crafting rules (unit tested)
 - `src/ui.ts`, `public/` — DOM HUD, menus, styles

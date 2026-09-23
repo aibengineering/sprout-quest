@@ -45,11 +45,11 @@ def face(parent, cx, cz, rx, ry, rz, gap, eye=0.06, blush=True, mouth=True, cy=0
 # ----------------------------------------------------------------------------- builders
 
 
-def slime(magma=False):
+def slime(magma=False, color=None):
     P = {}
     root = P['root'] = empty('slime')
     piv = P['piv'] = empty('piv', root)
-    body = M('#ff7a3a' if magma else '#6fdc7a')
+    body = M(color or ('#ff7a3a' if magma else '#6fdc7a'))
     rx, ry, rz, cz = 0.6, 0.55, 0.46, 0.44
     sphere((0, 0, cz), (rx, ry, rz), body, piv, seg=32)
     sphere((-0.24, surf(rx, ry, rz, -0.24, 0.24) + 0.03, cz + 0.24), (0.12, 0.05, 0.08), M(WHITE, rim=0), piv, line=0, rot=(0.6, 0, 0.4))
@@ -119,11 +119,11 @@ def _anim_shroom(P, t):
     P['cap'].rotation_euler = (0, 0.06 * s, 0)
 
 
-def wolf():
+def wolf(fur='#9aa4c8', light='#e8ecf8', dark='#7a84a8'):
     P = {}
     root = P['root'] = empty('wolf')
     piv = P['piv'] = empty('piv', root)
-    fur, light, dark = M('#9aa4c8'), M('#e8ecf8'), M('#7a84a8')
+    fur, light, dark = M(fur), M(light), M(dark)
     for x in (-0.14, 0.14):
         for y in (-0.2, 0.22):
             cylinder((x, y, 0.1), 0.07, 0.2, dark, piv, seg=12)
@@ -183,11 +183,11 @@ def _anim_bat(P, t):
     P['piv'].location.z = 0.5 + 0.05 * math.cos(t * math.tau)
 
 
-def golem():
+def golem(stone='#9aa0b0', dark='#7a8090', moss='#7ab86a'):
     P = {}
     root = P['root'] = empty('golem')
     piv = P['piv'] = empty('piv', root)
-    stone, dark, moss = M('#9aa0b0'), M('#7a8090'), M('#7ab86a')
+    stone, dark, moss = M(stone), M(dark), M(moss)
     for s in (-1, 1):
         box((0.22 * s, 0, 0.12), (0.26, 0.3, 0.26), dark, piv, bevel=0.07)
     box((0, 0, 0.55), (0.82, 0.58, 0.6), stone, piv, bevel=0.14)
@@ -304,6 +304,46 @@ def _anim_dragon(P, t):
     P['head'].rotation_euler = (0.04 * s, 0, 0)
 
 
+def crown(parent, loc, r=0.2, h=0.14):
+    from lib import lathe
+    c = empty('crown', parent, loc)
+    lathe([(r, 0), (r * 1.08, h), (r * 0.96, h), (r * 0.88, 0.02), (0.0001, 0.02)], M('#ffd35a'), c, seg=24, line=0.014)
+    for i in range(5):
+        a = i / 5 * math.tau
+        cone((math.cos(a) * r, math.sin(a) * r, h + 0.06), 0.05, 0.14, M('#ffd35a'), c, seg=8, line=0.012)
+        sphere((math.cos(a) * r * 1.05, math.sin(a) * r * 1.05, h * 0.5), 0.03, M('#ff4a6a' if i % 2 else '#6ae0ff', rim=0.4), c, line=0)
+    return c
+
+
+def kingslime():
+    P, anim = slime(color='#8ac8ff')
+    crown(P['piv'], (0, 0.05, 0.86), r=0.22)
+    sphere((0.34, -0.2, 0.2), (0.05, 0.02, 0.06), M('#ffffff', rim=0), P['piv'], line=0)
+    return P, anim
+
+
+def alphawolf():
+    P, anim = wolf('#5a6488', '#f0f4ff', '#3a4468')
+    from lib import torus
+    torus((0, -0.3, 0.5), 0.2, 0.05, M('#e8404a'), P['piv'], rot=(1.1, 0, 0))
+    profile([(-0.06, 0), (0.06, 0), (0.1, -0.22), (-0.02, -0.18)], 0.04, M('#e8404a'), P['piv'], loc=(0.05, -0.42, 0.42))
+    for i in range(5):
+        a = (i - 2) * 0.35
+        sphere((math.sin(a) * 0.2, -0.28 + abs(a) * 0.05, 0.62 - abs(a) * 0.05), 0.09, M('#f0f4ff'), P['piv'])
+    crown(P['head'], (0, 0.05, 0.2), r=0.12, h=0.08)
+    return P, anim
+
+
+def crystalking():
+    P, anim = golem('#8a7ab8', '#6a5a98', '#b8a0ff')
+    gem = M('#e0c8ff', rim=0.45)
+    for x, y, z, h, rx, ry in ((-0.3, 0.2, 0.85, 0.45, 0.3, -0.5), (0.3, 0.2, 0.85, 0.4, 0.3, 0.5), (0, 0.28, 0.9, 0.55, 0.5, 0),
+                               (-0.5, 0.05, 0.9, 0.3, 0, -0.9), (0.5, 0.05, 0.9, 0.3, 0, 0.9)):
+        crystal((x, y, z), 0.09, h, gem, P['piv'], rot=(rx, ry, 0))
+    crown(P['head'], (0, 0, 0.18), r=0.2, h=0.12)
+    return P, anim
+
+
 BUILDERS = {
     'slime': lambda: slime(False),
     'magma': lambda: slime(True),
@@ -314,13 +354,22 @@ BUILDERS = {
     'golem': golem,
     'imp': imp,
     'dragon': dragon,
+    'kingslime': kingslime,
+    'alphawolf': alphawolf,
+    'crystalking': crystalking,
 }
+
+# Guardians are the base models scaled up to their hitbox size.
+BOSS_SCALE = {'kingslime': 2.2, 'alphawolf': 2.1, 'crystalking': 1.7}
 
 
 def build(kind, gold=False):
     global _gold
     _gold = gold
     try:
-        return BUILDERS[kind]()
+        P, anim = BUILDERS[kind]()
+        if kind in BOSS_SCALE:
+            P['root'].scale = (BOSS_SCALE[kind],) * 3
+        return P, anim
     finally:
         _gold = False

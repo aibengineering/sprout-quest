@@ -119,3 +119,39 @@ def pose(P, phase, moving):
             P[f'arm{side}'].rotation_euler = (0, 0, 0)
         P['body'].location.z = 0
         P['body'].rotation_euler = (0, 0, 0)
+
+
+def build_elder():
+    """Elder Bloom: a tiny old sprout with a big leafy hat, fluffy beard and a flower staff."""
+    P = {}
+    root = P['root'] = empty('elder')
+    bodyp = P['body'] = empty('bodyPivot', root)
+    skin, robe = toon(SKIN), toon('#6ab86a')
+    for side in (-1, 1):
+        sphere((0.12 * side, -0.03, 0.05), (0.09, 0.12, 0.06), toon('#6b4a3a'), root)
+    sphere((0, 0, 0.3), (0.3, 0.26, 0.3), robe, bodyp)
+    torus((0, 0, 0.18), 0.27, 0.035, toon('#ffd35a'), bodyp)
+    head = P['head'] = empty('head', bodyp, (0, 0, 0.76))
+    sphere((0, 0, 0), (0.35, 0.32, 0.31), skin, head, seg=32)
+    for side in (-1, 1):
+        # Kind, squinty eyes.
+        sphere((0.12 * side, -0.3, 0.0), (0.05, 0.02, 0.018), toon('#2a2233', rim=0), head, line=0)
+        sphere((0.2 * side, -0.26, -0.08), (0.05, 0.02, 0.03), toon('#ff9aaa', rim=0), head, line=0)
+        sphere((0.13 * side, -0.29, 0.07), (0.07, 0.02, 0.025), toon('#ffffff'), head, line=0.01)
+    for x, z, s in ((0, -0.2, 0.17), (-0.13, -0.14, 0.12), (0.13, -0.14, 0.12), (0, -0.33, 0.12)):
+        sphere((x, -0.22, z), s, toon('#ffffff'), head)
+    sphere((0, -0.33, -0.04), (0.06, 0.04, 0.05), toon('#ffc8b0'), head, line=0.01)
+    hat = P['hat'] = empty('hat', head, (0, 0, 0.2))
+    for i in range(6):
+        a = i / 6 * math.tau
+        sphere((math.cos(a) * 0.28, math.sin(a) * 0.26, 0.02), (0.22, 0.12, 0.05), toon('#5ac85a' if i % 2 else '#7ad85a'), hat, rot=(0, 0, a))
+    sphere((0, 0, 0.1), (0.2, 0.2, 0.16), toon('#4aa84a'), hat)
+    cone((0, 0, 0.3), 0.04, 0.18, toon('#4aa84a'), hat, seg=8)
+    staff = empty('staff', bodyp, (0.36, -0.05, 0.0))
+    cylinder((0, 0, 0.55), 0.03, 1.1, toon('#9a6a44'), staff, seg=8)
+    for i in range(5):
+        a = i / 5 * math.tau
+        sphere((math.cos(a) * 0.07, -0.02, 1.12 + math.sin(a) * 0.07), 0.05, toon('#ff8ab0'), staff, line=0.01)
+    sphere((0, -0.05, 1.12), 0.035, toon('#ffd35a'), staff, line=0)
+    sphere((0.3, -0.04, 0.36), 0.065, skin, bodyp)
+    return P
