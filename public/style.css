@@ -740,3 +740,14 @@ body.cinema #hud, body.cinema #quest-pill, body.cinema .ctl, body.cinema #drag-h
 .caption-text.narrator { font-style: italic; text-align: center; padding: 6px 4px; }
 .sheet.caption .btns { justify-content: flex-end; }
 .sheet.caption .go { padding: 8px 18px; font-size: 16px; }
+
+/* Menu dismissal lives at the bottom-left, exactly where the Bag button opened it. */
+.tabbar .tab-close {
+  min-width: 62px; margin-right: 4px; background: var(--ink); color: #fff; border-radius: 18px;
+  box-shadow: 0 3px 0 rgba(42, 20, 50, 0.4);
+}
+.tabbar .tab-close span { font-size: 20px; font-weight: 900; }
+.tabbar .tab-close:active { transform: translateY(3px); box-shadow: none; }
+.grab { flex: none; width: 44px; height: 5px; border-radius: 3px; background: #e2d2dc; margin: 8px auto 0; }
+.sheet.menu .mhead, .sheet.menu .grab { touch-action: none; }
+.sheet.menu { transition: transform 0.15s; }

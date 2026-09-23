@@ -100,6 +100,32 @@ export class UI {
   constructor(private hooks: UIHooks) {
     this.sheet.addEventListener('click', (e) => this.onClick(e));
     this.modal.addEventListener('pointerdown', (e) => e.stopPropagation());
+    // Tapping outside the menu sheet closes it (dialogs still need an explicit choice).
+    this.modal.addEventListener('click', (e) => {
+      if (e.target === this.modal && this.menuOpen) this.closeMenu();
+    });
+    // Swipe the menu down from its header to dismiss it.
+    let startY: number | null = null;
+    this.sheet.addEventListener('pointerdown', (e) => {
+      const onHead = (e.target as HTMLElement).closest('.mhead, .grab, .statrow');
+      startY = this.menuOpen && onHead ? e.clientY : null;
+    });
+    this.sheet.addEventListener('pointermove', (e) => {
+      if (startY === null) return;
+      const dy = Math.max(0, e.clientY - startY);
+      this.sheet.style.transform = `translateY(${dy}px)`;
+      if (dy > 90) {
+        startY = null;
+        this.sheet.style.transform = '';
+        this.closeMenu();
+      }
+    });
+    const endSwipe = () => {
+      startY = null;
+      this.sheet.style.transform = '';
+    };
+    this.sheet.addEventListener('pointerup', endSwipe);
+    this.sheet.addEventListener('pointercancel', endSwipe);
   }
 
   get isOpen() {
@@ -319,6 +345,7 @@ export class UI {
     const scroll = fresh ? 0 : this.sheet.querySelector('.body')?.scrollTop ?? 0;
     this.sheet.className = 'sheet menu';
     this.sheet.innerHTML = `
+      <div class="grab" aria-hidden="true"></div>
       <header class="mhead">
         <div class="portrait">${icon(s.equip.armor, '🌱')}</div>
         <div class="who">
@@ -326,12 +353,11 @@ export class UI {
           <div class="mini hp"><i style="width:${(100 * s.hp) / st.maxHp}%"></i><span>${Math.ceil(s.hp)} / ${st.maxHp} HP</span></div>
           <div class="mini xp"><i style="width:${Math.min(100, (100 * s.xp) / xpToNext(s.lv))}%"></i></div>
         </div>
-        <button class="x" data-do="close" aria-label="Close">✕</button>
       </header>
       <div class="statrow"><span>⚔️ <b>${st.atk}</b></span><span>🛡️ <b>${st.def}</b></span><span>🧪 <b>${s.potions}/${MAX_POTIONS}</b></span>${
         st.spd ? `<span>💨 <b>+${st.spd}%</b></span>` : ''}${st.luck ? `<span>🍀 <b>+${Math.round(st.luck * 100)}%</b></span>` : ''}</div>
       <div class="body">${this.renderTab(s)}</div>
-      <nav class="tabbar" style="grid-template-columns:repeat(${tabs.length},1fr)">${tabs.map(([id, ico, label]) => `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}</button>`).join('')}</nav>`;
+      <nav class="tabbar" style="grid-template-columns:auto repeat(${tabs.length},1fr)"><button class="tab-close" data-do="close" aria-label="Close menu"><span>✕</span>Close</button>${tabs.map(([id, ico, label]) => `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}</button>`).join('')}</nav>`;
     const body = this.sheet.querySelector('.body') as HTMLElement;
     body.scrollTop = scroll;
     if (fresh && this.focus) {
