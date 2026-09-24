@@ -93,9 +93,14 @@ guides you through a chain of chapters, and the current goal is always shown in 
 | 🌋 Ember Peak | 13–17 | Impy, Magma Slime | Ember, Imp Horn |
 | 🐉 Dragon Lair | 20 | Emberwyrm (boss) | Dragon Scale |
 
-- **Encounters**: walking in tall grass has a chance to start a battle with 1–3 monsters from that area
-  (4% chance of a ✨ golden one with double loot).
-- **Battles**: real-time in a round arena. Drag to move; ⚔️ attack auto-aims at the nearest enemy (hold to
+- **Monsters in the grass**: you can see them wandering the tall grass (a ×2/×3 badge means friends are hiding
+  nearby; ✨ golden ones drop double loot). Get close and one spots you ("!") and gives chase, but you're faster.
+  Touch one and the fight starts right there; tap Attack next to one that hasn't seen you for a surprise attack
+  (they start dazed).
+- **Battles on the map**: no loading screen or countdown. The camera zooms in on the spot, friends pop out of the
+  grass, and you fight on the real ground around you (trees and water are walls and block shots). Win and it zooms
+  back out with a toast and you keep walking from where you ended up. Guardians and the dragon still get the classic
+  stone ring. Drag to move; ⚔️ attack auto-aims at the nearest enemy (hold to
   keep swinging); 💨 dodge gives brief invincibility; ✨ uses your weapon's skill; 🧪 drinks a potion.
   Enemies telegraph attacks — shaking/glowing before a charge, red circles before a slam.
 - **Weapons play differently** — each type has its own combo, animation and hitbox (hitboxes sweep with the weapon,
@@ -149,7 +154,9 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
 
 - `src/main.ts` — game loop, mode switching, glue
 - `src/overworld.ts` / `src/world.ts` — map generation, collisions, grass encounters, tile rendering
-- `src/battle.ts` — arena combat, enemy AI, projectiles, hazards, shockwaves
+- `src/battle.ts` — combat, enemy AI, projectiles, hazards, shockwaves, the zoom into fights on the map
+- `src/arena.ts` — where a fight happens: the open ground around you (TileArena) or the boss ring (RingArena)
+- `src/roamers.ts` — monsters wandering the grass: noticing, chasing, surprise attacks
 - `src/weapons.ts` — per-weapon-type movesets (combo timings, hitbox shapes, animations)
 - `src/assets.ts` — sprite atlas loading and drawing
 - `src/sprites.ts` — procedurally drawn chibi characters and monsters

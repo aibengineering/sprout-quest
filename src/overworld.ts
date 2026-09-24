@@ -2,6 +2,9 @@
 import { GEAR, MONSTERS, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { currentQuest } from './quests';
 import { drawFrame, drawHero, frame } from './assets';
+import { SPRITE_SCALE } from './battle';
+import { Roamers, type Roamer } from './roamers';
+import { MOVESETS } from './weapons';
 import { Fx } from './fx';
 import type { Input } from './input';
 import { drawPlayer, rrect, shadow } from './sprites';
@@ -9,11 +12,10 @@ import type { SaveState } from './state';
 import { hash2, T, type World, type WorldObj } from './world';
 
 const TAU = Math.PI * 2;
-const ENCOUNTER_CHANCE = 0.11;
 /** Map tiles are 1.6 Blender units wide. */
 const TILE_BU = 1.6;
 
-export type WorldEvent = { type: 'encounter' } | { type: 'zone'; zone: Zone } | null;
+export type WorldEvent = { type: 'encounter'; roamer: Roamer } | { type: 'zone'; zone: Zone } | null;
 
 export class Overworld {
   x: number;
@@ -22,9 +24,10 @@ export class Overworld {
   moving = false;
   t = 0;
   alert = 0;
-  private stepAcc = 0;
-  private grace = 3;
   private zone: Zone;
+  readonly roamers: Roamers;
+  /** Scene-only drawing (behind a fight): no new particles, so nothing is left floating at the wrong zoom. */
+  private quiet = false;
   private fx = new Fx();
   ts = 40;
   /** Current goal's location in tiles; drawn as a bouncing waypoint arrow. */
@@ -51,6 +54,8 @@ export class Overworld {
     this.zone = world.zoneAt(this.x);
     this.camX = this.x;
     this.camY = this.y;
+    this.roamers = new Roamers(world);
+    this.roamers.populate(this.x, this.y, save.wins === 0);
   }
 
   get currentZone(): Zone {
@@ -62,14 +67,13 @@ export class Overworld {
     this.y = y;
     this.camX = x;
     this.camY = y;
-    this.grace = 3;
+    this.roamers.calm = 3;
     this.zone = this.world.zoneAt(x);
   }
 
-  /** Steps of safety after battles so you aren't immediately re-ambushed. */
-  resetGrace(steps = 3) {
-    this.grace = steps;
-    this.stepAcc = 0;
+  /** A few seconds where no monster notices you, so you aren't jumped the moment a fight ends. */
+  resetGrace(seconds = 2.5) {
+    this.roamers.calm = Math.max(this.roamers.calm, seconds);
   }
 
   /** Turn to face a tree and start chopping it. */
@@ -104,8 +108,17 @@ export class Overworld {
     return this.world.nearestObj(this.x, this.y - 0.2, 1.4);
   }
 
-  update(dt: number, input: Input, frozen: boolean): WorldEvent {
+  /** `roam`: monsters keep moving (and can catch you) even while you can't walk, e.g. while chopping. */
+  update(dt: number, input: Input, frozen: boolean, roam = !frozen): WorldEvent {
     this.t += dt;
+    if (roam && this.alert <= 0) {
+      const caught = this.roamers.update(dt, this.x, this.y, this.save.wins === 0);
+      if (caught) {
+        this.alert = 0.3;
+        this.moving = false;
+        return { type: 'encounter', roamer: caught };
+      }
+    }
     this.shakeT = Math.max(0, this.shakeT - dt);
     this.fx.update(dt);
     const target = this.camTarget ?? { x: this.x, y: this.y };
@@ -143,27 +156,19 @@ export class Overworld {
     }
 
     const onGrass = this.world.tile(Math.floor(this.x), Math.floor(this.y - 0.1)) === T.GRASS;
-    if (onGrass && moved > 0) {
-      if (Math.random() < 0.25) {
-        this.fx.burst(this.x * this.ts, (this.y - 0.1) * this.ts, this.zone.theme.grassTip, 2, this.ts * 1.5, { size: this.ts * 0.06, life: 0.4 });
-      }
-      this.stepAcc += moved;
-      while (this.stepAcc >= 1) {
-        this.stepAcc -= 1;
-        if (this.grace > 0) this.grace--;
-        else if (this.zone.monsters.length && Math.random() < ENCOUNTER_CHANCE) {
-          this.alert = 0.55;
-          this.moving = false;
-          this.stepAcc = 0;
-          return { type: 'encounter' };
-        }
-      }
+    if (onGrass && moved > 0 && Math.random() < 0.25) {
+      this.fx.burst(this.x * this.ts, (this.y - 0.1) * this.ts, this.zone.theme.grassTip, 2, this.ts * 1.5, { size: this.ts * 0.06, life: 0.4 });
     }
     return ev;
   }
 
+  /** Tile size in pixels for this screen (fights on the map zoom in from this). */
+  static tileSize(vw: number, vh: number) {
+    return Math.round(Math.max(32, Math.min(60, Math.min(vw, vh) / 9.5)));
+  }
+
   render(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
-    const ts = (this.ts = Math.round(Math.max(32, Math.min(60, Math.min(vw, vh) / 9.5))));
+    const ts = (this.ts = Overworld.tileSize(vw, vh));
     const W = this.world;
     const mapW = W.w * ts, mapH = W.h * ts;
     let camX = this.camX * ts - vw / 2;
@@ -172,7 +177,38 @@ export class Overworld {
     camY = mapH <= vh ? (mapH - vh) / 2 : Math.max(0, Math.min(mapH - vh, camY));
     camX = Math.round(camX);
     camY = Math.round(camY);
+    this.drawScene(ctx, camX / ts, camY / ts, ts, vw, vh, true);
 
+    ctx.save();
+    ctx.translate(-camX, -camY);
+    if (this.objective) this.drawObjective(ctx, camX, camY, vw, vh, ts);
+
+    // Interaction hint bubble
+    const near = this.nearbyObject();
+    if (near && this.alert <= 0) {
+      const bx = (near.x + near.w / 2) * ts, by = near.y * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
+      ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
+      const label = this.keyHints ? `[E] ${near.label}` : near.label;
+      const tw = ctx.measureText(label).width + ts * 0.4;
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      rrect(ctx, bx - tw / 2, by - ts * 0.5, tw, ts * 0.55, ts * 0.2);
+      ctx.fill();
+      ctx.fillStyle = '#5a3a6a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, bx, by - ts * 0.22);
+    }
+    ctx.restore();
+  }
+
+  /**
+   * The map itself: ground, scenery, buildings, monsters and (unless a fight is drawing its own) the hero.
+   * `left`/`top` are the camera's top-left corner in tiles.
+   */
+  drawScene(ctx: CanvasRenderingContext2D, left: number, top: number, ts: number, vw: number, vh: number, live: boolean) {
+    const W = this.world;
+    const camX = Math.round(left * ts), camY = Math.round(top * ts);
+    this.quiet = !live;
     ctx.fillStyle = this.zone.theme.outside;
     ctx.fillRect(0, 0, vw, vh);
     ctx.save();
@@ -208,29 +244,72 @@ export class Overworld {
       if (o.x + o.w < x0 - 2 || o.x > x1 + 2) continue;
       items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
     }
-    items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
+    for (const r of this.roamers.list) {
+      if (r.x < x0 - 2 || r.x > x1 + 2) continue;
+      items.push({ y: r.y, draw: () => this.drawRoamer(ctx, r, ts) });
+    }
+    if (live) items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
+    if (live) this.fx.draw(ctx);
+    ctx.restore();
+    this.quiet = false;
+  }
 
-    this.fx.draw(ctx);
-    if (this.objective) this.drawObjective(ctx, camX, camY, vw, vh, ts);
-
-    // Interaction hint bubble
-    const near = this.nearbyObject();
-    if (near && this.alert <= 0) {
-      const bx = (near.x + near.w / 2) * ts, by = near.y * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
-      ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
-      const label = this.keyHints ? `[E] ${near.label}` : near.label;
-      const tw = ctx.measureText(label).width + ts * 0.4;
-      ctx.fillStyle = 'rgba(255,255,255,0.95)';
-      rrect(ctx, bx - tw / 2, by - ts * 0.5, tw, ts * 0.55, ts * 0.2);
+  /** A monster out in the grass: hops about, shows "!" when it spots you, and a badge if friends are hiding with it. */
+  private drawRoamer(ctx: CanvasRenderingContext2D, r: Roamer, ts: number) {
+    const px = r.x * ts, py = r.y * ts;
+    const hop = r.moving || r.state === 'notice' ? Math.abs(Math.sin(this.t * (r.state === 'chase' ? 12 : 7) + r.seed)) * ts * 0.14 : 0;
+    const flying = r.kind === 'bat' || r.kind === 'imp';
+    const lift = flying ? ts * (0.35 + Math.sin(this.t * 3 + r.seed) * 0.06) : hop;
+    shadow(ctx, px, py, ts * 0.28 * (flying ? 0.7 : 1));
+    const f = frame(`mon/${r.kind}${r.golden ? '_gold' : ''}/${Math.floor(this.t * 7 + r.seed) % 6}`);
+    // Same size relative to the hero as in battle.
+    if (f) drawFrame(ctx, f, px, py - lift, ts * 0.74 * (SPRITE_SCALE[r.kind] ?? 1), { flip: r.face < 0 });
+    if (r.golden && Math.random() < 0.1) this.burst(px + (Math.random() - 0.5) * ts * 0.6, py - Math.random() * ts * 0.8, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.6 });
+    // Tall grass hides their feet, like yours.
+    if (this.world.tile(Math.floor(r.x), Math.floor(r.y - 0.1)) === T.GRASS && !flying) {
+      ctx.fillStyle = zoneAtX(Math.floor(r.x)).theme.grass;
+      for (let i = -2; i <= 2; i++) {
+        const bx = px + i * ts * 0.12, sway = Math.sin(this.t * 6 + i + r.seed) * ts * 0.03;
+        ctx.beginPath();
+        ctx.moveTo(bx - ts * 0.07, py + 1);
+        ctx.lineTo(bx + sway, py - ts * (0.22 + (i & 1) * 0.06));
+        ctx.lineTo(bx + ts * 0.07, py + 1);
+        ctx.fill();
+      }
+    }
+    const top = py - ts * 1.05 - lift;
+    if (r.state === 'notice' || r.state === 'chase') {
+      const s = r.state === 'notice' ? 1 + Math.max(0, r.t) * 0.8 : 1;
+      ctx.save();
+      ctx.translate(px, top - ts * 0.15);
+      ctx.scale(s, s);
+      ctx.fillStyle = '#fff';
+      rrect(ctx, -ts * 0.16, -ts * 0.46, ts * 0.32, ts * 0.46, ts * 0.12);
       ctx.fill();
-      ctx.fillStyle = '#5a3a6a';
+      ctx.fillStyle = '#ff4a5a';
+      ctx.font = `900 ${Math.round(ts * 0.38)}px ui-rounded, system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(label, bx, by - ts * 0.22);
+      ctx.fillText('!', 0, -ts * 0.22);
+      ctx.restore();
+    } else if (r.extra > 0) {
+      ctx.font = `900 ${Math.round(ts * 0.26)}px ui-rounded, "Nunito", system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = `×${r.extra + 1}`;
+      const w = ctx.measureText(label).width + ts * 0.18;
+      ctx.fillStyle = 'rgba(74,42,90,0.85)';
+      rrect(ctx, px + ts * 0.18, top, w, ts * 0.32, ts * 0.14);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, px + ts * 0.18 + w / 2, top + ts * 0.165);
     }
-    ctx.restore();
+  }
+
+  private burst(...args: Parameters<Fx['burst']>) {
+    if (!this.quiet) this.fx.burst(...args);
   }
 
   /** A golden arrow over the goal, or pinned to the screen edge pointing toward it when it's off-screen. */
@@ -285,12 +364,22 @@ export class Overworld {
   private drawHero(ctx: CanvasRenderingContext2D, ts: number) {
     const px = this.x * ts, py = this.y * ts;
     shadow(ctx, px, py, ts * 0.27);
+    // Your weapon rides on your back: peeking over a shoulder from the front, strapped on when you walk away.
+    const wpn = GEAR[this.save.equip.weapon];
+    const wf = wpn && frame(`wpn/${wpn.id}`);
+    const away = Math.sin(this.face) < -0.5;
+    const bob = this.moving ? Math.abs(Math.sin(this.t * 9)) * ts * 0.03 : 0;
+    const back = () => {
+      if (wf) drawFrame(ctx, wf, px - ts * 0.13, py - ts * 0.32 - bob, ts * 0.42 * (MOVESETS[wpn.style ?? 'sword']?.size ?? 1), { rot: -1.05 });
+    };
+    if (!away) back();
     if (!drawHero(ctx, this.save.equip.armor, px, py, ts / 1.35, this.face, this.moving, this.t)) {
       drawPlayer(ctx, px, py, ts * 0.3, {
         t: this.t, moving: this.moving, face: this.face,
         armor: GEAR[this.save.equip.armor]?.color ?? '#6fa8ff',
       });
     }
+    if (away) back();
     // Tall grass hides your feet — cute and tells you you're in encounter territory.
     if (this.world.tile(Math.floor(this.x), Math.floor(this.y - 0.1)) === T.GRASS) {
       const th = this.zone.theme;
@@ -352,7 +441,7 @@ export class Overworld {
     }
     // A glint now and then marks trees you can chop; golden ones out in the grass hide rarer finds.
     if (ready && Math.random() < 0.04) {
-      this.fx.burst(cx + (Math.random() - 0.5) * ts * 0.8, by - ts * (0.6 + Math.random() * 0.8), o.grass ? '#ffd35a' : '#ffffff', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.8 });
+      this.burst(cx + (Math.random() - 0.5) * ts * 0.8, by - ts * (0.6 + Math.random() * 0.8), o.grass ? '#ffd35a' : '#ffffff', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.8 });
     }
   }
 
@@ -693,7 +782,7 @@ export class Overworld {
       ctx.restore();
       // Stuck in the ground, blade down, gently wobbling.
       if (f) drawFrame(ctx, f, ax + ts * 0.05, ay - ts * 0.75, ts / TILE_BU * 1.2, { rot: Math.PI / 2 + 0.2 + Math.sin(this.t * 2) * 0.04 });
-      if (Math.random() < 0.12) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.5, ay - Math.random() * ts, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.6, life: 0.8 });
+      if (Math.random() < 0.12) this.burst(ax + (Math.random() - 0.5) * ts * 0.5, ay - Math.random() * ts, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.6, life: 0.8 });
       return;
     }
     if (o.kind === 'node') {
@@ -744,7 +833,7 @@ export class Overworld {
       const top = ay - sprite.ay * (unit / sprite.ppu);
       if (o.kind === 'forge') {
         const lit = lv('forge') > 0;
-        if (lit && Math.random() < 0.08) this.fx.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
+        if (lit && Math.random() < 0.08) this.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
         labelAt(lit ? '⚒ Forge' : '⚒ Old Forge', top);
       } else if (o.kind === 'fountain') {
         for (let i = 0; i < 3; i++) {
@@ -756,7 +845,7 @@ export class Overworld {
         }
         labelAt('💧 Fountain', top);
       } else if (o.kind === 'camp') {
-        if (Math.random() < 0.3) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.3, ay - ts * 0.35, Math.random() < 0.5 ? '#ffb03a' : '#ff7a2a', 1, ts * 0.4, { size: ts * 0.06, grav: -ts * 1.5, life: 0.7 });
+        if (Math.random() < 0.3) this.burst(ax + (Math.random() - 0.5) * ts * 0.3, ay - ts * 0.35, Math.random() < 0.5 ? '#ffb03a' : '#ff7a2a', 1, ts * 0.4, { size: ts * 0.06, grav: -ts * 1.5, life: 0.7 });
       } else if (o.kind === 'plot') {
         const p = o.project!;
         const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Warp Stone' } as Record<string, string>)[p] ?? '';
@@ -798,7 +887,7 @@ export class Overworld {
         if (forge) {
           ctx.fillStyle = '#8a8090';
           ctx.fillRect(x + w - ts * 0.9, y - h * 0.15, ts * 0.4, ts * 0.8);
-          if (Math.random() < 0.08) this.fx.burst(x + w - ts * 0.7, y - h * 0.2, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
+          if (Math.random() < 0.08) this.burst(x + w - ts * 0.7, y - h * 0.2, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
           // Anvil
           ctx.fillStyle = '#5a5a6a';
           rrect(ctx, x + w - ts * 0.95, y + h - ts * 0.45, ts * 0.6, ts * 0.22, ts * 0.06);

@@ -1,4 +1,6 @@
-// Real-time arena battles. Units are "arena pixels"; the arena is a circle of radius ARENA_R centered at (0, 0).
+// Real-time battles. Units are "arena units" centered on the fight's origin. Regular fights happen right on the map
+// (a TileArena around you, drawn from the overworld); bosses and scripted fights use the classic ring (RingArena).
+import { RingArena, TILE_UNITS, TileArena, type Arena } from './arena';
 import { drawFrame, drawHero, frame } from './assets';
 import type { Audio } from './audio';
 import { vibrate } from './audio';
@@ -16,6 +18,10 @@ export const ARENA_R = 210;
 const SKILL_CD = 4.5;
 /** Arena units per Blender unit for sprites (drawn a little larger than their hitboxes so they read on phones). */
 const UNIT = 34;
+
+/** How much closer the camera gets for a fight on the map, and how long the zoom in/out takes. */
+const ZOOM = 1.3;
+const ZOOM_T = 0.35;
 
 const easeOut = (q: number) => 1 - (1 - q) ** 3;
 const easeIn = (q: number) => q * q * q;
@@ -101,6 +107,17 @@ export interface BattleSetup {
   zone: Zone;
   foes: Foe[];
   boss: boolean;
+  /** Where the fight happens; the classic ring if left out. */
+  arena?: Arena;
+  /** Draws the map behind a fight on the map: camera top-left in tiles and tile size in pixels. */
+  scene?: (ctx: CanvasRenderingContext2D, left: number, top: number, ts: number, vw: number, vh: number) => void;
+  /** The overworld camera when the fight began (tiles, same convention as Overworld), so the zoom starts from what you saw. */
+  camera?: { x: number; y: number; ts: number; mapW: number; mapH: number };
+  /** Player and visible monster positions, in arena units. */
+  start?: { x: number; y: number };
+  leader?: { x: number; y: number };
+  /** You struck first: they start dazed. */
+  ambush?: boolean;
 }
 
 export interface BattleOutcome {
@@ -109,12 +126,14 @@ export interface BattleOutcome {
   xp: number;
   drops: Partial<Record<MatId, number>>;
   defeated: string[];
+  /** Where you ended up, in map tiles (fights on the map). */
+  pos?: { x: number; y: number };
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
 /** Per-monster display scale so every model reads at a similar size to its hitbox. */
-const SPRITE_SCALE: Partial<Record<MonsterKind, number>> = { wolf: 1.4, bunny: 1.25, bat: 1.2, imp: 1.2, shroom: 1.1, dragon: 1.1 };
+export const SPRITE_SCALE: Partial<Record<MonsterKind, number>> = { wolf: 1.4, bunny: 1.25, bat: 1.2, imp: 1.2, shroom: 1.1, dragon: 1.1 };
 
 const SKILLS: Record<'spin' | 'quake', Strike> = {
   spin: { anim: 'spin', shape: 'arc', windup: 0.06, active: 0.3, recover: 0.16, range: 100, size: TAU, mult: 1.7, kb: 260, turns: 1.5, shake: 7, hitstop: 0.06, move: 0.6, stun: 0.3 },
@@ -175,6 +194,9 @@ export class Battle {
   private burstIds = new Set<number>();
   private weaponColor: string;
   private armorColor: string;
+  readonly arena: Arena;
+  /** Camera focus in map tiles (fights on the map). */
+  private cam = { x: 0, y: 0 };
 
   constructor(
     readonly setup: BattleSetup,
@@ -192,12 +214,47 @@ export class Battle {
     this.element = this.weapon.fx ?? 'none';
     this.weaponColor = this.weapon.color ?? '#ccc';
     this.armorColor = GEAR[save.equip.armor]?.color ?? '#6fa8ff';
-    const n = setup.foes.length;
-    setup.foes.forEach((f, i) => {
-      const a = n === 1 ? -Math.PI / 2 : -Math.PI * 0.8 + (i / (n - 1)) * Math.PI * 0.6;
-      const dist = MONSTERS[f.kind].boss ? 90 : 120;
-      this.spawn(f, Math.cos(a) * dist, Math.sin(a) * dist - 10, false);
+    this.arena = setup.arena ?? new RingArena(ARENA_R);
+    if (this.arena instanceof TileArena) this.spawnOnMap(this.arena);
+    else {
+      const n = setup.foes.length;
+      setup.foes.forEach((f, i) => {
+        const a = n === 1 ? -Math.PI / 2 : -Math.PI * 0.8 + (i / (n - 1)) * Math.PI * 0.6;
+        const dist = MONSTERS[f.kind].boss ? 90 : 120;
+        this.spawn(f, Math.cos(a) * dist, Math.sin(a) * dist - 10, false);
+      });
+    }
+  }
+
+  /** On the map: you stay where you are, the monster you bumped into is where it was, and its friends pop out of the grass. */
+  private spawnOnMap(arena: TileArena) {
+    const cam = this.setup.camera!;
+    this.cam = { x: cam.x, y: cam.y };
+    this.intro = ZOOM_T;
+    const start = this.setup.start ?? { x: 0, y: 0 };
+    Object.assign(this.p, arena.nearestFree(start.x, start.y, 10));
+    const spots = arena.openTiles()
+      .map((t) => arena.fromTile(t.tx + 0.5, t.ty + 0.5))
+      .map((q) => ({ ...q, grass: arena.isGrass(q.x, q.y), d: Math.hypot(q.x - this.p.x, q.y - this.p.y) }))
+      .filter((q) => q.d > TILE_UNITS * 1.8 && q.d < TILE_UNITS * 4.5)
+      .sort((a, b) => Number(b.grass) - Number(a.grass) || Math.random() - 0.5);
+    this.setup.foes.forEach((f, i) => {
+      const at = i === 0 && this.setup.leader ? this.setup.leader : spots[i % Math.max(1, spots.length)] ?? { x: this.p.x + 90, y: this.p.y };
+      const q = arena.nearestFree(at.x, at.y, this.feet(MONSTERS[f.kind].r));
+      const e = this.spawn(f, q.x, q.y, false);
+      if (this.setup.ambush) e.stun = 1.5;
+      if (i > 0 || !this.setup.leader) this.fx.burst(q.x, q.y - 6, this.setup.zone.theme.grassTip, 12, 110, { size: 4, life: 0.5 });
     });
+    if (this.setup.ambush) this.fx.text(this.p.x, this.p.y - 46, 'Surprise attack!', '#ffe07a', 17);
+  }
+
+  /** Feet size for wall collisions: map fights use a small box so bodies fit between trees. */
+  private feet(r: number) {
+    return this.arena.kind === 'tiles' ? Math.min(r * 0.7, 14) : r;
+  }
+
+  get onMap() {
+    return this.arena.kind === 'tiles';
   }
 
   private spawn(f: Foe, x: number, y: number, minion: boolean): Enemy {
@@ -220,9 +277,7 @@ export class Battle {
     const alive = this.enemies.filter((e) => e.minion && !e.dead).length;
     for (let i = 0; i < Math.min(count, 4 - alive); i++) {
       const a = Math.random() * TAU;
-      let x = near.x + Math.cos(a) * 70, y = near.y + Math.sin(a) * 50;
-      const d = Math.hypot(x, y);
-      if (d > ARENA_R - 30) { x *= (ARENA_R - 30) / d; y *= (ARENA_R - 30) / d; }
+      const { x, y } = this.arena.nearestFree(near.x + Math.cos(a) * 70, near.y + Math.sin(a) * 50, 20);
       const m = this.spawn({ kind, lv, golden: false }, x, y, true);
       m.t = 0.8;
       this.fx.burst(x, y - 10, '#ffffff', 14, 120, { size: 5 });
@@ -248,6 +303,12 @@ export class Battle {
     for (const s of this.sparks) s.t += dt;
     this.sparks = this.sparks.filter((s) => s.t < 0.22);
     for (const e of this.enemies) if (e.dead) e.deathT -= dt;
+    if (this.arena instanceof TileArena) {
+      // The camera glides from where the overworld left it to you, then follows (same feel as walking around).
+      const at = this.arena.toTile(this.p.x, this.p.y), k = 1 - Math.exp(-dt * (this.intro > 0 ? 9 : 12));
+      this.cam.x += (at.x - this.cam.x) * k;
+      this.cam.y += (at.y - this.cam.y) * k;
+    }
     if (this.done) return;
     if (this.intro > 0) {
       this.intro -= dt;
@@ -323,11 +384,11 @@ export class Battle {
       p.vy = a.y * speed;
     }
     const decay = Math.exp(-10 * dt);
-    p.x += (p.vx + p.kx) * dt;
-    p.y += (p.vy + p.ky) * dt;
+    const mv = this.arena.move(p.x, p.y, (p.vx + p.kx) * dt, (p.vy + p.ky) * dt, this.feet(p.r));
+    p.x = mv.x;
+    p.y = mv.y;
     p.kx *= decay;
     p.ky *= decay;
-    this.clampPlayer();
 
     if (p.swing) this.updateSwing(dt);
     if (p.whirlT > 0) this.updateWhirl(dt);
@@ -356,16 +417,6 @@ export class Battle {
     if (inp.consume('skill') && p.skillCd <= 0 && p.dodgeT <= 0 && p.whirlT <= 0 && p.lungeT <= 0) this.skill();
     if (inp.consume('potion')) this.drinkPotion();
     if (inp.consume('run')) this.tryRun();
-  }
-
-  private clampPlayer() {
-    const p = this.p;
-    const d = Math.hypot(p.x, p.y);
-    const maxD = ARENA_R - p.r;
-    if (d > maxD) {
-      p.x *= maxD / d;
-      p.y *= maxD / d;
-    }
   }
 
   /** You can chain into the next strike once the current one is into its recovery. */
@@ -454,9 +505,9 @@ export class Battle {
       const pose = this.pose(sw);
       if (s.lunge) {
         const step = (s.lunge / s.active) * dt;
-        p.x += Math.cos(sw.aim) * step;
-        p.y += Math.sin(sw.aim) * step;
-        this.clampPlayer();
+        const mv = this.arena.move(p.x, p.y, Math.cos(sw.aim) * step, Math.sin(sw.aim) * step, this.feet(p.r));
+        p.x = mv.x;
+        p.y = mv.y;
       }
       if (s.shape === 'arc') {
         sw.trail.push({ ang: pose.ang, t: this.t });
@@ -811,8 +862,10 @@ export class Battle {
 
   private finish(o: BattleOutcome, delay: number) {
     if (this.endT >= 0) return;
+    if (this.arena instanceof TileArena) o.pos = this.arena.toTile(this.p.x, this.p.y);
     this.outcome = o;
-    this.endT = delay;
+    // On the map, wins and escapes end with a quick zoom back out; a loss lingers for the respawn.
+    this.endT = this.onMap && o.result !== 'lose' ? Math.min(delay, 0.8) : delay;
   }
 
   private checkEnd() {
@@ -855,8 +908,9 @@ export class Battle {
       }
     }
     const decay = Math.exp(-8 * dt);
-    e.x += e.kx * dt;
-    e.y += e.ky * dt;
+    const kb = this.arena.move(e.x, e.y, e.kx * dt, e.ky * dt, this.feet(e.r));
+    e.x = kb.x;
+    e.y = kb.y;
     e.kx *= decay;
     e.ky *= decay;
     const dx = p.x - e.x, dy = p.y - e.y;
@@ -870,22 +924,24 @@ export class Battle {
       e.t -= dt;
       this.ai(e, dt, dist, toP);
     }
-    e.x += e.vx * dt;
-    e.y += e.vy * dt;
+    // Stay in the arena; charging enemies bounce off walls (and trees).
+    const mv = this.arena.move(e.x, e.y, e.vx * dt, e.vy * dt, this.feet(e.r));
+    const bounced = mv.hitX || mv.hitY;
+    e.x = mv.x;
+    e.y = mv.y;
     if (Math.abs(e.vx) > 5) e.face = Math.sign(e.vx);
     else if (Math.abs(dx) > 4) e.face = Math.sign(dx);
-    // Stay in the arena; charging enemies bounce off the wall.
-    const d = Math.hypot(e.x, e.y), maxD = ARENA_R - e.r;
-    if (d > maxD) {
-      const nx = e.x / d, ny = e.y / d;
-      e.x = nx * maxD;
-      e.y = ny * maxD;
-      if (e.state === 'charge' || e.state === 'dash' || e.state === 'swoop') {
+    if (bounced && (e.state === 'charge' || e.state === 'dash' || e.state === 'swoop')) {
+      if (this.arena.kind === 'ring') {
+        const d = Math.hypot(e.x, e.y) || 1, nx = e.x / d, ny = e.y / d;
         const dot = e.vx * nx + e.vy * ny;
         e.vx -= 2 * dot * nx;
         e.vy -= 2 * dot * ny;
-        this.shake = Math.max(this.shake, e.def.boss ? 8 : 2);
+      } else {
+        if (mv.hitX) e.vx = -e.vx;
+        if (mv.hitY) e.vy = -e.vy;
       }
+      this.shake = Math.max(this.shake, e.def.boss ? 8 : 2);
     }
     // Contact damage (slimes mid-hop sail over you).
     const airborne = (e.kind === 'slime' || e.kind === 'magma' || e.kind === 'kingslime') && e.z > 10;
@@ -1031,10 +1087,8 @@ export class Battle {
             if (Math.random() < 0.35) {
               this.fx.burst(e.x, e.y - 20, '#c878ff', 12, 100, { size: 4 });
               const a = Math.random() * TAU, r = rand(150, 190);
-              let nx = p.x + Math.cos(a) * r, ny = p.y + Math.sin(a) * r;
-              const nd = Math.hypot(nx, ny);
-              if (nd > ARENA_R - 30) { nx *= (ARENA_R - 30) / nd; ny *= (ARENA_R - 30) / nd; }
-              e.x = nx; e.y = ny;
+              const to = this.arena.nearestFree(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, this.feet(e.r) + 16);
+              e.x = to.x; e.y = to.y;
               this.fx.burst(e.x, e.y - 20, '#c878ff', 12, 100, { size: 4 });
               e.t = rand(0.4, 0.7);
             } else {
@@ -1153,9 +1207,7 @@ export class Battle {
         e.t = dur;
         e.windup = 0;
         // Aim a little ahead of where you're running.
-        let tx = p.x + p.vx * 0.35, ty = p.y + p.vy * 0.35;
-        const d = Math.hypot(tx, ty);
-        if (d > ARENA_R - e.r) { tx *= (ARENA_R - e.r) / d; ty *= (ARENA_R - e.r) / d; }
+        const { x: tx, y: ty } = this.arena.nearestFree(p.x + p.vx * 0.35, p.y + p.vy * 0.35, this.feet(e.r));
         e.tx = tx;
         e.ty = ty;
         e.vx = (tx - e.x) / dur;
@@ -1249,7 +1301,7 @@ export class Battle {
               for (let i = 0; i < 7; i++) {
                 const d = 55 + i * 42, a = toP + off;
                 const x = e.x + Math.cos(a) * d, y = e.y + Math.sin(a) * d;
-                if (Math.hypot(x, y) > ARENA_R) break;
+                if (!this.arena.inside(x, y)) break;
                 this.hazards.push({ x, y, r: 30, t: 0, delay: 0.65 + i * 0.07, atk: e.atk, mult: 1.1, done: false });
               }
             }
@@ -1310,7 +1362,8 @@ export class Battle {
       pr.x += pr.vx * dt;
       pr.y += pr.vy * dt;
       pr.life -= dt;
-      if (Math.hypot(pr.x, pr.y) > ARENA_R + 30) pr.life = 0;
+      // Shots fly off the ring's edge, or thud into trees on the map.
+      if (this.arena.kind === 'ring' ? Math.hypot(pr.x, pr.y) > ARENA_R + 30 : !this.arena.inside(pr.x, pr.y + 12)) pr.life = 0;
       if (pr.life <= 0) continue;
       if (Math.random() < 0.4) this.fx.burst(pr.x, pr.y, pr.color, 1, 20, { size: pr.r * 0.4, grav: 0, life: 0.3 });
       if (pr.owner === 'e') {
@@ -1366,6 +1419,7 @@ export class Battle {
   }
 
   render(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
+    if (this.onMap) return this.renderOnMap(ctx, vw, vh);
     const th = this.setup.zone.theme;
     const { k: k0, cx, cy } = this.layout(vw, vh);
     const k = k0 * (1 + this.punch);
@@ -1376,6 +1430,48 @@ export class Battle {
     ctx.translate(cx + sx, cy + sy);
     ctx.scale(k, k);
     this.drawArena(ctx, vw / k, vh / k);
+    this.drawField(ctx);
+    ctx.restore();
+    this.drawOverlay(ctx, vw, vh);
+  }
+
+  /** A fight on the map: the overworld drawn at a closer zoom, with the camera following you. */
+  private renderOnMap(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
+    const arena = this.arena as TileArena;
+    const cam = this.setup.camera!;
+    // Zoom in as the fight starts, back out as it ends (unless you lost: that fades out instead).
+    let q = 1;
+    if (this.intro > 0) q = easeInOut(1 - this.intro / ZOOM_T);
+    else if (this.endT >= 0 && this.outcome?.result !== 'lose') q = easeInOut(Math.min(1, this.endT / ZOOM_T));
+    const ts = cam.ts * (1 + (ZOOM - 1) * q);
+    let left = this.cam.x - vw / 2 / ts, top = this.cam.y - 0.5 - vh / 2 / ts;
+    // Same edge clamping as the overworld, so the last frame of the zoom-out matches it exactly.
+    left = cam.mapW * ts <= vw ? (cam.mapW * ts - vw) / 2 / ts : Math.max(0, Math.min(cam.mapW - vw / ts, left));
+    top = cam.mapH * ts <= vh ? (cam.mapH * ts - vh) / 2 / ts : Math.max(0, Math.min(cam.mapH - vh / ts, top));
+    const sx = (Math.random() - 0.5) * this.shake, sy = (Math.random() - 0.5) * this.shake;
+    ctx.save();
+    ctx.translate(sx, sy);
+    this.setup.scene?.(ctx, left, top, ts, vw, vh);
+    // Dim everything outside the fight so its edges read clearly.
+    // One path for all the dimmed tiles, snapped to whole pixels, so neighbours don't overlap into a visible grid.
+    ctx.fillStyle = `rgba(40,20,50,${0.3 * q})`;
+    ctx.beginPath();
+    const px = (t: number, o: number) => Math.round((t - o) * ts);
+    const tx0 = Math.floor(left) - 1, ty0 = Math.floor(top) - 1;
+    for (let ty = ty0; ty < ty0 + vh / ts + 3; ty++)
+      for (let tx = tx0; tx < tx0 + vw / ts + 3; tx++)
+        if (!arena.openTile(tx, ty)) ctx.rect(px(tx, left), px(ty, top), px(tx + 1, left) - px(tx, left), px(ty + 1, top) - px(ty, top));
+    ctx.fill();
+    const k = (ts / TILE_UNITS) * (1 + this.punch);
+    ctx.translate((arena.cx - left) * ts, (arena.cy - top) * ts);
+    ctx.scale(k, k);
+    this.drawField(ctx);
+    ctx.restore();
+    this.drawOverlay(ctx, vw, vh);
+  }
+
+  /** Everything that happens on the battlefield: telegraphs, fighters, shots and effects. */
+  private drawField(ctx: CanvasRenderingContext2D) {
 
     // Ground cracks from hammer impacts
     ctx.lineCap = 'round';
@@ -1456,9 +1552,6 @@ export class Battle {
     }
     for (const s of this.sparks) this.drawSpark(ctx, s);
     this.fx.draw(ctx);
-    ctx.restore();
-
-    this.drawOverlay(ctx, vw, vh);
   }
 
   private drawArena(ctx: CanvasRenderingContext2D, w: number, h: number) {
@@ -1552,7 +1645,10 @@ export class Battle {
         syk /= s;
       }
       const shake = e.windup > 0 ? Math.sin(this.t * 60) * e.r * 0.08 * e.windup : 0;
-      drawFrame(ctx, f, e.x + shake, e.y - e.z, UNIT * (SPRITE_SCALE[e.kind] ?? 1), {
+      const pop = this.popIn(e);
+      sxk *= pop;
+      syk *= pop;
+      drawFrame(ctx, f, e.x + shake, e.y - e.z - (1 - pop) * 14, UNIT * (SPRITE_SCALE[e.kind] ?? 1), {
         flip: e.face < 0, alpha, sx: sxk, sy: syk,
         // Bosses get hit constantly, so their flash is softer to keep them readable.
         flash: e.flash > 0 || (e.dead && alpha > 0.7) ? (e.def.boss && !e.dead ? 0.45 : 1) : 0,
@@ -1593,6 +1689,12 @@ export class Battle {
       rrect(ctx, e.x - w / 2, y, w * (e.hp / e.maxHp), 4, 2);
       ctx.fill();
     }
+  }
+
+  /** Monsters joining a fight on the map spring up out of the grass during the zoom (the one you bumped into is already there). */
+  private popIn(e: Enemy): number {
+    if (!this.onMap || this.intro <= 0 || (e === this.enemies[0] && this.setup.leader)) return 1;
+    return Math.max(0.05, easeOut(1 - this.intro / ZOOM_T));
   }
 
   private drawSpike(ctx: CanvasRenderingContext2D, s: Spike) {
@@ -1729,11 +1831,15 @@ export class Battle {
     const style = this.weapon.style ?? 'sword';
     const blink = p.iframes > 0 && p.dodgeT <= 0 && p.lungeT <= 0 && Math.floor(this.t * 20) % 2 === 0;
     const alpha = blink ? 0.35 : 1;
-    const cosF = Math.cos(p.face);
+    const cosF = Math.cos(p.face), sinF = Math.sin(p.face);
     const heavy = style === 'axe' || style === 'hammer';
-    let ang = cosF >= 0 ? (heavy ? -1.35 : -1.05) : Math.PI + (heavy ? 1.35 : 1.05);
-    let off = 0, scale = 1, flipY = cosF >= 0 ? 1 : -1;
+    // At rest the weapon hangs from your sword hand, blade down and out: on your right when facing away, your left
+    // when facing the camera, and in front in profile.
+    const side = sinF < -0.5 ? 1 : sinF > 0.5 ? -1 : cosF >= 0 ? 1 : -1;
+    let ang = side > 0 ? (heavy ? 0.5 : 0.75) : Math.PI - (heavy ? 0.5 : 0.75);
+    let off = 0, scale = 1, flipY = side > 0 ? 1 : -1;
     const sw = p.swing;
+    const idle = !sw && p.whirlT <= 0 && p.lungeT <= 0;
     if (sw) {
       ({ ang, off, scale } = this.pose(sw));
       if (sw.s.shape === 'arc') {
@@ -1763,8 +1869,10 @@ export class Battle {
       off = 16;
       flipY = Math.cos(ang) >= 0 ? 1 : -1;
     }
-    const handX = p.x + Math.cos(ang) * (7 + off), handY = p.y - 17 + Math.sin(ang) * (4 + off * 0.8);
-    const behind = Math.sin(ang) < -0.35 && !(sw && sw.s.anim === 'slam' && sw.t > sw.s.windup);
+    // Swings pivot around the same point the hitboxes use (p.y - 10); at rest the hand sits at your side, by the hip.
+    const handX = idle ? p.x + side * (Math.abs(sinF) > 0.5 ? 10 : 6) : p.x + Math.cos(ang) * (7 + off);
+    const handY = idle ? p.y - 8 : p.y - 10 + Math.sin(ang) * (4 + off * 0.8);
+    const behind = idle ? sinF < -0.5 : Math.sin(ang) < -0.35 && !(sw && sw.s.anim === 'slam' && sw.t > sw.s.windup);
     const wf = frame(`wpn/${this.weapon.id}`);
     const weaponUnit = 34 * this.moves.size * scale;
     const drawW = () => {
@@ -1803,7 +1911,7 @@ export class Battle {
     }
     let text = '';
     let size = 44;
-    if (this.intro > 0) {
+    if (this.intro > 0 && !this.onMap) {
       text = this.intro > 0.55 ? (this.setup.boss ? 'Boss battle!' : 'Ready…') : 'Fight!';
     } else if (this.endT >= 0 && this.outcome) {
       text = this.outcome.result === 'win' ? 'Victory!' : this.outcome.result === 'lose' ? 'Oh no…' : '';

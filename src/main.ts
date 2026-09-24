@@ -3,7 +3,9 @@ import { loadAssets } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
 import { GEAR, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, TOOLS, ZONES, zoneById, type MatId, type MonsterKind, type Zone, type ZoneId } from './data';
+import { TileArena } from './arena';
 import { Chop, drawChop } from './gather';
+import type { Roamer } from './roamers';
 import { Input, trackInputDevice, usingKeyboard } from './input';
 import { Overworld } from './overworld';
 import { advanceQuests, currentQuest, recordKills } from './quests';
@@ -11,7 +13,7 @@ import { checkUnlocks, has } from './unlocks';
 import { build, canChop, craftGear, craftPotion, craftTool, equip, fellTree, gainXp, hasMats, mergeDrops, playerStats, potionRefill, sweetWidth, toolPower, weightedPick } from './rules';
 import { clearState, loadState, newState, saveState, type SaveState } from './state';
 import { UI } from './ui';
-import { T, World, type WorldObj } from './world';
+import { World, type WorldObj } from './world';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -234,16 +236,35 @@ function tip(id: string, text: string) {
 
 // ------------------------------------------------------------------ battles
 
-function rollFoes(z: Zone): Foe[] {
-  // A gentle first fight: one little slime.
-  if (save.wins === 0) return [{ kind: 'slime', lv: 1, golden: false }];
-  const r = Math.random();
-  const n = Math.min(z.maxEnemies, r < 0.5 ? 1 : r < 0.85 ? 2 : 3);
-  return Array.from({ length: n }, () => ({
-    kind: weightedPick(z.monsters).kind,
-    lv: z.lv[0] + Math.floor(Math.random() * (z.lv[1] - z.lv[0] + 1)),
-    golden: Math.random() < 0.04,
-  }));
+/** Fights with monsters in the grass happen right where you are: a quick zoom, no countdown. */
+function startFieldBattle(r: Roamer, ambush: boolean) {
+  const zone = zoneById(r.zone);
+  const foes: Foe[] = [
+    { kind: r.kind, lv: r.lv, golden: r.golden },
+    ...Array.from({ length: r.extra }, () => ({ kind: weightedPick(zone.monsters).kind, lv: zone.lv[0] + Math.floor(Math.random() * (zone.lv[1] - zone.lv[0] + 1)), golden: false })),
+  ];
+  over.roamers.remove(r);
+  if (chop) {
+    chop = null;
+    over.chopping = null;
+  }
+  const arena = new TileArena(world, over.x, over.y, 6.5);
+  // Somewhere too cramped to fight (a narrow gap between trees): fall back to the classic ring.
+  if (arena.size < 30) return startBattle(zone, foes, false);
+  audio.play(ambush ? 'crit' : 'encounter');
+  battleFlag = undefined;
+  battle = new Battle({
+    zone, foes, boss: false, arena, ambush,
+    scene: (c, left, top, ts, w, h) => over.drawScene(c, left, top, ts, w, h, false),
+    camera: { x: over.camX, y: over.camY, ts: over.ts, mapW: world.w, mapH: world.h },
+    start: arena.fromTile(over.x, over.y),
+    leader: arena.fromTile(r.x, r.y),
+  }, save, input, audio, onBattleEnd);
+  mode = 'battle';
+  ui.setMode('battle');
+  input.reset();
+  coachStep = 0;
+  if (r.golden) ui.toast('✨ A golden monster! Double loot!');
 }
 
 function startBattle(zone: Zone, foes: Foe[], boss: boolean, flag?: string) {
@@ -266,7 +287,28 @@ async function onBattleEnd(o: BattleOutcome) {
   mode = 'dialog';
   if (o.result === 'run') {
     save.hp = o.hp;
-    transition(() => backToWorld());
+    if (o.pos) {
+      over.teleport(o.pos.x, o.pos.y);
+      backToWorld();
+    } else transition(() => backToWorld());
+    return;
+  }
+  if (o.result === 'win' && o.pos) {
+    // A fight on the map: rewards pop up as a toast and you're straight back to walking where you stood.
+    save.hp = o.hp;
+    save.wins++;
+    const levels = gainXp(save, o.xp);
+    mergeDrops(save.mats, o.drops);
+    recordKills(save, b.setup.zone.id, o.defeated.length);
+    over.teleport(o.pos.x, o.pos.y);
+    backToWorld();
+    const loot = Object.entries(o.drops).map(([m, n]) => `${MATS[m as MatId].icon}×${n}`).join(' ');
+    ui.toast(`Victory! +${o.xp} XP${loot ? `  ${loot}` : ''}`, 2400);
+    if (levels) {
+      audio.play('levelup');
+      ui.banner(`Level ${save.lv}!`, 'Stronger, and fully healed');
+    }
+    void progressQuests();
     return;
   }
   if (o.result === 'win') {
@@ -725,17 +767,10 @@ function objective(): { x: number; y: number } | null {
     case 'kills': {
       const z = zoneById(g.zone);
       // Outside the zone: head for its entrance. Inside: point at the nearest tall grass (none needed if standing in it).
-      if (over.currentZone.id !== g.zone) return world.entryPoint(g.zone);
-      const tx = Math.floor(over.x), ty = Math.floor(over.y - 0.1);
-      if (world.tile(tx, ty) === T.GRASS) return null;
-      let best: { x: number; y: number } | null = null, bd = Infinity;
-      for (let y = 0; y < world.h; y++)
-        for (let x = z.x0; x < z.x0 + z.w; x++) {
-          if (world.tile(x, y) !== T.GRASS) continue;
-          const d = (x + 0.5 - over.x) ** 2 + (y + 0.5 - over.y) ** 2;
-          if (d < bd) { bd = d; best = { x: x + 0.5, y: y + 0.8 }; }
-        }
-      return best;
+      // Outside the zone: head for its entrance. Inside: point at the nearest monster.
+      if (over.currentZone.id !== g.zone) return world.entryPoint(z.id);
+      const m = over.roamers.nearestIn(z.id, over.x, over.y);
+      return m && Math.hypot(m.x - over.x, m.y - over.y) > 2.5 ? { x: m.x, y: m.y } : null;
     }
   }
 }
@@ -791,18 +826,20 @@ function frame(now: number) {
   }
   const busy = !!trans;
 
-  if (battle) {
+  // A fight on the map can end inside update() and hand straight back to the overworld, so hold on to it for this frame.
+  const b = battle;
+  if (b) {
     // Keep drawing the arena behind the victory dialog until we transition out.
-    battle.update(busy ? 0 : dt);
-    battle.render(ctx, vw, vh);
-    ui.hud(mode === 'battle' ? battle.p.hp : save.hp, over.currentZone.name);
+    b.update(busy ? 0 : dt);
+    b.render(ctx, vw, vh);
+    ui.hud(mode === 'battle' ? b.p.hp : save.hp, over.currentZone.name);
     ui.questPill(false);
     ui.dock(false);
     ui.dragHint(false);
     ui.battleButtons(has(save, 'skill'), has(save, 'bag') && save.flags.includes('village'));
-    if (mode === 'battle') coachBattle(battle);
+    if (mode === 'battle') coachBattle(b);
     if (mode === 'battle') {
-      ui.battleHud(save.potions, battle.skillFrac, battle.dodgeFrac, battle.moves.skillName, !battle.setup.boss && !battleFlag && save.flags.includes('village'));
+      ui.battleHud(save.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, !b.setup.boss && !battleFlag && save.flags.includes('village'));
     }
   } else {
     if (mode === 'gather' && chop && !busy) updateChop(dt);
@@ -821,11 +858,14 @@ function frame(now: number) {
     } else if (mode === 'dialog' && ui.isOpen && input.consume('menu')) {
       ui.closeMenu();
     }
-    if (canAct && input.consume('act')) void interact();
+    // Strike a monster that hasn't spotted you yet for a surprise attack.
+    const prey = canAct ? over.roamers.unaware(over.x, over.y) : null;
+    if (prey && (input.consume('act') || input.consume('attack'))) startFieldBattle(prey, true);
+    else if (canAct && input.consume('act')) void interact();
     if (mode === 'title') over.t += dt;
     else {
       const px = over.x, py = over.y;
-      const ev = over.update(dt, input, !canAct);
+      const ev = over.update(dt, input, !canAct, !busy && (mode === 'world' || mode === 'gather'));
       if (!save.tips.includes('moved')) {
         movedDist += Math.hypot(over.x - px, over.y - py);
         if (movedDist > 2) save.tips.push('moved');
@@ -840,13 +880,10 @@ function frame(now: number) {
         const foe = world.objs.find((o) => o.kind === 'foe' && !o.hidden && over.x > o.x - 1.1 && over.x < o.x + o.w + 1.1 && over.y > o.y && over.y < o.y + o.h + 0.4);
         if (foe) challengeFoe(foe);
       }
-      if (ev?.type === 'encounter') {
-        const z = over.currentZone;
-        startBattle(z, rollFoes(z), false);
-      }
+      if (ev?.type === 'encounter') startFieldBattle(ev.roamer, false);
     }
     const near = canAct ? over.nearbyObject() : null;
-    ui.setAction(mode === 'gather' ? 'Chop!' : near ? near.label : null);
+    ui.setAction(mode === 'gather' ? 'Chop!' : prey ? 'Attack!' : near ? near.label : null);
     over.objective = mode === 'world' ? objective() : null;
     over.keyHints = usingKeyboard();
     ui.dragHint(mode === 'world' && !trans && !save.tips.includes('moved'));
