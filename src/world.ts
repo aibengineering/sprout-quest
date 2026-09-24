@@ -1,5 +1,6 @@
 // Overworld map generation and collision. Coordinates are in tiles.
-import { NODE_SPAWNS, WORLD_H, WORLD_W, ZONES, zoneAtX, zoneById, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
+import { WORLD_H, WORLD_W, ZONES, zoneAtX, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
+import { ROUTES } from './routes';
 
 export const T = {
   GROUND: 0,
@@ -9,6 +10,15 @@ export const T = {
   PATH: 4,
   DECOR: 5,
 } as const;
+
+/** Routes connect through rows GATE_Y..GATE_Y+3 on their west and east edges. */
+export const GATE_Y = 12;
+
+/** Route map characters → tiles (markers stand on open ground, or tall grass for trees out in the grass). */
+const ROUTE_TILE: Record<string, number> = {
+  '#': T.OBST, '.': T.GROUND, ',': T.GRASS, '=': T.PATH, '~': T.POOL, '*': T.DECOR,
+  E: T.PATH, S: T.GROUND, C: T.GROUND, L: T.GROUND, k: T.GROUND, p: T.GROUND, K: T.GRASS, P: T.GRASS,
+};
 
 export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node';
 
@@ -43,15 +53,6 @@ export function hash2(x: number, y: number, seed: number): number {
   return (h >>> 0) / 4294967296;
 }
 
-function valueNoise(x: number, y: number, seed: number): number {
-  const xi = Math.floor(x), yi = Math.floor(y);
-  const s = (t: number) => t * t * (3 - 2 * t);
-  const u = s(x - xi), v = s(y - yi);
-  const a = hash2(xi, yi, seed), b = hash2(xi + 1, yi, seed);
-  const c = hash2(xi, yi + 1, seed), d = hash2(xi + 1, yi + 1, seed);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-}
-
 const VILLAGE_END = ZONES.find((z) => z.id === 'meadow')!.x0;
 const V = ZONES.find((z) => z.id === 'village')!.x0;
 /** Where the glade's forest path begins (the clearing is west of it). */
@@ -70,6 +71,8 @@ export class World {
   readonly h = WORLD_H;
   readonly tiles = new Uint8Array(WORLD_W * WORLD_H);
   readonly objs: WorldObj[] = [];
+  /** Marker positions from the route maps, by `${zone}:${char}`. */
+  private marks = new Map<string, { x: number; y: number }[]>();
 
   constructor(seed = 7) {
     this.generate(seed);
@@ -89,11 +92,19 @@ export class World {
     return zoneAtX(Math.floor(x));
   }
 
-  /** Standing spot next to a zone's campfire (the warp/respawn point past its gate). */
+  /** Standing spot next to a zone's campfire (the warp/respawn point past its gate), on open ground if there is any. */
   campPoint(id: ZoneId): { x: number; y: number } {
     const camp = this.objs.find((o) => o.kind === 'camp' && o.zone === id);
     if (!camp) return this.entryPoint(id);
-    return { x: camp.x + camp.w / 2, y: pathY(Math.floor(camp.x)) + 1.9 };
+    const cx = Math.floor(camp.x), cy = Math.floor(camp.y);
+    const spots = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: cx + dx, y: cy + dy }));
+    const open = spots.filter((p) => { const t = this.tile(p.x, p.y); return t === T.GROUND || t === T.PATH || t === T.DECOR; });
+    const at = open[0] ?? spots.find((p) => this.tile(p.x, p.y) === T.GRASS) ?? spots[2];
+    return { x: at.x + 0.5, y: at.y + 0.9 };
+  }
+
+  private mark(zone: ZoneId, c: string) {
+    return this.marks.get(`${zone}:${c}`) ?? [];
   }
 
   obj(kind: ObjKind, key?: string): WorldObj | undefined {
@@ -103,15 +114,26 @@ export class World {
   entryPoint(id: ZoneId): { x: number; y: number } {
     if (id === 'glade') return { x: 3.5, y: MID + 0.9 };
     if (id === 'village') return { x: V + 4.5, y: MID + 0.5 };
-    const z = ZONES.find((z) => z.id === id)!;
-    const x = z.x0 + 2;
-    return { x: x + 0.5, y: pathY(x) + 1 };
+    const e = this.mark(id, 'E')[0];
+    return { x: e.x + 0.5, y: e.y + 0.9 };
   }
 
   private generate(seed: number) {
     const { w, h } = this;
     for (let x = 0; x < w; x++) {
       const zone = zoneAtX(x);
+      const route = ROUTES[zone.id];
+      if (route) {
+        for (let y = 0; y < h; y++) {
+          const c = route[y][x - zone.x0];
+          this.set(x, y, ROUTE_TILE[c] ?? T.OBST);
+          if (!'#.,=~*'.includes(c)) {
+            const key = `${zone.id}:${c}`;
+            this.marks.set(key, [...(this.marks.get(key) ?? []), { x, y }]);
+          }
+        }
+        continue;
+      }
       const py = pathY(x);
       for (let y = 0; y < h; y++) {
         let t: number = T.GROUND;
@@ -120,27 +142,11 @@ export class World {
         if ((y === py || y === py + 1) && !gladeClearing) t = T.PATH;
         else if (y < 2 || y >= h - 2 || x === 0 || x === w - 1) t = T.OBST;
         else if (zone.id === 'glade') t = this.gladeTile(x, y, nearPath, seed);
-        else if (zone.id !== 'village' && x === zone.x0 && !nearPath) t = T.OBST;
-        else if (zone.id === 'village') t = this.villageTile(x, y, seed, nearPath);
-        else if (!nearPath) {
-          const lx = x - zone.x0;
-          const edge = lx < 3 && Math.abs(y - py) < 5;
-          const pool = zone.theme.pool && valueNoise(x * 0.14, y * 0.14, seed + 2) > 0.8;
-          const obst = valueNoise(x * 0.22, y * 0.22, seed + 1) > 0.7 || hash2(x, y, seed + 5) < 0.035;
-          const grass = valueNoise(x * 0.18, y * 0.18, seed + 3) > 1 - zone.grassDensity;
-          if (edge) t = T.GROUND;
-          else if (pool) t = T.POOL;
-          else if (obst) t = T.OBST;
-          else if (grass) t = T.GRASS;
-          else if (hash2(x, y, seed + 9) < 0.07) t = T.DECOR;
-        } else if (hash2(x, y, seed + 11) < 0.25) {
-          // Grass sometimes creeps right up to the path edge.
-          t = valueNoise(x * 0.18, y * 0.18, seed + 3) > 1 - zone.grassDensity ? T.GRASS : T.GROUND;
-        }
+        else t = this.villageTile(x, y, seed, nearPath);
         this.set(x, y, t);
       }
     }
-    this.placeObjects(seed);
+    this.placeObjects();
   }
 
   /** A small sunny clearing ringed by trees, with a narrow forest path leading east. */
@@ -158,7 +164,7 @@ export class World {
     return T.GROUND;
   }
 
-  private placeObjects(seed: number) {
+  private placeObjects() {
     const add = (o: WorldObj, clear = true) => {
       this.objs.push(o);
       if (!clear) return;
@@ -184,74 +190,23 @@ export class World {
       kind: 'sign', x: V + 18.6, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
       text: 'East: Sunny Meadow. Walk through tall grass to find monsters. Bring back materials to the Forge!',
     });
-    for (const z of ZONES.filter((z) => z.monsters.length)) {
-      const x = z.x0 + 3;
-      add({
-        kind: 'sign', x: x + 0.1, y: pathY(x) - 2 + 0.2, w: 0.8, h: 0.6, label: 'Read',
-        text: `${z.name} — recommended Lv ${z.rec}+. Monsters here are Lv ${z.lv[0]}–${z.lv[1]}.`,
-      });
-    }
-    // Guardians block the road into their zone; a campfire checkpoint waits just past each gate.
     for (const z of ZONES) {
-      if (!z.guardian) continue;
-      const py = pathY(z.x0);
-      add({ kind: 'gate', zone: z.id, x: z.x0, y: py - 1, w: 1, h: 4, label: 'Challenge', text: z.name }, false);
-      const cx = z.x0 + 5;
-      add({ kind: 'camp', zone: z.id, x: cx, y: pathY(cx) + 2.3, w: 0.8, h: 0.6, label: 'Rest', text: 'Campfire' });
-    }
-    const lx = this.w - 5;
-    add({ kind: 'lair', x: lx, y: pathY(lx) - 1.5, w: 3, h: 2, label: 'Enter', text: "Emberwyrm's Lair" });
-    this.placeTrees(seed);
-  }
-
-  /**
-   * Choppable trees. Safe ones stand on open ground a couple of tiles off the path; grass ones stand deep in
-   * tall-grass patches you can actually walk to, so reaching them means risking encounters.
-   */
-  private placeTrees(seed: number) {
-    const reach = this.reachable();
-    for (const [zid, spawns] of Object.entries(NODE_SPAWNS) as [ZoneId, { kind: NodeKind; safe: number; grass: number }[]][]) {
-      const z = zoneById(zid);
-      const tree = (kind: NodeKind, tx: number, ty: number, grass: boolean, i: number) =>
-        this.objs.push({ kind: 'node', node: kind, id: `${zid}:${kind}:${grass ? 'g' : 's'}${i}`, grass, x: tx + 0.1, y: ty + 0.35, w: 0.8, h: 0.6, label: 'Chop', text: kind });
-
-      // Safe trees: evenly spaced along the zone, alternating above and below the path, grass cleared around them.
-      const safe = spawns.flatMap((sp) => Array.from({ length: sp.safe }, (_, i) => ({ kind: sp.kind, i })));
-      const span = z.w - 12;
-      safe.forEach(({ kind, i }, k) => {
-        const tx = z.x0 + 8 + Math.round(((k + 0.5) * span) / safe.length);
-        const up = hash2(tx, k, seed + 41) < 0.5;
-        const py = pathY(tx);
-        const ty = up ? py - 2 : py + 3;
-        for (let y = ty - 1; y <= ty + 1; y++) for (let x = tx - 1; x <= tx + 1; x++) if (this.tile(x, y) !== T.PATH) this.set(x, y, T.GROUND);
-        this.set(tx, up ? py - 1 : py + 2, T.GROUND);
-        tree(kind, tx, ty, false, i);
-      });
-
-      // Grass trees: tiles surrounded by tall grass, well away from the path, spread out.
-      const taken = this.objs.filter((o) => o.kind === 'node').map((o) => ({ x: Math.floor(o.x), y: Math.floor(o.y) }));
-      const spots: { x: number; y: number; h: number }[] = [];
-      for (let y = 3; y < this.h - 3; y++)
-        for (let x = z.x0 + 4; x < z.x0 + z.w - 2; x++) {
-          if (this.tile(x, y) !== T.GRASS || !reach[y * this.w + x] || Math.abs(y - pathY(x)) < 3) continue;
-          let grassy = 0, solid = 0;
-          for (let dy = -1; dy <= 1; dy++)
-            for (let dx = -1; dx <= 1; dx++) {
-              const t = this.tile(x + dx, y + dy);
-              if (t === T.GRASS) grassy++;
-              if (t === T.OBST || t === T.POOL) solid++;
-            }
-          // Deep in the grass, and never plugging a gap between obstacles.
-          if (grassy >= 6 && solid === 0) spots.push({ x, y, h: hash2(x, y, seed + 43) });
-        }
-      spots.sort((a, b) => a.h - b.h);
-      for (const sp of spawns) {
-        for (let i = 0; i < sp.grass; i++) {
-          const at = spots.find((c) => taken.every((t) => Math.hypot(t.x - c.x, t.y - c.y) >= 4));
-          if (!at) break;
-          taken.push(at);
-          tree(sp.kind, at.x, at.y, true, i);
-        }
+      for (const p of this.mark(z.id, 'S')) {
+        add({
+          kind: 'sign', x: p.x + 0.1, y: p.y + 0.2, w: 0.8, h: 0.6, label: 'Read',
+          text: `${z.name} — recommended Lv ${z.rec}+. Monsters here are Lv ${z.lv[0]}–${z.lv[1]}.`,
+        }, false);
+      }
+      // Guardians block the road into their zone; a campfire checkpoint waits just past each gate.
+      if (z.guardian) add({ kind: 'gate', zone: z.id, x: z.x0, y: GATE_Y, w: 1, h: 4, label: 'Challenge', text: z.name }, false);
+      for (const p of this.mark(z.id, 'C')) add({ kind: 'camp', zone: z.id, x: p.x + 0.1, y: p.y + 0.2, w: 0.8, h: 0.6, label: 'Rest', text: 'Campfire' }, false);
+      for (const p of this.mark(z.id, 'L')) add({ kind: 'lair', x: p.x, y: p.y, w: 3, h: 2, label: 'Enter', text: "Emberwyrm's Lair" }, false);
+      // Choppable trees: by the path (safe) or out in the grass.
+      const trees: [string, NodeKind, boolean][] = [['k', 'oak', false], ['K', 'oak', true], ['p', 'pine', false], ['P', 'pine', true]];
+      for (const [c, kind, grass] of trees) {
+        this.mark(z.id, c).forEach((p, i) => this.objs.push({
+          kind: 'node', node: kind, id: `${z.id}:${kind}:${grass ? 'g' : 's'}${i}`, grass, x: p.x + 0.1, y: p.y + 0.35, w: 0.8, h: 0.6, label: 'Chop', text: kind,
+        }));
       }
     }
   }

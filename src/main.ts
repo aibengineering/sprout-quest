@@ -723,6 +723,8 @@ document.addEventListener('visibilitychange', () => {
 // ------------------------------------------------------------------ loop
 
 let movedDist = 0;
+/** Console-only camera zoom override (window.game.zoom = 0.3 shows a whole area). */
+let debugZoom = 0;
 let treeSync = 1;
 let battleFlag: string | undefined;
 let autoTalked = false;
@@ -915,7 +917,7 @@ function frame(now: number) {
     ui.dock(mode === 'world');
     const sq = swoop ? (swoop.dir === 'in' ? swoop.t / swoop.dur : 1 - swoop.t / swoop.dur) : 0;
     const ease = sq * sq * (3 - 2 * sq);
-    over.zoom = 1 + ease;
+    over.zoom = debugZoom || 1 + ease;
     over.render(ctx, vw, vh);
     if (swoop) {
       ctx.fillStyle = `rgba(255,250,235,${0.75 * ease})`;
@@ -970,6 +972,7 @@ requestAnimationFrame(frame);
   get battle() { return battle; },
   get over() { return over; },
   get chop() { return chop; },
+  set zoom(z: number) { debugZoom = z; },
   /** A regular grass encounter right here (or in `zone`). */
   encounter(zone?: ZoneId) {
     if (zone) { const p = world.entryPoint(zone); over.teleport(p.x, p.y); }

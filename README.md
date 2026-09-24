@@ -83,6 +83,11 @@ guides you through a chain of chapters, and the current goal is always shown in 
 
 ## Areas
 
+Each area past the village is a hand-drawn route (`src/routes.ts`), Pokémon style: a path that winds through the
+area, tall-grass crossings you can't avoid, optional grassy pockets off the path (where the best trees grow),
+ponds or lava, and signs. Tests check every route can be walked end to end, can't be done without wading through
+grass, and that every tree, sign and campfire can be reached.
+
 | Area | Lv | Monsters | Materials |
 | --- | --- | --- | --- |
 | 🌳 Quiet Glade | – | Prologue only | Where your story begins |
@@ -153,7 +158,8 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
 ## Code map
 
 - `src/main.ts` — game loop, mode switching, glue
-- `src/overworld.ts` / `src/world.ts` — map generation, collisions, grass encounters, tile rendering
+- `src/overworld.ts` / `src/world.ts` — the map (glade and village generated, routes from `src/routes.ts`), collisions, grass encounters, tile rendering
+- `src/routes.ts` — the hand-drawn route maps, one character per tile (legend at the top)
 - `src/battle.ts` — arena combat, enemy AI, projectiles, hazards, shockwaves, themed arenas and the swoop in/out
 - `src/arena.ts` — the oval arena's shape and edge collisions
 - `src/roamers.ts` — monsters wandering the grass: noticing, chasing, surprise attacks
