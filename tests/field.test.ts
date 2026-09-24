@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { RingArena, TILE_UNITS, TileArena } from '../src/arena';
+import { ARENA_RX, ARENA_RY, OvalArena } from '../src/arena';
 import { ZONES } from '../src/data';
 import { CATCH_DIST, NOTICE_DIST, ROAMERS_PER_ZONE, Roamers } from '../src/roamers';
 import { T, World } from '../src/world';
@@ -19,41 +19,21 @@ function meadowGrass() {
   throw new Error('no open meadow grass');
 }
 
-describe('fights on the map', () => {
-  test('the arena is the open ground around you, and trees and water are walls', () => {
-    const at = meadowGrass();
-    const a = new TileArena(w, at.x, at.y, 6.5);
-    expect(a.size).toBeGreaterThan(30);
+describe('the arena', () => {
+  test('bodies stop at the oval edge, and it is taller than it is wide', () => {
+    const a = new OvalArena(ARENA_RX, ARENA_RY);
+    expect(ARENA_RY).toBeGreaterThan(ARENA_RX);
+    const m = a.move(0, ARENA_RY - 20, 0, 50, 12);
+    expect(m.hitY).toBe(true);
+    expect(m.y).toBeCloseTo(ARENA_RY - 12);
+    const side = a.move(ARENA_RX - 20, 0, 50, 0, 12);
+    expect(side.x).toBeCloseTo(ARENA_RX - 12);
     expect(a.inside(0, 0)).toBe(true);
-    // Every open tile really is walkable on the map.
-    for (const t of a.openTiles()) {
-      const k = w.tile(t.tx, t.ty);
-      expect(k === T.OBST || k === T.POOL).toBe(false);
-    }
-    // Nothing beyond the radius is part of the fight.
-    expect(a.inside(TILE_UNITS * 8, 0)).toBe(false);
-  });
-
-  test('moving into a wall stops you (and says which way), and nearestFree finds open ground', () => {
-    const at = meadowGrass();
-    const a = new TileArena(w, at.x, at.y, 6.5);
-    let p = { x: 0, y: 0 }, hit = false;
-    for (let i = 0; i < 400 && !hit; i++) {
-      const m = a.move(p.x, p.y, 10, 0, 8);
-      hit = m.hitX;
-      p = m;
-    }
-    expect(hit).toBe(true);
-    expect(a.inside(p.x, p.y)).toBe(true);
-    const f = a.nearestFree(TILE_UNITS * 20, 0, 8);
+    expect(a.inside(ARENA_RX + 5, 0)).toBe(false);
+    const f = a.nearestFree(ARENA_RX * 3, ARENA_RY * 3, 12);
     expect(a.inside(f.x, f.y)).toBe(true);
-  });
-
-  test('the classic ring keeps bosses inside a circle', () => {
-    const r = new RingArena(210);
-    const m = r.move(200, 0, 50, 0, 12);
-    expect(Math.hypot(m.x, m.y)).toBeCloseTo(198);
-    expect(m.hitX).toBe(true);
+    const n = a.normal(ARENA_RX, 0);
+    expect(n.x).toBeCloseTo(1);
   });
 });
 

@@ -1,6 +1,6 @@
-// Real-time battles. Units are "arena units" centered on the fight's origin. Regular fights happen right on the map
-// (a TileArena around you, drawn from the overworld); bosses and scripted fights use the classic ring (RingArena).
-import { RingArena, TILE_UNITS, TileArena, type Arena } from './arena';
+// Real-time arena battles. Units are "arena units"; the arena is an oval (OvalArena) centered at (0, 0), dressed up
+// with each area's scenery.
+import { ARENA_RX, ARENA_RY, OvalArena } from './arena';
 import { drawFrame, drawHero, frame } from './assets';
 import type { Audio } from './audio';
 import { vibrate } from './audio';
@@ -14,14 +14,14 @@ import { MOVESETS, tierScale, type Moveset, type Strike } from './weapons';
 import { hash2 } from './world';
 
 const TAU = Math.PI * 2;
-export const ARENA_R = 210;
 const SKILL_CD = 4.5;
 /** Arena units per Blender unit for sprites (drawn a little larger than their hitboxes so they read on phones). */
 const UNIT = 34;
 
-/** How much closer the camera gets for a fight on the map, and how long the zoom in/out takes. */
-const ZOOM = 1.3;
-const ZOOM_T = 0.35;
+/** The camera swoops in from this close as a fight starts, and back in as it ends. */
+const ZOOM = 1.8;
+/** Seconds for the swoop at each end of a fight. */
+export const ZOOM_T = 0.35;
 
 const easeOut = (q: number) => 1 - (1 - q) ** 3;
 const easeIn = (q: number) => q * q * q;
@@ -107,15 +107,6 @@ export interface BattleSetup {
   zone: Zone;
   foes: Foe[];
   boss: boolean;
-  /** Where the fight happens; the classic ring if left out. */
-  arena?: Arena;
-  /** Draws the map behind a fight on the map: camera top-left in tiles and tile size in pixels. */
-  scene?: (ctx: CanvasRenderingContext2D, left: number, top: number, ts: number, vw: number, vh: number) => void;
-  /** The overworld camera when the fight began (tiles, same convention as Overworld), so the zoom starts from what you saw. */
-  camera?: { x: number; y: number; ts: number; mapW: number; mapH: number };
-  /** Player and visible monster positions, in arena units. */
-  start?: { x: number; y: number };
-  leader?: { x: number; y: number };
   /** You struck first: they start dazed. */
   ambush?: boolean;
 }
@@ -126,8 +117,6 @@ export interface BattleOutcome {
   xp: number;
   drops: Partial<Record<MatId, number>>;
   defeated: string[];
-  /** Where you ended up, in map tiles (fights on the map). */
-  pos?: { x: number; y: number };
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -194,9 +183,7 @@ export class Battle {
   private burstIds = new Set<number>();
   private weaponColor: string;
   private armorColor: string;
-  readonly arena: Arena;
-  /** Camera focus in map tiles (fights on the map). */
-  private cam = { x: 0, y: 0 };
+  readonly arena = new OvalArena(ARENA_RX, ARENA_RY);
 
   constructor(
     readonly setup: BattleSetup,
@@ -214,47 +201,21 @@ export class Battle {
     this.element = this.weapon.fx ?? 'none';
     this.weaponColor = this.weapon.color ?? '#ccc';
     this.armorColor = GEAR[save.equip.armor]?.color ?? '#6fa8ff';
-    this.arena = setup.arena ?? new RingArena(ARENA_R);
-    if (this.arena instanceof TileArena) this.spawnOnMap(this.arena);
-    else {
-      const n = setup.foes.length;
-      setup.foes.forEach((f, i) => {
-        const a = n === 1 ? -Math.PI / 2 : -Math.PI * 0.8 + (i / (n - 1)) * Math.PI * 0.6;
-        const dist = MONSTERS[f.kind].boss ? 90 : 120;
-        this.spawn(f, Math.cos(a) * dist, Math.sin(a) * dist - 10, false);
-      });
-    }
-  }
-
-  /** On the map: you stay where you are, the monster you bumped into is where it was, and its friends pop out of the grass. */
-  private spawnOnMap(arena: TileArena) {
-    const cam = this.setup.camera!;
-    this.cam = { x: cam.x, y: cam.y };
-    this.intro = ZOOM_T;
-    const start = this.setup.start ?? { x: 0, y: 0 };
-    Object.assign(this.p, arena.nearestFree(start.x, start.y, 10));
-    const spots = arena.openTiles()
-      .map((t) => arena.fromTile(t.tx + 0.5, t.ty + 0.5))
-      .map((q) => ({ ...q, grass: arena.isGrass(q.x, q.y), d: Math.hypot(q.x - this.p.x, q.y - this.p.y) }))
-      .filter((q) => q.d > TILE_UNITS * 1.8 && q.d < TILE_UNITS * 4.5)
-      .sort((a, b) => Number(b.grass) - Number(a.grass) || Math.random() - 0.5);
-    this.setup.foes.forEach((f, i) => {
-      const at = i === 0 && this.setup.leader ? this.setup.leader : spots[i % Math.max(1, spots.length)] ?? { x: this.p.x + 90, y: this.p.y };
-      const q = arena.nearestFree(at.x, at.y, this.feet(MONSTERS[f.kind].r));
-      const e = this.spawn(f, q.x, q.y, false);
-      if (this.setup.ambush) e.stun = 1.5;
-      if (i > 0 || !this.setup.leader) this.fx.burst(q.x, q.y - 6, this.setup.zone.theme.grassTip, 12, 110, { size: 4, life: 0.5 });
+    // Regular fights swoop in and get going at once; bosses keep their dramatic "Boss battle!" beat.
+    this.intro = setup.boss || setup.foes.some((f) => f.gentle) ? 1.2 : ZOOM_T + 0.1;
+    const n = setup.foes.length;
+    setup.foes.forEach((f, i) => {
+      const a = n === 1 ? -Math.PI / 2 : -Math.PI * 0.8 + (i / (n - 1)) * Math.PI * 0.6;
+      const dist = MONSTERS[f.kind].boss ? 110 : 150;
+      const e = this.spawn(f, Math.cos(a) * dist, Math.sin(a) * dist - 20, false);
+      if (setup.ambush) e.stun = 1.5;
     });
-    if (this.setup.ambush) this.fx.text(this.p.x, this.p.y - 46, 'Surprise attack!', '#ffe07a', 17);
+    if (setup.ambush) this.fx.text(this.p.x, this.p.y - 46, 'Surprise attack!', '#ffe07a', 17);
   }
 
-  /** Feet size for wall collisions: map fights use a small box so bodies fit between trees. */
+  /** Body size against the arena's edge. */
   private feet(r: number) {
-    return this.arena.kind === 'tiles' ? Math.min(r * 0.7, 14) : r;
-  }
-
-  get onMap() {
-    return this.arena.kind === 'tiles';
+    return r;
   }
 
   private spawn(f: Foe, x: number, y: number, minion: boolean): Enemy {
@@ -303,12 +264,6 @@ export class Battle {
     for (const s of this.sparks) s.t += dt;
     this.sparks = this.sparks.filter((s) => s.t < 0.22);
     for (const e of this.enemies) if (e.dead) e.deathT -= dt;
-    if (this.arena instanceof TileArena) {
-      // The camera glides from where the overworld left it to you, then follows (same feel as walking around).
-      const at = this.arena.toTile(this.p.x, this.p.y), k = 1 - Math.exp(-dt * (this.intro > 0 ? 9 : 12));
-      this.cam.x += (at.x - this.cam.x) * k;
-      this.cam.y += (at.y - this.cam.y) * k;
-    }
     if (this.done) return;
     if (this.intro > 0) {
       this.intro -= dt;
@@ -862,10 +817,8 @@ export class Battle {
 
   private finish(o: BattleOutcome, delay: number) {
     if (this.endT >= 0) return;
-    if (this.arena instanceof TileArena) o.pos = this.arena.toTile(this.p.x, this.p.y);
     this.outcome = o;
-    // On the map, wins and escapes end with a quick zoom back out; a loss lingers for the respawn.
-    this.endT = this.onMap && o.result !== 'lose' ? Math.min(delay, 0.8) : delay;
+    this.endT = delay;
   }
 
   private checkEnd() {
@@ -932,15 +885,10 @@ export class Battle {
     if (Math.abs(e.vx) > 5) e.face = Math.sign(e.vx);
     else if (Math.abs(dx) > 4) e.face = Math.sign(dx);
     if (bounced && (e.state === 'charge' || e.state === 'dash' || e.state === 'swoop')) {
-      if (this.arena.kind === 'ring') {
-        const d = Math.hypot(e.x, e.y) || 1, nx = e.x / d, ny = e.y / d;
-        const dot = e.vx * nx + e.vy * ny;
-        e.vx -= 2 * dot * nx;
-        e.vy -= 2 * dot * ny;
-      } else {
-        if (mv.hitX) e.vx = -e.vx;
-        if (mv.hitY) e.vy = -e.vy;
-      }
+      const n = this.arena.normal(e.x, e.y);
+      const dot = e.vx * n.x + e.vy * n.y;
+      e.vx -= 2 * dot * n.x;
+      e.vy -= 2 * dot * n.y;
       this.shake = Math.max(this.shake, e.def.boss ? 8 : 2);
     }
     // Contact damage (slimes mid-hop sail over you).
@@ -1362,8 +1310,7 @@ export class Battle {
       pr.x += pr.vx * dt;
       pr.y += pr.vy * dt;
       pr.life -= dt;
-      // Shots fly off the ring's edge, or thud into trees on the map.
-      if (this.arena.kind === 'ring' ? Math.hypot(pr.x, pr.y) > ARENA_R + 30 : !this.arena.inside(pr.x, pr.y + 12)) pr.life = 0;
+      if (!this.arena.inside(pr.x, pr.y, 40)) pr.life = 0;
       if (pr.life <= 0) continue;
       if (Math.random() < 0.4) this.fx.burst(pr.x, pr.y, pr.color, 1, 20, { size: pr.r * 0.4, grav: 0, life: 0.3 });
       if (pr.owner === 'e') {
@@ -1407,66 +1354,47 @@ export class Battle {
   // ---------------------------------------------------------------- rendering
 
   private layout(vw: number, vh: number) {
-    const span = ARENA_R * 2 + 24;
+    const sw = ARENA_RX * 2 + 24, sh = ARENA_RY * 2 + 24;
     if (vh > vw * 1.15) {
       const top = 84, bottom = 220;
-      const k = Math.min(vw / span, (vh - top - bottom) / span);
+      const k = Math.min(vw / sw, (vh - top - bottom) / sh);
       return { k, cx: vw / 2, cy: top + (vh - top - bottom) / 2 };
     }
     const top = 64;
-    const k = Math.min(vw / span, (vh - top - 8) / span);
+    const k = Math.min(vw / sw, (vh - top - 8) / sh);
     return { k, cx: vw / 2, cy: top + (vh - top) / 2 };
   }
 
+  /** 0 = normal view, 1 = swooped right in on you (the start and end of a regular fight). */
+  get swoop(): number {
+    if (this.setup.boss || this.setup.foes.some((f) => f.gentle)) return 0;
+    if (this.intro > 0) return easeInOut(clamp01(this.intro / ZOOM_T));
+    if (this.endT >= 0 && this.outcome && this.outcome.result !== 'lose') return easeInOut(clamp01(1 - this.endT / ZOOM_T));
+    return 0;
+  }
+
   render(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
-    if (this.onMap) return this.renderOnMap(ctx, vw, vh);
     const th = this.setup.zone.theme;
     const { k: k0, cx, cy } = this.layout(vw, vh);
-    const k = k0 * (1 + this.punch);
+    // Swooping in or out: zoom toward you, and fade through white to meet the overworld's own zoom.
+    const q = this.swoop;
+    const z = 1 + (ZOOM - 1) * q;
+    const k = k0 * z * (1 + this.punch);
     ctx.fillStyle = th.outside;
     ctx.fillRect(0, 0, vw, vh);
     const sx = (Math.random() - 0.5) * this.shake, sy = (Math.random() - 0.5) * this.shake;
     ctx.save();
     ctx.translate(cx + sx, cy + sy);
     ctx.scale(k, k);
-    this.drawArena(ctx, vw / k, vh / k);
+    ctx.translate(-this.p.x * q, -(this.p.y - 20) * q);
+    this.drawArena(ctx, (vw / k) * 1.6, (vh / k) * 1.6);
     this.drawField(ctx);
+    this.drawAmbient(ctx);
     ctx.restore();
-    this.drawOverlay(ctx, vw, vh);
-  }
-
-  /** A fight on the map: the overworld drawn at a closer zoom, with the camera following you. */
-  private renderOnMap(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
-    const arena = this.arena as TileArena;
-    const cam = this.setup.camera!;
-    // Zoom in as the fight starts, back out as it ends (unless you lost: that fades out instead).
-    let q = 1;
-    if (this.intro > 0) q = easeInOut(1 - this.intro / ZOOM_T);
-    else if (this.endT >= 0 && this.outcome?.result !== 'lose') q = easeInOut(Math.min(1, this.endT / ZOOM_T));
-    const ts = cam.ts * (1 + (ZOOM - 1) * q);
-    let left = this.cam.x - vw / 2 / ts, top = this.cam.y - 0.5 - vh / 2 / ts;
-    // Same edge clamping as the overworld, so the last frame of the zoom-out matches it exactly.
-    left = cam.mapW * ts <= vw ? (cam.mapW * ts - vw) / 2 / ts : Math.max(0, Math.min(cam.mapW - vw / ts, left));
-    top = cam.mapH * ts <= vh ? (cam.mapH * ts - vh) / 2 / ts : Math.max(0, Math.min(cam.mapH - vh / ts, top));
-    const sx = (Math.random() - 0.5) * this.shake, sy = (Math.random() - 0.5) * this.shake;
-    ctx.save();
-    ctx.translate(sx, sy);
-    this.setup.scene?.(ctx, left, top, ts, vw, vh);
-    // Dim everything outside the fight so its edges read clearly.
-    // One path for all the dimmed tiles, snapped to whole pixels, so neighbours don't overlap into a visible grid.
-    ctx.fillStyle = `rgba(40,20,50,${0.3 * q})`;
-    ctx.beginPath();
-    const px = (t: number, o: number) => Math.round((t - o) * ts);
-    const tx0 = Math.floor(left) - 1, ty0 = Math.floor(top) - 1;
-    for (let ty = ty0; ty < ty0 + vh / ts + 3; ty++)
-      for (let tx = tx0; tx < tx0 + vw / ts + 3; tx++)
-        if (!arena.openTile(tx, ty)) ctx.rect(px(tx, left), px(ty, top), px(tx + 1, left) - px(tx, left), px(ty + 1, top) - px(ty, top));
-    ctx.fill();
-    const k = (ts / TILE_UNITS) * (1 + this.punch);
-    ctx.translate((arena.cx - left) * ts, (arena.cy - top) * ts);
-    ctx.scale(k, k);
-    this.drawField(ctx);
-    ctx.restore();
+    if (q > 0) {
+      ctx.fillStyle = `rgba(255,250,235,${0.75 * q})`;
+      ctx.fillRect(0, 0, vw, vh);
+    }
     this.drawOverlay(ctx, vw, vh);
   }
 
@@ -1554,68 +1482,152 @@ export class Battle {
     this.fx.draw(ctx);
   }
 
+  /**
+   * A clearing in the area you were in: its trees (or pines, crystals, rocks) crowd around the edge, the floor has
+   * soft patches and a few flowers or pebbles, and grass tufts fringe the border. Guardian fights add an old stone ring.
+   */
   private drawArena(ctx: CanvasRenderingContext2D, w: number, h: number) {
     const th = this.setup.zone.theme;
-    const R = ARENA_R;
+    const RX = ARENA_RX, RY = ARENA_RY;
+    const SCENERY_UNIT = 29;
     const tuft = frame(`env/grass_${this.setup.zone.id}`) ?? frame('env/grass_meadow');
-    // Scenery tufts outside the ring.
-    ctx.fillStyle = th.grass;
-    for (let i = 0; i < 90; i++) {
-      const x = (hash2(i, 1, 3) - 0.5) * w * 1.1, y = (hash2(i, 2, 3) - 0.5) * h * 1.1;
-      if (Math.hypot(x, y) < R + 30) continue;
-      const sway = Math.sin(this.t * 2 + i) * 2;
-      if (tuft) {
-        drawFrame(ctx, tuft, x, y, 30, { rot: sway * 0.02 });
-        continue;
-      }
-      ctx.beginPath();
-      ctx.moveTo(x - 7, y);
-      ctx.lineTo(x - 3 + sway, y - 14);
-      ctx.lineTo(x, y);
-      ctx.lineTo(x + 4 + sway, y - 16);
-      ctx.lineTo(x + 7, y);
-      ctx.fill();
+    // Tufts scattered across the surrounding ground.
+    for (let i = 0; i < 110; i++) {
+      const x = (hash2(i, 1, 3) - 0.5) * w, y = (hash2(i, 2, 3) - 0.5) * h;
+      if (Math.hypot(x / (RX + 40), y / (RY + 40)) < 1) continue;
+      if (tuft) drawFrame(ctx, tuft, x, y, 30, { rot: Math.sin(this.t * 2 + i) * 0.04 });
     }
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    // Scenery crowding the clearing, back to front. The bottom edge keeps to low tufts so nothing hides the fight.
+    const props: { x: number; y: number; v: number }[] = [];
+    for (let i = 0; i < 46; i++) {
+      const a = (i / 46) * TAU + hash2(i, 7, 11) * 0.12;
+      if (Math.sin(a) > 0.55) continue;
+      const r = 1.1 + hash2(i, 8, 11) * 0.45;
+      props.push({ x: Math.cos(a) * RX * r, y: Math.sin(a) * RY * r + 40, v: hash2(i, 9, 11) });
+    }
+    for (let i = 0; i < 16; i++) {
+      // A second, deeper row behind the top half makes it feel like a forest (or cavern, or crag) around you.
+      const a = Math.PI + (i / 15) * Math.PI;
+      props.push({ x: Math.cos(a) * RX * 1.75, y: Math.sin(a) * RY * 1.5 + 30, v: hash2(i, 10, 11) });
+    }
+    props.sort((a, b) => a.y - b.y);
+    for (const p of props) {
+      const f = frame(`env/${th.obstacle}${Math.floor(p.v * 3)}`);
+      if (!f) continue;
+      shadow(ctx, p.x, p.y, 26);
+      drawFrame(ctx, f, p.x, p.y, SCENERY_UNIT * (0.95 + p.v * 0.25), { flip: p.v > 0.5, rot: th.obstacle === 'tree' || th.obstacle === 'pine' ? Math.sin(this.t * 1.2 + p.x) * 0.012 : 0 });
+    }
+    // Floor: a soft drop shadow, a darker rim, then the clearing with organic lighter patches.
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';
     ctx.beginPath();
-    ctx.ellipse(0, 10, R + 16, R + 12, 0, 0, TAU);
+    ctx.ellipse(0, 12, RX + 18, RY + 14, 0, 0, TAU);
     ctx.fill();
     ctx.fillStyle = th.ground2;
     ctx.beginPath();
-    ctx.arc(0, 0, R + 12, 0, TAU);
+    ctx.ellipse(0, 0, RX + 12, RY + 12, 0, 0, TAU);
     ctx.fill();
     ctx.fillStyle = th.ground;
     ctx.beginPath();
-    ctx.arc(0, 0, R, 0, TAU);
+    ctx.ellipse(0, 0, RX, RY, 0, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(0, 0, R * 0.55, 0, TAU);
-    ctx.fill();
-    // Stone rim
-    const stones = 36;
-    for (let i = 0; i < stones; i++) {
-      const a = (i / stones) * TAU;
-      const x = Math.cos(a) * (R + 6), y = Math.sin(a) * (R + 6);
-      ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.12)';
+    ctx.ellipse(0, 0, RX, RY, 0, 0, TAU);
+    ctx.clip();
+    for (let i = 0; i < 9; i++) {
+      const x = (hash2(i, 3, 5) - 0.5) * RX * 1.6, y = (hash2(i, 4, 5) - 0.5) * RY * 1.6;
+      ctx.fillStyle = hash2(i, 5, 5) < 0.5 ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.05)';
       ctx.beginPath();
-      ctx.ellipse(x, y, 11, 8, a, 0, TAU);
+      ctx.ellipse(x, y, 40 + hash2(i, 6, 5) * 70, 26 + hash2(i, 7, 5) * 40, hash2(i, 8, 5) * 3, 0, TAU);
       ctx.fill();
     }
-    // Little decor inside
-    for (let i = 0; i < 14; i++) {
-      const a = hash2(i, 5, 9) * TAU, r = 40 + hash2(i, 6, 9) * (R - 60);
-      const x = Math.cos(a) * r, y = Math.sin(a) * r;
-      ctx.fillStyle = th.grassTip;
-      ctx.globalAlpha = 0.6;
-      ctx.beginPath();
-      ctx.moveTo(x - 4, y);
-      ctx.lineTo(x - 1, y - 8);
-      ctx.lineTo(x + 1, y);
-      ctx.lineTo(x + 3, y - 7);
-      ctx.lineTo(x + 5, y);
-      ctx.fill();
-      ctx.globalAlpha = 1;
+    // Sunlight pooling in the middle.
+    const g = ctx.createRadialGradient(0, -RY * 0.15, 10, 0, 0, RY);
+    g.addColorStop(0, 'rgba(255,255,230,0.18)');
+    g.addColorStop(1, 'rgba(255,255,230,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(-RX, -RY, RX * 2, RY * 2);
+    ctx.restore();
+    // Decor near the edges (flowers, mushrooms, gems or pebbles depending on the area).
+    const names = { flower: ['flower0', 'flower1', 'flower2', 'flower3'], mush: ['mush0', 'mush1'], gem: ['gem0', 'gem1'], pebble: ['pebble0', 'pebble1'] }[th.decor];
+    for (let i = 0; i < 26; i++) {
+      const a = hash2(i, 5, 9) * TAU, r = 0.55 + hash2(i, 6, 9) * 0.38;
+      const f = frame(`env/${names[Math.floor(hash2(i, 12, 9) * names.length)]}`);
+      if (f) drawFrame(ctx, f, Math.cos(a) * RX * r, Math.sin(a) * RY * r, SCENERY_UNIT);
+    }
+    // Guardians fight inside an old ring of standing stones.
+    if (this.setup.boss) {
+      const stones = 40;
+      for (let i = 0; i < stones; i++) {
+        const a = (i / stones) * TAU;
+        const x = Math.cos(a) * (RX + 6), y = Math.sin(a) * (RY + 6);
+        ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.12)';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 11, 8, a, 0, TAU);
+        ctx.fill();
+      }
+    }
+    // Grass fringing the border.
+    if (tuft) {
+      for (let i = 0; i < 64; i++) {
+        const a = (i / 64) * TAU + hash2(i, 13, 9) * 0.05;
+        drawFrame(ctx, tuft, Math.cos(a) * (RX + 4), Math.sin(a) * (RY + 4) + 6, 26 + hash2(i, 14, 9) * 8, { rot: Math.sin(this.t * 2.2 + i) * 0.05, flip: i % 2 === 1 });
+      }
+    }
+  }
+
+  /** Life in the air over the arena: butterflies in the meadow, falling leaves in the woods, glowing motes in the cave, embers on the peak, and drifting cloud shadows outdoors. */
+  private drawAmbient(ctx: CanvasRenderingContext2D) {
+    const id = this.setup.zone.id, t = this.t, RX = ARENA_RX, RY = ARENA_RY;
+    if (id !== 'cave') {
+      ctx.fillStyle = 'rgba(40,30,60,0.06)';
+      for (let i = 0; i < 2; i++) {
+        const x = ((t * 14 + i * 330) % (RX * 3)) - RX * 1.5, y = -RY * 0.4 + i * RY * 0.7;
+        ctx.beginPath();
+        ctx.ellipse(x, y, 150, 70, 0, 0, TAU);
+        ctx.fill();
+      }
+    }
+    if (id === 'meadow' || id === 'glade') {
+      const cols = ['#ffd35a', '#ff9ab0', '#b0d8ff'];
+      for (let i = 0; i < 3; i++) {
+        const x = Math.sin(t * 0.5 + i * 2.1) * RX * 0.8, y = Math.cos(t * 0.37 + i * 1.7) * RY * 0.8 - 30;
+        const flap = Math.abs(Math.sin(t * 14 + i));
+        ctx.fillStyle = cols[i];
+        for (const s of [-1, 1]) {
+          ctx.beginPath();
+          ctx.ellipse(x + s * 5 * flap, y, 5 * flap + 1, 6, s * 0.4, 0, TAU);
+          ctx.fill();
+        }
+      }
+    } else if (id === 'woods') {
+      for (let i = 0; i < 7; i++) {
+        const y = ((t * 30 + i * 97) % (RY * 2.4)) - RY * 1.2, x = (hash2(i, 1, 21) - 0.5) * RX * 2 + Math.sin(t * 1.5 + i) * 30;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(Math.sin(t * 2 + i) * 0.8);
+        ctx.fillStyle = i % 2 ? '#e8a040' : '#7ab84a';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 6, 3, 0, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+    } else if (id === 'cave') {
+      for (let i = 0; i < 12; i++) {
+        const x = (hash2(i, 2, 22) - 0.5) * RX * 2, y = (hash2(i, 3, 22) - 0.5) * RY * 2 + Math.sin(t + i) * 12;
+        ctx.fillStyle = `rgba(190,230,255,${0.3 + Math.sin(t * 2 + i * 1.7) * 0.25})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, TAU);
+        ctx.fill();
+      }
+    } else if (id === 'peak') {
+      for (let i = 0; i < 12; i++) {
+        const y = RY * 1.2 - ((t * 40 + i * 71) % (RY * 2.4)), x = (hash2(i, 4, 23) - 0.5) * RX * 2 + Math.sin(t * 2 + i) * 16;
+        ctx.fillStyle = i % 3 ? 'rgba(255,150,60,0.8)' : 'rgba(255,220,120,0.9)';
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5, 0, TAU);
+        ctx.fill();
+      }
     }
   }
 
@@ -1691,10 +1703,10 @@ export class Battle {
     }
   }
 
-  /** Monsters joining a fight on the map spring up out of the grass during the zoom (the one you bumped into is already there). */
+  /** Regular monsters spring up out of the grass as the camera swoops in. */
   private popIn(e: Enemy): number {
-    if (!this.onMap || this.intro <= 0 || (e === this.enemies[0] && this.setup.leader)) return 1;
-    return Math.max(0.05, easeOut(1 - this.intro / ZOOM_T));
+    if (this.setup.boss || this.intro <= 0 || e.minion) return 1;
+    return Math.max(0.05, easeOut(clamp01(1 - this.intro / (ZOOM_T + 0.1))));
   }
 
   private drawSpike(ctx: CanvasRenderingContext2D, s: Spike) {
@@ -1911,7 +1923,7 @@ export class Battle {
     }
     let text = '';
     let size = 44;
-    if (this.intro > 0 && !this.onMap) {
+    if (this.intro > 0 && (this.setup.boss || this.setup.foes.some((f) => f.gentle))) {
       text = this.intro > 0.55 ? (this.setup.boss ? 'Boss battle!' : 'Ready…') : 'Fight!';
     } else if (this.endT >= 0 && this.outcome) {
       text = this.outcome.result === 'win' ? 'Victory!' : this.outcome.result === 'lose' ? 'Oh no…' : '';

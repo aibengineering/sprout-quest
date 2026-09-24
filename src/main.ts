@@ -3,7 +3,6 @@ import { loadAssets } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
 import { GEAR, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, TOOLS, ZONES, zoneById, type MatId, type MonsterKind, type Zone, type ZoneId } from './data';
-import { TileArena } from './arena';
 import { Chop, drawChop } from './gather';
 import type { Roamer } from './roamers';
 import { Input, trackInputDevice, usingKeyboard } from './input';
@@ -236,36 +235,50 @@ function tip(id: string, text: string) {
 
 // ------------------------------------------------------------------ battles
 
-/** Fights with monsters in the grass happen right where you are: a quick zoom, no countdown. */
-function startFieldBattle(r: Roamer, ambush: boolean) {
-  const zone = zoneById(r.zone);
-  const foes: Foe[] = [
-    { kind: r.kind, lv: r.lv, golden: r.golden },
-    ...Array.from({ length: r.extra }, () => ({ kind: weightedPick(zone.monsters).kind, lv: zone.lv[0] + Math.floor(Math.random() * (zone.lv[1] - zone.lv[0] + 1)), golden: false })),
-  ];
-  over.roamers.remove(r);
+/** A random set of monsters from a zone (for ambushes in the grass). */
+function rollFoes(z: Zone): Foe[] {
+  const r = Math.random();
+  const n = Math.min(z.maxEnemies, r < 0.5 ? 1 : r < 0.85 ? 2 : 3);
+  return Array.from({ length: n }, () => ({
+    kind: weightedPick(z.monsters).kind,
+    lv: z.lv[0] + Math.floor(Math.random() * (z.lv[1] - z.lv[0] + 1)),
+    golden: Math.random() < 0.04,
+  }));
+}
+
+/**
+ * Regular fights: the monster you bumped into (plus any friends hiding with it), or a random ambush from the grass.
+ * No wipe or countdown: the camera swoops in on you, whites out, and the arena swoops in from there.
+ */
+function startFieldBattle(r: Roamer | null, ambush: boolean) {
+  const zone = r ? zoneById(r.zone) : over.currentZone;
+  const foes: Foe[] = r
+    ? [{ kind: r.kind, lv: r.lv, golden: r.golden }, ...rollFoes(zone).slice(0, r.extra).map((f) => ({ ...f, golden: false }))]
+    : rollFoes(zone);
+  if (r) over.roamers.remove(r);
   if (chop) {
     chop = null;
     over.chopping = null;
   }
-  const arena = new TileArena(world, over.x, over.y, 6.5);
-  // Somewhere too cramped to fight (a narrow gap between trees): fall back to the classic ring.
-  if (arena.size < 30) return startBattle(zone, foes, false);
   audio.play(ambush ? 'crit' : 'encounter');
   battleFlag = undefined;
-  battle = new Battle({
-    zone, foes, boss: false, arena, ambush,
-    scene: (c, left, top, ts, w, h) => over.drawScene(c, left, top, ts, w, h, false),
-    camera: { x: over.camX, y: over.camY, ts: over.ts, mapW: world.w, mapH: world.h },
-    start: arena.fromTile(over.x, over.y),
-    leader: arena.fromTile(r.x, r.y),
-  }, save, input, audio, onBattleEnd);
-  mode = 'battle';
-  ui.setMode('battle');
+  mode = 'dialog';
   input.reset();
-  coachStep = 0;
-  if (r.golden) ui.toast('✨ A golden monster! Double loot!');
+  swoop = {
+    t: 0, dur: 0.25, dir: 'in',
+    then: () => {
+      battle = new Battle({ zone, foes, boss: false, ambush }, save, input, audio, onBattleEnd);
+      mode = 'battle';
+      ui.setMode('battle');
+      input.reset();
+      coachStep = 0;
+      if (foes.some((f) => f.golden)) ui.toast('✨ A golden monster! Double loot!');
+    },
+  };
 }
+
+/** The overworld half of the zoom into and out of regular fights. */
+let swoop: { t: number; dur: number; dir: 'in' | 'out'; then?: () => void } | null = null;
 
 function startBattle(zone: Zone, foes: Foe[], boss: boolean, flag?: string) {
   audio.play('encounter');
@@ -285,23 +298,21 @@ async function onBattleEnd(o: BattleOutcome) {
   const b = battle!;
   const boss = b.setup.boss;
   mode = 'dialog';
+  // Regular fights swoop straight back out to the map; guardians, the dragon and the prologue keep their fanfare.
+  const quick = !boss && !battleFlag;
   if (o.result === 'run') {
     save.hp = o.hp;
-    if (o.pos) {
-      over.teleport(o.pos.x, o.pos.y);
-      backToWorld();
-    } else transition(() => backToWorld());
+    if (quick) swoopOut();
+    else transition(() => backToWorld());
     return;
   }
-  if (o.result === 'win' && o.pos) {
-    // A fight on the map: rewards pop up as a toast and you're straight back to walking where you stood.
+  if (o.result === 'win' && quick) {
     save.hp = o.hp;
     save.wins++;
     const levels = gainXp(save, o.xp);
     mergeDrops(save.mats, o.drops);
     recordKills(save, b.setup.zone.id, o.defeated.length);
-    over.teleport(o.pos.x, o.pos.y);
-    backToWorld();
+    swoopOut();
     const loot = Object.entries(o.drops).map(([m, n]) => `${MATS[m as MatId].icon}×${n}`).join(' ');
     ui.toast(`Victory! +${o.xp} XP${loot ? `  ${loot}` : ''}`, 2400);
     if (levels) {
@@ -355,6 +366,12 @@ async function onBattleEnd(o: BattleOutcome) {
       showZoneBanner(over.currentZone);
     });
   }
+}
+
+/** Back to the map from a regular fight: it zooms out from close on you as the white fades. */
+function swoopOut() {
+  backToWorld();
+  swoop = { t: 0, dur: 0.3, dir: 'out' };
 }
 
 function backToWorld() {
@@ -824,7 +841,15 @@ function frame(now: number) {
     }
     if (trans.t >= trans.dur) trans = null;
   }
-  const busy = !!trans;
+  if (swoop) {
+    swoop.t += dt;
+    if (swoop.t >= swoop.dur) {
+      const done = swoop;
+      swoop = null;
+      done.then?.();
+    }
+  }
+  const busy = !!trans || !!swoop;
 
   // A fight on the map can end inside update() and hand straight back to the overworld, so hold on to it for this frame.
   const b = battle;
@@ -888,7 +913,14 @@ function frame(now: number) {
     over.keyHints = usingKeyboard();
     ui.dragHint(mode === 'world' && !trans && !save.tips.includes('moved'));
     ui.dock(mode === 'world');
+    const sq = swoop ? (swoop.dir === 'in' ? swoop.t / swoop.dur : 1 - swoop.t / swoop.dur) : 0;
+    const ease = sq * sq * (3 - 2 * sq);
+    over.zoom = 1 + ease;
     over.render(ctx, vw, vh);
+    if (swoop) {
+      ctx.fillStyle = `rgba(255,250,235,${0.75 * ease})`;
+      ctx.fillRect(0, 0, vw, vh);
+    }
     if (mode === 'gather' && chop) {
       const n = NODES[chop.obj.node!];
       const tip = save.tips.includes('chopped') ? 'Walk away to stop' : usingKeyboard() ? 'Press E or Space in the green!' : 'Tap when the marker is in the green!';
@@ -938,6 +970,11 @@ requestAnimationFrame(frame);
   get battle() { return battle; },
   get over() { return over; },
   get chop() { return chop; },
+  /** A regular grass encounter right here (or in `zone`). */
+  encounter(zone?: ZoneId) {
+    if (zone) { const p = world.entryPoint(zone); over.teleport(p.x, p.y); }
+    startFieldBattle(null, false);
+  },
   fight(kind: Foe['kind'] = 'slime', lv = 1, n = 1) {
     startBattle(over.currentZone.monsters.length ? over.currentZone : zoneById('meadow'), Array.from({ length: n }, () => ({ kind, lv, golden: false })), !!MONSTERS[kind].boss);
   },

@@ -94,13 +94,13 @@ guides you through a chain of chapters, and the current goal is always shown in 
 | 🐉 Dragon Lair | 20 | Emberwyrm (boss) | Dragon Scale |
 
 - **Monsters in the grass**: you can see them wandering the tall grass (a ×2/×3 badge means friends are hiding
-  nearby; ✨ golden ones drop double loot). Get close and one spots you ("!") and gives chase, but you're faster.
-  Touch one and the fight starts right there; tap Attack next to one that hasn't seen you for a surprise attack
-  (they start dazed).
-- **Battles on the map**: no loading screen or countdown. The camera zooms in on the spot, friends pop out of the
-  grass, and you fight on the real ground around you (trees and water are walls and block shots). Win and it zooms
-  back out with a toast and you keep walking from where you ended up. Guardians and the dragon still get the classic
-  stone ring. Drag to move; ⚔️ attack auto-aims at the nearest enemy (hold to
+  with it; ✨ golden ones drop double loot). Get close and one spots you ("!") and gives chase, but you're faster.
+  Touch one to fight it; tap Attack next to one that hasn't seen you for a surprise attack (they start dazed). Tall
+  grass is never quite safe either: unseen monsters can still ambush you as you wade through it.
+- **Battles**: no wipe or countdown. The camera swoops in on you, and you land in a clearing dressed in the area's
+  scenery (meadow trees and butterflies, woods pines and falling leaves, cave crystals, peak boulders and embers).
+  Win and it swoops back out with a toast for XP and loot. Guardians and the dragon fight inside an old stone ring
+  with their full fanfare. Drag to move; ⚔️ attack auto-aims at the nearest enemy (hold to
   keep swinging); 💨 dodge gives brief invincibility; ✨ uses your weapon's skill; 🧪 drinks a potion.
   Enemies telegraph attacks — shaking/glowing before a charge, red circles before a slam.
 - **Weapons play differently** — each type has its own combo, animation and hitbox (hitboxes sweep with the weapon,
@@ -154,8 +154,8 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
 
 - `src/main.ts` — game loop, mode switching, glue
 - `src/overworld.ts` / `src/world.ts` — map generation, collisions, grass encounters, tile rendering
-- `src/battle.ts` — combat, enemy AI, projectiles, hazards, shockwaves, the zoom into fights on the map
-- `src/arena.ts` — where a fight happens: the open ground around you (TileArena) or the boss ring (RingArena)
+- `src/battle.ts` — arena combat, enemy AI, projectiles, hazards, shockwaves, themed arenas and the swoop in/out
+- `src/arena.ts` — the oval arena's shape and edge collisions
 - `src/roamers.ts` — monsters wandering the grass: noticing, chasing, surprise attacks
 - `src/weapons.ts` — per-weapon-type movesets (combo timings, hitbox shapes, animations)
 - `src/assets.ts` — sprite atlas loading and drawing

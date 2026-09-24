@@ -12,10 +12,13 @@ import type { SaveState } from './state';
 import { hash2, T, type World, type WorldObj } from './world';
 
 const TAU = Math.PI * 2;
+/** Chance per tile walked in tall grass of being ambushed by monsters you didn't see. */
+const ENCOUNTER_CHANCE = 0.06;
 /** Map tiles are 1.6 Blender units wide. */
 const TILE_BU = 1.6;
 
-export type WorldEvent = { type: 'encounter'; roamer: Roamer } | { type: 'zone'; zone: Zone } | null;
+/** `roamer` is the monster that caught you, or null for an ambush from the grass. */
+export type WorldEvent = { type: 'encounter'; roamer: Roamer | null } | { type: 'zone'; zone: Zone } | null;
 
 export class Overworld {
   x: number;
@@ -26,8 +29,9 @@ export class Overworld {
   alert = 0;
   private zone: Zone;
   readonly roamers: Roamers;
-  /** Scene-only drawing (behind a fight): no new particles, so nothing is left floating at the wrong zoom. */
-  private quiet = false;
+  private stepAcc = 0;
+  /** Camera zoom (above 1 while swooping into or out of a fight). */
+  zoom = 1;
   private fx = new Fx();
   ts = 40;
   /** Current goal's location in tiles; drawn as a bouncing waypoint arrow. */
@@ -156,8 +160,19 @@ export class Overworld {
     }
 
     const onGrass = this.world.tile(Math.floor(this.x), Math.floor(this.y - 0.1)) === T.GRASS;
-    if (onGrass && moved > 0 && Math.random() < 0.25) {
-      this.fx.burst(this.x * this.ts, (this.y - 0.1) * this.ts, this.zone.theme.grassTip, 2, this.ts * 1.5, { size: this.ts * 0.06, life: 0.4 });
+    if (onGrass && moved > 0) {
+      if (Math.random() < 0.25) this.fx.burst(this.x * this.ts, (this.y - 0.1) * this.ts, this.zone.theme.grassTip, 2, this.ts * 1.5, { size: this.ts * 0.06, life: 0.4 });
+      // Tall grass is never quite safe: something you didn't see can jump out.
+      this.stepAcc += moved;
+      while (this.stepAcc >= 1) {
+        this.stepAcc -= 1;
+        if (this.roamers.calm <= 0 && this.zone.monsters.length && Math.random() < ENCOUNTER_CHANCE) {
+          this.alert = 0.4;
+          this.moving = false;
+          this.stepAcc = 0;
+          return { type: 'encounter', roamer: null };
+        }
+      }
     }
     return ev;
   }
@@ -168,7 +183,7 @@ export class Overworld {
   }
 
   render(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
-    const ts = (this.ts = Overworld.tileSize(vw, vh));
+    const ts = (this.ts = Math.round(Overworld.tileSize(vw, vh) * this.zoom));
     const W = this.world;
     const mapW = W.w * ts, mapH = W.h * ts;
     let camX = this.camX * ts - vw / 2;
@@ -177,7 +192,7 @@ export class Overworld {
     camY = mapH <= vh ? (mapH - vh) / 2 : Math.max(0, Math.min(mapH - vh, camY));
     camX = Math.round(camX);
     camY = Math.round(camY);
-    this.drawScene(ctx, camX / ts, camY / ts, ts, vw, vh, true);
+    this.drawScene(ctx, camX / ts, camY / ts, ts, vw, vh);
 
     ctx.save();
     ctx.translate(-camX, -camY);
@@ -201,14 +216,10 @@ export class Overworld {
     ctx.restore();
   }
 
-  /**
-   * The map itself: ground, scenery, buildings, monsters and (unless a fight is drawing its own) the hero.
-   * `left`/`top` are the camera's top-left corner in tiles.
-   */
-  drawScene(ctx: CanvasRenderingContext2D, left: number, top: number, ts: number, vw: number, vh: number, live: boolean) {
+  /** The map itself: ground, scenery, buildings, monsters and the hero. `left`/`top` are the camera's corner in tiles. */
+  private drawScene(ctx: CanvasRenderingContext2D, left: number, top: number, ts: number, vw: number, vh: number) {
     const W = this.world;
     const camX = Math.round(left * ts), camY = Math.round(top * ts);
-    this.quiet = !live;
     ctx.fillStyle = this.zone.theme.outside;
     ctx.fillRect(0, 0, vw, vh);
     ctx.save();
@@ -248,12 +259,11 @@ export class Overworld {
       if (r.x < x0 - 2 || r.x > x1 + 2) continue;
       items.push({ y: r.y, draw: () => this.drawRoamer(ctx, r, ts) });
     }
-    if (live) items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
+    items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
-    if (live) this.fx.draw(ctx);
+    this.fx.draw(ctx);
     ctx.restore();
-    this.quiet = false;
   }
 
   /** A monster out in the grass: hops about, shows "!" when it spots you, and a badge if friends are hiding with it. */
@@ -266,7 +276,7 @@ export class Overworld {
     const f = frame(`mon/${r.kind}${r.golden ? '_gold' : ''}/${Math.floor(this.t * 7 + r.seed) % 6}`);
     // Same size relative to the hero as in battle.
     if (f) drawFrame(ctx, f, px, py - lift, ts * 0.74 * (SPRITE_SCALE[r.kind] ?? 1), { flip: r.face < 0 });
-    if (r.golden && Math.random() < 0.1) this.burst(px + (Math.random() - 0.5) * ts * 0.6, py - Math.random() * ts * 0.8, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.6 });
+    if (r.golden && Math.random() < 0.1) this.fx.burst(px + (Math.random() - 0.5) * ts * 0.6, py - Math.random() * ts * 0.8, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.6 });
     // Tall grass hides their feet, like yours.
     if (this.world.tile(Math.floor(r.x), Math.floor(r.y - 0.1)) === T.GRASS && !flying) {
       ctx.fillStyle = zoneAtX(Math.floor(r.x)).theme.grass;
@@ -308,9 +318,6 @@ export class Overworld {
     }
   }
 
-  private burst(...args: Parameters<Fx['burst']>) {
-    if (!this.quiet) this.fx.burst(...args);
-  }
 
   /** A golden arrow over the goal, or pinned to the screen edge pointing toward it when it's off-screen. */
   private drawObjective(ctx: CanvasRenderingContext2D, camX: number, camY: number, vw: number, vh: number, ts: number) {
@@ -441,7 +448,7 @@ export class Overworld {
     }
     // A glint now and then marks trees you can chop; golden ones out in the grass hide rarer finds.
     if (ready && Math.random() < 0.04) {
-      this.burst(cx + (Math.random() - 0.5) * ts * 0.8, by - ts * (0.6 + Math.random() * 0.8), o.grass ? '#ffd35a' : '#ffffff', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.8 });
+      this.fx.burst(cx + (Math.random() - 0.5) * ts * 0.8, by - ts * (0.6 + Math.random() * 0.8), o.grass ? '#ffd35a' : '#ffffff', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.8 });
     }
   }
 
@@ -782,7 +789,7 @@ export class Overworld {
       ctx.restore();
       // Stuck in the ground, blade down, gently wobbling.
       if (f) drawFrame(ctx, f, ax + ts * 0.05, ay - ts * 0.75, ts / TILE_BU * 1.2, { rot: Math.PI / 2 + 0.2 + Math.sin(this.t * 2) * 0.04 });
-      if (Math.random() < 0.12) this.burst(ax + (Math.random() - 0.5) * ts * 0.5, ay - Math.random() * ts, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.6, life: 0.8 });
+      if (Math.random() < 0.12) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.5, ay - Math.random() * ts, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.6, life: 0.8 });
       return;
     }
     if (o.kind === 'node') {
@@ -833,7 +840,7 @@ export class Overworld {
       const top = ay - sprite.ay * (unit / sprite.ppu);
       if (o.kind === 'forge') {
         const lit = lv('forge') > 0;
-        if (lit && Math.random() < 0.08) this.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
+        if (lit && Math.random() < 0.08) this.fx.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
         labelAt(lit ? '⚒ Forge' : '⚒ Old Forge', top);
       } else if (o.kind === 'fountain') {
         for (let i = 0; i < 3; i++) {
@@ -845,7 +852,7 @@ export class Overworld {
         }
         labelAt('💧 Fountain', top);
       } else if (o.kind === 'camp') {
-        if (Math.random() < 0.3) this.burst(ax + (Math.random() - 0.5) * ts * 0.3, ay - ts * 0.35, Math.random() < 0.5 ? '#ffb03a' : '#ff7a2a', 1, ts * 0.4, { size: ts * 0.06, grav: -ts * 1.5, life: 0.7 });
+        if (Math.random() < 0.3) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.3, ay - ts * 0.35, Math.random() < 0.5 ? '#ffb03a' : '#ff7a2a', 1, ts * 0.4, { size: ts * 0.06, grav: -ts * 1.5, life: 0.7 });
       } else if (o.kind === 'plot') {
         const p = o.project!;
         const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Warp Stone' } as Record<string, string>)[p] ?? '';
@@ -887,7 +894,7 @@ export class Overworld {
         if (forge) {
           ctx.fillStyle = '#8a8090';
           ctx.fillRect(x + w - ts * 0.9, y - h * 0.15, ts * 0.4, ts * 0.8);
-          if (Math.random() < 0.08) this.burst(x + w - ts * 0.7, y - h * 0.2, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
+          if (Math.random() < 0.08) this.fx.burst(x + w - ts * 0.7, y - h * 0.2, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
           // Anvil
           ctx.fillStyle = '#5a5a6a';
           rrect(ctx, x + w - ts * 0.95, y + h - ts * 0.45, ts * 0.6, ts * 0.22, ts * 0.06);
