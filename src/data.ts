@@ -53,11 +53,11 @@ export interface MonsterDef {
 
 export const MONSTERS: Record<MonsterKind, MonsterDef> = {
   slime: {
-    name: 'Slime', lv: 1, hp: 14, atk: 5, def: 0, spd: 70, r: 14, xp: 5,
+    name: 'Slime', lv: 1, hp: 20, atk: 5, def: 0, spd: 70, r: 14, xp: 5,
     drops: [{ mat: 'goo', chance: 0.9, min: 1, max: 2 }, { mat: 'clover', chance: 0.08, min: 1, max: 1 }],
   },
   bunny: {
-    name: 'Hopbun', lv: 2, hp: 18, atk: 6, def: 1, spd: 80, r: 13, xp: 7,
+    name: 'Hopbun', lv: 2, hp: 20, atk: 6, def: 1, spd: 80, r: 13, xp: 7,
     drops: [{ mat: 'fluff', chance: 0.85, min: 1, max: 2 }, { mat: 'clover', chance: 0.1, min: 1, max: 1 }],
   },
   shroom: {
@@ -73,19 +73,19 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
     drops: [{ mat: 'wing', chance: 0.8, min: 1, max: 2 }, { mat: 'crystal', chance: 0.3, min: 1, max: 1 }],
   },
   golem: {
-    name: 'Pebblor', lv: 11, hp: 120, atk: 22, def: 12, spd: 38, r: 22, xp: 48,
+    name: 'Pebblor', lv: 11, hp: 90, atk: 22, def: 12, spd: 38, r: 22, xp: 48,
     drops: [{ mat: 'crystal', chance: 0.85, min: 1, max: 3 }, { mat: 'core', chance: 0.25, min: 1, max: 1 }],
   },
   imp: {
-    name: 'Impy', lv: 14, hp: 88, atk: 26, def: 10, spd: 90, r: 14, xp: 58,
+    name: 'Impy', lv: 14, hp: 88, atk: 30, def: 10, spd: 90, r: 14, xp: 58,
     drops: [{ mat: 'ember', chance: 0.8, min: 1, max: 2 }, { mat: 'horn', chance: 0.45, min: 1, max: 1 }],
   },
   magma: {
-    name: 'Magma Slime', lv: 15, hp: 120, atk: 28, def: 14, spd: 80, r: 16, xp: 62,
+    name: 'Magma Slime', lv: 15, hp: 120, atk: 34, def: 14, spd: 80, r: 16, xp: 62,
     drops: [{ mat: 'ember', chance: 0.9, min: 1, max: 3 }, { mat: 'core', chance: 0.1, min: 1, max: 1 }],
   },
   dragon: {
-    name: 'Emberwyrm', lv: 20, hp: 1100, atk: 38, def: 18, spd: 70, r: 44, xp: 600, boss: true, title: 'Dragon of Ember Peak',
+    name: 'Emberwyrm', lv: 20, hp: 2000, atk: 46, def: 18, spd: 70, r: 44, xp: 600, boss: true, title: 'Dragon of Ember Peak',
     drops: [{ mat: 'scale', chance: 1, min: 3, max: 4 }, { mat: 'ember', chance: 1, min: 3, max: 5 }],
   },
   kingslime: {
@@ -93,11 +93,11 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
     drops: [{ mat: 'royaljelly', chance: 1, min: 2, max: 2 }, { mat: 'goo', chance: 1, min: 4, max: 6 }],
   },
   alphawolf: {
-    name: 'Alpha Woolf', lv: 9, hp: 460, atk: 17, def: 6, spd: 110, r: 26, xp: 260, boss: true, title: 'Guardian of the Cave Road',
+    name: 'Alpha Woolf', lv: 9, hp: 560, atk: 17, def: 6, spd: 110, r: 26, xp: 260, boss: true, title: 'Guardian of the Cave Road',
     drops: [{ mat: 'alphapelt', chance: 1, min: 2, max: 2 }, { mat: 'fang', chance: 1, min: 3, max: 5 }],
   },
   crystalking: {
-    name: 'Crystal King', lv: 14, hp: 820, atk: 27, def: 14, spd: 45, r: 38, xp: 520, boss: true, title: 'Guardian of the Peak Road',
+    name: 'Crystal King', lv: 14, hp: 820, atk: 31, def: 14, spd: 45, r: 38, xp: 520, boss: true, title: 'Guardian of the Peak Road',
     drops: [{ mat: 'kingcrystal', chance: 1, min: 2, max: 2 }, { mat: 'crystal', chance: 1, min: 4, max: 6 }, { mat: 'core', chance: 1, min: 1, max: 1 }],
   },
 };

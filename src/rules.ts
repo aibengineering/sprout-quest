@@ -15,7 +15,8 @@ export interface PlayerStats {
 }
 
 export function xpToNext(lv: number): number {
-  return Math.floor(10 * Math.pow(lv, 1.6));
+  // The flat 20 slows the first few levels (the meadow used to level you every other kill) without touching late ones.
+  return Math.floor(20 + 10 * Math.pow(lv, 1.6));
 }
 
 export function playerStats(s: SaveState): PlayerStats {
