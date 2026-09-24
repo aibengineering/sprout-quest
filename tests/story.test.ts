@@ -48,7 +48,7 @@ describe('village', () => {
   test('building spends materials, levels up and grants perks', () => {
     const s = newState();
     expect(canBuild(s, 'home')).toBe('missing');
-    Object.assign(s.mats, { goo: 20, fluff: 20, clover: 5, royaljelly: 1, fang: 10 });
+    Object.assign(s.mats, { goo: 20, fluff: 20, bark: 20, clover: 5, royaljelly: 1, fang: 10 });
     const hp = playerStats(s).maxHp, atk = playerStats(s).atk;
     expect(build(s, 'home')).toBe('ok');
     expect(s.build.home).toBe(2);
@@ -74,8 +74,11 @@ describe('village', () => {
   });
 
   test('every construction cost is obtainable', () => {
-    const { MONSTERS } = require('../src/data');
-    const droppable = new Set(Object.values(MONSTERS as Record<string, { drops: { mat: string }[] }>).flatMap((m) => m.drops.map((d) => d.mat)));
+    const { MONSTERS, NODES } = require('../src/data');
+    const droppable = new Set([
+      ...Object.values(MONSTERS as Record<string, { drops: { mat: string }[] }>).flatMap((m) => m.drops.map((d) => d.mat)),
+      ...Object.values(NODES as Record<string, { mat: string }>).map((n) => n.mat),
+    ]);
     for (const p of Object.values(PROJECTS)) for (const l of p.levels) for (const m of Object.keys(l.cost)) expect(droppable.has(m)).toBe(true);
     void GEAR;
   });

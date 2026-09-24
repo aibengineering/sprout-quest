@@ -1,5 +1,5 @@
 // Overworld map generation and collision. Coordinates are in tiles.
-import { WORLD_H, WORLD_W, ZONES, zoneAtX, type MonsterKind, type ProjectId, type Zone, type ZoneId } from './data';
+import { NODE_SPAWNS, WORLD_H, WORLD_W, ZONES, zoneAtX, zoneById, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
 
 export const T = {
   GROUND: 0,
@@ -10,7 +10,7 @@ export const T = {
   DECOR: 5,
 } as const;
 
-export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe';
+export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -30,6 +30,10 @@ export interface WorldObj {
   /** Story flag set when this scripted object is resolved (sword picked up, prologue foe beaten). */
   flag?: string;
   monster?: MonsterKind;
+  /** Gathering node: which tree, its stable id (for regrowth timers) and whether it stands in tall grass. */
+  node?: NodeKind;
+  id?: string;
+  grass?: boolean;
 }
 
 export function hash2(x: number, y: number, seed: number): number {
@@ -136,7 +140,7 @@ export class World {
         this.set(x, y, t);
       }
     }
-    this.placeObjects();
+    this.placeObjects(seed);
   }
 
   /** A small sunny clearing ringed by trees, with a narrow forest path leading east. */
@@ -154,7 +158,7 @@ export class World {
     return T.GROUND;
   }
 
-  private placeObjects() {
+  private placeObjects(seed: number) {
     const add = (o: WorldObj, clear = true) => {
       this.objs.push(o);
       if (!clear) return;
@@ -197,6 +201,81 @@ export class World {
     }
     const lx = this.w - 5;
     add({ kind: 'lair', x: lx, y: pathY(lx) - 1.5, w: 3, h: 2, label: 'Enter', text: "Emberwyrm's Lair" });
+    this.placeTrees(seed);
+  }
+
+  /**
+   * Choppable trees. Safe ones stand on open ground a couple of tiles off the path; grass ones stand deep in
+   * tall-grass patches you can actually walk to, so reaching them means risking encounters.
+   */
+  private placeTrees(seed: number) {
+    const reach = this.reachable();
+    for (const [zid, spawns] of Object.entries(NODE_SPAWNS) as [ZoneId, { kind: NodeKind; safe: number; grass: number }[]][]) {
+      const z = zoneById(zid);
+      const tree = (kind: NodeKind, tx: number, ty: number, grass: boolean, i: number) =>
+        this.objs.push({ kind: 'node', node: kind, id: `${zid}:${kind}:${grass ? 'g' : 's'}${i}`, grass, x: tx + 0.1, y: ty + 0.35, w: 0.8, h: 0.6, label: 'Chop', text: kind });
+
+      // Safe trees: evenly spaced along the zone, alternating above and below the path, grass cleared around them.
+      const safe = spawns.flatMap((sp) => Array.from({ length: sp.safe }, (_, i) => ({ kind: sp.kind, i })));
+      const span = z.w - 12;
+      safe.forEach(({ kind, i }, k) => {
+        const tx = z.x0 + 8 + Math.round(((k + 0.5) * span) / safe.length);
+        const up = hash2(tx, k, seed + 41) < 0.5;
+        const py = pathY(tx);
+        const ty = up ? py - 2 : py + 3;
+        for (let y = ty - 1; y <= ty + 1; y++) for (let x = tx - 1; x <= tx + 1; x++) if (this.tile(x, y) !== T.PATH) this.set(x, y, T.GROUND);
+        this.set(tx, up ? py - 1 : py + 2, T.GROUND);
+        tree(kind, tx, ty, false, i);
+      });
+
+      // Grass trees: tiles surrounded by tall grass, well away from the path, spread out.
+      const taken = this.objs.filter((o) => o.kind === 'node').map((o) => ({ x: Math.floor(o.x), y: Math.floor(o.y) }));
+      const spots: { x: number; y: number; h: number }[] = [];
+      for (let y = 3; y < this.h - 3; y++)
+        for (let x = z.x0 + 4; x < z.x0 + z.w - 2; x++) {
+          if (this.tile(x, y) !== T.GRASS || !reach[y * this.w + x] || Math.abs(y - pathY(x)) < 3) continue;
+          let grassy = 0, solid = 0;
+          for (let dy = -1; dy <= 1; dy++)
+            for (let dx = -1; dx <= 1; dx++) {
+              const t = this.tile(x + dx, y + dy);
+              if (t === T.GRASS) grassy++;
+              if (t === T.OBST || t === T.POOL) solid++;
+            }
+          // Deep in the grass, and never plugging a gap between obstacles.
+          if (grassy >= 6 && solid === 0) spots.push({ x, y, h: hash2(x, y, seed + 43) });
+        }
+      spots.sort((a, b) => a.h - b.h);
+      for (const sp of spawns) {
+        for (let i = 0; i < sp.grass; i++) {
+          const at = spots.find((c) => taken.every((t) => Math.hypot(t.x - c.x, t.y - c.y) >= 4));
+          if (!at) break;
+          taken.push(at);
+          tree(sp.kind, at.x, at.y, true, i);
+        }
+      }
+    }
+  }
+
+  /** Tiles you can walk to from the village (guardian gates count as open). */
+  reachable(): Uint8Array {
+    const seen = new Uint8Array(this.w * this.h);
+    const start = this.entryPoint('village');
+    const q = [Math.floor(start.y) * this.w + Math.floor(start.x)];
+    seen[q[0]] = 1;
+    while (q.length) {
+      const i = q.pop()!;
+      const x = i % this.w, y = (i - x) / this.w;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy, j = ny * this.w + nx;
+        if (nx < 0 || ny < 0 || nx >= this.w || ny >= this.h || seen[j]) continue;
+        const t = this.tile(nx, ny);
+        if (t === T.OBST || t === T.POOL) continue;
+        if (this.objs.some((o) => o.kind !== 'gate' && o.kind !== 'node' && nx + 0.5 >= o.x && nx + 0.5 < o.x + o.w && ny + 0.5 >= o.y && ny + 0.5 < o.y + o.h)) continue;
+        seen[j] = 1;
+        q.push(j);
+      }
+    }
+    return seen;
   }
 
   solidAt(x: number, y: number): boolean {

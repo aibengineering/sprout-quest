@@ -69,7 +69,7 @@ guides you through a chain of chapters, and the current goal is always shown in 
 | Chapter | Goal |
 | --- | --- |
 | Prologue | Wake in the glade → find a sword → beat a slime and a Hopbun → reach the village |
-| 1 | Gather materials in the meadow → repair the Forge → craft gear → build a Cottage |
+| 1 | Gather materials in the meadow → repair the Forge → craft gear → craft a Stone Axe and chop Oak Logs → build a Cottage |
 | 2 | 👑 **Slime King** (Lv 5) guards Whisper Woods → upgrade the Forge to a Smithy |
 | 3 | 🐺 **Alpha Woolf** (Lv 9) guards Crystal Cave → build the Warp Stone |
 | 4 | 💎 **Crystal King** (Lv 14) guards Ember Peak → upgrade to a Master Forge |
@@ -87,8 +87,8 @@ guides you through a chain of chapters, and the current goal is always shown in 
 | --- | --- | --- | --- |
 | 🌳 Quiet Glade | – | Prologue only | Where your story begins |
 | 🏡 Sprout Village | – | – | Forge, Fountain, Elder Bloom, building plots |
-| 🌼 Sunny Meadow | 1–3 | Slime, Hopbun | Goo, Fluff, Clover |
-| 🌲 Whisper Woods | 4–7 | Sporecap, Woolf | Shroom Cap, Bark, Fang |
+| 🌼 Sunny Meadow | 1–3 | Slime, Hopbun | Goo, Fluff, Clover · 🪵 oaks |
+| 🌲 Whisper Woods | 4–7 | Sporecap, Woolf | Shroom Cap, Fang, Clover · 🪵 oaks, 🌲 pines |
 | 💎 Crystal Cave | 8–12 | Flapper, Pebblor | Bat Wing, Crystal, Golem Core |
 | 🌋 Ember Peak | 13–17 | Impy, Magma Slime | Ember, Imp Horn |
 | 🐉 Dragon Lair | 20 | Emberwyrm (boss) | Dragon Scale |
@@ -111,6 +111,14 @@ guides you through a chain of chapters, and the current goal is always shown in 
 
   Tiers (★ to ★★★★★) extend reach, grow the trails and hit harder. Elements add effects: 🔥 fire burns over
   time, 💎 crystal crits more, 🐉 dragon weapons erupt in dragonfire on every strike.
+- **Woodcutting**: craft an axe at the Forge (Tools tab), then chop trees with a ribbon on them. A marker sweeps
+  along a timing bar: strike in the green to build a streak that speeds it up and hits harder; a miss just resets
+  it, so sloppy chopping is only slower. A flawless chop gives an extra log. Trees on open ground by the path are
+  safe but regrow slowly and give 1 log; trees out in the tall grass give 2, regrow faster and sometimes hide a
+  Lucky Clover, but you risk monsters getting there. Woodcutting levels widen the sweet spot and unlock the Fang
+  Axe (pine) and the gatherer-track gear.
+- **Two gear tracks**: every weapon tier has a hunter option (monster drops only) and a gatherer option (wood, plus a
+  Woodcutting level); ★★★★★ gear needs both. Buildings mostly cost wood.
 - **Crafting**: 13 weapons, 7 armors (each changes how your hero looks), 4 charms and 3 potion recipes at the Forge. The 🗺️ Map lets you warp home
   from anywhere and hop to discovered areas from the village.
 
@@ -147,5 +155,7 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
 - `src/sprites.ts` — procedurally drawn chibi characters and monsters
 - `src/data.ts` — monsters, zones, guardians, gear, recipes, village projects and story chapters (tweak balance here)
 - `src/quests.ts` — story progression logic
-- `src/rules.ts` — pure stat/damage/XP/crafting rules (unit tested)
+- `src/rules.ts` — pure stat/damage/XP/crafting/gathering rules (unit tested)
+- `src/gather.ts` — the chopping timing-bar minigame
+- `src/balance.ts` — balance targets for fights, pacing and the material economy; `bun run balance` prints the table, `tests/balance.test.ts` enforces it
 - `src/ui.ts`, `public/` — DOM HUD, menus, styles

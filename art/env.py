@@ -37,6 +37,42 @@ def pine(seed):
     return root
 
 
+def ribbon(root, z, radius, color='#ff5a7a', bow=None):
+    """A big bow tied around the trunk, facing the camera: marks a tree you can chop. `bow` moves the bow itself
+    (e.g. onto a pine's skirt, where the trunk is hidden)."""
+    torus((0, 0, z), radius, 0.04, toon(color), root, seg=24)
+    y, bz = bow if bow else (-radius - 0.03, z)
+    for sx in (-1, 1):
+        sphere((sx * 0.11, y, bz + 0.05), (0.11, 0.04, 0.075), toon(color), root, seg=14, rot=(0, sx * 0.45, 0), line=0.014)
+        cylinder((sx * 0.06, y, bz - 0.12), 0.03, 0.2, toon(color), root, seg=8, rot=(0, sx * 0.4, 0), line=0.012)
+    sphere((0, y - 0.01, bz + 0.02), 0.05, toon('#ffd35a'), root, seg=12, line=0.012)
+
+
+def oak_node():
+    root = tree(1)
+    ribbon(root, 0.3, 0.15)
+    return root
+
+
+def pine_node():
+    root = pine(0)
+    ribbon(root, 0.2, 0.125, '#ff5a7a', bow=(-0.5, 0.52))
+    return root
+
+
+def stump(bark, heart):
+    root = empty('stump')
+    cylinder((0, 0, 0.11), 0.2, 0.22, toon(bark), root, seg=16, r2=0.17)
+    cylinder((0, 0, 0.225), 0.165, 0.02, toon(heart), root, seg=16, line=0.012)
+    torus((0, 0, 0.237), 0.09, 0.012, toon('#c8a070'), root, seg=20, line=0)
+    for a in (0.4, 2.3, 4.2):
+        cylinder((math.cos(a) * 0.2, math.sin(a) * 0.2, 0.04), 0.05, 0.18, toon(bark), root, seg=8, rot=(math.pi / 2, 0, a + math.pi / 2), line=0.014)
+    # A little sprout: it's growing back.
+    cylinder((0.06, -0.05, 0.3), 0.012, 0.12, toon('#4fae4f'), root, seg=6, line=0.008)
+    sphere((0.1, -0.05, 0.36), (0.06, 0.03, 0.035), toon('#62c060'), root, seg=10, rot=(0, -0.5, 0), line=0.01)
+    return root
+
+
 def crystals(seed):
     r = random.Random(seed)
     root = empty('crystals')
@@ -376,6 +412,10 @@ for i in range(3):
     SCENERY[f'pine{i}'] = (lambda i=i: pine(i), 130, 200)
     SCENERY[f'crystal{i}'] = (lambda i=i: crystals(i), 130, 150)
     SCENERY[f'rock{i}'] = (lambda i=i: rock(i), 130, 110)
+SCENERY['oak_node'] = (oak_node, 150, 190)
+SCENERY['pine_node'] = (pine_node, 130, 200)
+SCENERY['oak_stump'] = (lambda: stump('#9a6a44', '#e8c890'), 80, 70)
+SCENERY['pine_stump'] = (lambda: stump('#7a5238', '#f0dca0'), 80, 70)
 SCENERY['forge0'] = (forge_ruins, 480, 380)
 SCENERY['forge'] = (forge, 480, 420)
 SCENERY['forge2'] = (lambda: forge(2), 520, 420)

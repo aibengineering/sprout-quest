@@ -1,11 +1,11 @@
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
 import {
-  GEAR, GEAR_ORDER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, ZONES,
-  forgeLevelFor, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
+  GEAR, GEAR_ORDER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
+  TOOLS, ZONES, forgeLevelFor, type SkillId, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
 } from './data';
 import { currentQuest, progress } from './quests';
-import { canBuild, hasMats, playerStats, xpToNext } from './rules';
+import { canBuild, hasMats, playerStats, skillXpToNext, xpToNext } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
 import { usingKeyboard } from './input';
@@ -23,6 +23,7 @@ export interface MenuCtx {
 export interface UIHooks {
   save(): SaveState;
   craftGear(id: string): void;
+  craftTool(id: string): void;
   craftPotion(id: string): void;
   equip(id: string): void;
   build(id: ProjectId): void;
@@ -536,7 +537,23 @@ export class UI {
       <div class="mcard row"><div class="ico">🧪</div><div class="info"><div class="name">${s.potions}/${MAX_POTIONS} potions</div>
         <div class="desc">Heals ${Math.round(POTION_HEAL * 100)}% HP. Free refills at the village fountain.</div></div>
         <button class="go" data-do="drink" ${s.potions > 0 && s.hp < st.maxHp ? '' : 'disabled'}>Drink</button></div>
+      ${this.skills(s)}
       <h3>Materials</h3>${mats ? `<div class="grid">${mats}</div>` : '<p class="sub">Defeat monsters to collect materials.</p>'}`;
+  }
+
+  private skills(s: SaveState): string {
+    // Hidden until you own a tool, so new players aren't shown a skill they can't use yet.
+    const rows = (Object.keys(SKILL_NAMES) as SkillId[]).filter((k) => s.tools[k] > 0).map((k) => {
+      const sk = s.skills[k];
+      const tool = TOOLS.filter((t) => t.skill === k && t.tier <= s.tools[k]).pop()!;
+      const max = sk.lv >= SKILL_MAX;
+      const need = skillXpToNext(sk.lv);
+      return `<div class="mcard row"><div class="ico">${icon(tool.id, tool.icon)}</div><div class="info">
+        <div class="name">${SKILL_NAMES[k]} <span class="lvl">Lv ${sk.lv}</span></div>
+        <div class="desc">${esc(tool.name)} · ${max ? 'Mastered!' : `${sk.xp}/${need} XP`}</div>
+        <div class="pbar"><i style="width:${max ? 100 : (100 * sk.xp) / need}%"></i></div></div></div>`;
+    }).join('');
+    return rows ? `<h3>Skills</h3>${rows}` : '';
   }
 
   private forge(s: SaveState): string {
@@ -546,7 +563,21 @@ export class UI {
     const note = at
       ? `<div class="note">⚒ <b>${esc(level.name)}</b> (Lv ${flv}): ${esc(level.perk)}. Upgrade it in the Village tab.</div>`
       : `<div class="note">📍 Visit the ⚒ Forge in Sprout Village to craft. You can plan here.</div>`;
-    const seg = this.seg('forge', [['weapon', 'Weapons'], ['armor', 'Armor'], ['charm', 'Charms'], ['potion', 'Potions']]);
+    const seg = this.seg('forge', [['weapon', 'Weapons'], ['armor', 'Armor'], ['charm', 'Charms'], ['tool', 'Tools'], ['potion', 'Potions']]);
+    if (this.sub.forge === 'tool') {
+      const cards = TOOLS.map((t) => {
+        const owned = s.tools[t.skill] >= t.tier;
+        const locked = s.skills[t.skill].lv < t.level;
+        let action: string;
+        if (owned) action = '<span class="tag">✓ Owned</span>';
+        else if (locked) action = `<span class="tag lock">🔒 ${SKILL_NAMES[t.skill]} ${t.level}</span>`;
+        else action = `<button class="go" data-tool="${t.id}" ${at && hasMats(s, t.recipe) ? '' : 'disabled'}>Craft</button>`;
+        return `<div class="mcard rcp ${locked ? 'locked' : ''} ${owned ? 'owned' : ''}"><div class="ico">${icon(t.id, t.icon, 'icon lg')}</div>
+          <div class="info"><div class="name">${esc(t.name)} <span class="stars">${'★'.repeat(t.tier)}</span></div>
+          <div class="desc">${esc(t.desc)}</div>${owned || locked ? '' : `<div class="chips">${costChips(s, t.recipe)}</div>`}</div>${action}</div>`;
+      }).join('');
+      return `${note}${seg}<p class="sub">Tools are used automatically. Walk up to a tree with a ribbon on it to chop.</p>${cards}`;
+    }
     if (this.sub.forge === 'potion') {
       const cards = POTION_RECIPES.map((p) => {
         const ok = at && hasMats(s, p.recipe) && s.potions < MAX_POTIONS;
@@ -560,10 +591,12 @@ export class UI {
       const g = GEAR[id];
       const owned = s.owned.includes(id);
       const need = forgeLevelFor(g);
-      const locked = flv < need;
+      const skillLocked = !!g.wood && s.skills.wood.lv < g.wood;
+      const locked = flv < need || skillLocked;
       let action: string;
       if (owned) action = s.equip[g.slot] === id ? '<span class="tag">✓ Equipped</span>' : `<button class="go ghost" data-equip="${id}">Equip</button>`;
-      else if (locked) action = `<span class="tag lock">🔒 ${esc(PROJECTS.forge.levels[need - 1].name)}</span>`;
+      else if (flv < need) action = `<span class="tag lock">🔒 ${esc(PROJECTS.forge.levels[need - 1].name)}</span>`;
+      else if (skillLocked) action = `<span class="tag lock">🔒 🪓 ${SKILL_NAMES.wood} ${g.wood}</span>`;
       else action = `<button class="go" data-craft="${id}" ${at && hasMats(s, g.recipe!) ? '' : 'disabled'}>Craft</button>`;
       return `<div class="mcard rcp ${locked ? 'locked' : ''} ${owned ? 'owned' : ''}"><div class="ico">${icon(g.id, g.icon, 'icon lg')}</div>
         <div class="info"><div class="name">${esc(g.name)} ${stars(g)}</div><div class="stats">${gearStats(g)}</div>
@@ -608,6 +641,7 @@ export class UI {
         • <b>Guardians</b> block the roads. Beat them to open the way and light a 🔥 campfire checkpoint.<br>
         • In battle: ⚔️ attack (hold to combo, auto-aims), 💨 dodge, ✨ weapon skill, 🧪 potion. Red circles mean danger!<br>
         • Craft gear at the ⚒ Forge and build up the 🏡 Village for permanent boosts.<br>
+        • Craft an axe (Forge → Tools) and chop ribboned trees: strike when the marker is in the green. Trees out in the grass give more.<br>
         • Keyboard: WASD/arrows, J/Space attack, K dodge, L skill, H potion, E interact, M menu.
       </div>
       <div class="mcard row"><div class="ico">🗑️</div><div class="info"><div class="name">Reset save</div><div class="desc">Start over from scratch.</div></div>
@@ -639,6 +673,7 @@ export class UI {
       return;
     }
     if (d.craft) this.hooks.craftGear(d.craft);
+    else if (d.tool) this.hooks.craftTool(d.tool);
     else if (d.potion) this.hooks.craftPotion(d.potion);
     else if (d.equip) this.hooks.equip(d.equip);
     else if (d.build) this.hooks.build(d.build as ProjectId);
@@ -720,10 +755,10 @@ export class UI {
     return r;
   }
 
-  itemFound(id: string, name: string, text: string) {
+  itemFound(id: string, name: string, text: string, emoji = '🗡️', heading = 'You found') {
     return this.dialog(
-      `<div class="confetti">✨🌟✨</div><div class="qchap">You found</div>
-       <div class="qart big-art">${icon(id, '🗡️', 'icon xxl')}</div>
+      `<div class="confetti">✨🌟✨</div><div class="qchap">${esc(heading)}</div>
+       <div class="qart big-art">${icon(id, emoji, 'icon xxl')}</div>
        <div class="big" style="font-size:28px">${esc(name)}!</div><p>${esc(text)}</p>`,
       [['ok', 'Take it!']],
       'celebrate',

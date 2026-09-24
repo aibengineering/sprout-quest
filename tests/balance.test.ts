@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import { GEAR } from '../src/data';
 import {
-  CHECKPOINTS, KILLS_PER_LEVEL, MAX_DRAGON_FIGHTS, MAX_FARM_KILLS, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, zoneMatchups, type Range,
+  CHECKPOINTS, KILLS_PER_LEVEL, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToWoodLevel,
+  weaponTrack, zoneMatchups, type Range,
 } from '../src/balance';
 
 // Run `bun run balance` to see the whole table while tuning.
@@ -35,11 +37,25 @@ describe('balance', () => {
     }
   }
 
-  test(`every material for every building and gear piece farms in ≤${MAX_FARM_KILLS} kills`, () => {
+  test(`every material for every building, gear piece and tool farms in ≤${MAX_FARM_MINUTES} minutes`, () => {
     const off = farmTable()
-      .filter((f) => f.mat !== 'scale' && f.kills > MAX_FARM_KILLS)
-      .map((f) => `${f.mat}: ${f.kills} kills in ${f.zone ?? 'no zone'}`);
+      .filter((f) => f.mat !== 'scale' && f.minutes > MAX_FARM_MINUTES)
+      .map((f) => `${f.mat}: ${f.minutes.toFixed(1)} min from ${f.source} in ${f.zone ?? 'no zone'}`);
     expect(off).toEqual([]);
+  });
+
+  test('Woodcutting reaches the Fang Axe in ≤8 minutes of chopping and mastery in ≤20', () => {
+    expect(minutesToWoodLevel(5)).toBeLessThanOrEqual(8);
+    expect(minutesToWoodLevel(10)).toBeLessThanOrEqual(20);
+  });
+
+  test('every weapon tier has a hunter and a gatherer option, and the top tier needs both', () => {
+    const weapons = Object.values(GEAR).filter((g) => g.slot === 'weapon' && g.recipe);
+    for (const tier of [1, 2, 3, 4]) {
+      const tracks = new Set(weapons.filter((g) => g.tier === tier).map(weaponTrack));
+      expect({ tier, hunter: tracks.has('hunter'), gatherer: tracks.has('gatherer') }).toEqual({ tier, hunter: true, gatherer: true });
+    }
+    for (const g of weapons.filter((g) => g.tier === 5)) expect(weaponTrack(g)).toBe('both');
   });
 
   test(`every Dragon Scale takes ≤${MAX_DRAGON_FIGHTS} Emberwyrm fights`, () => {

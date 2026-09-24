@@ -1,7 +1,8 @@
 // Balance model: where we expect the player to be at each point in the story, and how fights should feel there.
 // tests/balance.test.ts enforces the targets; `bun run balance` prints the full table while tuning.
-import { GEAR, MONSTERS, PROJECTS, ZONES, type MatId, type MonsterKind, type Recipe, type ZoneId } from './data';
-import { GENTLE_ATK, calcDamage, playerStats, scaleMonster, xpToNext, type PlayerStats } from './rules';
+import { GEAR, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type ZoneId } from './data';
+import { GENTLE_ATK, calcDamage, playerStats, scaleMonster, skillXpToNext, xpToNext, type PlayerStats } from './rules';
+import { World, type WorldObj } from './world';
 import { newState } from './state';
 
 export type Range = [min: number, max: number];
@@ -101,20 +102,33 @@ export function killsPerLevel(c: Checkpoint): number | null {
 
 // ----------------------------------------------------------------------------- material economy
 
-/** Average kills in a material's best zone to farm everything that needs it (every building level and gear recipe). */
-export const MAX_FARM_KILLS = 70;
+/** Everything that needs it (every building level, gear and tool recipe), farmed in its best spot, in ≤ this many minutes. */
+export const MAX_FARM_MINUTES = 14;
 /** Emberwyrm rematches (it levels up each time) to collect every Dragon Scale. */
 export const MAX_DRAGON_FIGHTS = 4;
+
+// Rough real-time costs, so fighting and chopping compare fairly.
+/** One kill, including the walk through grass, the fight and the transitions. */
+export const SECONDS_PER_KILL = 12;
+/** Felling a tree with decent timing. */
+const CHOP_SECONDS = 5;
+/** Walking between trees on open ground. */
+const SAFE_TRIP = 8;
+/** Wading out to a tree in the grass and back, including about half a fight on the way. */
+const GRASS_TRIP = 20;
+/** Share of chops that are flawless (+1 wood). */
+const FLAWLESS = 0.5;
 
 export interface Farm {
   mat: MatId;
   need: number;
   /** Guaranteed from one-time guardian fights along the story. */
   fromGuardians: number;
+  source: 'monsters' | 'trees' | 'bosses';
   zone?: ZoneId;
-  perKill: number;
-  /** Average zone kills to cover what the guardians don't; 0 if the guardians cover it all. */
-  kills: number;
+  perMinute: number;
+  /** Minutes in the best zone to cover what the guardians don't; 0 if the guardians cover it all. */
+  minutes: number;
 }
 
 export function totalDemand(): Partial<Record<MatId, number>> {
@@ -124,6 +138,7 @@ export function totalDemand(): Partial<Record<MatId, number>> {
   };
   for (const p of Object.values(PROJECTS)) p.levels.forEach((l) => add(l.cost));
   for (const g of Object.values(GEAR)) if (g.recipe) add(g.recipe);
+  for (const t of TOOLS) add(t.recipe);
   return out;
 }
 
@@ -139,20 +154,81 @@ export function yieldPerKill(mat: MatId): Partial<Record<ZoneId, number>> {
   return out;
 }
 
+let trees: WorldObj[] | null = null;
+const worldTrees = () => (trees ??= new World().objs.filter((o) => o.kind === 'node'));
+
+/**
+ * Per second, from chopping the zone's trees of one kind: grass trees first (they pay best), then safe ones with the
+ * time left over. Each tree can only be felled once per regrowth. `per` picks what to count (wood, XP…).
+ */
+function chopRate(zone: ZoneId, kind: NodeKind, per: (spot: { yield: number; xp: number }) => number): number {
+  const n = NODES[kind];
+  const here = worldTrees().filter((o) => o.node === kind && zoneAtX(Math.floor(o.x)).id === zone);
+  const g = here.filter((o) => o.grass).length, sf = here.length - g;
+  const gCycle = CHOP_SECONDS + GRASS_TRIP, sCycle = CHOP_SECONDS + SAFE_TRIP;
+  const gChops = Math.min(g / n.grass.regrow, 1 / gCycle);
+  const busy = gChops * gCycle;
+  const sChops = Math.min(sf / n.safe.regrow, (1 - busy) / sCycle);
+  return gChops * per(n.grass) + sChops * per(n.safe);
+}
+
+/** Wood per second from the best zone for each tree material. */
+export function woodPerSecond(mat: MatId): Partial<Record<ZoneId, number>> {
+  const out: Partial<Record<ZoneId, number>> = {};
+  for (const [kind, n] of Object.entries(NODES) as [NodeKind, (typeof NODES)[NodeKind]][]) {
+    if (n.mat !== mat) continue;
+    for (const [zone, spawns] of Object.entries(NODE_SPAWNS) as [ZoneId, { kind: NodeKind }[]][]) {
+      if (spawns.some((sp) => sp.kind === kind)) out[zone] = (out[zone] ?? 0) + chopRate(zone, kind, (sp) => sp.yield + FLAWLESS);
+    }
+  }
+  return out;
+}
+
 export function farmTable(): Farm[] {
   const guardians = ZONES.flatMap((z) => (z.guardian ? [MONSTERS[z.guardian.kind]] : []));
   return Object.entries(totalDemand()).map(([k, need]) => {
     const mat = k as MatId;
     const fromGuardians = guardians.reduce((a, g) => a + g.drops.filter((d) => d.mat === mat && d.chance === 1).reduce((b, d) => b + d.min, 0), 0);
-    const [zone, perKill] = (Object.entries(yieldPerKill(mat)) as [ZoneId, number][]).sort((a, b) => b[1] - a[1])[0] ?? [undefined, 0];
     const rest = Math.max(0, need! - fromGuardians);
-    return { mat, need: need!, fromGuardians, zone, perKill, kills: rest && perKill ? Math.ceil(rest / perKill) : rest ? Infinity : 0 };
+    const best = (rates: Partial<Record<ZoneId, number>>) => (Object.entries(rates) as [ZoneId, number][]).sort((a, b) => b[1] - a[1])[0];
+    const kill = best(yieldPerKill(mat)), wood = best(woodPerSecond(mat));
+    const killPerMin = kill ? (kill[1] * 60) / SECONDS_PER_KILL : 0, woodPerMin = wood ? wood[1] * 60 : 0;
+    const trees = woodPerMin > killPerMin;
+    const perMinute = Math.max(killPerMin, woodPerMin);
+    return {
+      mat, need: need!, fromGuardians,
+      source: perMinute ? (trees ? 'trees' : 'monsters') : 'bosses',
+      zone: trees ? wood?.[0] : kill?.[0],
+      perMinute,
+      minutes: rest ? (perMinute ? rest / perMinute : Infinity) : 0,
+    };
   });
 }
 
 export function dragonFights(): number {
   const scale = MONSTERS.dragon.drops.find((d) => d.mat === 'scale')!;
   return Math.ceil((totalDemand().scale ?? 0) / scale.min);
+}
+
+/** Minutes of chopping to reach a Woodcutting level, always at the best trees your axe (and level) allow. */
+export function minutesToWoodLevel(target: number): number {
+  let secs = 0;
+  for (let lv = 1; lv < Math.min(target, SKILL_MAX + 1); lv++) {
+    // The Fang Axe (pine) needs Woodcutting 5; before that it's oaks.
+    const kinds: NodeKind[] = lv >= TOOLS[1].level ? ['pine', 'oak'] : ['oak'];
+    const xpPerSec = Math.max(...kinds.flatMap((k) => (Object.entries(NODE_SPAWNS) as [ZoneId, { kind: NodeKind }[]][])
+      .filter(([, sp]) => sp.some((x) => x.kind === k)).map(([z]) => chopRate(z, k, (sp) => sp.xp))));
+    secs += skillXpToNext(lv) / xpPerSec;
+  }
+  return secs / 60;
+}
+
+/** Weapon tracks: hunter recipes use only monster drops; gatherer recipes need wood or a Woodcutting level. */
+export function weaponTrack(g: Gear): 'hunter' | 'gatherer' | 'both' {
+  const wood = Object.keys(g.recipe ?? {}).some((m) => Object.values(NODES).some((n) => n.mat === m)) || !!g.wood;
+  const monster = Object.keys(g.recipe ?? {}).some((m) => !Object.values(NODES).some((n) => n.mat === m));
+  if (!wood) return 'hunter';
+  return (g.tier ?? 0) >= 5 && monster ? 'both' : 'gatherer';
 }
 
 const flag = (v: number, [lo, hi]: Range) => (v < lo || v > hi ? `${v}!` : `${v}`);
@@ -176,14 +252,20 @@ export function report(): string {
       out.push(`  ${(b.name + ' (boss)').padEnd(18)} ${String(b.lv).padStart(3)} ${String(b.hp).padStart(5)}  ${flag(b.hitsToKill, c.boss.hitsToKill).padStart(10)}  ${flag(b.hitsToDie, c.boss.hitsToDie).padStart(8)}   targets ${c.boss.hitsToKill.join('–')} / ${c.boss.hitsToDie.join('–')}`);
     }
   }
-  out.push(`\nMaterials for every building and gear piece  (target: ≤${MAX_FARM_KILLS} kills in the best zone)`);
-  out.push(`  ${'material'.padEnd(12)} ${'need'.padStart(4)} ${'boss'.padStart(5)}  ${'best zone'.padEnd(10)} ${'/kill'.padStart(5)}  kills`);
+  out.push(`\nMaterials for every building, gear piece and tool  (target: ≤${MAX_FARM_MINUTES} min in the best spot)`);
+  out.push(`  ${'material'.padEnd(12)} ${'need'.padStart(4)} ${'boss'.padStart(5)}  ${'from'.padEnd(9)} ${'zone'.padEnd(7)} ${'/min'.padStart(5)}  minutes`);
   for (const f of farmTable()) {
     if (f.mat === 'scale') continue;
-    const kills = f.kills === Infinity ? 'none!' : flag(f.kills, [0, MAX_FARM_KILLS]);
-    out.push(`  ${f.mat.padEnd(12)} ${String(f.need).padStart(4)} ${String(f.fromGuardians).padStart(5)}  ${(f.zone ?? '-').padEnd(10)} ${f.perKill.toFixed(2).padStart(5)}  ${kills.padStart(5)}`);
+    const mins = f.minutes === Infinity ? 'none!' : flag(Math.round(f.minutes * 10) / 10, [0, MAX_FARM_MINUTES]);
+    out.push(`  ${f.mat.padEnd(12)} ${String(f.need).padStart(4)} ${String(f.fromGuardians).padStart(5)}  ${f.source.padEnd(9)} ${(f.zone ?? '-').padEnd(7)} ${f.perMinute.toFixed(1).padStart(5)}  ${mins.padStart(7)}`);
   }
   out.push(`  scale: ${totalDemand().scale ?? 0} needed, ${flag(dragonFights(), [0, MAX_DRAGON_FIGHTS])} Emberwyrm fights`);
+  out.push(`\nWoodcutting: Lv 5 (Fang Axe) in ~${minutesToWoodLevel(5).toFixed(1)} min, Lv 10 in ~${minutesToWoodLevel(10).toFixed(1)} min of chopping`);
+  const tiers = [1, 2, 3, 4, 5].map((t) => {
+    const ws = Object.values(GEAR).filter((g) => g.slot === 'weapon' && g.tier === t);
+    return `  ★${t}: ${ws.map((g) => `${g.name} (${weaponTrack(g)})`).join(', ')}`;
+  });
+  out.push(`\nWeapon tracks\n${tiers.join('\n')}`);
   return out.join('\n');
 }
 

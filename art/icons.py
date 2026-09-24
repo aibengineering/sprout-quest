@@ -97,6 +97,28 @@ def bark():
     return r
 
 
+def pine_log():
+    r = empty('i')
+    box((0, 0, 0), (0.7, 0.28, 0.32), toon('#a8703e'), r, bevel=0.1, rot=(0, 0.3, 0))
+    cylinder((0.35, 0, 0.1), 0.17, 0.08, toon('#f0dca0'), r, rot=(0, math.pi / 2 + 0.3, 0), seg=20)
+    for x, a in ((-0.1, -0.5), (0.02, 0.1)):
+        cone((x, -0.1, 0.24), 0.07, 0.2, toon('#2f7a45'), r, seg=8, rot=(0.2, a, 0), line=0.012)
+    return r
+
+
+def axe(blade, points, lash='#e8d8a0'):
+    """Handle along X with the blade rising from its far end; tilted diagonally like the weapon icons."""
+    r = empty('i')
+    cylinder((0, 0, 0), 0.05, 1.0, toon('#b98a5a'), r, seg=10, rot=(0, math.pi / 2, 0))
+    profile(points, 0.09, toon(blade, rim=0.35), r, bevel=0.02)
+    box((0.39, 0, -0.04), (0.16, 0.1, 0.1), toon(blade), r, bevel=0.03)
+    torus((0.28, 0, 0), 0.06, 0.02, toon(lash), r, rot=(0, math.pi / 2, 0), line=0.01)
+    r.rotation_euler = (0, -math.pi / 4, 0)
+    r.scale = (0.85, 0.85, 0.85)
+    r.location = (0.02, 0, -0.14)
+    return r
+
+
 def fang():
     r = empty('i')
     profile([(-0.12, 0.4), (0.12, 0.4), (0.14, 0.1), (0.05, -0.2), (-0.1, -0.45), (-0.08, -0.1), (-0.14, 0.15)], 0.16, toon('#f4eee0'), r, bevel=0.05)
@@ -178,7 +200,11 @@ def kingcrystal():
 
 CHARMS = {'clovercharm': clovercharm, 'toothcharm': toothcharm, 'crystalheart': crystalheart, 'impring': impring}
 MATERIALS = {
-    'goo': goo, 'fluff': fluff, 'clover': clover, 'cap': cap, 'bark': bark, 'fang': fang, 'wing': wing,
+    'goo': goo, 'fluff': fluff, 'clover': clover, 'cap': cap, 'bark': bark, 'pine': pine_log, 'fang': fang, 'wing': wing,
     'crystal': crystal_mat, 'core': core, 'ember': ember, 'horn': horn, 'scale': scale,
     'royaljelly': royaljelly, 'alphapelt': alphapelt, 'kingcrystal': kingcrystal,
+}
+TOOLS = {
+    'axe1': lambda: axe('#9aa0b0', [(0.32, 0.03), (0.46, 0.03), (0.56, 0.3), (0.48, 0.37), (0.4, 0.38), (0.32, 0.37), (0.24, 0.3)]),
+    'axe2': lambda: axe('#fff0e0', [(0.32, 0.03), (0.46, 0.03), (0.58, 0.22), (0.66, 0.46), (0.52, 0.36), (0.38, 0.32), (0.26, 0.26)], '#e8505a'),
 }

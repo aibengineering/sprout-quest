@@ -2,7 +2,7 @@
 
 export type MatId =
   | 'goo' | 'fluff' | 'clover'
-  | 'cap' | 'bark' | 'fang'
+  | 'cap' | 'bark' | 'pine' | 'fang'
   | 'wing' | 'crystal' | 'core'
   | 'ember' | 'horn' | 'scale'
   | 'royaljelly' | 'alphapelt' | 'kingcrystal';
@@ -14,7 +14,8 @@ export const MATS: Record<MatId, { name: string; icon: string; where: string }> 
   fluff: { name: 'Bunny Fluff', icon: '☁️', where: 'Hopbuns · Meadow' },
   clover: { name: 'Lucky Clover', icon: '🍀', where: 'Rare · Meadow & Woods' },
   cap: { name: 'Shroom Cap', icon: '🍄', where: 'Sporecaps · Woods' },
-  bark: { name: 'Oak Bark', icon: '🪵', where: 'Woods' },
+  bark: { name: 'Oak Log', icon: '🪵', where: 'Oak trees · Stone Axe' },
+  pine: { name: 'Pine Log', icon: '🌲', where: 'Pine trees · Woods · Fang Axe' },
   fang: { name: 'Wolf Fang', icon: '🦷', where: 'Woolfs · Woods' },
   wing: { name: 'Bat Wing', icon: '🦇', where: 'Flappers · Cave' },
   crystal: { name: 'Crystal Shard', icon: '💎', where: 'Cave' },
@@ -62,11 +63,11 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
   },
   shroom: {
     name: 'Sporecap', lv: 5, hp: 36, atk: 10, def: 3, spd: 45, r: 15, xp: 15,
-    drops: [{ mat: 'cap', chance: 0.85, min: 1, max: 2 }, { mat: 'bark', chance: 0.5, min: 1, max: 1 }, { mat: 'clover', chance: 0.1, min: 1, max: 1 }],
+    drops: [{ mat: 'cap', chance: 0.85, min: 1, max: 2 }, { mat: 'clover', chance: 0.1, min: 1, max: 1 }],
   },
   wolf: {
     name: 'Woolf', lv: 6, hp: 46, atk: 12, def: 4, spd: 95, r: 15, xp: 20,
-    drops: [{ mat: 'fang', chance: 0.7, min: 1, max: 2 }, { mat: 'bark', chance: 0.5, min: 1, max: 2 }],
+    drops: [{ mat: 'fang', chance: 0.8, min: 1, max: 2 }],
   },
   bat: {
     name: 'Flapper', lv: 9, hp: 52, atk: 15, def: 5, spd: 110, r: 13, xp: 28,
@@ -122,6 +123,8 @@ export interface Gear {
   style?: Style;
   /** Weapon power tier 0–5: bigger reach, flashier trails and heavier impacts. */
   tier?: number;
+  /** Woodcutting level needed to craft it (the gatherer track). */
+  wood?: number;
   fx?: Fx;
   /** Slash trail color. */
   trail?: string;
@@ -133,25 +136,25 @@ const GEAR_LIST: Gear[] = [
   // Weapons
   { id: 'twig', name: 'Twig Sword', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 0, fx: 'nature', trail: '#fff6d0', atk: 3, color: '#b98a5a', desc: 'A trusty stick. Pointy-ish.' },
   { id: 'jelly', name: 'Jelly Blade', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 1, fx: 'jelly', trail: '#9af0a0', atk: 7, color: '#6fdc7a', desc: 'Wobbly but surprisingly sharp.', recipe: { goo: 6, fluff: 2 } },
-  { id: 'cloverhatchet', name: 'Clover Hatchet', slot: 'weapon', icon: '🪓', style: 'axe', tier: 1, fx: 'nature', trail: '#c8f0a0', atk: 9, color: '#a8e8b0', desc: 'Heavy cleaves. Lucky, too.', recipe: { goo: 4, fluff: 3, clover: 1 } },
-  { id: 'fangspear', name: 'Fang Spear', slot: 'weapon', icon: '🔱', style: 'spear', tier: 2, fx: 'none', trail: '#fff0e0', atk: 13, color: '#e8e2d0', desc: 'Long reach. Skill: lunge!', recipe: { fang: 5, bark: 4 } },
-  { id: 'timberaxe', name: 'Timber Axe', slot: 'weapon', icon: '🪓', style: 'axe', tier: 2, fx: 'none', trail: '#e0e8ff', atk: 16, color: '#dfe6f0', desc: 'Wide cleave. Skill: whirlwind!', recipe: { bark: 6, fang: 3 } },
-  { id: 'mushmallet', name: 'Mushroom Mallet', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 2, fx: 'jelly', trail: '#ffb4b4', atk: 17, color: '#e8505a', desc: 'Slams send shockwaves forward.', recipe: { cap: 6, bark: 4 } },
+  { id: 'cloverhatchet', name: 'Clover Hatchet', slot: 'weapon', icon: '🪓', style: 'axe', tier: 1, fx: 'nature', trail: '#c8f0a0', atk: 9, color: '#a8e8b0', desc: 'Heavy cleaves. Lucky, too.', wood: 2, recipe: { bark: 5, fluff: 2, clover: 1 } },
+  { id: 'fangspear', name: 'Fang Spear', slot: 'weapon', icon: '🔱', style: 'spear', tier: 2, fx: 'none', trail: '#fff0e0', atk: 13, color: '#e8e2d0', desc: 'Long reach. Skill: lunge!', recipe: { fang: 6, cap: 3 } },
+  { id: 'timberaxe', name: 'Timber Axe', slot: 'weapon', icon: '🪓', style: 'axe', tier: 2, fx: 'none', trail: '#e0e8ff', atk: 16, color: '#dfe6f0', desc: 'Wide cleave. Skill: whirlwind!', wood: 5, recipe: { pine: 6, bark: 4, fang: 2 } },
+  { id: 'mushmallet', name: 'Mushroom Mallet', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 2, fx: 'jelly', trail: '#ffb4b4', atk: 17, color: '#e8505a', desc: 'Slams send shockwaves forward.', recipe: { cap: 7, fang: 2 } },
   { id: 'crystalwand', name: 'Crystal Wand', slot: 'weapon', icon: '🪄', style: 'wand', tier: 3, fx: 'crystal', trail: '#9ae6ff', atk: 18, color: '#9ae6ff', desc: 'Shoots sparkles. Skill: nova!', recipe: { crystal: 5, wing: 4, cap: 3 } },
   { id: 'geode', name: 'Geode Sword', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 3, fx: 'crystal', trail: '#c8b0ff', atk: 22, color: '#b8a0ff', desc: 'Crystal edge: extra crits.', recipe: { crystal: 6, wing: 4 } },
-  { id: 'boulder', name: 'Boulder Hammer', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 3, fx: 'stone', trail: '#e0d8c8', atk: 27, color: '#9aa0b0', desc: 'Huge shockwaves. Skill: quake!', recipe: { core: 1, crystal: 6, bark: 4 } },
+  { id: 'boulder', name: 'Boulder Hammer', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 3, fx: 'stone', trail: '#e0d8c8', atk: 27, color: '#9aa0b0', desc: 'Huge shockwaves. Skill: quake!', wood: 7, recipe: { pine: 6, crystal: 5, core: 1 } },
   { id: 'emberblade', name: 'Ember Blade', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 4, fx: 'fire', trail: '#ffb03a', atk: 36, color: '#ff8a3a', desc: 'Sets foes ablaze.', recipe: { ember: 8, horn: 4, core: 1 } },
-  { id: 'magmacleaver', name: 'Magma Cleaver', slot: 'weapon', icon: '🪓', style: 'axe', tier: 4, fx: 'fire', trail: '#ff7a2a', atk: 42, color: '#ff7a2a', desc: 'Molten cleaves that burn.', recipe: { ember: 10, horn: 4, core: 2 } },
-  { id: 'wyrmfang', name: 'Wyrmfang', slot: 'weapon', icon: '🔱', style: 'spear', tier: 5, fx: 'dragon', trail: '#ff5a4a', atk: 55, color: '#ff5a4a', desc: 'Dragonfire bursts on every hit!', recipe: { scale: 3, ember: 10, horn: 5 } },
-  { id: 'wyrmbreaker', name: 'Wyrmbreaker', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 5, fx: 'dragon', trail: '#ffb03a', atk: 64, color: '#c83a3a', desc: 'Legendary. Shakes the earth.', recipe: { scale: 4, core: 2, ember: 8 } },
+  { id: 'magmacleaver', name: 'Magma Cleaver', slot: 'weapon', icon: '🪓', style: 'axe', tier: 4, fx: 'fire', trail: '#ff7a2a', atk: 42, color: '#ff7a2a', desc: 'Molten cleaves that burn.', wood: 8, recipe: { ember: 8, pine: 8, core: 1 } },
+  { id: 'wyrmfang', name: 'Wyrmfang', slot: 'weapon', icon: '🔱', style: 'spear', tier: 5, fx: 'dragon', trail: '#ff5a4a', atk: 55, color: '#ff5a4a', desc: 'Dragonfire bursts on every hit!', wood: 10, recipe: { scale: 3, ember: 8, pine: 8 } },
+  { id: 'wyrmbreaker', name: 'Wyrmbreaker', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 5, fx: 'dragon', trail: '#ffb03a', atk: 64, color: '#c83a3a', desc: 'Legendary. Shakes the earth.', wood: 10, recipe: { scale: 4, core: 2, pine: 10 } },
   // Armor
   { id: 'tunic', name: 'Cozy Tunic', slot: 'armor', icon: '👕', def: 1, color: '#6fa8ff', desc: 'Smells like home.' },
   { id: 'fluffvest', name: 'Fluffy Vest', slot: 'armor', icon: '🧥', def: 3, hp: 6, color: '#fff1e6', desc: 'Soft and bouncy.', recipe: { fluff: 6, goo: 2 } },
-  { id: 'shroomhood', name: 'Shroom Hood', slot: 'armor', icon: '🥋', def: 6, hp: 12, color: '#e8505a', desc: 'Spotty and stylish.', recipe: { cap: 6, bark: 3 } },
+  { id: 'shroomhood', name: 'Shroom Hood', slot: 'armor', icon: '🥋', def: 6, hp: 12, color: '#e8505a', desc: 'Spotty and stylish.', recipe: { cap: 6, fang: 2 } },
   { id: 'batcloak', name: 'Bat Cloak', slot: 'armor', icon: '🧣', def: 10, spd: 12, color: '#7a5ab8', desc: 'Swoosh! +speed.', recipe: { wing: 6, fang: 3 } },
   { id: 'crystalmail', name: 'Crystal Mail', slot: 'armor', icon: '🛡️', def: 15, hp: 20, color: '#8ad8f0', desc: 'Shiny and tough.', recipe: { crystal: 8, core: 1 } },
   { id: 'magmamail', name: 'Magma Mail', slot: 'armor', icon: '🦺', def: 21, hp: 30, color: '#e8703a', desc: 'Toasty protection.', recipe: { ember: 8, horn: 3, crystal: 4 } },
-  { id: 'dragonmail', name: 'Dragon Mail', slot: 'armor', icon: '🐲', def: 30, hp: 50, color: '#c83a3a', desc: 'The ultimate cozy armor.', recipe: { scale: 4, core: 2 } },
+  { id: 'dragonmail', name: 'Dragon Mail', slot: 'armor', icon: '🐲', def: 30, hp: 50, color: '#c83a3a', desc: 'The ultimate cozy armor.', wood: 10, recipe: { scale: 4, core: 2, pine: 6 } },
   // Charms
   { id: 'clovercharm', name: 'Clover Charm', slot: 'charm', icon: '🍀', luck: 0.25, desc: '+25% luck: more drops & crits.', recipe: { clover: 3, goo: 3 } },
   { id: 'toothcharm', name: 'Tooth Necklace', slot: 'charm', icon: '📿', atk: 4, desc: '+4 attack. Rawr.', recipe: { fang: 4, cap: 2 } },
@@ -258,6 +261,65 @@ export function forgeLevelFor(g: Gear): number {
   return ({ batcloak: 2, crystalmail: 2, crystalheart: 2, magmamail: 3, dragonmail: 3, impring: 3 } as Record<string, number>)[g.id] ?? 1;
 }
 
+// ----------------------------------------------------------------------------- gathering
+
+export type SkillId = 'wood';
+export const SKILL_NAMES: Record<SkillId, string> = { wood: 'Woodcutting' };
+export const SKILL_MAX = 10;
+
+export interface Tool {
+  id: string;
+  name: string;
+  skill: SkillId;
+  /** Trees up to this tier can be chopped, and higher tiers chop faster. */
+  tier: number;
+  icon: string;
+  desc: string;
+  recipe: Recipe;
+  /** Skill level needed to craft it. */
+  level: number;
+}
+
+export const TOOLS: Tool[] = [
+  { id: 'axe1', name: 'Stone Axe', skill: 'wood', tier: 1, icon: '🪓', desc: 'Chops oak trees.', recipe: { goo: 3, fluff: 2 }, level: 1 },
+  { id: 'axe2', name: 'Fang Axe', skill: 'wood', tier: 2, icon: '🪓', desc: 'Bites through pine, and chops oak faster.', recipe: { bark: 8, fang: 4 }, level: 5 },
+];
+
+export type NodeKind = 'oak' | 'pine';
+
+export interface NodeDef {
+  name: string;
+  skill: SkillId;
+  /** Tool tier needed. */
+  tier: number;
+  mat: MatId;
+  /** Strike damage needed to fell it (a tier-1 tool does 1 per clean hit). */
+  hp: number;
+  /** Trees on open ground: safe to reach, but slow to regrow and give less. */
+  safe: { yield: number; xp: number; regrow: number };
+  /** Trees out in the tall grass: you brave monsters to reach them, for more wood, faster regrowth and a rare find. */
+  grass: { yield: number; xp: number; regrow: number; rare: { mat: MatId; chance: number } };
+}
+
+export const NODES: Record<NodeKind, NodeDef> = {
+  oak: {
+    name: 'Oak', skill: 'wood', tier: 1, mat: 'bark', hp: 4,
+    safe: { yield: 1, xp: 10, regrow: 180 },
+    grass: { yield: 2, xp: 15, regrow: 75, rare: { mat: 'clover', chance: 0.12 } },
+  },
+  pine: {
+    name: 'Pine', skill: 'wood', tier: 2, mat: 'pine', hp: 6,
+    safe: { yield: 1, xp: 25, regrow: 180 },
+    grass: { yield: 2, xp: 35, regrow: 75, rare: { mat: 'clover', chance: 0.1 } },
+  },
+};
+
+/** How many trees of each kind grow in each zone, on open ground and out in the grass. */
+export const NODE_SPAWNS: Partial<Record<ZoneId, { kind: NodeKind; safe: number; grass: number }[]>> = {
+  meadow: [{ kind: 'oak', safe: 3, grass: 5 }],
+  woods: [{ kind: 'oak', safe: 2, grass: 2 }, { kind: 'pine', safe: 2, grass: 5 }],
+};
+
 // ----------------------------------------------------------------------------- village construction
 
 export type ProjectId = 'home' | 'forge' | 'garden' | 'training' | 'warp';
@@ -280,37 +342,37 @@ export const PROJECTS: Record<ProjectId, Project> = {
     name: 'Home', icon: '🏠',
     levels: [
       { name: 'Tent', cost: {}, perk: 'A cozy tent to call your own.' },
-      { name: 'Cottage', cost: { goo: 8, fluff: 6, clover: 1 }, perk: '+10% max HP' },
-      { name: 'Manor', cost: { bark: 6, crystal: 8, ember: 6 }, perk: '+20% max HP' },
+      { name: 'Cottage', cost: { bark: 8, fluff: 3, clover: 1 }, perk: '+10% max HP' },
+      { name: 'Manor', cost: { pine: 10, crystal: 8, ember: 6 }, perk: '+20% max HP' },
     ],
   },
   forge: {
     name: 'Forge', icon: '⚒',
     levels: [
       { name: 'Forge', cost: { goo: 4, fluff: 3 }, perk: 'Repaired! Craft ★ and ★★ gear' },
-      { name: 'Smithy', cost: { royaljelly: 1, cap: 5, bark: 5 }, perk: 'Craft ★★★ gear' },
-      { name: 'Master Forge', cost: { kingcrystal: 1, ember: 6, core: 1 }, perk: 'Craft ★★★★ and legendary gear' },
+      { name: 'Smithy', cost: { royaljelly: 1, cap: 4, bark: 6 }, perk: 'Craft ★★★ gear' },
+      { name: 'Master Forge', cost: { kingcrystal: 1, ember: 6, pine: 6 }, perk: 'Craft ★★★★ and legendary gear' },
     ],
   },
   garden: {
     name: 'Garden', icon: '🌱',
     levels: [
-      { name: 'Sprout Patch', cost: { goo: 4, clover: 1 }, perk: 'Fountain refills potions to 3' },
-      { name: 'Berry Garden', cost: { cap: 6, bark: 4 }, perk: 'Fountain refills potions to 4' },
-      { name: 'Bloom Garden', cost: { ember: 4, wing: 4 }, perk: 'Fountain refills potions to 5' },
+      { name: 'Sprout Patch', cost: { bark: 4, clover: 1 }, perk: 'Fountain refills potions to 3' },
+      { name: 'Berry Garden', cost: { cap: 4, pine: 4 }, perk: 'Fountain refills potions to 4' },
+      { name: 'Bloom Garden', cost: { pine: 6, ember: 4 }, perk: 'Fountain refills potions to 5' },
     ],
   },
   training: {
     name: 'Training Yard', icon: '🎯',
     levels: [
-      { name: 'Straw Dummy', cost: { goo: 5, fluff: 5 }, perk: '+5% attack' },
+      { name: 'Straw Dummy', cost: { bark: 5, fluff: 3 }, perk: '+5% attack' },
       { name: 'Training Yard', cost: { fang: 6, royaljelly: 1 }, perk: '+10% attack' },
-      { name: 'Dojo', cost: { horn: 5, core: 1 }, perk: '+15% attack' },
+      { name: 'Dojo', cost: { pine: 6, horn: 4, core: 1 }, perk: '+15% attack' },
     ],
   },
   warp: {
     name: 'Warp Stone', icon: '🔮',
-    levels: [{ name: 'Warp Stone', cost: { alphapelt: 1, wing: 3, crystal: 3 }, perk: 'Fast travel to any campfire you have lit' }],
+    levels: [{ name: 'Warp Stone', cost: { alphapelt: 1, pine: 4, crystal: 3 }, perk: 'Fast travel to any campfire you have lit' }],
   },
 };
 
@@ -374,8 +436,8 @@ export const QUESTS: Quest[] = [
     reward: { mats: { goo: 3, fluff: 2 } },
   },
   {
-    id: 'cottage', chapter: 'Chapter 1', title: 'A Real Home', goal: { type: 'build', project: 'home', level: 2 }, hint: 'Upgrade your Home to a Cottage',
-    text: "A hero can't sleep in a tent forever. Build a cottage on your plot, and you'll feel sturdier for it!",
+    id: 'cottage', chapter: 'Chapter 1', title: 'A Real Home', goal: { type: 'build', project: 'home', level: 2 }, hint: 'Craft a Stone Axe, chop Oak Logs, build a Cottage',
+    text: "A hero can't sleep in a tent forever! A cottage needs Oak Logs: craft a Stone Axe at the Forge and chop the oaks around the meadow. The ones out in the tall grass give more, if you dare.",
     reward: { potions: 1 },
   },
   {

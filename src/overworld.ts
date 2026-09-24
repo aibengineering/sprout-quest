@@ -35,6 +35,9 @@ export class Overworld {
   camX = 0;
   camY = 0;
   camTarget: { x: number; y: number } | null = null;
+  /** Tree being chopped, and how long it keeps shaking from the last strike. */
+  chopping: WorldObj | null = null;
+  private shakeT = 0;
 
   constructor(private world: World, private save: SaveState) {
     this.x = save.pos.x;
@@ -69,12 +72,41 @@ export class Overworld {
     this.stepAcc = 0;
   }
 
+  /** Turn to face a tree and start chopping it. */
+  startChop(o: WorldObj) {
+    this.chopping = o;
+    this.face = Math.atan2(o.y + o.h / 2 - this.y, o.x + o.w / 2 - this.x);
+    this.moving = false;
+  }
+
+  /** Wood chips fly and the tree shakes; bigger for better strikes. */
+  chopHit(strength: number) {
+    const o = this.chopping;
+    if (!o) return;
+    this.shakeT = 0.25;
+    const ts = this.ts, x = (o.x + o.w / 2) * ts, y = (o.y + o.h / 2 - 0.3) * ts;
+    this.fx.burst(x, y, '#c89a6a', 3 + Math.round(strength * 4), ts * 2.2, { size: ts * 0.07, life: 0.5 });
+    if (strength > 1) this.fx.burst(x, y - ts * 0.5, '#fff6a0', 4, ts * 1.6, { star: true, size: ts * 0.08, life: 0.5 });
+  }
+
+  /** The tree comes down in a burst of leaves. */
+  felled() {
+    const o = this.chopping;
+    if (o) {
+      const ts = this.ts, x = (o.x + o.w / 2) * ts, y = (o.y - 0.6) * ts;
+      this.fx.burst(x, y, o.node === 'pine' ? '#2f7a45' : '#5ab85a', 22, ts * 3, { size: ts * 0.1, life: 0.9 });
+      this.fx.burst(x, y + ts * 0.6, '#c89a6a', 8, ts * 2, { size: ts * 0.07, life: 0.6 });
+    }
+    this.chopping = null;
+  }
+
   nearbyObject(): WorldObj | null {
     return this.world.nearestObj(this.x, this.y - 0.2, 1.4);
   }
 
   update(dt: number, input: Input, frozen: boolean): WorldEvent {
     this.t += dt;
+    this.shakeT = Math.max(0, this.shakeT - dt);
     this.fx.update(dt);
     const target = this.camTarget ?? { x: this.x, y: this.y };
     const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : 12));
@@ -286,6 +318,41 @@ export class Overworld {
       ctx.textBaseline = 'middle';
       ctx.fillText('!', 0, -ts * 0.27);
       ctx.restore();
+    }
+  }
+
+  /** A choppable tree: a ribboned tree when ready, a stump while it regrows. */
+  private drawTree(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+    const ready = (this.save.nodes[o.id!] ?? 0) <= Date.now();
+    const shake = o === this.chopping && this.shakeT > 0 ? Math.sin(this.shakeT * 70) * this.shakeT * 0.25 : 0;
+    const cx = (o.x + o.w / 2) * ts, by = (o.y + o.h - 0.08) * ts;
+    if (ready) {
+      // A soft glow on the ground marks trees you can chop (gold out in the grass).
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = o.grass ? `rgba(255,210,90,${0.22 + Math.sin(this.t * 3 + o.x) * 0.07})` : `rgba(255,255,230,${0.16 + Math.sin(this.t * 3 + o.x) * 0.05})`;
+      ctx.beginPath();
+      ctx.ellipse(cx, by - ts * 0.02, ts * 0.62, ts * 0.26, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+    shadow(ctx, cx, by, ts * (ready ? 0.42 : 0.3));
+    const sprite = frame(`env/${o.node}_${ready ? 'node' : 'stump'}`) ?? (ready ? frame(o.node === 'pine' ? 'env/pine0' : 'env/tree1') : null);
+    // A touch bigger than the scenery trees so they stand out.
+    if (sprite) drawFrame(ctx, sprite, cx, by, (ts / TILE_BU) * (ready ? 1.12 : 1), { rot: ready ? shake + Math.sin(this.t * 1.2 + o.x) * 0.012 : 0 });
+    else if (!ready) {
+      ctx.fillStyle = '#9a6a44';
+      ctx.beginPath();
+      ctx.ellipse(cx, by - ts * 0.12, ts * 0.2, ts * 0.14, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#e8c890';
+      ctx.beginPath();
+      ctx.ellipse(cx, by - ts * 0.2, ts * 0.17, ts * 0.08, 0, 0, TAU);
+      ctx.fill();
+    }
+    // A glint now and then marks trees you can chop; golden ones out in the grass hide rarer finds.
+    if (ready && Math.random() < 0.04) {
+      this.fx.burst(cx + (Math.random() - 0.5) * ts * 0.8, by - ts * (0.6 + Math.random() * 0.8), o.grass ? '#ffd35a' : '#ffffff', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.8 });
     }
   }
 
@@ -627,6 +694,10 @@ export class Overworld {
       // Stuck in the ground, blade down, gently wobbling.
       if (f) drawFrame(ctx, f, ax + ts * 0.05, ay - ts * 0.75, ts / TILE_BU * 1.2, { rot: Math.PI / 2 + 0.2 + Math.sin(this.t * 2) * 0.04 });
       if (Math.random() < 0.12) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.5, ay - Math.random() * ts, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.6, life: 0.8 });
+      return;
+    }
+    if (o.kind === 'node') {
+      this.drawTree(ctx, o, ts);
       return;
     }
     if (o.kind === 'foe') {

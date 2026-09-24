@@ -1,6 +1,7 @@
 // Touch-first input: a floating joystick anywhere on the canvas, DOM buttons for actions, keyboard fallback.
 
-export type Action = 'attack' | 'skill' | 'dodge' | 'potion' | 'act' | 'menu' | 'run' | 'bag' | 'journal';
+/** `tap` is any touch or click on the play area itself (the chopping minigame accepts it as a strike). */
+export type Action = 'attack' | 'skill' | 'dodge' | 'potion' | 'act' | 'menu' | 'run' | 'bag' | 'journal' | 'tap';
 
 const KEY_ACTIONS: Record<string, Action> = {
   Space: 'attack', KeyJ: 'attack', KeyK: 'dodge', ShiftLeft: 'dodge', KeyL: 'skill', KeyH: 'potion',
@@ -40,6 +41,7 @@ export class Input {
     private joyKnob: HTMLElement,
   ) {
     surface.addEventListener('pointerdown', (e) => {
+      if (this.enabled) this.pressed.add('tap');
       if (!this.enabled || this.joy.id !== -1) return;
       this.joy = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY };
       surface.setPointerCapture?.(e.pointerId);

@@ -2,15 +2,16 @@
 import { loadAssets } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
-import { GEAR, MAX_POTIONS, MONSTERS, POTION_HEAL, PROJECTS, QUESTS, ZONES, zoneById, type MonsterKind, type Zone, type ZoneId } from './data';
+import { GEAR, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, TOOLS, ZONES, zoneById, type MatId, type MonsterKind, type Zone, type ZoneId } from './data';
+import { Chop, drawChop } from './gather';
 import { Input, trackInputDevice, usingKeyboard } from './input';
 import { Overworld } from './overworld';
 import { advanceQuests, currentQuest, recordKills } from './quests';
 import { checkUnlocks, has } from './unlocks';
-import { build, craftGear, craftPotion, equip, gainXp, mergeDrops, playerStats, potionRefill, weightedPick } from './rules';
+import { build, canChop, craftGear, craftPotion, craftTool, equip, fellTree, gainXp, hasMats, mergeDrops, playerStats, potionRefill, sweetWidth, toolPower, weightedPick } from './rules';
 import { clearState, loadState, newState, saveState, type SaveState } from './state';
 import { UI } from './ui';
-import { T, World } from './world';
+import { T, World, type WorldObj } from './world';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -35,7 +36,7 @@ let save: SaveState = loadState() ?? newState();
 let over = new Overworld(world, save);
 let battle: Battle | null = null;
 
-type Mode = 'title' | 'world' | 'battle' | 'dialog';
+type Mode = 'title' | 'world' | 'battle' | 'dialog' | 'gather';
 let mode: Mode = 'title';
 
 /** Iris transition: closes to black, runs `mid`, then opens. */
@@ -69,6 +70,17 @@ const ui = new UI({
       syncWorld();
       void progressQuests();
     }
+  },
+  async craftTool(id) {
+    if (craftTool(save, id) !== 'ok') return;
+    const t = TOOLS.find((t) => t.id === id)!;
+    audio.play('craft');
+    persist();
+    ui.closeMenu(true);
+    mode = 'dialog';
+    await ui.itemFound(t.id, t.name, `${t.desc} Walk up to a tree with a ribbon on it and chop!`, t.icon, 'You crafted');
+    mode = 'world';
+    input.reset();
   },
   craftPotion(id) {
     if (craftPotion(save, id) === 'ok') {
@@ -464,6 +476,9 @@ async function interact() {
       mode = 'world';
       input.reset();
       break;
+    case 'node':
+      tryChop(o);
+      break;
     case 'lair': {
       mode = 'dialog';
       const r = await ui.dialog(
@@ -480,6 +495,91 @@ async function interact() {
     default:
       break;
   }
+}
+
+// ------------------------------------------------------------------ gathering
+
+let chop: { game: Chop; obj: WorldObj } | null = null;
+
+function tryChop(o: WorldObj) {
+  const n = NODES[o.node!];
+  const why = canChop(save, o.node!, o.id!);
+  if (why === 'tool') {
+    const t = TOOLS.find((t) => t.skill === n.skill && t.tier === n.tier)!;
+    ui.toast(save.tools[n.skill] === 0
+      ? `🪓 You need a ${t.name} to chop trees. Craft one at the Forge!`
+      : `🌲 ${n.name} is too tough for your axe. Craft a ${t.name} (${SKILL_NAMES[n.skill]} ${t.level}).`, 3200);
+    return;
+  }
+  if (why === 'regrowing') {
+    const secs = Math.ceil(((save.nodes[o.id!] ?? 0) - Date.now()) / 1000);
+    ui.toast(`🌱 Regrowing… back in ${secs >= 60 ? `${Math.floor(secs / 60)}m ${secs % 60}s` : `${secs}s`}.`);
+    return;
+  }
+  const lv = save.skills[n.skill].lv;
+  chop = { game: new Chop(n.hp, toolPower(save.tools[n.skill], n.tier), sweetWidth(lv)), obj: o };
+  over.startChop(o);
+  mode = 'gather';
+  input.reset();
+}
+
+function updateChop(dt: number) {
+  const c = chop!;
+  c.game.update(dt);
+  const a = input.axis();
+  // Walking away (or Esc) cancels; the tree stays as it was.
+  if (Math.hypot(a.x, a.y) > 0.6 || input.consume('menu')) {
+    chop = null;
+    over.chopping = null;
+    mode = 'world';
+    input.reset();
+    return;
+  }
+  if (input.consume('act') || input.consume('attack') || input.consume('tap')) {
+    const r = c.game.strike();
+    if (r) {
+      audio.play(r === 'perfect' ? 'crit' : r === 'hit' ? 'hit' : 'dodge');
+      over.chopHit(r === 'perfect' ? 2 : r === 'hit' ? 1 : 0.3);
+      if (!save.tips.includes('chopped')) save.tips.push('chopped');
+    }
+  }
+  if (c.game.done) finishChop();
+}
+
+function finishChop() {
+  const { game, obj } = chop!;
+  chop = null;
+  const n = NODES[obj.node!];
+  const r = fellTree(save, obj.node!, obj.id!, !!obj.grass, game.flawless);
+  audio.play('kill');
+  over.felled();
+  const got = Object.entries(r.drops).map(([m, k]) => `+${k} ${MATS[m as MatId].icon} ${MATS[m as MatId].name}`).join('  ');
+  ui.toast(`${game.flawless ? '✨ Flawless! ' : ''}${got}  ·  🪓 +${r.xp} XP`, 2600);
+  if (r.levels) {
+    audio.play('levelup');
+    setTimeout(() => ui.toast(`🎉 ${SKILL_NAMES[n.skill]} Lv ${save.skills[n.skill].lv}! The sweet spot grows.`, 3200), 1400);
+  }
+  mode = 'world';
+  input.reset();
+  persist();
+  void progressQuests();
+}
+
+/** Trees show "Chop" when ready and "Regrowing" while they grow back. */
+function syncTrees() {
+  const now = Date.now();
+  for (const o of world.objs) if (o.kind === 'node') o.label = (save.nodes[o.id!] ?? 0) <= now ? 'Chop' : 'Regrowing';
+}
+
+/** Nearest ready tree that gives `mat` and that you can chop. */
+function nearestTree(mat: MatId): WorldObj | null {
+  let best: WorldObj | null = null, bd = Infinity;
+  for (const o of world.objs) {
+    if (o.kind !== 'node' || NODES[o.node!].mat !== mat || canChop(save, o.node!, o.id!) !== 'ok') continue;
+    const d = (o.x - over.x) ** 2 + (o.y - over.y) ** 2;
+    if (d < bd) { bd = d; best = o; }
+  }
+  return best;
 }
 
 // ------------------------------------------------------------------ title
@@ -564,6 +664,7 @@ document.addEventListener('visibilitychange', () => {
 // ------------------------------------------------------------------ loop
 
 let movedDist = 0;
+let treeSync = 1;
 let battleFlag: string | undefined;
 let autoTalked = false;
 let coachStep = 0;
@@ -600,8 +701,20 @@ function objective(): { x: number; y: number } | null {
     }
     case 'craft':
       return has(save, 'forge') ? center(world.obj('forge')) : null;
-    case 'build':
+    case 'build': {
+      const lvl = PROJECTS[g.project].levels[save.build[g.project]];
+      if (lvl && !hasMats(save, lvl.cost)) {
+        // Missing wood: point at the Forge for an axe, then at the nearest tree.
+        const wood = (Object.keys(lvl.cost) as MatId[]).find((m) => save.mats[m] < (lvl.cost[m] ?? 0) && Object.values(NODES).some((n) => n.mat === m));
+        if (wood) {
+          const n = Object.values(NODES).find((n) => n.mat === wood)!;
+          if (save.tools[n.skill] < n.tier) return has(save, 'forge') ? center(world.obj('forge')) : null;
+          const tree = nearestTree(wood);
+          if (tree) return { x: tree.x + tree.w / 2, y: tree.y + tree.h + 0.5 };
+        }
+      }
       return g.project === 'forge' ? center(world.obj('forge')) : center(world.obj('plot', g.project));
+    }
     case 'boss': {
       if (g.kind === 'dragon') return center(world.obj('lair'));
       const gate = world.obj('gate', ZONES.find((z) => z.guardian?.kind === g.kind)?.id);
@@ -692,6 +805,12 @@ function frame(now: number) {
       ui.battleHud(save.potions, battle.skillFrac, battle.dodgeFrac, battle.moves.skillName, !battle.setup.boss && !battleFlag && save.flags.includes('village'));
     }
   } else {
+    if (mode === 'gather' && chop && !busy) updateChop(dt);
+    treeSync += dt;
+    if (treeSync > 0.5) {
+      treeSync = 0;
+      syncTrees();
+    }
     const canAct = mode === 'world' && !busy;
     if (canAct && input.consume('bag') && has(save, 'bag')) openFromHud('items');
     if (canAct && input.consume('journal') && has(save, 'journal')) openFromHud('journey');
@@ -727,12 +846,17 @@ function frame(now: number) {
       }
     }
     const near = canAct ? over.nearbyObject() : null;
-    ui.setAction(near ? near.label : null);
+    ui.setAction(mode === 'gather' ? 'Chop!' : near ? near.label : null);
     over.objective = mode === 'world' ? objective() : null;
     over.keyHints = usingKeyboard();
     ui.dragHint(mode === 'world' && !trans && !save.tips.includes('moved'));
     ui.dock(mode === 'world');
     over.render(ctx, vw, vh);
+    if (mode === 'gather' && chop) {
+      const n = NODES[chop.obj.node!];
+      const tip = save.tips.includes('chopped') ? 'Walk away to stop' : usingKeyboard() ? 'Press E or Space in the green!' : 'Tap when the marker is in the green!';
+      drawChop(ctx, chop.game, vw, vh, `🪓 ${chop.obj.grass ? 'Wild ' : ''}${n.name}`, tip);
+    }
     if (mode === 'title') {
       // Soft overlay so the title text pops over the live world behind it.
       ctx.fillStyle = 'rgba(42,26,48,0.15)';
@@ -776,6 +900,7 @@ requestAnimationFrame(frame);
   get mode() { return mode; },
   get battle() { return battle; },
   get over() { return over; },
+  get chop() { return chop; },
   fight(kind: Foe['kind'] = 'slime', lv = 1, n = 1) {
     startBattle(over.currentZone.monsters.length ? over.currentZone : zoneById('meadow'), Array.from({ length: n }, () => ({ kind, lv, golden: false })), !!MONSTERS[kind].boss);
   },

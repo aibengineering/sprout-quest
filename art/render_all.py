@@ -109,7 +109,7 @@ elif GROUP == 'icons':
         P['root'].rotation_euler = (0, 0, math.radians(15))
         hero.pose(P, 0, False)
         shot(f'icon/{armor}', 128, 128, 88, anchor=(0, 0, 0.64), elevation=math.radians(12), fit_origin=0.5)
-    for name, fn in {**icons.CHARMS, **icons.MATERIALS}.items():
+    for name, fn in {**icons.CHARMS, **icons.MATERIALS, **icons.TOOLS}.items():
         if not wanted(name):
             continue
         lib.clear_objects()

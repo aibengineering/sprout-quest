@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { GEAR, MONSTERS, ZONES } from '../src/data';
+import { GEAR, MONSTERS, NODES, TOOLS, ZONES } from '../src/data';
 import { CLOVER_PITY, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpToNext } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
@@ -70,9 +70,10 @@ describe('rules', () => {
     expect(scaleMonster(MONSTERS.wolf, 7, false).hp).toBeGreaterThan(scaleMonster(MONSTERS.wolf, 4, false).hp);
   });
 
-  test('every recipe material is obtainable from some monster', () => {
-    const droppable = new Set(Object.values(MONSTERS).flatMap((m) => m.drops.map((d) => d.mat)));
+  test('every recipe material is obtainable from some monster or tree', () => {
+    const droppable = new Set([...Object.values(MONSTERS).flatMap((m) => m.drops.map((d) => d.mat)), ...Object.values(NODES).map((n) => n.mat)]);
     for (const g of Object.values(GEAR)) for (const m of Object.keys(g.recipe ?? {})) expect(droppable.has(m as never)).toBe(true);
+    for (const t of TOOLS) for (const m of Object.keys(t.recipe)) expect(droppable.has(m as never)).toBe(true);
   });
 });
 

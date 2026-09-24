@@ -1,4 +1,4 @@
-import { MAT_ORDER, type MatId, type ProjectId, type ZoneId } from './data';
+import { MAT_ORDER, type MatId, type ProjectId, type SkillId, type ZoneId } from './data';
 
 export interface SaveState {
   version: 1;
@@ -33,6 +33,11 @@ export interface SaveState {
   wins: number;
   /** Clover-dropping kills since the last clover (see cloverPity). */
   cloverDry: number;
+  /** Best tool tier owned for each gathering skill (0 = none yet). */
+  tools: Record<SkillId, number>;
+  skills: Record<SkillId, { lv: number; xp: number }>;
+  /** When each felled tree (by world node id) grows back, as a Date.now() timestamp. */
+  nodes: Record<string, number>;
   /** Story flags set by scripted events (prologue fights, arriving in the village…). */
   flags: string[];
 }
@@ -68,6 +73,9 @@ export function newState(): SaveState {
     fresh: [],
     wins: 0,
     cloverDry: 0,
+    tools: { wood: 0 },
+    skills: { wood: { lv: 1, xp: 0 } },
+    nodes: {},
     flags: [],
   };
 }
@@ -85,6 +93,8 @@ export function loadState(): SaveState | null {
       mats: { ...base.mats, ...data.mats },
       equip: { ...base.equip, ...data.equip },
       build: { ...base.build, ...data.build },
+      tools: { ...base.tools, ...data.tools },
+      skills: { ...base.skills, ...data.skills },
     } as SaveState;
     // Saves from before the story update: credit progress that already happened.
     if (data.flags === undefined) {
