@@ -12,13 +12,13 @@ export type Recipe = Partial<Record<MatId, number>>;
 export const MATS: Record<MatId, { name: string; icon: string; where: string }> = {
   goo: { name: 'Slime Goo', icon: '🟢', where: 'Slimes · Meadow' },
   fluff: { name: 'Bunny Fluff', icon: '☁️', where: 'Hopbuns · Meadow' },
-  clover: { name: 'Lucky Clover', icon: '🍀', where: 'Rare · Meadow' },
+  clover: { name: 'Lucky Clover', icon: '🍀', where: 'Rare · Meadow & Woods' },
   cap: { name: 'Shroom Cap', icon: '🍄', where: 'Sporecaps · Woods' },
   bark: { name: 'Oak Bark', icon: '🪵', where: 'Woods' },
   fang: { name: 'Wolf Fang', icon: '🦷', where: 'Woolfs · Woods' },
   wing: { name: 'Bat Wing', icon: '🦇', where: 'Flappers · Cave' },
   crystal: { name: 'Crystal Shard', icon: '💎', where: 'Cave' },
-  core: { name: 'Golem Core', icon: '🔮', where: 'Rare · Pebblors' },
+  core: { name: 'Golem Core', icon: '🔮', where: 'Rare · Pebblors & Magma' },
   ember: { name: 'Ember', icon: '🔥', where: 'Ember Peak' },
   horn: { name: 'Imp Horn', icon: '😈', where: 'Impys · Peak' },
   scale: { name: 'Dragon Scale', icon: '🐉', where: 'Emberwyrm' },
@@ -54,19 +54,19 @@ export interface MonsterDef {
 export const MONSTERS: Record<MonsterKind, MonsterDef> = {
   slime: {
     name: 'Slime', lv: 1, hp: 20, atk: 5, def: 0, spd: 70, r: 14, xp: 5,
-    drops: [{ mat: 'goo', chance: 0.9, min: 1, max: 2 }, { mat: 'clover', chance: 0.08, min: 1, max: 1 }],
+    drops: [{ mat: 'goo', chance: 0.9, min: 1, max: 2 }, { mat: 'clover', chance: 0.15, min: 1, max: 1 }],
   },
   bunny: {
     name: 'Hopbun', lv: 2, hp: 20, atk: 6, def: 1, spd: 80, r: 13, xp: 7,
-    drops: [{ mat: 'fluff', chance: 0.85, min: 1, max: 2 }, { mat: 'clover', chance: 0.1, min: 1, max: 1 }],
+    drops: [{ mat: 'fluff', chance: 0.85, min: 1, max: 2 }, { mat: 'clover', chance: 0.15, min: 1, max: 1 }],
   },
   shroom: {
     name: 'Sporecap', lv: 5, hp: 36, atk: 10, def: 3, spd: 45, r: 15, xp: 15,
-    drops: [{ mat: 'cap', chance: 0.85, min: 1, max: 2 }, { mat: 'bark', chance: 0.35, min: 1, max: 1 }],
+    drops: [{ mat: 'cap', chance: 0.85, min: 1, max: 2 }, { mat: 'bark', chance: 0.5, min: 1, max: 1 }, { mat: 'clover', chance: 0.1, min: 1, max: 1 }],
   },
   wolf: {
     name: 'Woolf', lv: 6, hp: 46, atk: 12, def: 4, spd: 95, r: 15, xp: 20,
-    drops: [{ mat: 'fang', chance: 0.7, min: 1, max: 2 }, { mat: 'bark', chance: 0.4, min: 1, max: 2 }],
+    drops: [{ mat: 'fang', chance: 0.7, min: 1, max: 2 }, { mat: 'bark', chance: 0.5, min: 1, max: 2 }],
   },
   bat: {
     name: 'Flapper', lv: 9, hp: 52, atk: 15, def: 5, spd: 110, r: 13, xp: 28,
@@ -74,15 +74,15 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
   },
   golem: {
     name: 'Pebblor', lv: 11, hp: 90, atk: 22, def: 12, spd: 38, r: 22, xp: 48,
-    drops: [{ mat: 'crystal', chance: 0.85, min: 1, max: 3 }, { mat: 'core', chance: 0.25, min: 1, max: 1 }],
+    drops: [{ mat: 'crystal', chance: 0.85, min: 1, max: 3 }, { mat: 'core', chance: 0.4, min: 1, max: 1 }],
   },
   imp: {
     name: 'Impy', lv: 14, hp: 88, atk: 30, def: 10, spd: 90, r: 14, xp: 58,
-    drops: [{ mat: 'ember', chance: 0.8, min: 1, max: 2 }, { mat: 'horn', chance: 0.45, min: 1, max: 1 }],
+    drops: [{ mat: 'ember', chance: 0.8, min: 1, max: 2 }, { mat: 'horn', chance: 0.7, min: 1, max: 1 }],
   },
   magma: {
     name: 'Magma Slime', lv: 15, hp: 120, atk: 34, def: 14, spd: 80, r: 16, xp: 62,
-    drops: [{ mat: 'ember', chance: 0.9, min: 1, max: 3 }, { mat: 'core', chance: 0.1, min: 1, max: 1 }],
+    drops: [{ mat: 'ember', chance: 0.9, min: 1, max: 3 }, { mat: 'core', chance: 0.3, min: 1, max: 1 }],
   },
   dragon: {
     name: 'Emberwyrm', lv: 20, hp: 2000, atk: 46, def: 18, spd: 70, r: 44, xp: 600, boss: true, title: 'Dragon of Ember Peak',
@@ -139,11 +139,11 @@ const GEAR_LIST: Gear[] = [
   { id: 'mushmallet', name: 'Mushroom Mallet', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 2, fx: 'jelly', trail: '#ffb4b4', atk: 17, color: '#e8505a', desc: 'Slams send shockwaves forward.', recipe: { cap: 6, bark: 4 } },
   { id: 'crystalwand', name: 'Crystal Wand', slot: 'weapon', icon: '🪄', style: 'wand', tier: 3, fx: 'crystal', trail: '#9ae6ff', atk: 18, color: '#9ae6ff', desc: 'Shoots sparkles. Skill: nova!', recipe: { crystal: 5, wing: 4, cap: 3 } },
   { id: 'geode', name: 'Geode Sword', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 3, fx: 'crystal', trail: '#c8b0ff', atk: 22, color: '#b8a0ff', desc: 'Crystal edge: extra crits.', recipe: { crystal: 6, wing: 4 } },
-  { id: 'boulder', name: 'Boulder Hammer', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 3, fx: 'stone', trail: '#e0d8c8', atk: 27, color: '#9aa0b0', desc: 'Huge shockwaves. Skill: quake!', recipe: { core: 2, crystal: 6, bark: 4 } },
+  { id: 'boulder', name: 'Boulder Hammer', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 3, fx: 'stone', trail: '#e0d8c8', atk: 27, color: '#9aa0b0', desc: 'Huge shockwaves. Skill: quake!', recipe: { core: 1, crystal: 6, bark: 4 } },
   { id: 'emberblade', name: 'Ember Blade', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 4, fx: 'fire', trail: '#ffb03a', atk: 36, color: '#ff8a3a', desc: 'Sets foes ablaze.', recipe: { ember: 8, horn: 4, core: 1 } },
   { id: 'magmacleaver', name: 'Magma Cleaver', slot: 'weapon', icon: '🪓', style: 'axe', tier: 4, fx: 'fire', trail: '#ff7a2a', atk: 42, color: '#ff7a2a', desc: 'Molten cleaves that burn.', recipe: { ember: 10, horn: 4, core: 2 } },
   { id: 'wyrmfang', name: 'Wyrmfang', slot: 'weapon', icon: '🔱', style: 'spear', tier: 5, fx: 'dragon', trail: '#ff5a4a', atk: 55, color: '#ff5a4a', desc: 'Dragonfire bursts on every hit!', recipe: { scale: 3, ember: 10, horn: 5 } },
-  { id: 'wyrmbreaker', name: 'Wyrmbreaker', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 5, fx: 'dragon', trail: '#ffb03a', atk: 64, color: '#c83a3a', desc: 'Legendary. Shakes the earth.', recipe: { scale: 4, core: 3, ember: 8 } },
+  { id: 'wyrmbreaker', name: 'Wyrmbreaker', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 5, fx: 'dragon', trail: '#ffb03a', atk: 64, color: '#c83a3a', desc: 'Legendary. Shakes the earth.', recipe: { scale: 4, core: 2, ember: 8 } },
   // Armor
   { id: 'tunic', name: 'Cozy Tunic', slot: 'armor', icon: '👕', def: 1, color: '#6fa8ff', desc: 'Smells like home.' },
   { id: 'fluffvest', name: 'Fluffy Vest', slot: 'armor', icon: '🧥', def: 3, hp: 6, color: '#fff1e6', desc: 'Soft and bouncy.', recipe: { fluff: 6, goo: 2 } },
@@ -281,7 +281,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
     levels: [
       { name: 'Tent', cost: {}, perk: 'A cozy tent to call your own.' },
       { name: 'Cottage', cost: { goo: 8, fluff: 6, clover: 1 }, perk: '+10% max HP' },
-      { name: 'Manor', cost: { bark: 10, crystal: 8, ember: 6 }, perk: '+20% max HP' },
+      { name: 'Manor', cost: { bark: 6, crystal: 8, ember: 6 }, perk: '+20% max HP' },
     ],
   },
   forge: {

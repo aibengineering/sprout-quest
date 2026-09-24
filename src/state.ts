@@ -31,6 +31,8 @@ export interface SaveState {
   unlocked: string[];
   fresh: string[];
   wins: number;
+  /** Clover-dropping kills since the last clover (see cloverPity). */
+  cloverDry: number;
   /** Story flags set by scripted events (prologue fights, arriving in the village…). */
   flags: string[];
 }
@@ -65,6 +67,7 @@ export function newState(): SaveState {
     unlocked: [],
     fresh: [],
     wins: 0,
+    cloverDry: 0,
     flags: [],
   };
 }

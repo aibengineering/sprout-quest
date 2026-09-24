@@ -5,7 +5,7 @@ import { vibrate } from './audio';
 import { GEAR, MATS, MONSTERS, POTION_HEAL, type Fx as Element, type Gear, type MatId, type MonsterDef, type MonsterKind, type Zone } from './data';
 import { Fx } from './fx';
 import type { Input } from './input';
-import { calcDamage, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from './rules';
+import { GENTLE_ATK, calcDamage, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from './rules';
 import { drawMonster, drawPlayer, drawWeapon, rrect, shadow } from './sprites';
 import type { SaveState } from './state';
 import { MOVESETS, tierScale, type Moveset, type Strike } from './weapons';
@@ -95,7 +95,7 @@ interface Spike { x: number; y: number; t: number; life: number; size: number; t
 interface Crack { pts: [number, number][]; t: number }
 interface Spark { x: number; y: number; t: number; size: number; color: string; rot: number }
 
-export interface Foe { kind: MonsterKind; lv: number; golden: boolean }
+export interface Foe { kind: MonsterKind; lv: number; golden: boolean; /** Prologue foe: hits softer (GENTLE_ATK). */ gentle?: boolean }
 
 export interface BattleSetup {
   zone: Zone;
@@ -205,7 +205,7 @@ export class Battle {
     const s = scaleMonster(def, f.lv, f.golden);
     const e: Enemy = {
       kind: f.kind, def, lv: f.lv, golden: f.golden,
-      hp: s.hp, maxHp: s.hp, atk: s.atk, dfn: s.def, xp: s.xp, spd: def.spd * (f.golden ? 1.1 : 1),
+      hp: s.hp, maxHp: s.hp, atk: f.gentle ? Math.round(s.atk * GENTLE_ATK) : s.atk, dfn: s.def, xp: s.xp, spd: def.spd * (f.golden ? 1.1 : 1),
       x, y, vx: 0, vy: 0, kx: 0, ky: 0,
       r: def.r, z: 0, state: initialState(f.kind), t: rand(0.3, 1.2), dir: 0, face: 1, orb: Math.atan2(y, x), sub: 0, last: null,
       windup: 0, flash: 0, stun: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
@@ -777,6 +777,7 @@ export class Battle {
     this.xp += e.xp;
     this.defeated.push(e.def.name);
     const d = rollDrops(e.def, this.stats.luck, e.golden);
+    cloverPity(this.save, e.def, d);
     mergeDrops(this.drops, d);
     let i = 0;
     for (const m in d) this.fx.text(e.x + (i++ - 0.5) * 18, e.y - e.r * 2.6, MATS[m as MatId].icon, '#fff', 18);

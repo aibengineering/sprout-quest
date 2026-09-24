@@ -67,6 +67,22 @@ export function rollDrops(m: MonsterDef, luck: number, golden: boolean, rng: Rng
   return out;
 }
 
+/** Clover-dropping kills in a row without a clover before one is guaranteed, so the Cottage never stalls on bad luck. */
+export const CLOVER_PITY = 8;
+
+/** Bad-luck protection for Lucky Clovers: adds one to `drops` after too many dry kills. Mutates the save's counter. */
+export function cloverPity(s: SaveState, m: MonsterDef, drops: Partial<Record<MatId, number>>) {
+  if (!m.drops.some((d) => d.mat === 'clover')) return;
+  if (drops.clover) s.cloverDry = 0;
+  else if (++s.cloverDry >= CLOVER_PITY) {
+    drops.clover = 1;
+    s.cloverDry = 0;
+  }
+}
+
+/** Prologue foes hit this much softer, so a first-timer who hasn't learned to dodge yet can't lose. */
+export const GENTLE_ATK = 0.5;
+
 export function mergeDrops(into: Partial<Record<MatId, number>>, add: Partial<Record<MatId, number>>) {
   for (const k in add) {
     const m = k as MatId;

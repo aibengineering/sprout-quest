@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { GEAR, MONSTERS, ZONES } from '../src/data';
-import { calcDamage, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpToNext } from '../src/rules';
+import { CLOVER_PITY, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpToNext } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
 
@@ -49,6 +49,21 @@ describe('rules', () => {
     const d = rollDrops(MONSTERS.slime, 0, true, () => 0);
     expect(d.goo).toBe(2);
     expect(d.clover).toBe(2);
+  });
+
+  test('a clover is guaranteed after a run of dry kills, and only clover droppers count', () => {
+    const s = newState();
+    for (let i = 1; i < CLOVER_PITY; i++) {
+      const d = { goo: 1 };
+      cloverPity(s, MONSTERS.slime, d);
+      expect(d).toEqual({ goo: 1 });
+    }
+    cloverPity(s, MONSTERS.wolf, {});
+    expect(s.cloverDry).toBe(CLOVER_PITY - 1);
+    const d: Partial<Record<'goo' | 'clover', number>> = { goo: 1 };
+    cloverPity(s, MONSTERS.slime, d);
+    expect(d.clover).toBe(1);
+    expect(s.cloverDry).toBe(0);
   });
 
   test('monster scaling grows with level', () => {

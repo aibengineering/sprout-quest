@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { CHECKPOINTS, KILLS_PER_LEVEL, checkpointStats, killsPerLevel, matchup, zoneMatchups, type Range } from '../src/balance';
+import {
+  CHECKPOINTS, KILLS_PER_LEVEL, MAX_DRAGON_FIGHTS, MAX_FARM_KILLS, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, zoneMatchups, type Range,
+} from '../src/balance';
 
 // Run `bun run balance` to see the whole table while tuning.
 const within = (v: number, [lo, hi]: Range) => v >= lo && v <= hi;
@@ -13,8 +15,9 @@ describe('balance', () => {
       expect(off).toEqual([]);
     });
 
-    test(`${c.label}: ${KILLS_PER_LEVEL.join('–')} kills per level`, () => {
-      const kills = Math.round(killsPerLevel(c));
+    const pace = killsPerLevel(c);
+    if (pace !== null) test(`${c.label}: ${KILLS_PER_LEVEL.join('–')} kills per level`, () => {
+      const kills = Math.round(pace);
       expect(kills).toBeGreaterThanOrEqual(KILLS_PER_LEVEL[0]);
       expect(kills).toBeLessThanOrEqual(KILLS_PER_LEVEL[1]);
     });
@@ -31,4 +34,15 @@ describe('balance', () => {
       });
     }
   }
+
+  test(`every material for every building and gear piece farms in ≤${MAX_FARM_KILLS} kills`, () => {
+    const off = farmTable()
+      .filter((f) => f.mat !== 'scale' && f.kills > MAX_FARM_KILLS)
+      .map((f) => `${f.mat}: ${f.kills} kills in ${f.zone ?? 'no zone'}`);
+    expect(off).toEqual([]);
+  });
+
+  test(`every Dragon Scale takes ≤${MAX_DRAGON_FIGHTS} Emberwyrm fights`, () => {
+    expect(dragonFights()).toBeLessThanOrEqual(MAX_DRAGON_FIGHTS);
+  });
 });

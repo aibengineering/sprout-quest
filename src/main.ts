@@ -322,7 +322,7 @@ function challengeFoe(o: { flag?: string; monster?: MonsterKind }) {
     ui.toast('😰 You need something to fight with! Something was glinting back in the clearing…');
     return;
   }
-  startBattle(zoneById('glade'), [{ kind: o.monster!, lv: 1, golden: false }], false, o.flag);
+  startBattle(zoneById('glade'), [{ kind: o.monster!, lv: 1, golden: false, gentle: true }], false, o.flag);
 }
 
 /** Letterboxed camera tour with captions. */
