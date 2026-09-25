@@ -1,5 +1,6 @@
 // Release check for pull requests into main: the version in package.json must go up, and the newest patch notes must
-// describe it. Run from CI as `bun run scripts/check-release.ts <base ref>` (e.g. origin/main).
+// describe it. Pull requests that only touch documentation or CI tooling are exempt: they don't change the game.
+// Run from CI as `bun run scripts/check-release.ts <base ref>` (e.g. origin/main).
 import { $ } from 'bun';
 import pkg from '../package.json';
 import { newerThan } from '../src/semver';
@@ -7,6 +8,14 @@ import { PATCH_NOTES } from '../src/version';
 
 const base = process.argv[2] ?? 'origin/main';
 const problems: string[] = [];
+
+/** Files that don't change the game: docs (any Markdown, docs/) and CI tooling (workflows, this check). */
+const NOT_THE_GAME = [/\.md$/i, /^docs\//, /^\.github\//, /^scripts\/check-release\.ts$/];
+const changed = (await $`git diff --name-only ${base}...HEAD`.text()).split('\n').filter(Boolean);
+if (changed.length && changed.every((f) => NOT_THE_GAME.some((re) => re.test(f)))) {
+  console.log(`✓ Documentation and CI only (${changed.join(', ')}): no release needed`);
+  process.exit(0);
+}
 
 const baseVersion: string = await $`git show ${base}:package.json`.json().then((p: { version?: string }) => p.version ?? '0.0.0');
 const version = pkg.version;
