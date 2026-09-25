@@ -13,6 +13,8 @@ import { pose } from './pose';
 import { TAU, UNIT, ZOOM, ZOOM_T, clamp01, easeOut, rand, type Enemy, type Spark, type Spike, type Swing } from './types';
 
 type Ctx = CanvasRenderingContext2D;
+/** You're drawn a little bigger than your hitbox, like the monsters, so you stand out in the clearing. */
+const HERO_SCALE = 1.2;
 
 /** Where the arena sits on screen: portrait leaves room for the HUD above and the buttons below. */
 function layout(vw: number, vh: number) {
@@ -623,7 +625,7 @@ function drawHero(b: Battle, ctx: Ctx) {
   shadow(ctx, p.x, p.y, 14);
   if (behind) drawW();
   const armor = b.save.equip.armor;
-  const ok = drawHeroSprite(ctx, armor, p.x, p.y, UNIT, p.face, p.moving && !sw, b.t, {
+  const ok = drawHeroSprite(ctx, armor, p.x, p.y, UNIT * HERO_SCALE, p.face, p.moving && !sw, b.t, {
     alpha, flash: p.hurtT > 0 ? 0.7 : 0, sx: p.dodgeT > 0 ? 1.2 : 1, sy: p.dodgeT > 0 ? 0.82 : 1,
   });
   if (!ok) {
