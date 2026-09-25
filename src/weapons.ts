@@ -40,7 +40,7 @@ export interface Strike {
   turns?: number;
 }
 
-export type SkillKind = 'spin' | 'lunge' | 'whirl' | 'quake' | 'nova';
+export type SkillKind = 'spin' | 'whirl' | 'quake' | 'nova';
 
 export interface Moveset {
   combo: Strike[];
@@ -50,6 +50,10 @@ export interface Moveset {
   skillName: string;
   /** Visual scale for the weapon sprite. */
   size: number;
+  /** Cooldown after the last strike of the combo before you can start swinging again. */
+  rest: number;
+  /** Ranged weapons fire from a clip that refills over time: `max` shots, one back every `regen` seconds. */
+  ammo?: { max: number; regen: number };
 }
 
 const TAU = Math.PI * 2;
@@ -61,42 +65,20 @@ export const MOVESETS: Record<Style, Moveset> = {
     skill: 'spin',
     skillName: 'Spin',
     size: 1,
+    rest: 0.25,
     combo: [
       { anim: 'slashR', shape: 'arc', windup: 0.05, active: 0.11, recover: 0.1, range: 60, size: 2.1, mult: 1, kb: 150, shake: 2, hitstop: 0.035, move: 0.65 },
       { anim: 'slashL', shape: 'arc', windup: 0.05, active: 0.11, recover: 0.1, range: 60, size: 2.1, mult: 1, kb: 150, shake: 2, hitstop: 0.035, move: 0.65 },
       { anim: 'thrust', shape: 'line', windup: 0.09, active: 0.12, recover: 0.2, range: 82, size: 30, mult: 1.6, kb: 260, lunge: 34, shake: 5, hitstop: 0.06, move: 0.3 },
     ],
   },
-  // Long reach, narrow: two jabs and a far-reaching lunge thrust.
-  spear: {
-    window: 0.3,
-    skill: 'lunge',
-    skillName: 'Lunge',
-    size: 1,
-    combo: [
-      { anim: 'thrust', shape: 'line', windup: 0.06, active: 0.1, recover: 0.12, range: 90, size: 22, mult: 1.1, kb: 110, shake: 2, hitstop: 0.03, move: 0.6 },
-      { anim: 'thrust', shape: 'line', windup: 0.06, active: 0.1, recover: 0.12, range: 90, size: 22, mult: 1.1, kb: 110, shake: 2, hitstop: 0.03, move: 0.6 },
-      { anim: 'thrust', shape: 'line', windup: 0.14, active: 0.14, recover: 0.22, range: 115, size: 30, mult: 1.9, kb: 280, lunge: 40, shake: 6, hitstop: 0.07, move: 0.2 },
-    ],
-  },
-  // Heavy forward cleaves with a spinning finisher.
-  axe: {
-    window: 0.36,
-    skill: 'whirl',
-    skillName: 'Whirl',
-    size: 1.05,
-    combo: [
-      { anim: 'chop', shape: 'arc', windup: 0.17, active: 0.13, recover: 0.2, range: 80, size: 2.7, mult: 1.55, kb: 280, lunge: 14, shake: 6, hitstop: 0.07, move: 0.35 },
-      { anim: 'backchop', shape: 'arc', windup: 0.15, active: 0.13, recover: 0.2, range: 80, size: 2.7, mult: 1.55, kb: 280, lunge: 14, shake: 6, hitstop: 0.07, move: 0.35 },
-      { anim: 'spin', shape: 'arc', windup: 0.16, active: 0.3, recover: 0.28, range: 62, size: TAU, mult: 2.1, kb: 340, turns: 1, shake: 8, hitstop: 0.08, move: 0.5 },
-    ],
-  },
-  // Slow overhead slams whose shockwave travels forward in a line.
+  // Slow overhead slams that kick up a short line of rock spikes.
   hammer: {
     window: 0.4,
     skill: 'quake',
     skillName: 'Quake',
     size: 1.1,
+    rest: 0.4,
     combo: [
       {
         anim: 'slam', shape: 'circle', windup: 0.28, active: 0.1, recover: 0.3, range: 0, reach: 42, size: 40, mult: 1.5, kb: 300,
@@ -108,12 +90,27 @@ export const MOVESETS: Record<Style, Moveset> = {
       },
     ],
   },
-  // Rapid sparkle shots; the third shot is a spread.
+  // Long, narrow lashes that reach further than any blade, finished by a crack at the very tip.
+  whip: {
+    window: 0.34,
+    skill: 'whirl',
+    skillName: 'Twirl',
+    size: 0.9,
+    rest: 0.3,
+    combo: [
+      { anim: 'slashR', shape: 'arc', windup: 0.07, active: 0.1, recover: 0.13, range: 104, size: 0.9, mult: 0.95, kb: 90, shake: 2, hitstop: 0.03, move: 0.7 },
+      { anim: 'slashL', shape: 'arc', windup: 0.07, active: 0.1, recover: 0.13, range: 104, size: 0.9, mult: 0.95, kb: 90, shake: 2, hitstop: 0.03, move: 0.7 },
+      { anim: 'thrust', shape: 'line', windup: 0.14, active: 0.1, recover: 0.2, range: 118, size: 16, mult: 1.6, kb: 200, shake: 4, hitstop: 0.06, move: 0.4 },
+    ],
+  },
+  // Rapid shots from a clip that refills (so you can't spray forever); the third shot is a spread.
   wand: {
     window: 0.3,
     skill: 'nova',
     skillName: 'Nova',
     size: 1,
+    rest: 0.3,
+    ammo: { max: 5, regen: 0.4 },
     combo: [
       { anim: 'cast', shape: 'shot', windup: 0.04, active: 0.05, recover: 0.2, range: 0, size: 7, mult: 1.1, kb: 70, shots: [0], shake: 1, hitstop: 0.02, move: 0.85 },
       { anim: 'cast', shape: 'shot', windup: 0.04, active: 0.05, recover: 0.2, range: 0, size: 7, mult: 1.1, kb: 70, shots: [0], shake: 1, hitstop: 0.02, move: 0.85 },
@@ -140,14 +137,20 @@ export function strikeShape(s: Strike, reach: number): { reach: number; area: nu
   return wave ? { reach: Math.max(r.reach, wave.reach), area: r.area + wave.area } : r;
 }
 
-/** Seconds per full combo, chaining each strike as early as the game allows (35% into its recovery). */
+/** Seconds per full combo, chaining each strike as early as the game allows (35% into its recovery), plus the rest after it. */
 export function comboTime(m: Moveset): number {
-  return m.combo.reduce((a, s) => a + s.windup + s.active + s.recover * 0.35, 0);
+  return m.combo.reduce((a, s) => a + s.windup + s.active + s.recover * 0.35, 0) + m.rest;
 }
 
-/** Damage multiplier per second against one target in front of you (its shockwave hits it too; one shot of a spread). */
+/**
+ * Sustained damage multiplier per second against one target in front of you (its shockwave hits it too; one shot of
+ * a spread). Ranged weapons are capped by how fast their clip refills.
+ */
 export function comboDps(m: Moveset): number {
-  return m.combo.reduce((a, s) => a + s.mult + (s.wave?.mult ?? 0), 0) / comboTime(m);
+  const perCombo = m.combo.reduce((a, s) => a + s.mult + (s.wave?.mult ?? 0), 0);
+  const rate = perCombo / comboTime(m);
+  if (!m.ammo) return rate;
+  return Math.min(rate, (perCombo / m.combo.length) / m.ammo.regen);
 }
 
 /** Every weapon skill's numbers, in one place so the balance model can measure them. */
@@ -159,8 +162,7 @@ export const SKILL_DATA = {
     waves: { count: 6, range: 100, width: 32, speed: 520, mult: 0.5 },
   },
   whirl: { dur: 1.2, tick: 0.16, radius: 80, mult: 0.45 },
-  nova: { shots: 14, mult: 1.1, size: 8 },
-  lunge: { dur: 0.24, speed: 720, radius: 30, mult: 2.1 },
+  nova: { shots: 12, mult: 1.0, size: 8 },
 };
 
 /** A skill's reach, ground covered, and total damage multiplier on one target caught in it. */
@@ -174,10 +176,6 @@ export function skillShape(kind: SkillKind, reach: number): { reach: number; are
     }
     case 'whirl': return { reach: d.whirl.radius * reach, area: Math.PI * (d.whirl.radius * reach) ** 2, mult: d.whirl.mult * Math.floor(d.whirl.dur / d.whirl.tick) };
     case 'nova': return { reach: 400 * 1.2, area: d.nova.shots * Math.PI * d.nova.size ** 2, mult: d.nova.mult };
-    case 'lunge': {
-      const len = d.lunge.dur * d.lunge.speed;
-      return { reach: len, area: len * d.lunge.radius * 2 * reach, mult: d.lunge.mult };
-    }
   }
 }
 

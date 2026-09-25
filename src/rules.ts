@@ -1,5 +1,5 @@
 // Pure game rules: stats, damage, leveling, drops and crafting. No DOM access, so it's unit-testable.
-import { GEAR, MAX_POTIONS, NODES, POTION_RECIPES, PROJECTS, SKILL_MAX, TOOLS, forgeLevelFor, type MatId, type MonsterDef, type NodeKind, type ProjectId, type Recipe, type SkillId, type Style } from './data';
+import { GEAR, MASTERY_FOR_TIER, MAX_POTIONS, NODES, POTION_RECIPES, PROJECTS, SKILL_MAX, SLOW_TOOL, TOOLS, forgeLevelFor, type Gear, type MatId, type MonsterDef, type NodeKind, type ProjectId, type Recipe, type SkillId, type Style } from './data';
 import type { SaveState } from './state';
 
 export type Rng = () => number;
@@ -112,7 +112,7 @@ function spend(s: SaveState, recipe: Recipe) {
   for (const [m, n] of Object.entries(recipe)) s.mats[m as MatId] -= n ?? 0;
 }
 
-export type CraftResult = 'ok' | 'owned' | 'missing' | 'full' | 'unknown' | 'forge' | 'maxed' | 'skill';
+export type CraftResult = 'ok' | 'owned' | 'missing' | 'full' | 'unknown' | 'forge' | 'maxed' | 'skill' | 'mastery';
 
 /** How many potions the fountain tops you up to — grows with the Garden. */
 export function potionRefill(s: SaveState): number {
@@ -140,6 +140,7 @@ export function craftGear(s: SaveState, id: string): CraftResult {
   if (s.owned.includes(id)) return 'owned';
   if ((s.build?.forge ?? 1) < forgeLevelFor(g)) return 'forge';
   if (missingSkill(s, g.needs)) return 'skill';
+  if (masteryShort(s, g)) return 'mastery';
   if (!hasMats(s, g.recipe)) return 'missing';
   spend(s, g.recipe);
   s.owned.push(id);
@@ -217,10 +218,10 @@ export function craftTool(s: SaveState, id: string): CraftResult {
   return 'ok';
 }
 
-/** Why a node can't be gathered right now, or 'ok'. */
+/** Why a node can't be gathered right now, or 'ok'. A tool one tier short still works, just slowly. */
 export function canGather(s: SaveState, kind: NodeKind, nodeId: string, now = Date.now()): 'ok' | 'tool' | 'regrowing' {
-  const n = NODES[kind];
-  if (s.tools[n.skill] < n.tier) return 'tool';
+  const n = NODES[kind], tool = s.tools[n.skill];
+  if (tool === 0 || tool < n.tier - 1) return 'tool';
   if ((s.nodes[nodeId] ?? 0) > now) return 'regrowing';
   return 'ok';
 }
@@ -230,9 +231,39 @@ export function sweetWidth(lv: number): number {
   return 0.16 + 0.012 * (Math.min(SKILL_MAX, lv) - 1);
 }
 
-/** Damage per clean strike: a tool above the tree's tier bites deeper. */
+/** Damage per clean strike: a tool above the node's tier bites deeper; one tier short is a slow grind. */
 export function toolPower(toolTier: number, nodeTier: number): number {
-  return 1 + 0.5 * Math.max(0, toolTier - nodeTier);
+  return toolTier < nodeTier ? SLOW_TOOL : 1 + 0.5 * (toolTier - nodeTier);
+}
+
+// ----------------------------------------------------------------------------- weapon handling
+
+export const MASTERY_MAX = 10;
+
+export function masteryXpToNext(lv: number): number {
+  return 30 * lv;
+}
+
+/** Winning with a class of weapon trains it. Returns how many levels were gained. */
+export function gainMastery(s: SaveState, style: Style, xp: number): number {
+  const m = s.mastery[style];
+  if (m.lv >= MASTERY_MAX) return 0;
+  m.xp += xp;
+  let gained = 0;
+  while (m.lv < MASTERY_MAX && m.xp >= masteryXpToNext(m.lv)) {
+    m.xp -= masteryXpToNext(m.lv);
+    m.lv++;
+    gained++;
+  }
+  if (m.lv >= MASTERY_MAX) m.xp = 0;
+  return gained;
+}
+
+/** The handling level a weapon needs, if you don't have it yet. */
+export function masteryShort(s: SaveState, g: Gear): number | null {
+  if (g.slot !== 'weapon' || !g.style) return null;
+  const need = MASTERY_FOR_TIER[g.tier ?? 0] ?? 0;
+  return s.mastery[g.style].lv < need ? need : null;
 }
 
 export interface GatherReward { drops: Partial<Record<MatId, number>>; xp: number; levels: number }

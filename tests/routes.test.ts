@@ -37,7 +37,7 @@ describe('route maps', () => {
       expect(rows.length).toBe(WORLD_H);
       for (const r of rows) {
         expect(r.length).toBe(zone.w);
-        expect(r).toMatch(/^[#.,=~*ESCLkKpPrRuUiI]+$/);
+        expect(r).toMatch(/^[#.,=~*ESCLkKpPrRuUiIyY]+$/);
       }
       expect(find(rows, 'E').length).toBe(1);
       if (!zone.theme.pool) expect(rows.join('')).not.toContain('~');
@@ -58,15 +58,15 @@ describe('route maps', () => {
     });
 
     test(`${zone.name}: every tree, rock, sign and campfire can be reached, grass nodes stand in grass`, () => {
-      for (const c of 'kKpPrRuUiISC') {
+      for (const c of 'kKpPrRuUiIyYSC') {
         for (const p of find(rows, c)) {
           expect({ c, p, reachable: around(p).some((a) => reach.has(a)) }).toEqual({ c, p, reachable: true });
-          if ('KPRUI'.includes(c)) {
+          if ('KPRUIY'.includes(c)) {
             let grass = 0;
             for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (rows[p.y + dy]?.[p.x + dx] === ',') grass++;
             expect({ c, p, grass: grass >= 5 }).toEqual({ c, p, grass: true });
           }
-          if ('kprui'.includes(c)) {
+          if ('kpruiy'.includes(c)) {
             const [x, y] = [p.x, p.y];
             const safeSide = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => reach.has(`${x + dx},${y + dy}`) && '.=*'.includes(rows[y + dy][x + dx]));
             expect({ c, p, safeSide }).toEqual({ c, p, safeSide: true });

@@ -17,6 +17,7 @@ ARMORS = {
     'barkvest': dict(body='#9a6a44', trim='#6fbf5a'),
     'coppermail': dict(body='#e8904a', trim='#8a5a3a'),
     'ironplate': dict(body='#aab4c8', trim='#5e6272'),
+    'glimmershawl': dict(body='#c8b0ff', trim='#f0e0ff'),
 }
 
 
@@ -91,6 +92,10 @@ def build(armor):
             sphere((0.25 * side, 0, 0.45), (0.12, 0.12, 0.08), plate, bodyp)
         box((0, -0.2, 0.3), (0.28, 0.06, 0.16), plate, bodyp, bevel=0.03)
         box((0, -0.235, 0.3), (0.16, 0.02, 0.04), glow, bodyp, bevel=0.01, line=0)
+    elif armor == 'glimmershawl':
+        cape = toon('#9a88e0')
+        profile([(-0.28, 0.5), (0.28, 0.5), (0.34, 0.02), (0.0, -0.04), (-0.34, 0.02)], 0.05, cape, bodyp, loc=(0, 0.2, 0.02))
+        crystal((0, -0.22, 0.44), 0.05, 0.12, toon('#9ae6ff', rim=0.5, emit=0.3), bodyp, rot=(math.pi / 2, 0, 0), sides=5)
     elif armor == 'barkvest':
         leaf = toon('#6fbf5a')
         for side in (-1, 1):

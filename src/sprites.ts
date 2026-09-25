@@ -166,20 +166,6 @@ export function drawWeapon(ctx: Ctx, style: Style, x: number, y: number, angle: 
     ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.fillRect(s * 0.7, -s * 0.1, s * 1.1, s * 0.06);
-  } else if (style === 'spear') {
-    ctx.strokeStyle = '#8a5a3a';
-    ctx.lineWidth = s * 0.16;
-    ctx.beginPath();
-    ctx.moveTo(-s * 0.3, 0);
-    ctx.lineTo(s * 2.3, 0);
-    ctx.stroke();
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(s * 2.1, -s * 0.25);
-    ctx.lineTo(s * 2.9, 0);
-    ctx.lineTo(s * 2.1, s * 0.25);
-    ctx.lineTo(s * 2.25, 0);
-    ctx.fill();
   } else if (style === 'wand') {
     ctx.strokeStyle = '#6b4a8a';
     ctx.lineWidth = s * 0.16;

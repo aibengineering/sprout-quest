@@ -1,9 +1,9 @@
 // Balance model: where we expect the player to be at each point in the story, and how fights should feel there.
 // tests/balance.test.ts enforces the targets; `bun run balance` prints the full table while tuning.
 import { ARENA_RX, ARENA_RY } from './arena';
-import { GEAR, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
+import { GEAR, MASTERY_FOR_TIER, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
 import { MOVESETS, comboDps, skillShape, strikeShape, tierScale } from './weapons';
-import { GENTLE_ATK, calcDamage, playerStats, scaleMonster, skillXpToNext, xpToNext, type PlayerStats } from './rules';
+import { GENTLE_ATK, calcDamage, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
 
@@ -42,17 +42,18 @@ export const CHECKPOINTS: Checkpoint[] = [
     foes: [{ kind: 'slime', lv: 1, gentle: true }, { kind: 'bunny', lv: 1, gentle: true }],
   },
   { id: 'meadow', label: 'Meadow, fresh start', lv: 1, weapon: 'twig', armor: 'tunic', zone: 'meadow', hitsToKill: [2, 4], hitsToDie: [5, 12] },
-  { id: 'meadow-jelly', label: 'Meadow, Jelly Blade crafted', lv: 3, weapon: 'jelly', armor: 'tunic', zone: 'meadow', hitsToKill: [2, 3], hitsToDie: [5, 14] },
+  { id: 'meadow-gear', label: 'Meadow, first ★ weapon', lv: 3, weapon: 'stonesword', armor: 'tunic', zone: 'meadow', hitsToKill: [2, 3], hitsToDie: [5, 14] },
   {
-    id: 'woods', label: 'Whisper Woods', lv: 4, weapon: 'jelly', armor: 'fluffvest', zone: 'woods', hitsToKill: [2, 5], hitsToDie: [4, 12],
+    id: 'woods', label: 'Whisper Woods', lv: 4, weapon: 'stonesword', armor: 'fluffvest', zone: 'woods', hitsToKill: [2, 5], hitsToDie: [4, 12],
     boss: { kind: 'kingslime', lv: 5, hitsToKill: [18, 50], hitsToDie: [4, 12] },
   },
   {
-    id: 'cave', label: 'Crystal Cave', lv: 8, weapon: 'fangspear', armor: 'shroomhood', charm: 'toothcharm', training: 1, zone: 'cave', hitsToKill: [2, 5], hitsToDie: [4, 12],
+    id: 'cave', label: 'Echo Cavern', lv: 8, weapon: 'coppersword', armor: 'coppermail', charm: 'toothcharm', training: 1, zone: 'cave', hitsToKill: [2, 5], hitsToDie: [4, 12],
     boss: { kind: 'alphawolf', lv: 9, hitsToKill: [18, 50], hitsToDie: [4, 12] },
   },
+  { id: 'hollow', label: 'Glimmer Hollow', lv: 11, weapon: 'ironsword', armor: 'ironplate', charm: 'toothcharm', training: 2, zone: 'hollow', hitsToKill: [2, 5], hitsToDie: [4, 12] },
   {
-    id: 'peak', label: 'Ember Peak', lv: 13, weapon: 'geode', armor: 'crystalmail', charm: 'toothcharm', training: 2, home: 2, zone: 'peak', hitsToKill: [2, 5], hitsToDie: [4, 12],
+    id: 'peak', label: 'Ember Peak', lv: 13, weapon: 'crystalsword', armor: 'crystalmail', charm: 'toothcharm', training: 2, home: 2, zone: 'peak', hitsToKill: [2, 5], hitsToDie: [4, 12],
     boss: { kind: 'crystalking', lv: 14, hitsToKill: [18, 50], hitsToDie: [4, 12] },
   },
   // By the dragon you've outleveled the bottom of Ember Peak, so only the fight at the top of the zone needs to stay tense.
@@ -112,8 +113,10 @@ export const MAX_DRAGON_FIGHTS = 4;
 // Rough real-time costs, so fighting and chopping compare fairly.
 /** One kill, including the walk through grass, the fight and the transitions. */
 export const SECONDS_PER_KILL = 12;
-/** Felling a tree with decent timing. */
-const CHOP_SECONDS = 5;
+/** Seconds to fell a tree or break a rock with decent timing: tougher nodes and weaker tools take longer. */
+export function chopSeconds(kind: NodeKind, toolTier: number): number {
+  return 1.5 + (0.9 * NODES[kind].hp) / (toolPower(toolTier, NODES[kind].tier) * 1.3);
+}
 /** Walking between trees on open ground. */
 const SAFE_TRIP = 8;
 /** Wading out to a tree in the grass and back, including about half a fight on the way. */
@@ -163,11 +166,12 @@ const worldTrees = () => (trees ??= new World().objs.filter((o) => o.kind === 'n
  * Per second, from chopping the zone's trees of one kind: grass trees first (they pay best), then safe ones with the
  * time left over. Each tree can only be felled once per regrowth. `per` picks what to count (wood, XP…).
  */
-function chopRate(zone: ZoneId, kind: NodeKind, per: (spot: { yield: number; xp: number }) => number): number {
+function chopRate(zone: ZoneId, kind: NodeKind, per: (spot: { yield: number; xp: number }) => number, toolTier = NODES[kind].tier): number {
   const n = NODES[kind];
   const here = worldTrees().filter((o) => o.node === kind && zoneAtX(Math.floor(o.x)).id === zone);
   const g = here.filter((o) => o.grass).length, sf = here.length - g;
-  const gCycle = CHOP_SECONDS + GRASS_TRIP, sCycle = CHOP_SECONDS + SAFE_TRIP;
+  const secs = chopSeconds(kind, toolTier);
+  const gCycle = secs + GRASS_TRIP, sCycle = secs + SAFE_TRIP;
   const gChops = Math.min(g / n.grass.regrow, 1 / gCycle);
   const busy = gChops * gCycle;
   const sChops = Math.min(sf / n.safe.regrow, (1 - busy) / sCycle);
@@ -212,15 +216,17 @@ export function dragonFights(): number {
   return Math.ceil((totalDemand().scale ?? 0) / scale.min);
 }
 
-/** Minutes of chopping to reach a Woodcutting level, always at the best trees your axe (and level) allow. */
-/** Minutes of gathering to reach a skill level, always at the best nodes your tools (which need levels too) allow. */
+/**
+ * Minutes of gathering to reach a skill level, always at the best nodes your tools (which need levels too) allow,
+ * including grinding the next tier up slowly.
+ */
 export function minutesToSkillLevel(skill: SkillId, target: number): number {
   let secs = 0;
   for (let lv = 1; lv < Math.min(target, SKILL_MAX + 1); lv++) {
     const tier = Math.max(...TOOLS.filter((t) => t.skill === skill && t.level <= lv).map((t) => t.tier));
-    const kinds = (Object.keys(NODES) as NodeKind[]).filter((k) => NODES[k].skill === skill && NODES[k].tier <= tier);
+    const kinds = (Object.keys(NODES) as NodeKind[]).filter((k) => NODES[k].skill === skill && NODES[k].tier <= tier + 1);
     const xpPerSec = Math.max(...kinds.flatMap((k) => (Object.entries(NODE_SPAWNS) as [ZoneId, { kind: NodeKind }[]][])
-      .filter(([, sp]) => sp.some((x) => x.kind === k)).map(([z]) => chopRate(z, k, (sp) => sp.xp))));
+      .filter(([, sp]) => sp.some((x) => x.kind === k)).map(([z]) => chopRate(z, k, (sp) => sp.xp, tier))));
     secs += skillXpToNext(lv) / xpPerSec;
   }
   return secs / 60;
@@ -248,10 +254,14 @@ export const MAX_STRIKE_REACH = 0.7;
 export const MAX_STRIKE_AREA = 0.1;
 /** A skill can clear a crowd, but not the whole arena. */
 export const MAX_SKILL_AREA = 0.3;
-/** A weapon's damage per second (attack × combo rate) stays within this share of its tier's average. */
-export const DPS_SPREAD = 0.2;
+/** Hunter weapons hit for this share of their tier's gatherer damage: less raw power, but they carry monster effects. */
+export const HUNTER_DPS: Range = [0.75, 0.95];
+/** Weapons in the same track and tier stay within this much of each other. */
+export const TRACK_SPREAD = 0.15;
+/** The ★★★★★ legendaries beat the best ★★★★ weapon by at least this much. */
+export const LEGENDARY_EDGE = 1.25;
 
-export interface WeaponStats { id: string; name: string; tier: number; style: Style; dps: number; reach: number; area: number; skillArea: number; skillMult: number }
+export interface WeaponStats { id: string; name: string; tier: number; style: Style; track: 'hunter' | 'gatherer' | 'both'; dps: number; reach: number; area: number; skillArea: number; skillMult: number }
 
 export function weaponStats(): WeaponStats[] {
   return Object.values(GEAR).filter((g) => g.slot === 'weapon').map((g) => {
@@ -259,7 +269,7 @@ export function weaponStats(): WeaponStats[] {
     const shapes = m.combo.map((s) => strikeShape(s, k)).filter((_, i) => m.combo[i].shape !== 'shot');
     const sk = skillShape(m.skill, k);
     return {
-      id: g.id, name: g.name, tier: g.tier ?? 0, style: g.style ?? 'sword',
+      id: g.id, name: g.name, tier: g.tier ?? 0, style: g.style ?? 'sword', track: g.recipe ? gearTrack(g) : 'gatherer',
       dps: comboDps(m) * (g.atk ?? 0),
       reach: Math.max(0, ...shapes.map((s) => s.reach)) / ARENA_RX,
       area: Math.max(0, ...m.combo.map((s) => strikeShape(s, k).area)) / ARENA_AREA,
@@ -269,14 +279,33 @@ export function weaponStats(): WeaponStats[] {
   });
 }
 
-/** Each weapon's damage per second relative to the average of its tier. */
-export function dpsVsTier(): Record<string, number> {
+/** Each weapon's damage per second relative to its tier's gatherer weapons. */
+export function dpsVsGatherers(): Record<string, number> {
   const ws = weaponStats(), out: Record<string, number> = {};
   for (const w of ws) {
-    const same = ws.filter((o) => o.tier === w.tier);
-    out[w.id] = w.dps / (same.reduce((a, o) => a + o.dps, 0) / same.length);
+    const base = ws.filter((o) => o.tier === w.tier && o.track === 'gatherer');
+    out[w.id] = base.length ? w.dps / (base.reduce((a, o) => a + o.dps, 0) / base.length) : 1;
   }
   return out;
+}
+
+// ----------------------------------------------------------------------------- weapon handling
+
+/** The zone you're fighting in while working toward each weapon tier (★2 in the meadow, ★3 in the woods…). */
+const TIER_ZONE: ZoneId[] = ['meadow', 'meadow', 'meadow', 'woods', 'cave', 'hollow'];
+/** Switching to a new class at any tier costs at most this many minutes of fighting to handle it well enough. */
+export const MAX_HANDLING_MINUTES = 10;
+
+/** Minutes of fighting (at mid zone level) to train a fresh class up to what a weapon tier needs. */
+export function minutesToHandle(tier: number): number {
+  const need = MASTERY_FOR_TIER[tier] ?? 0;
+  let xp = 0;
+  for (let lv = 1; lv < need; lv++) xp += masteryXpToNext(lv);
+  const z = ZONES.find((z) => z.id === TIER_ZONE[tier])!;
+  const lv = Math.round((z.lv[0] + z.lv[1]) / 2);
+  const total = z.monsters.reduce((a, m) => a + m.w, 0);
+  const perKill = z.monsters.reduce((a, m) => a + (m.w / total) * scaleMonster(MONSTERS[m.kind], lv, false).xp, 0);
+  return ((xp / perKill) * SECONDS_PER_KILL) / 60;
 }
 
 const flag = (v: number, [lo, hi]: Range) => (v < lo || v > hi ? `${v}!` : `${v}`);
@@ -317,14 +346,15 @@ export function report(): string {
     return `  ★${t}: ${ws.map((g) => `${g.name} (${gearTrack(g)})`).join(', ')}`;
   });
   out.push(`\nWeapon tracks\n${tiers.join('\n')}`);
-  const rel = dpsVsTier();
-  out.push(`\nWeapons  (targets: DPS within ±${DPS_SPREAD * 100}% of its tier, reach ≤${MAX_STRIKE_REACH} of the arena's half-width, strike ≤${MAX_STRIKE_AREA * 100}% / skill ≤${MAX_SKILL_AREA * 100}% of the arena)`);
-  out.push(`  ${'weapon'.padEnd(16)} ${'★'.padStart(2)} ${'style'.padEnd(7)} ${'dps'.padStart(5)} ${'vs tier'.padStart(8)} ${'reach'.padStart(6)} ${'area'.padStart(6)} ${'skill'.padStart(6)} ${'×skill'.padStart(7)}`);
+  const rel = dpsVsGatherers();
+  out.push(`\nWeapons  (targets: hunter DPS ${HUNTER_DPS.join('–')} of its tier's gatherer, reach ≤${MAX_STRIKE_REACH} of the arena's half-width, strike ≤${MAX_STRIKE_AREA * 100}% / skill ≤${MAX_SKILL_AREA * 100}% of the arena)`);
+  out.push(`  ${'weapon'.padEnd(16)} ${'★'.padStart(2)} ${'style'.padEnd(7)} ${'track'.padEnd(9)} ${'dps'.padStart(5)} ${'vs gath'.padStart(8)} ${'reach'.padStart(6)} ${'area'.padStart(6)} ${'skill'.padStart(6)} ${'×skill'.padStart(7)}`);
   const pct = (v: number) => `${Math.round(v * 100)}%`;
   for (const w of weaponStats()) {
-    const vs = Math.abs(rel[w.id] - 1) > DPS_SPREAD ? `${rel[w.id].toFixed(2)}!` : rel[w.id].toFixed(2);
-    out.push(`  ${w.name.padEnd(16)} ${String(w.tier).padStart(2)} ${w.style.padEnd(7)} ${w.dps.toFixed(0).padStart(5)} ${vs.padStart(8)} ${(w.reach.toFixed(2) + (w.reach > MAX_STRIKE_REACH ? '!' : '')).padStart(6)} ${(pct(w.area) + (w.area > MAX_STRIKE_AREA ? '!' : '')).padStart(6)} ${(pct(w.skillArea) + (w.skillArea > MAX_SKILL_AREA ? '!' : '')).padStart(6)} ${w.skillMult.toFixed(1).padStart(7)}`);
+    const bad = w.track === 'hunter' && (rel[w.id] < HUNTER_DPS[0] || rel[w.id] > HUNTER_DPS[1]);
+    out.push(`  ${w.name.padEnd(16)} ${String(w.tier).padStart(2)} ${w.style.padEnd(7)} ${w.track.padEnd(9)} ${w.dps.toFixed(0).padStart(5)} ${(rel[w.id].toFixed(2) + (bad ? '!' : '')).padStart(8)} ${(w.reach.toFixed(2) + (w.reach > MAX_STRIKE_REACH ? '!' : '')).padStart(6)} ${(pct(w.area) + (w.area > MAX_STRIKE_AREA ? '!' : '')).padStart(6)} ${(pct(w.skillArea) + (w.skillArea > MAX_SKILL_AREA ? '!' : '')).padStart(6)} ${w.skillMult.toFixed(1).padStart(7)}`);
   }
+  out.push(`\nWeapon handling: switching to a fresh class costs ${[2, 3, 4, 5].map((t) => `★${t} ~${minutesToHandle(t).toFixed(1)} min`).join(', ')} of fighting (target ≤${MAX_HANDLING_MINUTES})`);
   return out.join('\n');
 }
 

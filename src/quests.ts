@@ -39,6 +39,18 @@ export function progress(s: SaveState, q: Quest): { cur: number; max: number; la
   }
 }
 
+/**
+ * The materials the current step is waiting on, with how many you have: a gathering goal's list, or the next
+ * building level's cost. Empty for steps that aren't about materials.
+ */
+export function questNeeds(s: SaveState, q: Quest): { mat: MatId; have: number; need: number }[] {
+  const g = q.goal;
+  let r: Partial<Record<MatId, number>> | null = null;
+  if (g.type === 'mats') r = g.need;
+  else if (g.type === 'build' && s.build[g.project] < g.level) r = PROJECTS[g.project].levels[g.level - 1].cost;
+  return Object.entries(r ?? {}).map(([m, n]) => ({ mat: m as MatId, have: s.mats[m as MatId] ?? 0, need: n ?? 0 }));
+}
+
 export function isDone(s: SaveState, q: Quest) {
   const p = progress(s, q);
   return p.cur >= p.max;

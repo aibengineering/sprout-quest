@@ -49,9 +49,13 @@ def trim(px):
 
 
 def main():
-    entries = []
-    for f in sorted(glob.glob(os.path.join(OUT, '*.json'))):
-        entries += json.load(open(f))
+    # Newest render wins: partial re-renders (e.g. `bun run art env grass_cave`) override older full ones, and each
+    # frame is packed once.
+    latest = {}
+    for f in sorted(glob.glob(os.path.join(OUT, '*.json')), key=os.path.getmtime):
+        for e in json.load(open(f)):
+            latest[e['name']] = e
+    entries = list(latest.values())
     os.makedirs(os.path.join(DEST, 'icons'), exist_ok=True)
     frames, sprites = {}, []
     for e in entries:

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { GEAR, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
 import {
-  CHECKPOINTS, DPS_SPREAD, KILLS_PER_LEVEL, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, dpsVsTier, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
+  CHECKPOINTS, HUNTER_DPS, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
   zoneMatchups, type Range,
 } from '../src/balance';
 
@@ -62,9 +62,9 @@ describe('balance', () => {
       const tracks = new Set(craftable.filter((g) => g.slot === 'weapon' && g.tier === tier).map(gearTrack));
       expect({ tier, hunter: tracks.has('hunter'), gatherer: tracks.has('gatherer') }).toEqual({ tier, hunter: true, gatherer: true });
     }
-    for (const lv of [1, 2]) {
-      const tracks = new Set(craftable.filter((g) => g.slot === 'armor' && forgeLevelFor(g) === lv).map(gearTrack));
-      expect({ armorForge: lv, hunter: tracks.has('hunter'), gatherer: tracks.has('gatherer') }).toEqual({ armorForge: lv, hunter: true, gatherer: true });
+    for (const tier of [1, 2, 3, 4]) {
+      const tracks = new Set(craftable.filter((g) => g.slot === 'armor' && g.tier === tier).map(gearTrack));
+      expect({ armorTier: tier, hunter: tracks.has('hunter'), gatherer: tracks.has('gatherer') }).toEqual({ armorTier: tier, hunter: true, gatherer: true });
     }
     for (const slot of ['weapon', 'armor'] as const) {
       const both = craftable.filter((g) => g.slot === slot && gearTrack(g) === 'both');
@@ -79,9 +79,25 @@ describe('balance', () => {
     expect(dragonFights()).toBeLessThanOrEqual(MAX_DRAGON_FIGHTS);
   });
 
-  test(`every weapon's damage per second is within ±${DPS_SPREAD * 100}% of its tier`, () => {
-    const off = Object.entries(dpsVsTier()).filter(([, r]) => Math.abs(r - 1) > DPS_SPREAD).map(([id, r]) => `${id}: ${r.toFixed(2)}× its tier`);
+  test(`hunter weapons hit for ${HUNTER_DPS.join('–')} of their tier's gatherer weapons, each track stays even, legendaries lead`, () => {
+    const ws = weaponStats().filter((w) => w.tier > 0), rel = dpsVsGatherers();
+    const off: string[] = [];
+    for (const w of ws.filter((w) => w.track === 'hunter')) if (rel[w.id] < HUNTER_DPS[0] || rel[w.id] > HUNTER_DPS[1]) off.push(`${w.id}: ${rel[w.id].toFixed(2)}× gatherers`);
+    for (const w of ws) {
+      const peers = ws.filter((o) => o.tier === w.tier && o.track === w.track);
+      const mean = peers.reduce((a, o) => a + o.dps, 0) / peers.length;
+      if (Math.abs(w.dps / mean - 1) > TRACK_SPREAD) off.push(`${w.id}: ${(w.dps / mean).toFixed(2)}× its track`);
+    }
+    const best4 = Math.max(...ws.filter((w) => w.tier === 4).map((w) => w.dps));
+    for (const w of ws.filter((w) => w.tier === 5)) if (w.dps < best4 * LEGENDARY_EDGE) off.push(`${w.id}: only ${(w.dps / best4).toFixed(2)}× the best ★4`);
     expect(off).toEqual([]);
+  });
+
+  test('every weapon class has a weapon at every tier, and switching to a new class never costs long to train up', () => {
+    const weapons = Object.values(GEAR).filter((g) => g.slot === 'weapon' && g.recipe);
+    for (const style of ['sword', 'hammer', 'whip', 'wand'] as const)
+      for (const tier of [1, 2, 3, 4, 5]) expect({ style, tier, has: weapons.some((g) => g.style === style && g.tier === tier) }).toEqual({ style, tier, has: true });
+    for (const tier of [2, 3, 4, 5]) expect({ tier, ok: minutesToHandle(tier) <= MAX_HANDLING_MINUTES }).toEqual({ tier, ok: true });
   });
 
   test('no strike reaches or covers too much of the arena, and no skill clears it', () => {

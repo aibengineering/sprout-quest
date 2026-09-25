@@ -84,6 +84,15 @@ def ore_node(body, dark, nugget):
     return root
 
 
+def crystal_node():
+    """A mineable crystal cluster: a stubby rock base sprouting big glowing shards."""
+    root = empty('xtal')
+    sphere((0, 0, 0.18), (0.42, 0.36, 0.22), toon('#6a6488'), root, seg=12)
+    for x, y, h, tilt, col in ((-0.16, 0, 0.62, -0.35, '#9ae6ff'), (0.14, -0.05, 0.78, 0.2, '#c8b0ff'), (0.3, 0.05, 0.5, 0.5, '#9ae6ff'), (-0.02, -0.18, 0.42, -0.1, '#e0d0ff')):
+        crystal((x, y, 0.22), 0.1, h, toon(col, rim=0.5, emit=0.15), root, rot=(0, tilt, 0), sides=6)
+    return root
+
+
 def rubble(body, nugget):
     """What's left once a rock is mined out: a scatter of pebbles and a fleck or two."""
     root = empty('rubble')
@@ -103,10 +112,10 @@ def crystals(seed):
     return root
 
 
-def rock(seed):
+def rock(seed, cols=('#8a6a5e', '#7a5a50', '#94746a')):
     r = random.Random(seed)
     root = empty('rock')
-    col = ['#8a6a5e', '#7a5a50', '#94746a'][seed % 3]
+    col = cols[seed % 3]
     sphere((0, 0, 0.36), (0.66, 0.55, 0.46), toon(col), root, seg=12, rot=(0, 0, r.uniform(0, 3)))
     sphere((0.35, -0.2, 0.2), (0.3, 0.26, 0.24), toon(col), root, seg=10)
     if seed % 3 == 1:
@@ -421,7 +430,8 @@ GRASS = {
     'village': ('#5fbf4a', '#86dc5e'),
     'meadow': ('#4fb043', '#86dc5e'),
     'woods': ('#3a8a3e', '#5aa84a'),
-    'cave': ('#6a5fb0', '#a898f0'),
+    'cave': ('#4f8a6a', '#7ac89a'),
+    'hollow': ('#6a5fb0', '#a898f0'),
     'peak': ('#8a4a3a', '#e0804a'),
 }
 
@@ -439,6 +449,10 @@ SCENERY['pine_stump'] = (lambda: stump('#7a5238', '#f0dca0'), 80, 70)
 for name, (body, dark, nugget) in {'rock': ('#9aa0b0', '#80869a', '#f0f0f8'), 'copper': ('#8a7a6a', '#6e6054', '#ff9a4a'), 'iron': ('#5e6272', '#4a4d5c', '#c8dcf8')}.items():
     SCENERY[f'{name}_node'] = (lambda b=body, d=dark, n=nugget: ore_node(b, d, n), 130, 120)
     SCENERY[f'{name}_rubble'] = (lambda b=body, n=nugget: rubble(b, n), 80, 60)
+for i in range(3):
+    SCENERY[f'boulder{i}'] = (lambda i=i: rock(i, ('#8a8e9e', '#7a7e8e', '#9498a8')), 130, 110)
+SCENERY['crystal_node'] = (lambda: crystal_node(), 130, 150)
+SCENERY['crystal_rubble'] = (lambda: rubble('#8e89ad', '#9ae6ff'), 80, 60)
 SCENERY['forge0'] = (forge_ruins, 480, 380)
 SCENERY['forge'] = (forge, 480, 420)
 SCENERY['forge2'] = (lambda: forge(2), 520, 420)

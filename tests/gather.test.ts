@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { NODES, NODE_SPAWNS, SKILL_MAX, TOOLS, type ZoneId } from '../src/data';
 import { BASE_SPEED, Chop } from '../src/gather';
-import { canGather, craftGear, craftTool, gainSkillXp, harvest, skillXpToNext, sweetWidth } from '../src/rules';
+import { canGather, craftGear, craftTool, gainSkillXp, harvest, skillXpToNext, sweetWidth, toolPower } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
 
@@ -59,7 +59,9 @@ describe('woodcutting rules', () => {
     expect(craftTool(s, 'axe1')).toBe('ok');
     expect(craftTool(s, 'axe1')).toBe('owned');
     expect(canGather(s, 'oak', 'x', 0)).toBe('ok');
-    expect(canGather(s, 'pine', 'y', 0)).toBe('tool');
+    // One tier up still works with a Stone Axe, just slowly; two tiers up doesn't.
+    expect(canGather(s, 'pine', 'y', 0)).toBe('ok');
+    expect(toolPower(1, NODES.pine.tier)).toBeLessThan(toolPower(1, NODES.oak.tier));
     const r = harvest(s, 'oak', 'x', true, true, () => 1, 0);
     expect(r.drops.bark).toBe(NODES.oak.grass.yield + 1);
     expect(s.mats.bark).toBe(NODES.oak.grass.yield + 1);
@@ -79,22 +81,23 @@ describe('woodcutting rules', () => {
     for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 99;
     s.build.forge = 1;
     expect(craftTool(s, 'axe2')).toBe('skill');
-    expect(craftGear(s, 'timberaxe')).toBe('skill');
+    expect(craftGear(s, 'barkvest')).toBe('skill');
     gainSkillXp(s, 'wood', 10_000);
     expect(s.skills.wood.lv).toBe(SKILL_MAX);
     expect(craftTool(s, 'axe2')).toBe('ok');
-    expect(craftGear(s, 'timberaxe')).toBe('ok');
+    expect(craftGear(s, 'barkvest')).toBe('ok');
     expect(gainSkillXp(s, 'wood', 10_000)).toBe(0);
     expect(skillXpToNext(1)).toBeGreaterThan(0);
   });
 
-  test('rocks need picks: stone with a Stone Pick, copper and iron with better picks that need Mining levels', () => {
+  test('each pick mines its own tier quickly and the next tier up slowly, and is made from the tier below it', () => {
     const s = newState();
-    Object.assign(s.mats, { goo: 9, fluff: 9, stone: 20, bark: 20, fang: 9, copper: 20, crystal: 9 });
+    Object.assign(s.mats, { goo: 9, fluff: 9, stone: 20, bark: 20, pine: 20, fang: 9, copper: 20, iron: 20, crystal: 20 });
     expect(canGather(s, 'rock', 'r', 0)).toBe('tool');
     expect(craftTool(s, 'pick1')).toBe('ok');
     expect(canGather(s, 'rock', 'r', 0)).toBe('ok');
-    expect(canGather(s, 'copper', 'c', 0)).toBe('tool');
+    expect(canGather(s, 'copper', 'c', 0)).toBe('ok');
+    expect(canGather(s, 'iron', 'i', 0)).toBe('tool');
     expect(craftTool(s, 'pick2')).toBe('skill');
     const r = harvest(s, 'rock', 'r', false, false, () => 1, 0);
     expect(r.drops.stone).toBe(NODES.rock.safe.yield);
@@ -102,10 +105,17 @@ describe('woodcutting rules', () => {
     expect(s.skills.wood.xp).toBe(0);
     gainSkillXp(s, 'mine', 10_000);
     expect(craftTool(s, 'pick2')).toBe('ok');
-    expect(canGather(s, 'copper', 'c', 0)).toBe('ok');
-    expect(canGather(s, 'iron', 'i', 0)).toBe('tool');
-    expect(craftTool(s, 'pick3')).toBe('ok');
     expect(canGather(s, 'iron', 'i', 0)).toBe('ok');
+    expect(canGather(s, 'crystal', 'y', 0)).toBe('tool');
+    expect(craftTool(s, 'pick3')).toBe('ok');
+    expect(canGather(s, 'crystal', 'y', 0)).toBe('ok');
+    expect(craftTool(s, 'pick4')).toBe('ok');
+    // A tool is made from its own tier (mined slowly with the tool before it), never from a higher tier (the old
+    // Iron Pick needed crystal, which you couldn't mine yet).
+    for (const t of TOOLS) {
+      const above = Object.values(NODES).filter((n) => n.tier > t.tier).map((n) => n.mat);
+      expect({ tool: t.id, needsHigherTier: Object.keys(t.recipe).some((m) => above.includes(m as never)) }).toEqual({ tool: t.id, needsHigherTier: false });
+    }
   });
 
   test('every node tier has a tool that can gather it', () => {

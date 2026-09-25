@@ -142,6 +142,14 @@ def pick(head, lash='#e8d8a0'):
     return r
 
 
+def glimmer_jelly():
+    r = empty('i')
+    sphere((0, 0, 0), (0.36, 0.32, 0.3), toon('#b8a8f8', rim=0.4), r, seg=24)
+    sphere((-0.12, -0.26, 0.12), (0.08, 0.03, 0.05), toon('#ffffff', rim=0), r, line=0)
+    crystal((0.12, -0.05, 0.2), 0.06, 0.24, toon('#e0d0ff', rim=0.5), r, rot=(0, 0.3, 0), sides=5)
+    return r
+
+
 def fang():
     r = empty('i')
     profile([(-0.12, 0.4), (0.12, 0.4), (0.14, 0.1), (0.05, -0.2), (-0.1, -0.45), (-0.08, -0.1), (-0.14, 0.15)], 0.16, toon('#f4eee0'), r, bevel=0.05)
@@ -224,14 +232,16 @@ def kingcrystal():
 CHARMS = {'clovercharm': clovercharm, 'toothcharm': toothcharm, 'crystalheart': crystalheart, 'impring': impring}
 MATERIALS = {
     'goo': goo, 'fluff': fluff, 'clover': clover, 'cap': cap, 'bark': bark, 'pine': pine_log, 'fang': fang, 'wing': wing,
-    'stone': lambda: ore('#9aa0b0', None), 'copper': lambda: ore('#8a7a6a', '#ff9a4a'), 'iron': lambda: ore('#5e6272', '#c8dcf8'),
+    'stone': lambda: ore('#9aa0b0', None),
+    'glimmer': glimmer_jelly, 'copper': lambda: ore('#8a7a6a', '#ff9a4a'), 'iron': lambda: ore('#5e6272', '#c8dcf8'),
     'crystal': crystal_mat, 'core': core, 'ember': ember, 'horn': horn, 'scale': scale,
     'royaljelly': royaljelly, 'alphapelt': alphapelt, 'kingcrystal': kingcrystal,
 }
 TOOLS = {
     'axe1': lambda: axe('#9aa0b0', [(0.32, 0.03), (0.46, 0.03), (0.56, 0.3), (0.48, 0.37), (0.4, 0.38), (0.32, 0.37), (0.24, 0.3)]),
-    'axe2': lambda: axe('#fff0e0', [(0.32, 0.03), (0.46, 0.03), (0.58, 0.22), (0.66, 0.46), (0.52, 0.36), (0.38, 0.32), (0.26, 0.26)], '#e8505a'),
+    'axe2': lambda: axe('#e8904a', [(0.32, 0.03), (0.46, 0.03), (0.56, 0.3), (0.48, 0.37), (0.4, 0.38), (0.32, 0.37), (0.24, 0.3)], '#8a5a3a'),
     'pick1': lambda: pick('#9aa0b0'),
     'pick2': lambda: pick('#e8904a', '#8a5a3a'),
     'pick3': lambda: pick('#c8d4e8', '#5e6272'),
+    'pick4': lambda: pick('#9ae6ff', '#8a70e0'),
 }

@@ -4,7 +4,7 @@ export type MatId =
   | 'goo' | 'fluff' | 'clover'
   | 'cap' | 'bark' | 'pine' | 'fang'
   | 'stone' | 'copper' | 'iron'
-  | 'wing' | 'crystal' | 'core'
+  | 'wing' | 'crystal' | 'core' | 'glimmer'
   | 'ember' | 'horn' | 'scale'
   | 'royaljelly' | 'alphapelt' | 'kingcrystal';
 
@@ -15,15 +15,16 @@ export const MATS: Record<MatId, { name: string; icon: string; where: string }> 
   fluff: { name: 'Bunny Fluff', icon: '☁️', where: 'Hopbuns · Meadow' },
   clover: { name: 'Lucky Clover', icon: '🍀', where: 'Rare · Meadow & Woods' },
   cap: { name: 'Shroom Cap', icon: '🍄', where: 'Sporecaps · Woods' },
-  bark: { name: 'Oak Log', icon: '🪵', where: 'Oak trees · Stone Axe' },
-  pine: { name: 'Pine Log', icon: '🌲', where: 'Pine trees · Woods · Fang Axe' },
-  stone: { name: 'Stone', icon: '🪨', where: 'Rocks · Meadow & Woods · Stone Pick' },
-  copper: { name: 'Copper Ore', icon: '🟠', where: 'Copper veins · Woods & Cave · Copper Pick' },
-  iron: { name: 'Iron Ore', icon: '⚙️', where: 'Iron veins · Cave & Peak · Iron Pick' },
+  bark: { name: 'Oak Log', icon: '🪵', where: 'Oak trees · Meadow & Woods' },
+  pine: { name: 'Pine Log', icon: '🌲', where: 'Pine trees · Woods' },
+  stone: { name: 'Stone', icon: '🪨', where: 'Rocks · Meadow & Woods' },
+  copper: { name: 'Copper Ore', icon: '🟠', where: 'Copper veins · Woods & Cavern' },
+  iron: { name: 'Iron Ore', icon: '⚙️', where: 'Iron veins · Cavern, Hollow & Peak' },
+  crystal: { name: 'Crystal', icon: '💎', where: 'Crystal clusters · Glimmer Hollow' },
   fang: { name: 'Wolf Fang', icon: '🦷', where: 'Woolfs · Woods' },
-  wing: { name: 'Bat Wing', icon: '🦇', where: 'Flappers · Cave' },
-  crystal: { name: 'Crystal Shard', icon: '💎', where: 'Cave' },
-  core: { name: 'Golem Core', icon: '🔮', where: 'Rare · Pebblors & Magma' },
+  wing: { name: 'Bat Wing', icon: '🦇', where: 'Flappers · Cavern & Hollow' },
+  core: { name: 'Golem Core', icon: '🔮', where: 'Pebblors · Cavern' },
+  glimmer: { name: 'Glimmer Jelly', icon: '✨', where: 'Glimmer Slimes · Hollow' },
   ember: { name: 'Ember', icon: '🔥', where: 'Ember Peak' },
   horn: { name: 'Imp Horn', icon: '😈', where: 'Impys · Peak' },
   scale: { name: 'Dragon Scale', icon: '🐉', where: 'Emberwyrm' },
@@ -36,7 +37,7 @@ export const MAT_ORDER = Object.keys(MATS) as MatId[];
 
 export type MonsterKind =
   | 'slime' | 'bunny' | 'shroom' | 'wolf' | 'bat'
-  | 'golem' | 'imp' | 'magma' | 'dragon'
+  | 'golem' | 'glimmer' | 'imp' | 'magma' | 'dragon'
   | 'kingslime' | 'alphawolf' | 'crystalking';
 
 export interface Drop { mat: MatId; chance: number; min: number; max: number }
@@ -74,43 +75,52 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
     drops: [{ mat: 'fang', chance: 0.8, min: 1, max: 2 }],
   },
   bat: {
-    name: 'Flapper', lv: 9, hp: 52, atk: 15, def: 5, spd: 110, r: 13, xp: 28,
-    drops: [{ mat: 'wing', chance: 0.8, min: 1, max: 2 }, { mat: 'crystal', chance: 0.3, min: 1, max: 1 }],
+    name: 'Flapper', lv: 9, hp: 52, atk: 17, def: 5, spd: 110, r: 13, xp: 28,
+    drops: [{ mat: 'wing', chance: 0.85, min: 1, max: 2 }],
   },
   golem: {
-    name: 'Pebblor', lv: 11, hp: 90, atk: 22, def: 12, spd: 38, r: 22, xp: 48,
-    drops: [{ mat: 'crystal', chance: 0.85, min: 1, max: 3 }, { mat: 'core', chance: 0.4, min: 1, max: 1 }],
+    name: 'Pebblor', lv: 11, hp: 90, atk: 25, def: 12, spd: 38, r: 22, xp: 48,
+    drops: [{ mat: 'core', chance: 0.6, min: 1, max: 1 }, { mat: 'stone', chance: 0.4, min: 1, max: 2 }],
+  },
+  glimmer: {
+    name: 'Glimmer Slime', lv: 12, hp: 105, atk: 26, def: 12, spd: 75, r: 16, xp: 52,
+    drops: [{ mat: 'glimmer', chance: 0.85, min: 1, max: 2 }],
   },
   imp: {
     name: 'Impy', lv: 14, hp: 88, atk: 30, def: 10, spd: 90, r: 14, xp: 58,
     drops: [{ mat: 'ember', chance: 0.8, min: 1, max: 2 }, { mat: 'horn', chance: 0.7, min: 1, max: 1 }],
   },
   magma: {
-    name: 'Magma Slime', lv: 15, hp: 120, atk: 34, def: 14, spd: 80, r: 16, xp: 62,
+    name: 'Magma Slime', lv: 15, hp: 120, atk: 36, def: 14, spd: 80, r: 16, xp: 62,
     drops: [{ mat: 'ember', chance: 0.9, min: 1, max: 3 }, { mat: 'core', chance: 0.3, min: 1, max: 1 }],
   },
   dragon: {
-    name: 'Emberwyrm', lv: 20, hp: 2000, atk: 46, def: 18, spd: 70, r: 44, xp: 600, boss: true, title: 'Dragon of Ember Peak',
-    drops: [{ mat: 'scale', chance: 1, min: 3, max: 4 }, { mat: 'ember', chance: 1, min: 3, max: 5 }],
+    name: 'Emberwyrm', lv: 20, hp: 2400, atk: 46, def: 18, spd: 70, r: 44, xp: 600, boss: true, title: 'Dragon of Ember Peak',
+    drops: [{ mat: 'scale', chance: 1, min: 4, max: 5 }, { mat: 'ember', chance: 1, min: 3, max: 5 }],
   },
   kingslime: {
     name: 'Slime King', lv: 5, hp: 280, atk: 11, def: 3, spd: 60, r: 34, xp: 120, boss: true, title: 'Guardian of the Woods Road',
     drops: [{ mat: 'royaljelly', chance: 1, min: 2, max: 2 }, { mat: 'goo', chance: 1, min: 4, max: 6 }],
   },
   alphawolf: {
-    name: 'Alpha Woolf', lv: 9, hp: 560, atk: 17, def: 6, spd: 110, r: 26, xp: 260, boss: true, title: 'Guardian of the Cave Road',
+    name: 'Alpha Woolf', lv: 9, hp: 560, atk: 17, def: 6, spd: 110, r: 26, xp: 260, boss: true, title: 'Guardian of the Cavern Road',
     drops: [{ mat: 'alphapelt', chance: 1, min: 2, max: 2 }, { mat: 'fang', chance: 1, min: 3, max: 5 }],
   },
   crystalking: {
-    name: 'Crystal King', lv: 14, hp: 820, atk: 31, def: 14, spd: 45, r: 38, xp: 520, boss: true, title: 'Guardian of the Peak Road',
-    drops: [{ mat: 'kingcrystal', chance: 1, min: 2, max: 2 }, { mat: 'crystal', chance: 1, min: 4, max: 6 }, { mat: 'core', chance: 1, min: 1, max: 1 }],
+    name: 'Crystal King', lv: 14, hp: 1000, atk: 31, def: 14, spd: 45, r: 38, xp: 520, boss: true, title: 'Guardian of the Peak Road',
+    drops: [{ mat: 'kingcrystal', chance: 1, min: 2, max: 2 }, { mat: 'crystal', chance: 1, min: 4, max: 6 }, { mat: 'glimmer', chance: 1, min: 3, max: 4 }],
   },
 };
 
 export type Slot = 'weapon' | 'armor' | 'charm';
-export type Style = 'sword' | 'spear' | 'axe' | 'hammer' | 'wand';
-/** Elemental flavor: fire burns, crystal crits, dragon adds explosions; the rest are cosmetic. */
-export type Fx = 'none' | 'nature' | 'jelly' | 'crystal' | 'stone' | 'fire' | 'dragon';
+/** Weapon classes. Swords and hammers are the gatherer lines; whips and wands (and slingshots) the hunter lines. */
+export type Style = 'sword' | 'hammer' | 'whip' | 'wand';
+export const STYLE_NAMES: Record<Style, string> = { sword: 'Sword', hammer: 'Hammer', whip: 'Whip', wand: 'Wand' };
+/**
+ * What a weapon (or its shots) does on hit. Gatherer metals are plain; monster weapons carry their monster's trick:
+ * jelly slows, spores poison, bat drains life, glimmer chains to a second foe, fire burns, dragon burns and bursts.
+ */
+export type Fx = 'none' | 'nature' | 'stone' | 'metal' | 'crystal' | 'jelly' | 'spore' | 'bat' | 'glimmer' | 'fire' | 'dragon';
 
 export interface Gear {
   id: string;
@@ -125,48 +135,64 @@ export interface Gear {
   luck?: number;
   regen?: number;
   style?: Style;
-  /** Weapon power tier 0–5: bigger reach, flashier trails and heavier impacts. */
+  /** Power tier 0–5 (one per area): bigger reach, flashier trails and heavier impacts. Armor uses it for forge gating. */
   tier?: number;
   /** Gathering skill levels needed to craft it (the gatherer track). */
   needs?: Partial<Record<SkillId, number>>;
   fx?: Fx;
+  /** The Wyrmbreaker's slam breathes a fan of dragonfire that leaves the ground burning. */
+  breath?: boolean;
   /** Slash trail color. */
   trail?: string;
   color?: string;
   recipe?: Recipe;
 }
 
+const W = (id: string, name: string, style: Style, tier: number, atk: number, fx: Fx, color: string, trail: string, desc: string, recipe: Recipe, needs?: Gear['needs'], extra: Partial<Gear> = {}): Gear =>
+  ({ id, name, slot: 'weapon', icon: { sword: '🗡️', hammer: '🔨', whip: '〰️', wand: '🪄' }[style], style, tier, atk, fx, color, trail, desc, recipe, needs, ...extra });
+
 const GEAR_LIST: Gear[] = [
-  // Weapons
+  // Weapons. Gatherer lines (swords, hammers) are forged from each area's ore: a little more power, plain swings.
+  // Hunter lines (whips, wands) come from monsters: a little less power, plus the monster's trick.
+  // The ★★★★★ legendaries need both, and beat everything else.
   { id: 'twig', name: 'Twig Sword', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 0, fx: 'nature', trail: '#fff6d0', atk: 3, color: '#b98a5a', desc: 'A trusty stick. Pointy-ish.' },
-  { id: 'jelly', name: 'Jelly Blade', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 1, fx: 'jelly', trail: '#9af0a0', atk: 7, color: '#6fdc7a', desc: 'Wobbly but surprisingly sharp.', recipe: { goo: 6, fluff: 2 } },
-  { id: 'cloverhatchet', name: 'Clover Hatchet', slot: 'weapon', icon: '🪓', style: 'axe', tier: 1, fx: 'nature', trail: '#c8f0a0', atk: 9, color: '#a8e8b0', desc: 'Heavy cleaves. Lucky, too.', needs: { wood: 2 }, recipe: { bark: 5, stone: 3 } },
-  { id: 'fangspear', name: 'Fang Spear', slot: 'weapon', icon: '🔱', style: 'spear', tier: 2, fx: 'none', trail: '#fff0e0', atk: 13, color: '#e8e2d0', desc: 'Long reach. Skill: lunge!', recipe: { fang: 6, cap: 3 } },
-  { id: 'timberaxe', name: 'Timber Axe', slot: 'weapon', icon: '🪓', style: 'axe', tier: 2, fx: 'none', trail: '#e0e8ff', atk: 16, color: '#dfe6f0', desc: 'Wide cleave. Skill: whirlwind!', needs: { wood: 5 }, recipe: { pine: 6, bark: 3, copper: 2 } },
-  { id: 'mushmallet', name: 'Mushroom Mallet', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 2, fx: 'jelly', trail: '#ffb4b4', atk: 17, color: '#e8505a', desc: 'Slams send shockwaves forward.', recipe: { cap: 7, fang: 2 } },
-  { id: 'crystalwand', name: 'Crystal Wand', slot: 'weapon', icon: '🪄', style: 'wand', tier: 3, fx: 'crystal', trail: '#9ae6ff', atk: 18, color: '#9ae6ff', desc: 'Shoots sparkles. Skill: nova!', recipe: { crystal: 5, wing: 4, cap: 3 } },
-  { id: 'geode', name: 'Geode Sword', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 3, fx: 'crystal', trail: '#c8b0ff', atk: 22, color: '#b8a0ff', desc: 'Crystal edge: extra crits.', recipe: { crystal: 6, wing: 4 } },
-  { id: 'boulder', name: 'Boulder Hammer', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 3, fx: 'stone', trail: '#e0d8c8', atk: 27, color: '#9aa0b0', desc: 'Miner-forged from stone and ore. Skill: quake!', needs: { mine: 7 }, recipe: { stone: 8, iron: 3, copper: 2 } },
-  { id: 'emberblade', name: 'Ember Blade', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 4, fx: 'fire', trail: '#ffb03a', atk: 36, color: '#ff8a3a', desc: 'Sets foes ablaze.', recipe: { ember: 8, horn: 4, core: 1 } },
-  { id: 'magmacleaver', name: 'Magma Cleaver', slot: 'weapon', icon: '🪓', style: 'axe', tier: 4, fx: 'fire', trail: '#ff7a2a', atk: 42, color: '#ff7a2a', desc: 'Molten cleaves that burn.', needs: { wood: 8 }, recipe: { pine: 8, iron: 6, stone: 4 } },
-  { id: 'wyrmfang', name: 'Wyrmfang', slot: 'weapon', icon: '🔱', style: 'spear', tier: 5, fx: 'dragon', trail: '#ff5a4a', atk: 55, color: '#ff5a4a', desc: 'Dragonfire bursts on every hit!', needs: { wood: 9 }, recipe: { scale: 3, ember: 6, pine: 8, iron: 4 } },
-  { id: 'wyrmbreaker', name: 'Wyrmbreaker', slot: 'weapon', icon: '🔨', style: 'hammer', tier: 5, fx: 'dragon', trail: '#ffb03a', atk: 64, color: '#c83a3a', desc: 'Legendary. Shakes the earth.', needs: { mine: 9 }, recipe: { scale: 4, core: 2, iron: 8, stone: 6 } },
+  W('stonesword', 'Stone Sword', 'sword', 1, 8, 'stone', '#b8bcc8', '#f0f0f4', 'A chunky slab of a blade. Honest work.', { stone: 4, bark: 2 }, { mine: 2 }),
+  W('stonehammer', 'Stone Hammer', 'hammer', 1, 10, 'stone', '#9aa0b0', '#e8e0d0', 'Slams kick up little rocks.', { stone: 5, bark: 2 }, { mine: 2 }),
+  W('jellywhip', 'Jelly Whip', 'whip', 1, 8, 'jelly', '#6fdc7a', '#9af0a0', 'Long, wobbly lashes. Sticky goo slows what it hits.', { goo: 6, fluff: 2 }),
+  W('jellysling', 'Jelly Slingshot', 'wand', 1, 9, 'jelly', '#8af09a', '#9af0a0', 'Flings gooey blobs that slow what they hit.', { goo: 5, fluff: 3 }),
+  W('coppersword', 'Copper Sword', 'sword', 2, 14, 'metal', '#e8904a', '#ffd0a0', 'Bright and keen.', { copper: 4, bark: 3 }, { mine: 4 }),
+  W('copperhammer', 'Copper Hammer', 'hammer', 2, 18, 'metal', '#d8783a', '#ffc890', 'Rings like a bell on every slam.', { copper: 5, pine: 3 }, { mine: 4 }),
+  W('sporewhip', 'Spore Whip', 'whip', 2, 13, 'spore', '#e8505a', '#ffb4b4', 'Every lash leaves a puff of poison spores.', { cap: 6, fang: 2 }),
+  W('sporewand', 'Spore Wand', 'wand', 2, 16, 'spore', '#e8505a', '#ffb4b4', 'Shoots spore pods that poison.', { cap: 5, fang: 3 }),
+  W('ironsword', 'Iron Sword', 'sword', 3, 22, 'metal', '#c8d4e8', '#ffffff', 'Heavy, true, dependable.', { iron: 5, pine: 3 }, { mine: 6 }),
+  W('ironhammer', 'Iron Hammer', 'hammer', 3, 28, 'metal', '#9aa4b8', '#e8eef8', 'Cracks the ground in a line.', { iron: 6, pine: 3 }, { mine: 6 }),
+  W('batwhip', 'Batwing Whip', 'whip', 3, 21, 'bat', '#7a5ab8', '#c8a8ff', 'Hungry lashes: each hit heals you a little.', { wing: 6, core: 1, fang: 2 }),
+  W('batwand', 'Bat Wand', 'wand', 3, 26, 'bat', '#7a5ab8', '#c8a8ff', 'Bolts that swerve after foes and drain their life.', { wing: 5, core: 2 }),
+  W('crystalsword', 'Crystal Sword', 'sword', 4, 32, 'crystal', '#9ae6ff', '#e0f8ff', 'A crystal edge: lands more critical hits.', { crystal: 5, iron: 3, pine: 2 }, { mine: 8 }),
+  W('crystalhammer', 'Crystal Hammer', 'hammer', 4, 40, 'crystal', '#8ad8f0', '#e0f8ff', 'Shatters the ground into shards.', { crystal: 6, iron: 3 }, { mine: 8 }),
+  W('glimmerwhip', 'Glimmer Whip', 'whip', 4, 30, 'glimmer', '#c8b0ff', '#f0e0ff', 'Sparks leap from each lash to a second foe.', { glimmer: 6, wing: 3, core: 1 }),
+  W('glimmerwand', 'Glimmer Wand', 'wand', 4, 37, 'glimmer', '#c8b0ff', '#f0e0ff', 'Sparkles that jump to a second foe.', { glimmer: 5, wing: 3, core: 1 }),
+  W('emberblade', 'Ember Blade', 'sword', 5, 52, 'fire', '#ff8a3a', '#ffb03a', 'Sets foes ablaze in a long fiery arc.', { ember: 8, horn: 4, crystal: 4, iron: 4 }, { mine: 8 }),
+  W('wyrmbreaker', 'Wyrmbreaker', 'hammer', 5, 62, 'dragon', '#c83a3a', '#ffb03a', 'Legendary. Each slam breathes a fan of dragonfire.', { scale: 3, ember: 6, crystal: 4, iron: 6 }, { mine: 9 }, { breath: true }),
+  W('dragontail', 'Dragontail Whip', 'whip', 5, 50, 'dragon', '#ff5a4a', '#ffb03a', 'A lash of living flame that bursts on impact.', { scale: 3, ember: 6, horn: 4, pine: 6 }, { wood: 8 }),
+  W('wyrmfire', 'Wyrmfire Wand', 'wand', 5, 64, 'dragon', '#ff5a4a', '#ffd35a', 'Hurls fireballs that burst into dragonfire.', { scale: 2, horn: 4, ember: 6, crystal: 3 }, { mine: 8 }),
   // Armor
   { id: 'tunic', name: 'Cozy Tunic', slot: 'armor', icon: '👕', def: 1, color: '#6fa8ff', desc: 'Smells like home.' },
-  { id: 'fluffvest', name: 'Fluffy Vest', slot: 'armor', icon: '🧥', def: 3, hp: 6, color: '#fff1e6', desc: 'Soft and bouncy.', recipe: { fluff: 6, goo: 2 } },
-  { id: 'barkvest', name: 'Timber Vest', slot: 'armor', icon: '🪵', def: 4, hp: 4, color: '#9a6a44', desc: 'Sturdy oak and stone buttons.', needs: { wood: 2 }, recipe: { bark: 6, stone: 2 } },
-  { id: 'shroomhood', name: 'Shroom Hood', slot: 'armor', icon: '🥋', def: 6, hp: 12, color: '#e8505a', desc: 'Spotty and stylish.', recipe: { cap: 6, fang: 2 } },
-  { id: 'batcloak', name: 'Bat Cloak', slot: 'armor', icon: '🧣', def: 10, spd: 12, color: '#7a5ab8', desc: 'Swoosh! +speed.', recipe: { wing: 6, fang: 3 } },
-  { id: 'coppermail', name: 'Copper Mail', slot: 'armor', icon: '🟠', def: 8, hp: 10, color: '#e8904a', desc: 'Warm, bright and clanky.', needs: { mine: 4 }, recipe: { copper: 6, stone: 4, bark: 2 } },
-  { id: 'crystalmail', name: 'Crystal Mail', slot: 'armor', icon: '🛡️', def: 15, hp: 20, color: '#8ad8f0', desc: 'Shiny and tough.', recipe: { crystal: 8, core: 1 } },
-  { id: 'ironplate', name: 'Iron Plate', slot: 'armor', icon: '🛡️', def: 17, hp: 18, color: '#aab4c8', desc: 'Heavy, honest iron.', needs: { mine: 7 }, recipe: { iron: 8, copper: 4, pine: 4 } },
-  { id: 'magmamail', name: 'Magma Mail', slot: 'armor', icon: '🦺', def: 21, hp: 30, color: '#e8703a', desc: 'Toasty protection.', recipe: { ember: 8, horn: 3, crystal: 4 } },
-  { id: 'dragonmail', name: 'Dragon Mail', slot: 'armor', icon: '🐲', def: 30, hp: 50, color: '#c83a3a', desc: 'The ultimate cozy armor.', needs: { wood: 8, mine: 8 }, recipe: { scale: 4, core: 2, pine: 6, iron: 6 } },
+  { id: 'fluffvest', name: 'Fluffy Vest', slot: 'armor', icon: '🧥', tier: 1, def: 3, hp: 6, color: '#fff1e6', desc: 'Soft and bouncy.', recipe: { fluff: 6, goo: 2 } },
+  { id: 'barkvest', name: 'Timber Vest', slot: 'armor', icon: '🪵', tier: 1, def: 4, hp: 6, color: '#9a6a44', desc: 'Sturdy oak and stone buttons.', needs: { wood: 2 }, recipe: { bark: 6, stone: 3 } },
+  { id: 'shroomhood', name: 'Shroom Hood', slot: 'armor', icon: '🥋', tier: 2, def: 6, hp: 12, color: '#e8505a', desc: 'Spotty and stylish.', recipe: { cap: 6, fang: 2 } },
+  { id: 'coppermail', name: 'Copper Mail', slot: 'armor', icon: '🟠', tier: 2, def: 8, hp: 12, color: '#e8904a', desc: 'Warm, bright and clanky.', needs: { mine: 4 }, recipe: { copper: 6, stone: 4 } },
+  { id: 'batcloak', name: 'Bat Cloak', slot: 'armor', icon: '🧣', tier: 3, def: 10, hp: 10, spd: 12, color: '#7a5ab8', desc: 'Swoosh! +speed.', recipe: { wing: 6, fang: 3 } },
+  { id: 'ironplate', name: 'Iron Plate', slot: 'armor', icon: '🛡️', tier: 3, def: 14, hp: 18, color: '#aab4c8', desc: 'Heavy, honest iron.', needs: { mine: 6 }, recipe: { iron: 8, pine: 3 } },
+  { id: 'glimmershawl', name: 'Glimmer Shawl', slot: 'armor', icon: '🧣', tier: 4, def: 15, hp: 22, regen: 1, color: '#c8b0ff', desc: 'Shimmers, and slowly heals you in battle.', recipe: { glimmer: 6, wing: 3, core: 1 } },
+  { id: 'crystalmail', name: 'Crystal Mail', slot: 'armor', icon: '🛡️', tier: 4, def: 18, hp: 24, color: '#8ad8f0', desc: 'Shiny and tough.', needs: { mine: 8 }, recipe: { crystal: 8, iron: 4 } },
+  { id: 'magmamail', name: 'Magma Mail', slot: 'armor', icon: '🦺', tier: 5, def: 24, hp: 34, color: '#e8703a', desc: 'Toasty protection.', needs: { mine: 8 }, recipe: { ember: 8, horn: 3, crystal: 4, iron: 4 } },
+  { id: 'dragonmail', name: 'Dragon Mail', slot: 'armor', icon: '🐲', tier: 5, def: 30, hp: 50, color: '#c83a3a', desc: 'The ultimate cozy armor.', needs: { wood: 8, mine: 8 }, recipe: { scale: 3, ember: 4, crystal: 4, iron: 6 } },
   // Charms
-  { id: 'clovercharm', name: 'Clover Charm', slot: 'charm', icon: '🍀', luck: 0.25, desc: '+25% luck: more drops & crits.', recipe: { clover: 3, goo: 3 } },
-  { id: 'toothcharm', name: 'Tooth Necklace', slot: 'charm', icon: '📿', atk: 4, desc: '+4 attack. Rawr.', recipe: { fang: 4, cap: 2 } },
-  { id: 'crystalheart', name: 'Crystal Heart', slot: 'charm', icon: '💖', hp: 30, regen: 1, desc: '+30 HP, heal slowly in battle.', recipe: { crystal: 4, wing: 3, clover: 1 } },
-  { id: 'impring', name: 'Imp Ring', slot: 'charm', icon: '💍', atk: 8, spd: 10, desc: '+8 attack, +speed.', recipe: { horn: 4, ember: 3 } },
+  { id: 'clovercharm', name: 'Clover Charm', slot: 'charm', icon: '🍀', tier: 1, luck: 0.25, desc: '+25% luck: more drops & crits.', recipe: { clover: 3, goo: 3 } },
+  { id: 'toothcharm', name: 'Tooth Necklace', slot: 'charm', icon: '📿', tier: 2, atk: 4, desc: '+4 attack. Rawr.', recipe: { fang: 4, cap: 2 } },
+  { id: 'crystalheart', name: 'Crystal Heart', slot: 'charm', icon: '💖', tier: 4, hp: 30, regen: 1, desc: '+30 HP, heal slowly in battle.', recipe: { glimmer: 4, wing: 3, clover: 1 } },
+  { id: 'impring', name: 'Imp Ring', slot: 'charm', icon: '💍', tier: 5, atk: 8, spd: 10, desc: '+8 attack, +speed.', recipe: { horn: 4, ember: 3 } },
 ];
 
 export const GEAR: Record<string, Gear> = Object.fromEntries(GEAR_LIST.map((g) => [g.id, g]));
@@ -181,7 +207,7 @@ export const POTION_RECIPES: { id: string; name: string; recipe: Recipe }[] = [
   { id: 'embertonic', name: 'Ember Tonic', recipe: { ember: 2 } },
 ];
 
-export type ZoneId = 'glade' | 'village' | 'meadow' | 'woods' | 'cave' | 'peak';
+export type ZoneId = 'glade' | 'village' | 'meadow' | 'woods' | 'cave' | 'hollow' | 'peak';
 
 export interface Theme {
   ground: string;
@@ -189,7 +215,7 @@ export interface Theme {
   grass: string;
   grassTip: string;
   path: string;
-  obstacle: 'tree' | 'pine' | 'crystal' | 'rock';
+  obstacle: 'tree' | 'pine' | 'boulder' | 'crystal' | 'rock';
   pool: 'water' | 'lava' | null;
   decor: 'flower' | 'mush' | 'gem' | 'pebble';
   outside: string;
@@ -236,12 +262,17 @@ export const ZONES: Zone[] = [
     theme: { ground: '#72ad5e', ground2: '#6aa556', grass: '#3a8a3e', grassTip: '#5aa84a', path: '#cdb88c', obstacle: 'pine', pool: 'water', decor: 'mush', outside: '#3f7a3c' },
   },
   {
-    id: 'cave', name: 'Crystal Cave', guardian: { kind: 'alphawolf', lv: 9, gate: 'crystal' }, x0: 118, w: 40, rec: 8, lv: [8, 12], maxEnemies: 3,
-    monsters: [{ kind: 'bat', w: 3 }, { kind: 'golem', w: 1.5 }, { kind: 'shroom', w: 0.7 }],
+    id: 'cave', name: 'Echo Cavern', guardian: { kind: 'alphawolf', lv: 9, gate: 'rock' }, x0: 118, w: 40, rec: 8, lv: [8, 11], maxEnemies: 3,
+    monsters: [{ kind: 'bat', w: 3 }, { kind: 'golem', w: 2 }, { kind: 'shroom', w: 0.7 }],
+    theme: { ground: '#8c90a0', ground2: '#858a9a', grass: '#4f8a6a', grassTip: '#7ac89a', path: '#b4b8c4', obstacle: 'boulder', pool: 'water', decor: 'pebble', outside: '#3e4250' },
+  },
+  {
+    id: 'hollow', name: 'Glimmer Hollow', x0: 158, w: 40, rec: 11, lv: [11, 13], maxEnemies: 3,
+    monsters: [{ kind: 'glimmer', w: 3 }, { kind: 'bat', w: 1.5 }, { kind: 'golem', w: 1 }],
     theme: { ground: '#8e89ad', ground2: '#8581a4', grass: '#6a5fb0', grassTip: '#a898f0', path: '#b8b2cc', obstacle: 'crystal', pool: null, decor: 'gem', outside: '#4a4566' },
   },
   {
-    id: 'peak', name: 'Ember Peak', guardian: { kind: 'crystalking', lv: 14, gate: 'rock' }, x0: 158, w: 44, rec: 13, lv: [13, 17], maxEnemies: 3,
+    id: 'peak', name: 'Ember Peak', guardian: { kind: 'crystalking', lv: 14, gate: 'crystal' }, x0: 198, w: 44, rec: 13, lv: [13, 17], maxEnemies: 3,
     monsters: [{ kind: 'imp', w: 3 }, { kind: 'magma', w: 2 }, { kind: 'golem', w: 0.8 }],
     theme: { ground: '#b8806a', ground2: '#ae775f', grass: '#8a4a3a', grassTip: '#e0804a', path: '#dcbb96', obstacle: 'rock', pool: 'lava', decor: 'pebble', outside: '#6a3a30' },
   },
@@ -261,11 +292,14 @@ export function zoneAtX(x: number): Zone {
 
 // ----------------------------------------------------------------------------- forge gating
 
-/** Forge level needed to craft each recipe — keeps gear upgrades in step with the story. */
+/** Forge level needed to craft each recipe: ★–★★ at the Forge, ★★★–★★★★ at the Smithy, ★★★★★ at the Master Forge. */
 export function forgeLevelFor(g: Gear): number {
-  if (g.slot === 'weapon') return (g.tier ?? 0) >= 4 ? 3 : (g.tier ?? 0) >= 3 ? 2 : 1;
-  return ({ batcloak: 2, crystalmail: 2, ironplate: 2, crystalheart: 2, magmamail: 3, dragonmail: 3, impring: 3 } as Record<string, number>)[g.id] ?? 1;
+  const t = g.tier ?? 0;
+  return t >= 5 ? 3 : t >= 3 ? 2 : 1;
 }
+
+/** Weapon handling needed to forge a weapon of each tier: stick with a class and it lets you forge its better weapons. */
+export const MASTERY_FOR_TIER = [0, 0, 2, 4, 6, 8];
 
 // ----------------------------------------------------------------------------- gathering
 
@@ -279,7 +313,7 @@ export interface Tool {
   id: string;
   name: string;
   skill: SkillId;
-  /** Nodes up to this tier can be gathered, and higher tiers work faster. */
+  /** Nodes of this tier are gathered at full speed (lower tiers faster, the next tier up only slowly). */
   tier: number;
   icon: string;
   desc: string;
@@ -289,19 +323,20 @@ export interface Tool {
 }
 
 export const TOOLS: Tool[] = [
-  { id: 'axe1', name: 'Stone Axe', skill: 'wood', tier: 1, icon: '🪓', desc: 'Chops oak trees.', recipe: { goo: 3, fluff: 2 }, level: 1 },
-  { id: 'axe2', name: 'Fang Axe', skill: 'wood', tier: 2, icon: '🪓', desc: 'Bites through pine, and chops oak faster.', recipe: { bark: 6, fang: 3, copper: 2 }, level: 5 },
-  { id: 'pick1', name: 'Stone Pick', skill: 'mine', tier: 1, icon: '⛏️', desc: 'Breaks rocks for stone.', recipe: { goo: 2, fluff: 3 }, level: 1 },
-  { id: 'pick2', name: 'Copper Pick', skill: 'mine', tier: 2, icon: '⛏️', desc: 'Cracks copper veins, and breaks rocks faster.', recipe: { stone: 6, bark: 4, fang: 2 }, level: 4 },
-  { id: 'pick3', name: 'Iron Pick', skill: 'mine', tier: 3, icon: '⛏️', desc: 'Splits iron veins. Nothing is too tough now.', recipe: { copper: 6, bark: 4, crystal: 2 }, level: 7 },
+  { id: 'axe1', name: 'Stone Axe', skill: 'wood', tier: 1, icon: '🪓', desc: 'Chops oak. Can hack at pine, slowly.', recipe: { goo: 3, fluff: 2 }, level: 1 },
+  { id: 'axe2', name: 'Copper Axe', skill: 'wood', tier: 2, icon: '🪓', desc: 'Bites through pine, and chops oak faster.', recipe: { copper: 3, bark: 4 }, level: 4 },
+  { id: 'pick1', name: 'Stone Pick', skill: 'mine', tier: 1, icon: '⛏️', desc: 'Breaks rocks. Can chip copper, slowly.', recipe: { goo: 2, fluff: 3 }, level: 1 },
+  { id: 'pick2', name: 'Copper Pick', skill: 'mine', tier: 2, icon: '⛏️', desc: 'Cracks copper veins. Can chip iron, slowly.', recipe: { copper: 4, bark: 3 }, level: 3 },
+  { id: 'pick3', name: 'Iron Pick', skill: 'mine', tier: 3, icon: '⛏️', desc: 'Splits iron veins. Can chip crystal, slowly.', recipe: { iron: 4, pine: 3 }, level: 6 },
+  { id: 'pick4', name: 'Crystal Pick', skill: 'mine', tier: 4, icon: '⛏️', desc: 'Mines crystal cleanly, and everything else in a blink.', recipe: { crystal: 4, iron: 3 }, level: 9 },
 ];
 
-export type NodeKind = 'oak' | 'pine' | 'rock' | 'copper' | 'iron';
+export type NodeKind = 'oak' | 'pine' | 'rock' | 'copper' | 'iron' | 'crystal';
 
 export interface NodeDef {
   name: string;
   skill: SkillId;
-  /** Tool tier needed. */
+  /** Tool tier for full speed; one tier below can still gather it, slowly. */
   tier: number;
   mat: MatId;
   /** Strike damage needed to fell or break it (a tier-1 tool does 1 per clean hit). */
@@ -326,26 +361,35 @@ export const NODES: Record<NodeKind, NodeDef> = {
   rock: {
     name: 'Rock', skill: 'mine', tier: 1, mat: 'stone', hp: 4,
     safe: { yield: 1, xp: 10, regrow: 180 },
-    grass: { yield: 2, xp: 15, regrow: 75, rare: { mat: 'crystal', chance: 0.1 } },
+    grass: { yield: 2, xp: 15, regrow: 75, rare: { mat: 'clover', chance: 0.08 } },
   },
   copper: {
     name: 'Copper Vein', skill: 'mine', tier: 2, mat: 'copper', hp: 6,
     safe: { yield: 1, xp: 25, regrow: 180 },
-    grass: { yield: 2, xp: 35, regrow: 75, rare: { mat: 'crystal', chance: 0.12 } },
+    grass: { yield: 2, xp: 35, regrow: 75, rare: { mat: 'stone', chance: 0.3 } },
   },
   iron: {
     name: 'Iron Vein', skill: 'mine', tier: 3, mat: 'iron', hp: 8,
     safe: { yield: 1, xp: 40, regrow: 180 },
     grass: { yield: 2, xp: 55, regrow: 75, rare: { mat: 'core', chance: 0.1 } },
   },
+  crystal: {
+    name: 'Crystal Cluster', skill: 'mine', tier: 4, mat: 'crystal', hp: 10,
+    safe: { yield: 1, xp: 70, regrow: 180 },
+    grass: { yield: 2, xp: 90, regrow: 75, rare: { mat: 'glimmer', chance: 0.15 } },
+  },
 };
+
+/** Damage per clean strike with a tool: faster on lower tiers, a slow grind on the next tier up. */
+export const SLOW_TOOL = 0.4;
 
 /** How many nodes of each kind each zone has, on open ground and out in the grass (placed by the route maps). */
 export const NODE_SPAWNS: Partial<Record<ZoneId, { kind: NodeKind; safe: number; grass: number }[]>> = {
   meadow: [{ kind: 'oak', safe: 3, grass: 5 }, { kind: 'rock', safe: 2, grass: 3 }],
   woods: [{ kind: 'oak', safe: 2, grass: 2 }, { kind: 'pine', safe: 2, grass: 5 }, { kind: 'rock', safe: 1, grass: 2 }, { kind: 'copper', safe: 2, grass: 3 }],
-  cave: [{ kind: 'copper', safe: 2, grass: 3 }, { kind: 'iron', safe: 2, grass: 3 }],
-  peak: [{ kind: 'iron', safe: 2, grass: 4 }],
+  cave: [{ kind: 'copper', safe: 2, grass: 2 }, { kind: 'iron', safe: 2, grass: 4 }],
+  hollow: [{ kind: 'crystal', safe: 2, grass: 4 }, { kind: 'iron', safe: 1, grass: 2 }],
+  peak: [{ kind: 'iron', safe: 2, grass: 3 }, { kind: 'crystal', safe: 1, grass: 2 }],
 };
 
 // ----------------------------------------------------------------------------- village construction
@@ -378,8 +422,8 @@ export const PROJECTS: Record<ProjectId, Project> = {
     name: 'Forge', icon: '⚒',
     levels: [
       { name: 'Forge', cost: { goo: 4, fluff: 3 }, perk: 'Repaired! Craft ★ and ★★ gear' },
-      { name: 'Smithy', cost: { royaljelly: 1, bark: 4, copper: 4 }, perk: 'Craft ★★★ gear' },
-      { name: 'Master Forge', cost: { kingcrystal: 1, pine: 6, iron: 6 }, perk: 'Craft ★★★★ and legendary gear' },
+      { name: 'Smithy', cost: { royaljelly: 1, bark: 4, copper: 4 }, perk: 'Craft ★★★ and ★★★★ gear' },
+      { name: 'Master Forge', cost: { kingcrystal: 1, pine: 6, crystal: 6 }, perk: 'Craft legendary ★★★★★ gear' },
     ],
   },
   garden: {
@@ -400,7 +444,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
   },
   warp: {
     name: 'Warp Stone', icon: '🔮',
-    levels: [{ name: 'Warp Stone', cost: { alphapelt: 1, pine: 4, copper: 3, crystal: 3 }, perk: 'Fast travel to any campfire you have lit' }],
+    levels: [{ name: 'Warp Stone', cost: { alphapelt: 1, pine: 4, iron: 3 }, perk: 'Fast travel to any campfire you have lit' }],
   },
 };
 
@@ -473,13 +517,13 @@ export const QUESTS: Quest[] = [
     text: "The Slime King has plopped himself in front of Whisper Woods. He's bouncy and he brings friends. Be at least level 5!",
   },
   {
-    id: 'smithy', chapter: 'Chapter 2', title: 'A Hotter Forge', goal: { type: 'build', project: 'forge', level: 2 }, hint: 'Mine Copper (Copper Pick), upgrade the Forge to a Smithy',
-    text: "That Royal Jelly is just what the forge needs, with some copper for the anvil! There are copper veins in Whisper Woods: you'll want a Copper Pick for those. Then upgrade the forge to craft ★★★ gear.",
+    id: 'smithy', chapter: 'Chapter 2', title: 'A Hotter Forge', goal: { type: 'build', project: 'forge', level: 2 }, hint: 'Mine Copper, upgrade the Forge to a Smithy',
+    text: "That Royal Jelly is just what the forge needs, with some copper for the anvil! There are copper veins in Whisper Woods. A Stone Pick can chip at them, slowly; a Copper Pick made from that copper is much quicker. Then upgrade the forge to craft ★★★ and ★★★★ gear.",
     reward: { mats: { bark: 2 } },
   },
   {
-    id: 'alphawolf', chapter: 'Chapter 3', title: 'Howl in the Woods', goal: { type: 'boss', kind: 'alphawolf' }, hint: 'Defeat the Alpha Woolf at the Crystal Cave gate',
-    text: "Deep in Whisper Woods, the Alpha Woolf guards the road to Crystal Cave. It's fast, and its pack comes when it howls. Level 9 or so, please!",
+    id: 'alphawolf', chapter: 'Chapter 3', title: 'Howl in the Woods', goal: { type: 'boss', kind: 'alphawolf' }, hint: 'Defeat the Alpha Woolf at the Echo Cavern gate',
+    text: "Deep in Whisper Woods, the Alpha Woolf guards the road to Echo Cavern, where the iron is. It's fast, and its pack comes when it howls. Level 9 or so, please!",
   },
   {
     id: 'warp', chapter: 'Chapter 3', title: 'The Warp Stone', goal: { type: 'build', project: 'warp', level: 1 }, hint: 'Build the Warp Stone in the village',
@@ -487,12 +531,17 @@ export const QUESTS: Quest[] = [
     reward: { potions: 1 },
   },
   {
-    id: 'crystalking', chapter: 'Chapter 4', title: 'The Crystal King', goal: { type: 'boss', kind: 'crystalking' }, hint: 'Defeat the Crystal King at the Ember Peak gate',
-    text: 'The Crystal King sits on the road to Ember Peak. Its crystals burst out of the ground, so watch for the red marks! Level 14 would be wise.',
+    id: 'hollow', chapter: 'Chapter 4', title: 'Glimmer Hollow', goal: { type: 'mats', zone: 'hollow', need: { crystal: 4 } }, hint: 'Mine 4 Crystal in Glimmer Hollow',
+    text: "Past the cavern lies Glimmer Hollow, where the crystals grow. An Iron Pick can chip them, slowly; a Crystal Pick is the real thing. Bring back some crystal, and mind the Glimmer Slimes!",
+    reward: { potions: 1 },
   },
   {
-    id: 'master', chapter: 'Chapter 4', title: 'Master Forge', goal: { type: 'build', project: 'forge', level: 3 }, hint: 'Upgrade the Forge to a Master Forge',
-    text: 'A King Crystal! Now the forge can work ember and dragon steel. Upgrade it and gear up for the peak.',
+    id: 'crystalking', chapter: 'Chapter 5', title: 'The Crystal King', goal: { type: 'boss', kind: 'crystalking' }, hint: 'Defeat the Crystal King at the end of Glimmer Hollow',
+    text: 'The Crystal King sits at the end of Glimmer Hollow, on the road to Ember Peak. Its crystals burst out of the ground, so watch for the red marks! Level 14 would be wise.',
+  },
+  {
+    id: 'master', chapter: 'Chapter 5', title: 'Master Forge', goal: { type: 'build', project: 'forge', level: 3 }, hint: 'Upgrade the Forge to a Master Forge',
+    text: 'A King Crystal! Now the forge can work ember and dragon steel into legendary gear. Upgrade it and gear up for the peak.',
     reward: { mats: { ember: 3 } },
   },
   {

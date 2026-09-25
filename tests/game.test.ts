@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { GEAR, MONSTERS, NODES, TOOLS, ZONES } from '../src/data';
-import { CLOVER_PITY, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpToNext } from '../src/rules';
+import { GEAR, MONSTERS, NODES, TOOLS, ZONES, MASTERY_FOR_TIER } from '../src/data';
+import { CLOVER_PITY, gainMastery, masteryShort, masteryXpToNext, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpToNext } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
 
@@ -24,17 +24,30 @@ describe('rules', () => {
 
   test('crafting spends materials once and equipping applies stats', () => {
     const s = newState();
-    expect(craftGear(s, 'jelly')).toBe('forge'); // the forge starts in ruins
+    expect(craftGear(s, 'jellywhip')).toBe('forge'); // the forge starts in ruins
     s.build.forge = 1;
-    expect(craftGear(s, 'jelly')).toBe('missing');
+    expect(craftGear(s, 'jellywhip')).toBe('missing');
     s.mats.goo = 6;
     s.mats.fluff = 2;
     const atkBefore = playerStats(s).atk;
-    expect(craftGear(s, 'jelly')).toBe('ok');
+    expect(craftGear(s, 'jellywhip')).toBe('ok');
     expect(s.mats.goo).toBe(0);
-    expect(craftGear(s, 'jelly')).toBe('owned');
-    expect(equip(s, 'jelly')).toBe(true);
-    expect(playerStats(s).atk).toBe(atkBefore - GEAR.twig.atk! + GEAR.jelly.atk!);
+    expect(craftGear(s, 'jellywhip')).toBe('owned');
+    expect(equip(s, 'jellywhip')).toBe(true);
+    expect(playerStats(s).atk).toBe(atkBefore - GEAR.twig.atk! + GEAR.jellywhip.atk!);
+  });
+
+  test('better weapons of a class need handling in it, trained by winning with it', () => {
+    const s = newState();
+    for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 99;
+    s.build.forge = 1;
+    expect(craftGear(s, 'sporewhip')).toBe('mastery');
+    expect(masteryShort(s, GEAR.sporewhip)).toBe(MASTERY_FOR_TIER[2]);
+    gainMastery(s, 'sword', 1000);
+    expect(craftGear(s, 'sporewhip')).toBe('mastery');
+    gainMastery(s, 'whip', masteryXpToNext(1));
+    expect(s.mastery.whip.lv).toBe(2);
+    expect(craftGear(s, 'sporewhip')).toBe('ok');
   });
 
   test('potions cap out', () => {

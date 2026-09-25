@@ -2,16 +2,17 @@
 import { loadAssets, preloadIcons } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
-import { GEAR, GEAR_ORDER, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, SKILL_VERB, TOOLS, ZONES, forgeLevelFor, zoneById, type MatId, type MonsterKind, type NodeKind, type Recipe, type Zone, type ZoneId } from './data';
+import { GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, SKILL_VERB, STYLE_NAMES, TOOLS, ZONES, forgeLevelFor, zoneById, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Zone, type ZoneId } from './data';
 import { Chop, GatherView, type Look } from './gather';
 import type { Roamer } from './roamers';
 import { Input, trackInputDevice, usingKeyboard } from './input';
 import { Overworld } from './overworld';
 import { advanceQuests, currentQuest, recordKills } from './quests';
 import { checkUnlocks, has } from './unlocks';
-import { build, canGather, craftGear, craftPotion, craftTool, equip, gainXp, harvest, hasMats, mergeDrops, missingSkill, playerStats, potionRefill, sweetWidth, toolPower, weightedPick } from './rules';
+import { build, canGather, craftGear, craftPotion, craftTool, equip, gainMastery, gainXp, harvest, hasMats, mergeDrops, missingSkill, playerStats, potionRefill, sweetWidth, toolPower, weightedPick } from './rules';
+import { buildReport, clearLog, logEvent } from './stats';
 import { clearState, loadState, newState, saveState, type SaveState } from './state';
-import { UI, allIconIds } from './ui';
+import { UI, allIconIds, icon as iconHtml } from './ui';
 import { World, type WorldObj } from './world';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
@@ -52,6 +53,7 @@ const ui = new UI({
     const g = GEAR[id];
     const current = g.slot === 'charm' ? (save.equip.charm ? GEAR[save.equip.charm] : null) : GEAR[save.equip[g.slot]];
     if (craftGear(save, id) !== 'ok') return;
+    logEvent(save, { kind: 'craft', id });
     audio.play('craft');
     persist();
     const choice = await ui.newGear(g, current);
@@ -62,6 +64,7 @@ const ui = new UI({
   },
   build(id) {
     if (build(save, id) === 'ok') {
+      logEvent(save, { kind: 'build', id, lv: save.build[id] });
       audio.play('levelup');
       const lvl = PROJECTS[id].levels[save.build[id] - 1];
       ui.toast(`🏗 Built the ${lvl.name}! ${lvl.perk}`, 3200);
@@ -74,6 +77,7 @@ const ui = new UI({
   },
   async craftTool(id) {
     if (craftTool(save, id) !== 'ok') return;
+    logEvent(save, { kind: 'craft', id });
     const t = TOOLS.find((t) => t.id === id)!;
     audio.play('craft');
     persist();
@@ -141,6 +145,18 @@ const ui = new UI({
       document.getElementById('btn-continue')!.hidden = true;
     } else mode = 'world';
   },
+  exportReport(how) {
+    const json = JSON.stringify(buildReport(save), null, 1);
+    if (how === 'copy') {
+      void navigator.clipboard?.writeText(json).then(() => ui.toast('📋 Play report copied'), () => ui.toast('Could not copy: try Download'));
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    a.download = `sprout-quest-report-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`;
+    a.click();
+    ui.toast('📊 Play report downloaded');
+  },
   menuClosed() {
     if (mode === 'dialog') mode = 'world';
     input.flush();
@@ -190,6 +206,7 @@ async function progressQuests(): Promise<boolean> {
     mode = 'dialog';
     ui.closeMenu(true);
     for (const q of done) {
+      logEvent(save, { kind: 'quest', id: q.id });
       if (q.quiet) continue;
       audio.play('victory');
       await ui.questComplete(q);
@@ -262,6 +279,7 @@ function startFieldBattle(r: Roamer | null, ambush: boolean) {
   }
   audio.play(ambush ? 'crit' : 'encounter');
   battleFlag = undefined;
+  fightHp = Math.round(save.hp);
   mode = 'dialog';
   input.reset();
   swoop = {
@@ -280,7 +298,11 @@ function startFieldBattle(r: Roamer | null, ambush: boolean) {
 /** The overworld half of the zoom into and out of regular fights. */
 let swoop: { t: number; dur: number; dir: 'in' | 'out'; then?: () => void } | null = null;
 
+/** HP when the current fight began, for the play report. */
+let fightHp = 0;
+
 function startBattle(zone: Zone, foes: Foe[], boss: boolean, flag?: string) {
+  fightHp = Math.round(save.hp);
   audio.play('encounter');
   mode = 'dialog';
   battleFlag = flag;
@@ -294,10 +316,75 @@ function startBattle(zone: Zone, foes: Foe[], boss: boolean, flag?: string) {
   }, 0.9);
 }
 
+/** Every fight goes in the play report, win, lose or run. */
+function logFight(o: BattleOutcome, b: Battle) {
+  logEvent(save, {
+    kind: 'fight', zone: b.setup.zone.id, foes: b.setup.foes.map((f) => `${f.kind}@${f.lv}${f.golden ? '*' : ''}`), boss: b.setup.boss, ambush: !!b.setup.ambush,
+    result: o.result, seconds: Math.round(o.log.time * 10) / 10, swings: o.log.swings, hits: o.log.hits, crits: o.log.crits, skills: o.log.skills,
+    dodges: o.log.dodges, potions: o.log.potions, dealt: o.log.dealt, taken: o.log.taken, hpStart: fightHp, hpEnd: Math.max(0, Math.round(o.hp)),
+    maxHp: b.stats.maxHp, xp: o.xp, weapon: save.equip.weapon, armor: save.equip.armor,
+  });
+}
+
+/** Loot and XP from a win, as lines in the loot feed. */
+/** Loot rows; `what` (a skill or weapon class) names whose XP it is, and is dropped on phones where the icon says it. */
+function lootLines(drops: Partial<Record<MatId, number>>, xp: { n: number; what?: string; emo?: string }[]) {
+  return [
+    ...xp.filter((x) => x.n > 0).map((x) => ({ icon: `<span class="emo">${x.emo ?? '⭐'}</span>`, text: `+${x.n}`, name: x.what, suffix: 'XP' })),
+    ...Object.entries(drops).map(([m, n]) => ({ icon: iconHtml(m, MATS[m as MatId].icon, 'icon sm'), text: `+${n}`, name: MATS[m as MatId].name })),
+  ];
+}
+
+/**
+ * Rewards for a win: XP (combat and weapon handling), loot, kills toward the story. Returns what's needed to
+ * celebrate any level-ups afterwards.
+ */
+function grantWin(o: BattleOutcome, b: Battle) {
+  const fromLv = save.lv, before = playerStats(save);
+  save.hp = o.hp;
+  save.wins++;
+  gainXp(save, o.xp);
+  mergeDrops(save.mats, o.drops);
+  const style = GEAR[save.equip.weapon]?.style ?? 'sword';
+  const fromHandling = save.mastery[style].lv;
+  gainMastery(save, style, o.xp);
+  if (!b.setup.boss) recordKills(save, b.setup.zone.id, o.defeated.length);
+  return { fromLv, before, style, fromHandling };
+}
+
+/** Level-up screens, one after another, with the game waiting behind them. */
+async function celebrate(win: ReturnType<typeof grantWin>) {
+  if (save.lv > win.fromLv) {
+    audio.play('levelup');
+    logEvent(save, { kind: 'level', track: 'combat', lv: save.lv });
+    await ui.levelUp(save.lv, win.before, playerStats(save), readyFor(win.fromLv, save.lv));
+  }
+  const m = save.mastery[win.style].lv;
+  if (m > win.fromHandling) {
+    audio.play('levelup');
+    logEvent(save, { kind: 'level', track: `handling:${win.style}`, lv: m });
+    const unlocks = GEAR_ORDER.map((id) => GEAR[id]).filter((g) => g.slot === 'weapon' && g.style === win.style && (MASTERY_FOR_TIER[g.tier ?? 0] ?? 0) > win.fromHandling && (MASTERY_FOR_TIER[g.tier ?? 0] ?? 0) <= m);
+    await ui.skillUp(`${STYLE_NAMES[win.style]} handling`, m, '⚔️', `Your ${STYLE_NAMES[win.style].toLowerCase()} work is getting sharper.`, unlocks.map((g) => ({ id: g.id, name: g.name, emoji: g.icon })));
+  }
+}
+
+/** What a new combat level makes you ready for: guardians at your level, areas that match it, the dragon. */
+function readyFor(from: number, to: number): string[] {
+  const out: string[] = [];
+  for (const z of ZONES) {
+    const g = z.guardian;
+    if (g && !save.bosses.includes(g.kind) && g.lv > from && g.lv <= to) out.push(`Strong enough for the ${MONSTERS[g.kind].name} (Lv ${g.lv}) guarding ${z.name}!`);
+    if (z.monsters.length && z.rec > from && z.rec <= to) out.push(`${z.name} (monsters Lv ${z.lv[0]}–${z.lv[1]}) is your speed now.`);
+  }
+  if (from < 18 && to >= 18) out.push('Ready to face the Emberwyrm (Lv 20)? Bring potions!');
+  return out;
+}
+
 async function onBattleEnd(o: BattleOutcome) {
   const b = battle!;
   const boss = b.setup.boss;
   mode = 'dialog';
+  logFight(o, b);
   // Regular fights swoop straight back out to the map; guardians, the dragon and the prologue keep their fanfare.
   const quick = !boss && !battleFlag;
   if (o.result === 'run') {
@@ -307,31 +394,26 @@ async function onBattleEnd(o: BattleOutcome) {
     return;
   }
   if (o.result === 'win' && quick) {
-    save.hp = o.hp;
-    save.wins++;
-    const levels = gainXp(save, o.xp);
-    mergeDrops(save.mats, o.drops);
-    recordKills(save, b.setup.zone.id, o.defeated.length);
+    const win = grantWin(o, b);
     swoopOut();
-    const loot = Object.entries(o.drops).map(([m, n]) => `${MATS[m as MatId].icon}×${n}`).join(' ');
-    ui.toast(`Victory! +${o.xp} XP${loot ? `  ${loot}` : ''}`, 2400);
-    if (levels) {
-      audio.play('levelup');
-      ui.banner(`Level ${save.lv}!`, 'Stronger, and fully healed');
+    ui.loot(lootLines(o.drops, [{ n: o.xp }, { n: o.xp, what: STYLE_NAMES[win.style], emo: '⚔️' }]));
+    persist();
+    if (save.lv > win.fromLv || save.mastery[win.style].lv > win.fromHandling) {
+      await new Promise((r) => setTimeout(r, 380));
+      mode = 'dialog';
+      await celebrate(win);
+      mode = 'world';
+      input.reset();
     }
     void progressQuests();
     return;
   }
   if (o.result === 'win') {
-    save.hp = o.hp;
-    save.wins++;
+    const win = grantWin(o, b);
     if (battleFlag && !save.flags.includes(battleFlag)) {
       save.flags.push(battleFlag);
       syncWorld();
     }
-    const levels = gainXp(save, o.xp);
-    mergeDrops(save.mats, o.drops);
-    if (!boss) recordKills(save, b.setup.zone.id, o.defeated.length);
     const bossKind = b.setup.foes[0]?.kind;
     const firstClear = boss && bossKind && !save.bosses.includes(bossKind);
     if (boss && bossKind === 'dragon') save.bossWins++;
@@ -346,8 +428,8 @@ async function onBattleEnd(o: BattleOutcome) {
       syncWorld();
     }
     persist();
-    if (levels) audio.play('levelup');
-    await ui.result({ win: true, xp: o.xp, levels, newLv: save.lv, drops: o.drops, boss });
+    await ui.result({ win: true, xp: o.xp, levels: save.lv - win.fromLv, newLv: save.lv, drops: o.drops, boss });
+    await celebrate(win);
     if (firstClear) {
       const gz = ZONES.find((z) => z.guardian?.kind === bossKind);
       if (gz) await ui.roadOpened(MONSTERS[bossKind].name, gz.name, bossKind);
@@ -559,12 +641,14 @@ async function interact() {
 // ------------------------------------------------------------------ gathering
 
 let chop: { game: Chop; obj: WorldObj; view: GatherView } | null = null;
+let chopStart = 0;
 
 /** Colors for each kind of rock face in the mining minigame. */
-const ROCK_LOOKS: Partial<Record<NodeKind, Look>> = {
+const ROCK_LOOKS: Record<Exclude<NodeKind, 'oak' | 'pine'>, Look> = {
   rock: { kind: 'mine', rock: '#9a9aa8', dark: '#6a6a78', fleck: '#d8d8e0' },
   copper: { kind: 'mine', rock: '#8a7a6a', dark: '#5e5048', fleck: '#ff9a4a' },
   iron: { kind: 'mine', rock: '#5e6272', dark: '#40434f', fleck: '#c8d8f0' },
+  crystal: { kind: 'mine', rock: '#7a6a9a', dark: '#4e4468', fleck: '#9af0ff' },
 };
 
 const timeLeft = (ms: number) => {
@@ -589,8 +673,9 @@ function tryGather(o: WorldObj) {
     return;
   }
   const lv = save.skills[n.skill].lv;
-  const look: Look = n.skill === 'mine' ? ROCK_LOOKS[o.node!]! : { kind: 'wood', pine: o.node === 'pine' };
+  const look: Look = n.skill === 'mine' ? ROCK_LOOKS[o.node as keyof typeof ROCK_LOOKS] : { kind: 'wood', pine: o.node === 'pine' };
   chop = { game: new Chop(n.hp, toolPower(save.tools[n.skill], n.tier), sweetWidth(lv)), obj: o, view: new GatherView(look) };
+  chopStart = performance.now();
   over.startChop(o);
   mode = 'gather';
   input.reset();
@@ -630,20 +715,36 @@ function finishChop() {
   const { game, obj } = chop!;
   chop = null;
   const n = NODES[obj.node!];
+  const fromLv = save.skills[n.skill].lv;
   const r = harvest(save, obj.node!, obj.id!, !!obj.grass, game.flawless);
   audio.play(n.skill === 'mine' ? 'boom' : 'kill');
   over.felled();
-  const got = Object.entries(r.drops).map(([m, k]) => `+${k} ${MATS[m as MatId].icon} ${MATS[m as MatId].name}`).join('  ');
-  const tool = TOOLS.find((t) => t.skill === n.skill)!.icon;
-  ui.toast(`${game.flawless ? '✨ Flawless! ' : ''}${got}  ·  ${tool} +${r.xp} XP`, 2600);
-  if (r.levels) {
-    audio.play('levelup');
-    setTimeout(() => ui.toast(`🎉 ${SKILL_NAMES[n.skill]} Lv ${save.skills[n.skill].lv}! The sweet spot grows.`, 3200), 1400);
-  }
+  logEvent(save, {
+    kind: 'gather', node: obj.node!, grass: !!obj.grass, seconds: Math.round((performance.now() - chopStart) / 100) / 10, strikes: game.strikes,
+    misses: game.misses, perfects: game.perfects, tool: save.tools[n.skill], skillLv: fromLv, got: r.drops as Record<string, number>,
+  });
+  ui.loot([...(game.flawless ? [{ icon: '<span class="emo">✨</span>', text: 'Flawless!' }] : []), ...lootLines(r.drops, [{ n: r.xp, what: SKILL_NAMES[n.skill], emo: TOOLS.find((t) => t.skill === n.skill)!.icon }])]);
   mode = 'world';
   input.reset();
   persist();
-  void progressQuests();
+  if (r.levels) void celebrateSkill(n.skill, fromLv).then(() => progressQuests());
+  else void progressQuests();
+}
+
+/** A gathering skill level: a screen with what it unlocks (the game waits behind it). */
+async function celebrateSkill(skill: SkillId, fromLv: number) {
+  const lv = save.skills[skill].lv;
+  audio.play('levelup');
+  logEvent(save, { kind: 'level', track: skill, lv });
+  const newly = (need: number | undefined) => need !== undefined && need > fromLv && need <= lv;
+  const unlocks = [
+    ...TOOLS.filter((t) => t.skill === skill && newly(t.level)).map((t) => ({ id: t.id, name: t.name, emoji: t.icon })),
+    ...GEAR_ORDER.map((id) => GEAR[id]).filter((g) => newly(g.needs?.[skill])).map((g) => ({ id: g.id, name: g.name, emoji: g.icon })),
+  ];
+  mode = 'dialog';
+  await ui.skillUp(SKILL_NAMES[skill], lv, skill === 'wood' ? '🪓' : '⛏️', 'The sweet spot grows a little wider.', unlocks);
+  mode = 'world';
+  input.reset();
 }
 
 /** Nodes say "Chop" or "Mine" when ready, and what they're doing while they come back. */
@@ -691,11 +792,13 @@ function startGame(fresh: boolean) {
   audio.unlock();
   if (fresh) {
     clearState();
+    clearLog();
     save = newState();
     save.hp = playerStats(save).maxHp;
     over = new Overworld(world, save);
   }
   audio.muted = save.muted;
+  logEvent(save, { kind: 'session', action: fresh ? 'new' : 'start' });
   mode = 'world';
   ui.setMode('world');
   input.reset();
@@ -854,8 +957,12 @@ function objective(): { x: number; y: number } | null {
     case 'kills': {
       const z = zoneById(g.zone);
       // Outside the zone: head for its entrance. Inside: point at the nearest tall grass (none needed if standing in it).
-      // Outside the zone: head for its entrance. Inside: point at the nearest monster.
+      // Outside the zone: head for its entrance. Inside: the nearest node for gathered materials, else a monster.
       if (over.currentZone.id !== g.zone) return world.entryPoint(z.id);
+      if (g.type === 'mats') {
+        const gather = gatherPointer(g.need);
+        if (gather) return gather;
+      }
       const m = over.roamers.nearestIn(z.id, over.x, over.y);
       return m && Math.hypot(m.x - over.x, m.y - over.y) > 2.5 ? { x: m.x, y: m.y } : null;
     }
@@ -920,6 +1027,7 @@ function frame(now: number) {
     }
   }
   const busy = !!trans || !!swoop;
+  if (mode !== 'title') save.playtime += dt;
 
   // A fight on the map can end inside update() and hand straight back to the overworld, so hold on to it for this frame.
   const b = battle;
@@ -934,7 +1042,7 @@ function frame(now: number) {
     ui.battleButtons(has(save, 'skill'), has(save, 'bag') && save.flags.includes('village'));
     if (mode === 'battle') coachBattle(b);
     if (mode === 'battle') {
-      ui.battleHud(save.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, !b.setup.boss && !battleFlag && save.flags.includes('village'));
+      ui.battleHud(save.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, !b.setup.boss && !battleFlag && save.flags.includes('village'), b.attackFrac, b.clip);
     }
   } else {
     if (mode === 'gather' && chop && !busy) updateChop(dt);

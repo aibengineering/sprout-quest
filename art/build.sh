@@ -23,7 +23,7 @@ else
   rm -rf out
   # The hero is the biggest job, so split it per armor and run everything a few at a time.
   jobs=(monsters weapons env icons icons2 npc)
-  for a in tunic fluffvest barkvest shroomhood batcloak coppermail crystalmail ironplate magmamail dragonmail; do jobs+=("hero $a"); done
+  for a in tunic fluffvest barkvest shroomhood coppermail batcloak ironplate glimmershawl crystalmail magmamail dragonmail; do jobs+=("hero $a"); done
   printf '%s\n' "${jobs[@]}" | xargs -P "${ART_JOBS:-3}" -I{} bash -c 'render {}'
 fi
 "$BLENDER" -b --factory-startup -P pack.py 2>&1 | grep -E "PACKED|Error|Traceback" || true

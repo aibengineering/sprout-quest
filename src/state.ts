@@ -1,4 +1,4 @@
-import { MAT_ORDER, type MatId, type ProjectId, type SkillId, type ZoneId } from './data';
+import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
 export interface SaveState {
   version: 1;
@@ -38,6 +38,10 @@ export interface SaveState {
   skills: Record<SkillId, { lv: number; xp: number }>;
   /** When each felled tree (by world node id) grows back, as a Date.now() timestamp. */
   nodes: Record<string, number>;
+  /** Weapon handling per class: winning with a class trains it, and better weapons of that class need it. */
+  mastery: Record<Style, { lv: number; xp: number }>;
+  /** Seconds actually spent playing (not on the title screen), for the play report. */
+  playtime: number;
   /** Story flags set by scripted events (prologue fights, arriving in the village…). */
   flags: string[];
 }
@@ -76,6 +80,8 @@ export function newState(): SaveState {
     tools: { wood: 0, mine: 0 },
     skills: { wood: { lv: 1, xp: 0 }, mine: { lv: 1, xp: 0 } },
     nodes: {},
+    mastery: { sword: { lv: 1, xp: 0 }, hammer: { lv: 1, xp: 0 }, whip: { lv: 1, xp: 0 }, wand: { lv: 1, xp: 0 } },
+    playtime: 0,
     flags: [],
   };
 }
@@ -95,7 +101,9 @@ export function loadState(): SaveState | null {
       build: { ...base.build, ...data.build },
       tools: { ...base.tools, ...data.tools },
       skills: { ...base.skills, ...data.skills },
+      mastery: { ...base.mastery, ...data.mastery },
     } as SaveState;
+    if (data.mastery === undefined) migrateToTracks(merged);
     // Saves from before the story update: credit progress that already happened.
     if (data.flags === undefined) {
       // Saves from before the prologue existed: the world gained a 16-tile glade on the west, and the story gained
@@ -123,6 +131,25 @@ export function loadState(): SaveState | null {
   } catch {
     return null;
   }
+}
+
+/** Weapons retired in the tracks overhaul, and the new gear of the same tier that replaces them in old saves. */
+const RETIRED: Record<string, string> = {
+  jelly: 'stonesword', cloverhatchet: 'stonehammer', fangspear: 'coppersword', timberaxe: 'copperhammer', mushmallet: 'copperhammer',
+  crystalwand: 'ironsword', geode: 'ironsword', boulder: 'ironhammer', magmacleaver: 'crystalhammer', wyrmfang: 'wyrmbreaker',
+};
+
+/**
+ * Saves from before Glimmer Hollow and the gear tracks: swap retired gear for its new equivalent, and step the story
+ * past the new Glimmer Hollow chapter if they were already beyond it.
+ */
+function migrateToTracks(s: SaveState) {
+  s.owned = [...new Set(s.owned.map((id) => RETIRED[id] ?? id).filter((id) => GEAR[id]))];
+  if (RETIRED[s.equip.weapon]) s.equip.weapon = RETIRED[s.equip.weapon];
+  if (!GEAR[s.equip.weapon]) s.equip.weapon = 'twig';
+  if (!s.owned.includes(s.equip.weapon)) s.owned.push(s.equip.weapon);
+  const hollow = QUESTS.findIndex((q) => q.id === 'hollow');
+  if (s.quest >= hollow) s.quest++;
 }
 
 export function saveState(s: SaveState): void {

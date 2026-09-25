@@ -36,6 +36,9 @@ export class Chop {
   /** Where along the bar (0–1) the last strike landed, and how much it dealt. */
   hitPos = 0;
   lastAmount = 0;
+  /** Tallies for the play report. */
+  strikes = 0;
+  perfects = 0;
 
   constructor(
     readonly hp: number,
@@ -87,6 +90,8 @@ export class Chop {
     this.last = r;
     this.lastT = 0;
     this.lastAmount = this.dealt - before;
+    this.strikes++;
+    if (r === 'perfect') this.perfects++;
     if (!this.done) this.moveSpot();
     return r;
   }

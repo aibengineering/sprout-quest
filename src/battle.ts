@@ -67,9 +67,13 @@ interface Enemy {
   deathT: number;
   seed: number;
   hitId: number;
+  /** Damage over time: burning (fire) or poison (spores), in `dotColor`. */
   burn: number;
   burnDmg: number;
   burnTick: number;
+  dotColor: string;
+  /** Seconds left slowed by jelly. */
+  slow: number;
   squash: number;
   /** Hop/charge target for bosses. */
   tx: number;
@@ -82,7 +86,17 @@ interface Enemy {
 interface Proj {
   x: number; y: number; vx: number; vy: number; r: number;
   atk: number; mult: number; owner: 'p' | 'e'; life: number; color: string;
+  /** Bat bolts swerve toward foes. */
+  homing?: boolean;
 }
+
+/** Dragonfire left on the ground by the Wyrmbreaker's breath: burns foes that stand in it. */
+interface Flame { x: number; y: number; r: number; t: number; life: number; tick: number }
+/** A chain spark jumping between two foes (glimmer weapons). */
+interface Zap { x1: number; y1: number; x2: number; y2: number; t: number }
+
+/** What happened in a fight, for the play report. */
+export interface BattleLog { time: number; swings: number; hits: number; crits: number; skills: number; dodges: number; potions: number; dealt: number; taken: number }
 
 interface Hazard { x: number; y: number; r: number; t: number; delay: number; atk: number; mult: number; done: boolean }
 interface Ring { x: number; y: number; r0: number; r1: number; t: number; dur: number; color: string; width?: number }
@@ -98,10 +112,12 @@ interface Swing {
   skill: boolean;
   /** Recent weapon angles during the active frames, for drawing the slash trail. */
   trail: { ang: number; t: number }[];
+  /** The last strike of the combo: the weapon rests after it. */
+  finisher: boolean;
 }
 
 /** Traveling shockwave from hammer slams. */
-interface Wave { x: number; y: number; dir: number; dist: number; range: number; width: number; speed: number; mult: number; id: number; spikeAt: number }
+interface Wave { x: number; y: number; dir: number; dist: number; range: number; width: number; speed: number; mult: number; id: number; spikeAt: number; fire?: boolean }
 interface Spike { x: number; y: number; t: number; life: number; size: number; tilt: number }
 interface Crack { pts: [number, number][]; t: number }
 interface Spark { x: number; y: number; t: number; size: number; color: string; rot: number }
@@ -122,6 +138,7 @@ export interface BattleOutcome {
   xp: number;
   drops: Partial<Record<MatId, number>>;
   defeated: string[];
+  log: BattleLog;
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -134,6 +151,10 @@ const ELEMENT_COLORS: Record<Element, string[]> = {
   none: ['#ffffff', '#e8eef8'],
   nature: ['#8ad85a', '#c8f0a0'],
   jelly: ['#8af09a', '#ffb4c8'],
+  spore: ['#9af06a', '#e8505a'],
+  bat: ['#c8a8ff', '#ff6a8a'],
+  glimmer: ['#f0e0ff', '#c8b0ff'],
+  metal: ['#ffe0b8', '#e8eef8'],
   crystal: ['#c8b0ff', '#9af0ff'],
   stone: ['#c8b8a0', '#9aa0b0'],
   fire: ['#ffb03a', '#ff5a2a'],
@@ -156,7 +177,9 @@ export class Battle {
     x: 0, y: 120, vx: 0, vy: 0, kx: 0, ky: 0, r: 12,
     hp: 0, face: -Math.PI / 2, moving: false,
     atkBuffer: 0, skillCd: 1, dodgeCd: 0, dodgeT: 0, dodgeDir: 0, iframes: 0, hurtT: 0,
-    lungeT: 0, lungeDir: 0, lungeId: 0, potionCd: 0, regenAcc: 0,
+    potionCd: 0, regenAcc: 0,
+    /** Cooldown after a full combo, and the ranged clip. */
+    restT: 0, ammo: 0, ammoT: 0,
     whirlT: 0, whirlTick: 0, whirlAng: 0,
     swing: null as Swing | null,
     combo: 0,
@@ -182,6 +205,10 @@ export class Battle {
   /** How many times the player has landed a hit (drives the first-battle tutorial). */
   hits = 0;
   private burstIds = new Set<number>();
+  private flames: Flame[] = [];
+  private zaps: Zap[] = [];
+  /** Running tallies for the play report. */
+  private log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0 };
   private weaponColor: string;
   private armorColor: string;
   readonly arena = new OvalArena(ARENA_RX, ARENA_RY);
@@ -202,6 +229,7 @@ export class Battle {
     this.element = this.weapon.fx ?? 'none';
     this.weaponColor = this.weapon.color ?? '#ccc';
     this.armorColor = GEAR[save.equip.armor]?.color ?? '#6fa8ff';
+    this.p.ammo = this.moves.ammo?.max ?? 0;
     // Regular fights swoop in and get going at once; bosses keep their dramatic "Boss battle!" beat.
     this.intro = setup.boss || setup.foes.some((f) => f.gentle) ? 1.2 : ZOOM_T + 0.1;
     const n = setup.foes.length;
@@ -228,7 +256,7 @@ export class Battle {
       x, y, vx: 0, vy: 0, kx: 0, ky: 0,
       r: def.r, z: 0, state: initialState(f.kind), t: rand(0.3, 1.2), dir: 0, face: 1, orb: Math.atan2(y, x), sub: 0, last: null,
       windup: 0, flash: 0, stun: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
-      burn: 0, burnDmg: 0, burnTick: 0, squash: 0, tx: 0, ty: 0, flag: false, minion,
+      burn: 0, burnDmg: 0, burnTick: 0, dotColor: '#ff7a2a', slow: 0, squash: 0, tx: 0, ty: 0, flag: false, minion,
     };
     this.enemies.push(e);
     return e;
@@ -249,6 +277,10 @@ export class Battle {
 
   get skillFrac() { return Math.max(0, this.p.skillCd) / SKILL_CD; }
   get dodgeFrac() { return Math.max(0, this.p.dodgeCd) / 0.7; }
+  /** How much of the post-combo rest is left (0 = ready), for the attack button's ring. */
+  get attackFrac() { return this.moves.rest ? Math.max(0, this.p.restT) / this.moves.rest : 0; }
+  /** Shots in the clip, for ranged weapons. */
+  get clip(): { n: number; max: number } | null { return this.moves.ammo ? { n: this.p.ammo, max: this.moves.ammo.max } : null; }
   get boss(): Enemy | undefined { return this.enemies.find((e) => e.def.boss); }
 
   update(dt: number) {
@@ -298,7 +330,15 @@ export class Battle {
   private updatePlayer(dt: number) {
     const p = this.p, st = this.stats, inp = this.input;
     p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt;
-    p.potionCd -= dt; p.atkBuffer -= dt; p.comboT -= dt; this.runCd -= dt;
+    p.potionCd -= dt; p.atkBuffer -= dt; p.comboT -= dt; this.runCd -= dt; p.restT -= dt;
+    const clip = this.moves.ammo;
+    if (clip && p.ammo < clip.max) {
+      p.ammoT += dt;
+      if (p.ammoT >= clip.regen) {
+        p.ammoT -= clip.regen;
+        p.ammo++;
+      }
+    }
     if (p.comboT <= 0 && !p.swing) p.combo = 0;
     if (st.regen && p.hp < st.maxHp) {
       p.regenAcc += st.regen * dt;
@@ -323,18 +363,6 @@ export class Battle {
       p.vx = Math.cos(p.dodgeDir) * speed * 3;
       p.vy = Math.sin(p.dodgeDir) * speed * 3;
       if (Math.random() < 0.6) this.fx.burst(p.x, p.y - 4, 'rgba(255,255,255,0.8)', 1, 30, { size: 4, grav: 0, life: 0.3 });
-    } else if (p.lungeT > 0) {
-      p.lungeT -= dt;
-      p.vx = Math.cos(p.lungeDir) * SKILL_DATA.lunge.speed;
-      p.vy = Math.sin(p.lungeDir) * SKILL_DATA.lunge.speed;
-      this.trailPuff(p.x, p.y - 12);
-      for (const e of this.enemies) {
-        if (e.dead || e.hitId === p.lungeId) continue;
-        if (Math.hypot(e.x - p.x, e.y - e.r * 0.6 - (p.y - 10)) < e.r + SKILL_DATA.lunge.radius * this.reach) {
-          e.hitId = p.lungeId;
-          this.hitEnemy(e, SKILL_DATA.lunge.mult, p.lungeDir, 220, 0.2, p.lungeId, 0.07);
-        }
-      }
     } else {
       p.vx = a.x * speed;
       p.vy = a.y * speed;
@@ -349,7 +377,7 @@ export class Battle {
     if (p.swing) this.updateSwing(dt);
     if (p.whirlT > 0) this.updateWhirl(dt);
 
-    if (inp.consume('dodge') && p.dodgeCd <= 0 && p.lungeT <= 0) {
+    if (inp.consume('dodge') && p.dodgeCd <= 0) {
       // Dodging cancels a swing's recovery — but not a committed windup.
       if (!p.swing || p.swing.t > p.swing.s.windup) {
         p.swing = null;
@@ -357,12 +385,14 @@ export class Battle {
         p.dodgeT = 0.2;
         p.iframes = Math.max(p.iframes, 0.32);
         p.dodgeCd = 0.7;
+        this.log.dodges++;
         this.audio.play('dodge');
       }
     }
     if (inp.consume('attack')) p.atkBuffer = 0.25;
     const wantAttack = p.atkBuffer > 0 || inp.isHeld('attack');
-    if (wantAttack && this.canStrike() && p.dodgeT <= 0 && p.whirlT <= 0 && p.lungeT <= 0) {
+    const loaded = !clip || p.ammo >= 1;
+    if (wantAttack && this.canStrike() && p.restT <= 0 && loaded && p.dodgeT <= 0 && p.whirlT <= 0) {
       p.atkBuffer = 0;
       const combo = this.moves.combo;
       const idx = p.combo % combo.length;
@@ -370,7 +400,7 @@ export class Battle {
       this.startSwing(combo[idx], false, idx === combo.length - 1);
     }
     // Skills cancel whatever swing is in progress, so they always come out when pressed.
-    if (inp.consume('skill') && p.skillCd <= 0 && p.dodgeT <= 0 && p.whirlT <= 0 && p.lungeT <= 0) this.skill();
+    if (inp.consume('skill') && p.skillCd <= 0 && p.dodgeT <= 0 && p.whirlT <= 0) this.skill();
     if (inp.consume('potion')) this.drinkPotion();
     if (inp.consume('run')) this.tryRun();
   }
@@ -404,7 +434,8 @@ export class Battle {
     const p = this.p;
     const aim = this.aim();
     p.face = aim;
-    p.swing = { s, t: 0, aim, id: ++this.hitCounter, prevAng: null, impacted: false, skill, trail: [] };
+    p.swing = { s, t: 0, aim, id: ++this.hitCounter, prevAng: null, impacted: false, skill, trail: [], finisher: finisher && !skill };
+    if (!skill) this.log.swings++;
     if (finisher && !skill) this.punch = Math.max(this.punch, 0.02);
   }
 
@@ -478,10 +509,17 @@ export class Battle {
       }
     }
     if (s.shape === 'circle' && !sw.impacted && sw.t >= activeEnd) this.impact(sw);
-    sw.trail = sw.trail.filter((k) => this.t - k.t < 0.14);
+    // Fire weapons leave a longer blazing trail.
+    const hot = this.element === 'fire' || this.element === 'dragon';
+    sw.trail = sw.trail.filter((k) => this.t - k.t < (hot ? 0.26 : 0.14));
     if (sw.t >= total) {
       p.swing = null;
       p.comboT = this.moves.window;
+      // A full combo earns a short breather before the next one.
+      if (sw.finisher) {
+        p.restT = this.moves.rest;
+        p.combo = 0;
+      }
     }
   }
 
@@ -491,6 +529,7 @@ export class Battle {
     this.audio.play(s.shape === 'shot' ? 'shoot' : heavy ? 'heavy' : 'swing');
     if (s.shape === 'shot') {
       for (const off of s.shots ?? [0]) this.shoot(sw.aim + off, s.mult, s.size * (1 + this.tier * 0.06));
+      if (!sw.skill && this.moves.ammo) p.ammo = Math.max(0, p.ammo - 1);
     }
     if (s.lunge) this.fx.burst(p.x, p.y, '#e8dcc8', 5, 60, { size: 3, grav: 0, life: 0.3 });
   }
@@ -556,6 +595,12 @@ export class Battle {
       const width = w.width * this.reach * (this.element === 'stone' ? 1.25 : 1);
       this.waves.push({ x: ix, y: iy, dir: sw.aim, dist: 0, range: w.range * this.reach, width, speed: w.speed, mult: w.mult, id: ++this.hitCounter, spikeAt: 0 });
     }
+    if (this.weapon.breath && !sw.skill) {
+      // Dragon breath: a fan of fire rolls out from the slam, leaving the ground burning behind it.
+      for (const off of [-0.5, -0.25, 0, 0.25, 0.5]) {
+        this.waves.push({ x: ix, y: iy, dir: sw.aim + off, dist: 0, range: 150 * this.reach, width: 30, speed: 430, mult: 0.3, id: ++this.hitCounter, spikeAt: 0, fire: true });
+      }
+    }
     if (sw.skill) {
       // Quake: shockwaves burst out in every direction.
       const q = SKILL_DATA.quake.waves;
@@ -587,8 +632,14 @@ export class Battle {
       const cx = Math.cos(w.dir), cy = Math.sin(w.dir);
       while (w.spikeAt < Math.min(w.dist, w.range)) {
         const sx = w.x + cx * w.spikeAt, sy = w.y + cy * w.spikeAt;
-        this.spikes.push({ x: sx + rand(-4, 4), y: sy + rand(-3, 3), t: 0, life: 0.5, size: w.width * rand(0.32, 0.45), tilt: rand(-0.3, 0.3) });
-        if (Math.random() < 0.5) this.fx.burst(sx, sy, '#c8b8a0', 2, 90, { size: 3, life: 0.4 });
+        if (w.fire) {
+          // Dragonfire leaves burning ground rather than rock spikes.
+          if (w.spikeAt % 30 < 15) this.flames.push({ x: sx + rand(-4, 4), y: sy + rand(-3, 3), r: 16 + rand(0, 6), t: 0, life: 1.6, tick: 0 });
+          if (Math.random() < 0.6) this.fx.burst(sx, sy - 6, Math.random() < 0.5 ? '#ffb03a' : '#ff5a2a', 2, 70, { size: 4, grav: -120, life: 0.5 });
+        } else {
+          this.spikes.push({ x: sx + rand(-4, 4), y: sy + rand(-3, 3), t: 0, life: 0.5, size: w.width * rand(0.32, 0.45), tilt: rand(-0.3, 0.3) });
+          if (Math.random() < 0.5) this.fx.burst(sx, sy, '#c8b8a0', 2, 90, { size: 3, life: 0.4 });
+        }
         w.spikeAt += 15;
       }
       for (const e of this.enemies) {
@@ -601,11 +652,33 @@ export class Battle {
       }
     }
     this.waves = this.waves.filter((w) => w.dist < w.range);
+    // Burning ground scorches whatever stands in it.
+    for (const f of this.flames) {
+      f.t += dt;
+      f.tick -= dt;
+      if (f.tick > 0) continue;
+      f.tick = 0.4;
+      for (const e of this.enemies) {
+        if (e.dead || Math.hypot(e.x - f.x, (e.y - f.y) * 1.4) > f.r + e.r * 0.7) continue;
+        const { dmg } = calcDamage(this.stats.atk, e.dfn, 0.15, 0);
+        e.hp -= dmg;
+        this.log.dealt += dmg;
+        e.flash = 0.05;
+        e.burn = Math.max(e.burn, 1);
+        e.burnDmg = Math.max(e.burnDmg, 1);
+        e.dotColor = '#ff7a2a';
+        if (e.hp <= 0) this.kill(e);
+      }
+    }
+    this.flames = this.flames.filter((f) => f.t < f.life);
+    for (const z of this.zaps) z.t += dt;
+    this.zaps = this.zaps.filter((z) => z.t < 0.18);
   }
 
   private skill() {
     const p = this.p;
     p.skillCd = SKILL_CD;
+    this.log.skills++;
     p.swing = null;
     this.audio.play('skill');
     const ang = this.aim();
@@ -620,13 +693,6 @@ export class Battle {
             this.fx.burst(p.x + Math.cos(a) * 80, p.y + Math.sin(a) * 60, col[i % 2], 2, 80, { size: 5, grav: -80, life: 0.6 });
           }
         }
-        break;
-      case 'lunge':
-        p.lungeT = SKILL_DATA.lunge.dur;
-        p.lungeDir = ang;
-        p.lungeId = ++this.hitCounter;
-        p.iframes = Math.max(p.iframes, 0.38);
-        p.face = ang;
         break;
       case 'whirl':
         p.whirlT = SKILL_DATA.whirl.dur;
@@ -667,7 +733,7 @@ export class Battle {
     this.projs.push({
       x: p.x + Math.cos(ang) * 16, y: p.y - 12 + Math.sin(ang) * 16,
       vx: Math.cos(ang) * 400, vy: Math.sin(ang) * 400, r,
-      atk: 0, mult, owner: 'p', life: 1.2, color: this.weapon.trail ?? this.weaponColor,
+      atk: 0, mult, owner: 'p', life: 1.2, color: this.weapon.trail ?? this.weaponColor, homing: this.element === 'bat',
     });
   }
 
@@ -687,6 +753,7 @@ export class Battle {
       return;
     }
     this.save.potions--;
+    this.log.potions++;
     const heal = Math.round(this.stats.maxHp * POTION_HEAL);
     p.hp = Math.min(this.stats.maxHp, p.hp + heal);
     p.potionCd = 0.8;
@@ -704,7 +771,7 @@ export class Battle {
     if (this.runCd > 0) return;
     if (Math.random() < 0.7) {
       this.fx.text(p.x, p.y - 40, 'Got away!', '#ffffff', 16);
-      this.finish({ result: 'run', hp: p.hp, xp: 0, drops: {}, defeated: [] }, 0.5);
+      this.finish({ result: 'run', hp: p.hp, xp: 0, drops: {}, defeated: [], log: this.log }, 0.5);
     } else {
       this.fx.text(p.x, p.y - 40, 'Blocked!', '#ffd0d0', 16);
       this.runCd = 1.5;
@@ -718,6 +785,9 @@ export class Battle {
     const critChance = 0.08 + st.luck * 0.2 + (this.element === 'crystal' ? 0.12 : 0);
     const { dmg, crit } = calcDamage(st.atk, e.dfn, mult, critChance);
     e.hp -= dmg;
+    this.log.hits++;
+    this.log.dealt += dmg;
+    if (crit) this.log.crits++;
     e.flash = 0.12;
     e.squash = 0.18;
     const kbk = e.def.boss ? 0.12 : 1;
@@ -737,7 +807,32 @@ export class Battle {
       case 'dragon':
         e.burn = 1.6;
         e.burnDmg = Math.max(1, Math.round(dmg * 0.12));
+        e.dotColor = '#ff7a2a';
         this.fx.burst(hx, hy, '#ff9a3a', 5, 120, { size: 4, grav: -60 });
+        break;
+      case 'spore':
+        // A puff of poison spores: a longer, gentler damage over time.
+        e.burn = 2.4;
+        e.burnDmg = Math.max(1, Math.round(dmg * 0.1));
+        e.dotColor = '#8ad84a';
+        this.fx.burst(hx, hy, '#9af06a', 8, 60, { size: 5, grav: -20, life: 0.8 });
+        break;
+      case 'jelly':
+        e.slow = Math.max(e.slow, 1.4);
+        this.fx.burst(hx, hy, '#8af09a', 6, 90, { size: 4, life: 0.5 });
+        break;
+      case 'bat': {
+        // Drain a little life back.
+        const heal = Math.max(1, Math.round(dmg * 0.12));
+        this.p.hp = Math.min(this.stats.maxHp, this.p.hp + heal);
+        this.fx.text(this.p.x, this.p.y - 44, `+${heal}`, '#ff8ab0', 13);
+        break;
+      }
+      case 'glimmer':
+        if (strikeId && !this.burstIds.has(-strikeId)) {
+          this.burstIds.add(-strikeId);
+          this.chain(e);
+        }
         break;
       case 'crystal':
         if (crit) this.fx.burst(hx, hy, '#c8f0ff', 10, 200, { size: 4, star: true });
@@ -754,6 +849,25 @@ export class Battle {
     if (e.hp <= 0) this.kill(e);
   }
 
+  /** Glimmer weapons: a spark leaps from the foe you hit to the nearest other one. */
+  private chain(from: Enemy) {
+    let best: Enemy | null = null, bd = 130;
+    for (const o of this.enemies) {
+      if (o === from || o.dead) continue;
+      const d = Math.hypot(o.x - from.x, o.y - from.y);
+      if (d < bd) { bd = d; best = o; }
+    }
+    if (!best) return;
+    const { dmg } = calcDamage(this.stats.atk, best.dfn, 0.5, 0);
+    best.hp -= dmg;
+    best.flash = 0.1;
+    this.log.dealt += dmg;
+    this.zaps.push({ x1: from.x, y1: from.y - from.r, x2: best.x, y2: best.y - best.r, t: 0 });
+    this.fx.text(best.x, best.y - best.r * 2, `${dmg}`, '#e8d8ff', 15);
+    this.fx.burst(best.x, best.y - best.r, '#f0e0ff', 8, 120, { star: true, size: 3 });
+    if (best.hp <= 0) this.kill(best);
+  }
+
   private dragonBurst(x: number, y: number, skip: Enemy) {
     this.rings.push({ x, y, r0: 10, r1: 55, t: 0, dur: 0.3, color: '255,140,60', width: 7 });
     this.fx.burst(x, y - 10, '#ff7a3a', 16, 180, { size: 6, grav: -120, life: 0.6 });
@@ -763,8 +877,10 @@ export class Battle {
       if (Math.hypot(o.x - x, o.y - y) > 55 + o.r) continue;
       const { dmg } = calcDamage(this.stats.atk, o.dfn, 0.5, 0);
       o.hp -= dmg;
+      this.log.dealt += dmg;
       o.flash = 0.1;
       o.burn = 1.6;
+      o.dotColor = '#ff7a2a';
       o.burnDmg = Math.max(1, Math.round(dmg * 0.12));
       this.fx.text(o.x, o.y - o.r * 2, `${dmg}`, '#ffb03a', 15);
       if (o.hp <= 0) this.kill(o);
@@ -778,7 +894,7 @@ export class Battle {
     e.windup = 0;
     e.burn = 0;
     const cols: Record<MonsterKind, string> = {
-      slime: '#6fdc7a', magma: '#ff7a3a', bunny: '#ffffff', shroom: '#e8505a', wolf: '#9aa4c8',
+      slime: '#6fdc7a', magma: '#ff7a3a', glimmer: '#c8b0ff', bunny: '#ffffff', shroom: '#e8505a', wolf: '#9aa4c8',
       bat: '#7a5ab8', golem: '#9aa0b0', imp: '#e8505a', dragon: '#e8603c',
       kingslime: '#8ac8ff', alphawolf: '#5a6488', crystalking: '#b8a0ff',
     };
@@ -803,9 +919,10 @@ export class Battle {
 
   private hurtPlayer(atk: number, mult: number, fx: number, fy: number) {
     const p = this.p;
-    if (p.iframes > 0 || p.dodgeT > 0 || p.lungeT > 0 || this.endT >= 0) return;
+    if (p.iframes > 0 || p.dodgeT > 0 || this.endT >= 0) return;
     const { dmg } = calcDamage(atk, this.stats.def, mult, 0.04);
     p.hp -= dmg;
+    this.log.taken += dmg;
     p.iframes = 0.8;
     p.hurtT = 0.25;
     const ang = Math.atan2(p.y - fy, p.x - fx);
@@ -822,6 +939,8 @@ export class Battle {
 
   private finish(o: BattleOutcome, delay: number) {
     if (this.endT >= 0) return;
+    this.log.time = Math.max(0, this.t);
+    o.log = this.log;
     this.outcome = o;
     this.endT = delay;
   }
@@ -830,10 +949,10 @@ export class Battle {
     if (this.endT >= 0) return;
     if (this.p.hp <= 0) {
       this.audio.play('lose');
-      this.finish({ result: 'lose', hp: 0, xp: 0, drops: {}, defeated: this.defeated }, 1.4);
+      this.finish({ result: 'lose', hp: 0, xp: 0, drops: {}, defeated: this.defeated, log: this.log }, 1.4);
     } else if (this.enemies.every((e) => e.dead)) {
       this.audio.play('victory');
-      this.finish({ result: 'win', hp: this.p.hp, xp: this.xp, drops: this.drops, defeated: this.defeated }, 1.1);
+      this.finish({ result: 'win', hp: this.p.hp, xp: this.xp, drops: this.drops, defeated: this.defeated, log: this.log }, 1.1);
     }
   }
 
@@ -857,8 +976,9 @@ export class Battle {
       if (e.burnTick <= 0) {
         e.burnTick = 0.4;
         e.hp -= e.burnDmg;
+        this.log.dealt += e.burnDmg;
         e.flash = 0.05;
-        this.fx.text(e.x + rand(-8, 8), e.y - e.r * 2 - e.z, `${e.burnDmg}`, '#ffb03a', 13);
+        this.fx.text(e.x + rand(-8, 8), e.y - e.r * 2 - e.z, `${e.burnDmg}`, e.dotColor === '#ff7a2a' ? '#ffb03a' : '#b8f08a', 13);
         if (e.hp <= 0) {
           this.kill(e);
           return;
@@ -883,7 +1003,10 @@ export class Battle {
       this.ai(e, dt, dist, toP);
     }
     // Stay in the arena; charging enemies bounce off walls (and trees).
-    const mv = this.arena.move(e.x, e.y, e.vx * dt, e.vy * dt, this.feet(e.r));
+    // Jelly slows movement (not the AI's plans, so hops still land where they meant to, just later).
+    e.slow = Math.max(0, e.slow - dt);
+    const sl = e.slow > 0 ? 0.55 : 1;
+    const mv = this.arena.move(e.x, e.y, e.vx * dt * sl, e.vy * dt * sl, this.feet(e.r));
     const bounced = mv.hitX || mv.hitY;
     e.x = mv.x;
     e.y = mv.y;
@@ -897,7 +1020,7 @@ export class Battle {
       this.shake = Math.max(this.shake, e.def.boss ? 8 : 2);
     }
     // Contact damage (slimes mid-hop sail over you).
-    const airborne = (e.kind === 'slime' || e.kind === 'magma' || e.kind === 'kingslime') && e.z > 10;
+    const airborne = (e.kind === 'slime' || e.kind === 'magma' || e.kind === 'glimmer' || e.kind === 'kingslime') && e.z > 10;
     if (!airborne && Math.hypot(p.x - e.x, p.y - e.y) < p.r + e.r * 0.85) {
       const fast = e.state === 'charge' || e.state === 'dash' || e.state === 'swoop';
       this.hurtPlayer(e.atk, (e.def.boss ? 0.8 : 1) * (fast ? 1.2 : 1), e.x, e.y);
@@ -914,7 +1037,8 @@ export class Battle {
     const rage = e.def.boss && e.hp < e.maxHp * 0.5 ? 0.72 : 1;
     switch (e.kind) {
       case 'slime':
-      case 'magma': {
+      case 'magma':
+      case 'glimmer': {
         if (e.state === 'idle') {
           e.vx = e.vy = 0;
           e.z = 0;
@@ -932,10 +1056,14 @@ export class Battle {
             e.t = rand(0.45, 1.0);
             e.z = 0;
             e.vx = e.vy = 0;
-            this.fx.burst(e.x, e.y, e.kind === 'slime' ? '#a8f0a8' : '#ffb07a', 4, 60, { size: 3 });
+            this.fx.burst(e.x, e.y, e.kind === 'slime' ? '#a8f0a8' : e.kind === 'glimmer' ? '#e0d0ff' : '#ffb07a', 4, 60, { size: 3 });
             if (e.kind === 'magma' && Math.random() < 0.5) {
               const off = Math.random() * TAU;
               for (let i = 0; i < 4; i++) this.enemyShoot(e, off + (i / 4) * TAU, 120, 7, '#ff9a3a', 0.7);
+            }
+            // Glimmer slimes flick three crystal shards at you as they land.
+            if (e.kind === 'glimmer' && Math.random() < 0.6) {
+              for (const off of [-0.3, 0, 0.3]) this.enemyShoot(e, toP + off, 150, 6, '#d8c8ff', 0.6);
             }
           }
         }
@@ -1312,6 +1440,22 @@ export class Battle {
   private updateProjs(dt: number) {
     const p = this.p;
     for (const pr of this.projs) {
+      if (pr.homing) {
+        // Swerve toward the nearest foe ahead (up to ~3 radians a second).
+        let best: Enemy | null = null, bd = 260;
+        for (const e of this.enemies) {
+          if (e.dead) continue;
+          const d = Math.hypot(e.x - pr.x, e.y - pr.y);
+          if (d < bd) { bd = d; best = e; }
+        }
+        if (best) {
+          const want = Math.atan2(best.y - best.r * 0.7 - pr.y, best.x - pr.x), cur = Math.atan2(pr.vy, pr.vx);
+          const turn = Math.max(-3 * dt, Math.min(3 * dt, angDiff(want, cur)));
+          const sp = Math.hypot(pr.vx, pr.vy);
+          pr.vx = Math.cos(cur + turn) * sp;
+          pr.vy = Math.sin(cur + turn) * sp;
+        }
+      }
       pr.x += pr.vx * dt;
       pr.y += pr.vy * dt;
       pr.life -= dt;
@@ -1320,7 +1464,7 @@ export class Battle {
       if (Math.random() < 0.4) this.fx.burst(pr.x, pr.y, pr.color, 1, 20, { size: pr.r * 0.4, grav: 0, life: 0.3 });
       if (pr.owner === 'e') {
         if (Math.hypot(pr.x - p.x, pr.y - (p.y - 10)) < pr.r + p.r) {
-          if (p.iframes <= 0 && p.dodgeT <= 0 && p.lungeT <= 0) {
+          if (p.iframes <= 0 && p.dodgeT <= 0) {
             this.hurtPlayer(pr.atk, pr.mult, pr.x, pr.y);
             pr.life = 0;
           }
@@ -1435,6 +1579,19 @@ export class Battle {
       ctx.stroke();
     }
 
+    // Burning ground from dragon breath.
+    for (const f of this.flames) {
+      const k = 1 - f.t / f.life, flick = 0.8 + Math.sin(this.t * 25 + f.x) * 0.2;
+      ctx.fillStyle = `rgba(255,110,40,${0.35 * k})`;
+      ctx.beginPath();
+      ctx.ellipse(f.x, f.y, f.r * flick, f.r * 0.55 * flick, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = `rgba(255,220,120,${0.5 * k})`;
+      ctx.beginPath();
+      ctx.ellipse(f.x, f.y - 2, f.r * 0.45 * flick, f.r * 0.25 * flick, 0, 0, TAU);
+      ctx.fill();
+      if (Math.random() < 0.15 * k) this.fx.burst(f.x + rand(-f.r, f.r) * 0.6, f.y - 4, Math.random() < 0.5 ? '#ffb03a' : '#ff5a2a', 1, 30, { size: 4, grav: -110, life: 0.5 });
+    }
     // Which way you'll swing: an arrow on the ground ahead of you, and a ring on the enemy you're lined up with.
     if (this.endT < 0 && this.intro <= 0) {
       const p = this.p, a = p.face, d = 30;
@@ -1500,6 +1657,19 @@ export class Battle {
       ctx.stroke();
     }
     for (const s of this.sparks) this.drawSpark(ctx, s);
+    // Chain sparks: a jagged bolt between two foes.
+    for (const z of this.zaps) {
+      ctx.strokeStyle = `rgba(240,224,255,${1 - z.t / 0.18})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(z.x1, z.y1);
+      for (let i = 1; i < 6; i++) {
+        const q = i / 6;
+        ctx.lineTo(z.x1 + (z.x2 - z.x1) * q + rand(-8, 8), z.y1 + (z.y2 - z.y1) * q + rand(-8, 8));
+      }
+      ctx.lineTo(z.x2, z.y2);
+      ctx.stroke();
+    }
     this.fx.draw(ctx);
   }
 
@@ -1600,7 +1770,7 @@ export class Battle {
   /** Life in the air over the arena: butterflies in the meadow, falling leaves in the woods, glowing motes in the cave, embers on the peak, and drifting cloud shadows outdoors. */
   private drawAmbient(ctx: CanvasRenderingContext2D) {
     const id = this.setup.zone.id, t = this.t, RX = ARENA_RX, RY = ARENA_RY;
-    if (id !== 'cave') {
+    if (id !== 'cave' && id !== 'hollow') {
       ctx.fillStyle = 'rgba(40,30,60,0.06)';
       for (let i = 0; i < 2; i++) {
         const x = ((t * 14 + i * 330) % (RX * 3)) - RX * 1.5, y = -RY * 0.4 + i * RY * 0.7;
@@ -1634,6 +1804,22 @@ export class Battle {
         ctx.restore();
       }
     } else if (id === 'cave') {
+      // Dust hanging in the lamplight, and the odd drip from the ceiling.
+      for (let i = 0; i < 10; i++) {
+        const x = (hash2(i, 5, 24) - 0.5) * RX * 2 + Math.sin(t * 0.4 + i) * 20, y = (hash2(i, 6, 24) - 0.5) * RY * 2 + Math.cos(t * 0.3 + i) * 14;
+        ctx.fillStyle = 'rgba(220,220,230,0.35)';
+        ctx.beginPath();
+        ctx.arc(x, y, 1.8, 0, TAU);
+        ctx.fill();
+      }
+      for (let i = 0; i < 3; i++) {
+        const q = (t * 0.7 + i * 0.37) % 1, x = (hash2(i, 7, 24) - 0.5) * RX * 1.6, y = -RY * 0.9 + q * RY * 1.2;
+        ctx.fillStyle = `rgba(160,200,255,${0.6 * (1 - q)})`;
+        ctx.beginPath();
+        ctx.ellipse(x, y, 2, 4, 0, 0, TAU);
+        ctx.fill();
+      }
+    } else if (id === 'hollow') {
       for (let i = 0; i < 12; i++) {
         const x = (hash2(i, 2, 22) - 0.5) * RX * 2, y = (hash2(i, 3, 22) - 0.5) * RY * 2 + Math.sin(t + i) * 12;
         ctx.fillStyle = `rgba(190,230,255,${0.3 + Math.sin(t * 2 + i * 1.7) * 0.25})`;
@@ -1668,7 +1854,7 @@ export class Battle {
         sxk *= 1 + e.windup * 0.12;
         syk *= 1 - e.windup * 0.1;
       }
-      if ((e.kind === 'slime' || e.kind === 'magma') && e.z > 2) {
+      if ((e.kind === 'slime' || e.kind === 'magma' || e.kind === 'glimmer') && e.z > 2) {
         sxk *= 0.9;
         syk *= 1.12;
       }
@@ -1685,8 +1871,8 @@ export class Battle {
         flip: e.face < 0, alpha, sx: sxk, sy: syk,
         // Bosses get hit constantly, so their flash is softer to keep them readable.
         flash: e.flash > 0 || (e.dead && alpha > 0.7) ? (e.def.boss && !e.dead ? 0.45 : 1) : 0,
-        tint: e.burn > 0 ? '#ff7a2a' : e.windup > 0.5 ? '#ff4a4a' : undefined,
-        tintAmount: e.burn > 0 ? 0.25 + Math.sin(this.t * 20) * 0.1 : (e.windup - 0.5) * 0.5,
+        tint: e.burn > 0 ? e.dotColor : e.slow > 0 ? '#8af09a' : e.windup > 0.5 ? '#ff4a4a' : undefined,
+        tintAmount: e.burn > 0 ? 0.25 + Math.sin(this.t * 20) * 0.1 : e.slow > 0 ? 0.3 : (e.windup - 0.5) * 0.5,
       });
     } else {
       ctx.save();
@@ -1703,7 +1889,10 @@ export class Battle {
       ctx.restore();
     }
     if (e.golden && !e.dead && Math.random() < 0.15) this.fx.burst(e.x + rand(-e.r, e.r), e.y - rand(0, e.r * 2), '#fff6a0', 1, 20, { star: true, size: 3, grav: -20 });
-    if (e.burn > 0 && !e.dead && Math.random() < 0.3) this.fx.burst(e.x + rand(-e.r, e.r) * 0.6, e.y - rand(0, e.r * 1.5) - e.z, Math.random() < 0.5 ? '#ffb03a' : '#ff5a2a', 1, 30, { size: 4, grav: -90, life: 0.5 });
+    if (e.burn > 0 && !e.dead && Math.random() < 0.3) {
+      const fire = e.dotColor === '#ff7a2a';
+      this.fx.burst(e.x + rand(-e.r, e.r) * 0.6, e.y - rand(0, e.r * 1.5) - e.z, fire ? (Math.random() < 0.5 ? '#ffb03a' : '#ff5a2a') : '#9af06a', 1, 30, { size: 4, grav: fire ? -90 : -30, life: 0.5 });
+    }
     if (e.stun > 0 && !e.dead) {
       for (let i = 0; i < 3; i++) {
         const a = this.t * 5 + (i / 3) * TAU;
@@ -1862,17 +2051,17 @@ export class Battle {
   private drawHero(ctx: CanvasRenderingContext2D) {
     const p = this.p;
     const style = this.weapon.style ?? 'sword';
-    const blink = p.iframes > 0 && p.dodgeT <= 0 && p.lungeT <= 0 && Math.floor(this.t * 20) % 2 === 0;
+    const blink = p.iframes > 0 && p.dodgeT <= 0 && Math.floor(this.t * 20) % 2 === 0;
     const alpha = blink ? 0.35 : 1;
     const cosF = Math.cos(p.face), sinF = Math.sin(p.face);
-    const heavy = style === 'axe' || style === 'hammer';
+    const heavy = style === 'hammer';
     // At rest the weapon hangs from your sword hand, blade down and out: on your right when facing away, your left
     // when facing the camera, and in front in profile.
     const side = sinF < -0.5 ? 1 : sinF > 0.5 ? -1 : cosF >= 0 ? 1 : -1;
     let ang = side > 0 ? (heavy ? 0.5 : 0.75) : Math.PI - (heavy ? 0.5 : 0.75);
     let off = 0, scale = 1, flipY = side > 0 ? 1 : -1;
     const sw = p.swing;
-    const idle = !sw && p.whirlT <= 0 && p.lungeT <= 0;
+    const idle = !sw && p.whirlT <= 0;
     if (sw) {
       ({ ang, off, scale } = this.pose(sw));
       if (sw.s.shape === 'arc') {
@@ -1897,10 +2086,6 @@ export class Battle {
         ctx.stroke();
       }
       ctx.restore();
-    } else if (p.lungeT > 0) {
-      ang = p.lungeDir;
-      off = 16;
-      flipY = Math.cos(ang) >= 0 ? 1 : -1;
     }
     // Swings pivot around the same point the hitboxes use (p.y - 10); at rest the hand sits at your side, by the hip.
     const handX = idle ? p.x + side * (Math.abs(sinF) > 0.5 ? 10 : 6) : p.x + Math.cos(ang) * (7 + off);
@@ -1909,8 +2094,9 @@ export class Battle {
     const wf = frame(`wpn/${this.weapon.id}`);
     const weaponUnit = 34 * this.moves.size * scale;
     const drawW = () => {
+      if (style === 'whip') this.drawLash(ctx, handX, handY, ang, sw, idle, side);
       if (wf) drawFrame(ctx, wf, handX, handY, weaponUnit, { rot: ang, sy: flipY, alpha });
-      else drawWeapon(ctx, style === 'axe' ? 'hammer' : style, handX, handY, ang, 12 * scale, this.weaponColor);
+      else drawWeapon(ctx, style === 'whip' ? 'sword' : style, handX, handY, ang, 12 * scale, this.weaponColor);
     };
     shadow(ctx, p.x, p.y, 14);
     if (behind) drawW();
@@ -1925,6 +2111,47 @@ export class Battle {
       });
     }
     if (!behind) drawW();
+  }
+
+  /**
+   * A whip's rope: coiled and dangling at rest; during a lash it snaps out to its full reach along the swing, bowed
+   * against the direction it's moving so it reads as a crack of the whip.
+   */
+  private drawLash(ctx: CanvasRenderingContext2D, hx: number, hy: number, ang: number, sw: Swing | null, idle: boolean, side: number) {
+    let len = 18, bow = 10;
+    let dir = idle ? (side > 0 ? 1.2 : Math.PI - 1.2) : ang;
+    if (sw) {
+      const q = clamp01((sw.t - sw.s.windup) / sw.s.active);
+      const reach = sw.s.range * this.reach;
+      len = sw.t < sw.s.windup ? 22 : 22 + (reach - 22) * easeOut(Math.min(1, q * 1.3)) * (1 - Math.max(0, q - 1) * 0.6);
+      bow = sw.s.shape === 'arc' ? (sw.s.anim === 'slashL' ? -1 : 1) * len * 0.22 : len * 0.06;
+      dir = ang;
+    } else if (this.p.whirlT > 0) {
+      len = SKILL_DATA.whirl.radius * this.reach;
+      bow = len * 0.3;
+    }
+    const ex = hx + Math.cos(dir) * len, ey = hy + Math.sin(dir) * len;
+    const mx = (hx + ex) / 2 - Math.sin(dir) * bow, my = (hy + ey) / 2 + Math.cos(dir) * bow;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(40,20,50,0.55)';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.quadraticCurveTo(mx, my, ex, ey);
+    ctx.stroke();
+    ctx.strokeStyle = this.weaponColor;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.quadraticCurveTo(mx, my, ex, ey);
+    ctx.stroke();
+    // A bright popper at the tip.
+    ctx.fillStyle = this.weapon.trail ?? '#fff';
+    ctx.beginPath();
+    ctx.arc(ex, ey, sw && sw.t > sw.s.windup ? 4 : 2.5, 0, TAU);
+    ctx.fill();
+    ctx.restore();
   }
 
   private drawOverlay(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
@@ -1969,7 +2196,7 @@ export class Battle {
 
 function initialState(kind: MonsterKind): EState {
   switch (kind) {
-    case 'slime': case 'magma': case 'bunny': return 'idle';
+    case 'slime': case 'magma': case 'glimmer': case 'bunny': return 'idle';
     case 'shroom': return 'move';
     case 'wolf': return 'circle';
     case 'bat': return 'flutter';

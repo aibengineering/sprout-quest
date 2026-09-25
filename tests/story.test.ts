@@ -64,12 +64,15 @@ describe('village', () => {
   test('forge level gates higher-tier recipes', () => {
     const s = newState();
     for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 99;
-    expect(craftGear(s, 'jelly')).toBe('forge');
+    for (const k in s.mastery) s.mastery[k as keyof typeof s.mastery].lv = 10;
+    for (const k in s.skills) s.skills[k as keyof typeof s.skills].lv = 10;
+    expect(craftGear(s, 'jellywhip')).toBe('forge');
     s.build.forge = 1;
-    expect(craftGear(s, 'geode')).toBe('forge');
-    expect(craftGear(s, 'jelly')).toBe('ok');
+    expect(craftGear(s, 'batwhip')).toBe('forge');
+    expect(craftGear(s, 'jellywhip')).toBe('ok');
     s.build.forge = 2;
-    expect(craftGear(s, 'geode')).toBe('ok');
+    expect(craftGear(s, 'batwhip')).toBe('ok');
+    expect(craftGear(s, 'crystalsword')).toBe('ok');
     expect(craftGear(s, 'emberblade')).toBe('forge');
   });
 

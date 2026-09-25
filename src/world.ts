@@ -18,13 +18,14 @@ export const GATE_Y = 12;
 const ROUTE_TILE: Record<string, number> = {
   '#': T.OBST, '.': T.GROUND, ',': T.GRASS, '=': T.PATH, '~': T.POOL, '*': T.DECOR,
   E: T.PATH, S: T.GROUND, C: T.GROUND, L: T.GROUND, k: T.GROUND, p: T.GROUND, K: T.GRASS, P: T.GRASS,
-  r: T.GROUND, u: T.GROUND, i: T.GROUND, R: T.GRASS, U: T.GRASS, I: T.GRASS,
+  r: T.GROUND, u: T.GROUND, i: T.GROUND, y: T.GROUND, R: T.GRASS, U: T.GRASS, I: T.GRASS, Y: T.GRASS,
 };
 
 /** Route map markers for gathering nodes: [character, node, out in the grass]. */
 const NODE_MARKS: [string, NodeKind, boolean][] = [
   ['k', 'oak', false], ['K', 'oak', true], ['p', 'pine', false], ['P', 'pine', true],
   ['r', 'rock', false], ['R', 'rock', true], ['u', 'copper', false], ['U', 'copper', true], ['i', 'iron', false], ['I', 'iron', true],
+  ['y', 'crystal', false], ['Y', 'crystal', true],
 ];
 
 export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node';

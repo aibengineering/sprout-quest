@@ -45,7 +45,7 @@ def face(parent, cx, cz, rx, ry, rz, gap, eye=0.06, blush=True, mouth=True, cy=0
 # ----------------------------------------------------------------------------- builders
 
 
-def slime(magma=False, color=None):
+def slime(magma=False, color=None, crystals=False):
     P = {}
     root = P['root'] = empty('slime')
     piv = P['piv'] = empty('piv', root)
@@ -60,6 +60,10 @@ def slime(magma=False, color=None):
             sphere((x, surf(rx, ry, rz, x, dz), cz + dz), (s, 0.04, s * 0.8), crust, piv, line=0.01)
         for x, dz, s in ((0.3, 0.2, 0.06), (-0.35, -0.05, 0.045)):
             sphere((x, surf(rx, ry, rz, x, dz) - 0.03, cz + dz), (s, 0.03, s * 0.8), glow, piv, line=0)
+    if crystals:
+        # Glimmer slime: crystal shards poking out of its top.
+        for x, dz, h, col in ((-0.15, 0.36, 0.3, '#e0d0ff'), (0.14, 0.4, 0.36, '#9ae6ff'), (0.34, 0.24, 0.24, '#e0d0ff')):
+            crystal((x, 0.02, cz + dz), 0.07, h, M(col, rim=0.5), piv, rot=(0, x * 0.8, 0), sides=5)
     face(piv, 0, cz + 0.04, rx, ry, rz, 0.19, eye=0.1, cy=0)
     return P, _anim_slime
 
@@ -347,6 +351,7 @@ def crystalking():
 BUILDERS = {
     'slime': lambda: slime(False),
     'magma': lambda: slime(True),
+    'glimmer': lambda: slime(color='#b8a8f8', crystals=True),
     'bunny': bunny,
     'shroom': shroom,
     'wolf': wolf,

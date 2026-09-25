@@ -2,10 +2,10 @@
 import { iconUrl } from './assets';
 import {
   GEAR, GEAR_ORDER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
-  TOOLS, ZONES, forgeLevelFor, type SkillId, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
+  STYLE_NAMES, TOOLS, ZONES, forgeLevelFor, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
 } from './data';
-import { currentQuest, progress } from './quests';
-import { canBuild, hasMats, missingSkill, playerStats, skillXpToNext, xpToNext } from './rules';
+import { currentQuest, progress, questNeeds } from './quests';
+import { MASTERY_MAX, canBuild, hasMats, masteryShort, masteryXpToNext, missingSkill, playerStats, skillXpToNext, xpToNext } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
 import { usingKeyboard } from './input';
@@ -32,13 +32,14 @@ export interface UIHooks {
   warpHome(): void;
   toggleMute(): void;
   resetSave(): void;
+  /** Play report: download it as a file, or copy it to the clipboard. */
+  exportReport(how: 'download' | 'copy'): void;
   menuClosed(): void;
 }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', meadow: '🌼', woods: '🌲', cave: '💎', peak: '🌋' };
-const STYLE_NAMES: Record<string, string> = { sword: 'Sword', spear: 'Spear', axe: 'Axe', hammer: 'Hammer', wand: 'Wand' };
+const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', meadow: '🌼', woods: '🌲', cave: '🪨', hollow: '💎', peak: '🌋' };
 
 /** Blender-rendered icon with the emoji as a fallback if the image is missing. */
 export function icon(id: string, emoji: string, cls = 'icon') {
@@ -188,12 +189,17 @@ export class UI {
       return;
     }
     const p = progress(s, q);
-    const count = p.max > 1 ? `${p.cur}/${p.max}` : '';
-    const text = `${q.id}|${count}`;
+    const needs = questNeeds(s, q);
+    const count = !needs.length && p.max > 1 ? `${p.cur}/${p.max}` : '';
+    const text = `${q.id}|${count}|${needs.map((n) => n.have).join(',')}`;
     this.set('pill', text, () => {
       const el = $('quest-pill');
       el.hidden = false;
-      el.innerHTML = `<span class="qi">📜</span><span class="qt"><b>${esc(q.title)}</b><small>${esc(q.hint)}</small></span>${count ? `<span class="qc">${count}</span>` : ''}`;
+      // Material goals list what they need, with a bar filling as you collect.
+      const have = needs.reduce((a, n) => a + Math.min(n.have, n.need), 0), total = needs.reduce((a, n) => a + n.need, 0);
+      const chips = needs.map((n) => `<span class="qm ${n.have >= n.need ? 'ok' : ''}">${icon(n.mat, MATS[n.mat].icon, 'icon sm')}${Math.min(n.have, n.need)}/${n.need}</span>`).join('');
+      el.innerHTML = `<span class="qi">📜</span><span class="qt"><b>${esc(q.title)}</b><small>${esc(q.hint)}</small>${
+        needs.length ? `<span class="qms">${chips}</span><span class="qbar"><i style="width:${(100 * have) / Math.max(1, total)}%"></i></span>` : ''}</span>${count ? `<span class="qc">${count}</span>` : ''}`;
       el.classList.remove('bump');
       void el.offsetWidth;
       el.classList.add('bump');
@@ -208,7 +214,15 @@ export class UI {
     });
   }
 
-  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean) {
+  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0, clip: { n: number; max: number } | null = null) {
+    const at = attackFrac.toFixed(2);
+    this.set('atk', at, () => ($('btn-attack').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', at)));
+    const pips = clip ? `${clip.n}/${clip.max}` : '';
+    this.set('clip', pips, () => {
+      const el = $('clip');
+      el.hidden = !clip;
+      if (clip) el.innerHTML = Array.from({ length: clip.max }, (_, i) => `<i class="${i < clip.n ? 'on' : ''}"></i>`).join('');
+    });
     this.set('pot', String(potions), () => {
       $('potion-n').textContent = String(potions);
       $('btn-potion').style.opacity = potions > 0 ? '1' : '0.5';
@@ -369,6 +383,22 @@ export class UI {
     } else if (k === 'KeyE' || k === 'KeyJ' || k === 'Space' || k === 'Enter' || k === 'KeyK' || k === 'KeyL' || k === 'KeyH' || k === 'KeyR') {
       swallow(); // don't let gameplay keys leak through while the menu is up
     }
+  }
+
+  /** Loot and XP stacked on the right ("+2 Slime Goo", "+12 XP"), clear of the quest tracker on the left. */
+  /** `name` is dropped on narrow screens, where the icon alone says what it is. */
+  loot(entries: { icon: string; text: string; name?: string; suffix?: string }[]) {
+    const feed = $('loot');
+    entries.forEach((e, i) => {
+      const row = document.createElement('div');
+      row.className = 'lrow';
+      row.style.animationDelay = `${i * 90}ms`;
+      row.innerHTML = `${e.icon}<span>${esc(e.text)}${e.name ? `<span class="nm"> ${esc(e.name)}</span>` : ''}${e.suffix ? ` ${esc(e.suffix)}` : ''}</span>`;
+      feed.appendChild(row);
+      setTimeout(() => row.classList.add('out'), 2600 + i * 90);
+      setTimeout(() => row.remove(), 3100 + i * 90);
+    });
+    while (feed.children.length > 7) feed.firstElementChild!.remove();
   }
 
   toast(msg: string, ms = 2200) {
@@ -564,7 +594,17 @@ export class UI {
         <div class="desc">${esc(tool.name)} · ${max ? 'Mastered!' : `${sk.xp}/${need} XP`}</div>
         <div class="pbar"><i style="width:${max ? 100 : (100 * sk.xp) / need}%"></i></div></div></div>`;
     }).join('');
-    return rows ? `<h3>Skills</h3>${rows}` : '';
+    // Weapon handling: every class you've trained, plus the one in your hand.
+    const style = GEAR[s.equip.weapon]?.style;
+    const handling = (Object.keys(STYLE_NAMES) as Style[]).filter((k) => k === style || s.mastery[k].lv > 1 || s.mastery[k].xp > 0).map((k) => {
+      const m = s.mastery[k], max = m.lv >= MASTERY_MAX, need = masteryXpToNext(m.lv);
+      const emoji = { sword: '🗡️', hammer: '🔨', whip: '〰️', wand: '🪄' }[k];
+      return `<div class="mcard row"><div class="ico"><span class="emo">${emoji}</span></div><div class="info">
+        <div class="name">${STYLE_NAMES[k]} handling <span class="lvl">Lv ${m.lv}</span></div>
+        <div class="desc">${max ? 'Mastered!' : `${m.xp}/${need} XP · win fights with a ${STYLE_NAMES[k].toLowerCase()} to train`}</div>
+        <div class="pbar"><i style="width:${max ? 100 : (100 * m.xp) / need}%"></i></div></div></div>`;
+    }).join('');
+    return `${rows ? `<h3>Skills</h3>${rows}` : ''}${handling ? `<h3>Weapon handling</h3>${handling}` : ''}`;
   }
 
   private forge(s: SaveState): string {
@@ -603,12 +643,14 @@ export class UI {
       const owned = s.owned.includes(id);
       const need = forgeLevelFor(g);
       const skillLock = missingSkill(s, g.needs);
-      const skillLocked = !!skillLock;
+      const handlingLock = masteryShort(s, g);
+      const skillLocked = !!skillLock || !!handlingLock;
       const locked = flv < need || skillLocked;
       let action: string;
       if (owned) action = s.equip[g.slot] === id ? '<span class="tag">✓ Equipped</span>' : `<button class="go ghost" data-equip="${id}">Equip</button>`;
       else if (flv < need) action = `<span class="tag lock">🔒 ${esc(PROJECTS.forge.levels[need - 1].name)}</span>`;
       else if (skillLock) action = `<span class="tag lock">🔒 ${SKILL_NAMES[skillLock.skill]} ${skillLock.level}</span>`;
+      else if (handlingLock) action = `<span class="tag lock">🔒 ${STYLE_NAMES[g.style!]} handling ${handlingLock}</span>`;
       else action = `<button class="go" data-craft="${id}" ${at && hasMats(s, g.recipe!) ? '' : 'disabled'}>Craft</button>`;
       return `<div class="mcard rcp ${locked ? 'locked' : ''} ${owned ? 'owned' : ''}"><div class="ico">${icon(g.id, g.icon, 'icon lg')}</div>
         <div class="info"><div class="name">${esc(g.name)} ${stars(g)}</div><div class="stats">${gearStats(g)}</div>
@@ -653,9 +695,13 @@ export class UI {
         • <b>Guardians</b> block the roads. Beat them to open the way and light a 🔥 campfire checkpoint.<br>
         • In battle: ⚔️ attack the way you last moved (hold to combo), 💨 dodge, ✨ weapon skill, 🧪 potion. Red circles mean danger!<br>
         • Craft gear at the ⚒ Forge and build up the 🏡 Village for permanent boosts.<br>
-        • Craft an axe (Forge → Tools) and chop ribboned trees: strike when the marker is in the green. Trees out in the grass give more.<br>
+        • Craft axes and picks (Forge → Tools) to chop glowing trees and mine glowing rocks. A tool can work the next tier up, slowly.<br>
+        • You attack the way you last moved. Winning with a class of weapon trains it; better weapons of that class need it.<br>
         • Keyboard: WASD/arrows, J/Space attack, K dodge, L skill, H potion, E interact, M menu.
       </div>
+      <div class="mcard row"><div class="ico">📊</div><div class="info"><div class="name">Play report</div>
+        <div class="desc">Every fight and gather is recorded (time, hits, damage…). Export it to share for balancing.</div></div>
+        <div class="stack"><button class="go" data-do="report">Download</button><button class="go ghost" data-do="report-copy">Copy</button></div></div>
       <div class="mcard row"><div class="ico">🗑️</div><div class="info"><div class="name">Reset save</div><div class="desc">Start over from scratch.</div></div>
         <button class="go alt" data-do="reset">Reset</button></div>`;
   }
@@ -695,6 +741,8 @@ export class UI {
     else if (d.do === 'home') this.hooks.warpHome();
     else if (d.do === 'mute') this.hooks.toggleMute();
     else if (d.do === 'reset') this.hooks.resetSave();
+    else if (d.do === 'report') this.hooks.exportReport('download');
+    else if (d.do === 'report-copy') this.hooks.exportReport('copy');
     this.refresh();
   }
 
@@ -773,6 +821,36 @@ export class UI {
        <div class="qart big-art">${icon(id, emoji, 'icon xxl')}</div>
        <div class="big" style="font-size:28px">${esc(name)}!</div><p>${esc(text)}</p>`,
       [['ok', 'Take it!']],
+      'celebrate',
+    );
+  }
+
+  /**
+   * A new level: the game waits behind this while it shows how your stats grew and what you're now ready for
+   * (a guardian at your level, an area that matches it, the dragon).
+   */
+  levelUp(lv: number, before: { maxHp: number; atk: number; def: number }, after: { maxHp: number; atk: number; def: number }, ready: string[]) {
+    const row = (emoji: string, label: string, a: number, b: number) =>
+      `<span>${emoji} ${label}</span><span>${a} →</span><span class="up">${b}${b > a ? ` (+${b - a})` : ''}</span>`;
+    return this.dialog(
+      `<div class="lvup"><div class="confetti">✨🌟✨</div><div class="qchap">Level up!</div>
+       <div class="big" style="font-size:40px">Level ${lv}</div>
+       <div class="stats">${row('❤️', 'Max HP', before.maxHp, after.maxHp)}${row('⚔️', 'Attack', before.atk, after.atk)}${row('🛡️', 'Defense', before.def, after.def)}</div>
+       <p class="sub">Fully healed!</p>
+       ${ready.length ? `<div class="ready">${ready.map((r) => `• ${esc(r)}`).join('<br>')}</div>` : ''}</div>`,
+      [['ok', 'Onward!']],
+      'celebrate',
+    );
+  }
+
+  /** A gathering skill or weapon handling level: what it improves, and what you can craft now. */
+  skillUp(title: string, lv: number, emoji: string, note: string, unlocks: { id: string; name: string; emoji: string }[]) {
+    const list = unlocks.map((u) => `<div class="u">${icon(u.id, u.emoji, 'icon lg')}<span>${esc(u.name)}</span></div>`).join('');
+    return this.dialog(
+      `<div class="lvup"><div class="confetti">${emoji}✨${emoji}</div><div class="qchap">${esc(title)}</div>
+       <div class="big" style="font-size:36px">Level ${lv}</div><p>${esc(note)}</p>
+       ${list ? `<div class="qchap">Now you can craft</div><div class="unlocks">${list}</div>` : ''}</div>`,
+      [['ok', 'Nice!']],
       'celebrate',
     );
   }
