@@ -26,6 +26,8 @@ frames = []
 # Hero facing angles: S, SE, E, NE, N (west-facing frames are mirrored in-game).
 HERO_DIRS = [0, 45, 90, 135, 180]
 MONSTER_YAW = 25
+# The hero is drawn biggest and most often, so it gets extra pixels to stay sharp on 3x phone screens.
+HERO_PPU = 112
 CHUNKY = 1.4  # weapons are exaggerated perpendicular to their length so they read at small sizes
 
 
@@ -50,10 +52,10 @@ if GROUP == 'hero':
         for d, ang in enumerate(HERO_DIRS):
             P['root'].rotation_euler = (0, 0, math.radians(ang))
             hero.pose(P, 0, False)
-            shot(f'hero/{armor}/{d}/0', 200, 200, 80)
+            shot(f'hero/{armor}/{d}/0', 280, 280, HERO_PPU)
             for f in range(4):
                 hero.pose(P, f / 4 + 0.125, True)
-                shot(f'hero/{armor}/{d}/{f + 1}', 200, 200, 80)
+                shot(f'hero/{armor}/{d}/{f + 1}', 280, 280, HERO_PPU)
 
 elif GROUP == 'monsters':
     for kind in monsters.BUILDERS:

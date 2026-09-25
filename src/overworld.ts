@@ -388,10 +388,10 @@ export class Overworld {
     const away = Math.sin(this.face) < -0.5;
     const bob = this.moving ? Math.abs(Math.sin(this.t * 9)) * ts * 0.03 : 0;
     const back = () => {
-      if (wf) drawFrame(ctx, wf, px - ts * 0.13, py - ts * 0.32 - bob, ts * 0.42 * (MOVESETS[wpn.style ?? 'sword']?.size ?? 1), { rot: -1.05 });
+      if (wf) drawFrame(ctx, wf, px - ts * 0.15, py - ts * 0.36 - bob, ts * 0.47 * (MOVESETS[wpn.style ?? 'sword']?.size ?? 1), { rot: -1.05 });
     };
     if (!away) back();
-    if (!drawHero(ctx, this.save.equip.armor, px, py, ts / 1.35, this.face, this.moving, this.t)) {
+    if (!drawHero(ctx, this.save.equip.armor, px, py, ts / 1.2, this.face, this.moving, this.t)) {
       drawPlayer(ctx, px, py, ts * 0.3, {
         t: this.t, moving: this.moving, face: this.face,
         armor: GEAR[this.save.equip.armor]?.color ?? '#6fa8ff',

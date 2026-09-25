@@ -105,6 +105,8 @@ export interface DrawOpts {
   /** Tint the whole sprite toward a color (e.g. burning orange). */
   tint?: string;
   tintAmount?: number;
+  /** A solid outline around the whole sprite, `width` in Blender units, so it stands out from any ground. */
+  outline?: { color: string; width: number };
 }
 
 let scratch: HTMLCanvasElement | null = null;
@@ -129,6 +131,34 @@ function flashed(f: Frame, color: string, amount: number): HTMLCanvasElement {
   return scratch;
 }
 
+/** Each frame's thickened silhouette in one color, built once: the sprite stamped in a ring of offsets, then filled. */
+const outlines = new WeakMap<Frame, Map<string, { c: HTMLCanvasElement; r: number }>>();
+
+function outlineOf(f: Frame, color: string, width: number) {
+  const r = Math.max(1, Math.round(width * f.ppu)), key = `${color}/${r}`;
+  let byKey = outlines.get(f);
+  if (!byKey) outlines.set(f, (byKey = new Map()));
+  let o = byKey.get(key);
+  if (!o) {
+    const c = document.createElement('canvas');
+    c.width = f.w + r * 2;
+    c.height = f.h + r * 2;
+    const x = c.getContext('2d')!;
+    // Two rings (full and half width) so thin parts like leaves and horns don't leave gaps.
+    for (const k of [1, 0.5]) {
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        x.drawImage(f.img, f.x, f.y, f.w, f.h, r + Math.cos(a) * r * k, r + Math.sin(a) * r * k, f.w, f.h);
+      }
+    }
+    x.globalCompositeOperation = 'source-in';
+    x.fillStyle = color;
+    x.fillRect(0, 0, c.width, c.height);
+    byKey.set(key, (o = { c, r }));
+  }
+  return o;
+}
+
 /** Draws a frame with its anchor at (x, y). `unit` is how many canvas units one Blender unit spans. */
 export function drawFrame(ctx: CanvasRenderingContext2D, f: Frame, x: number, y: number, unit: number, o: DrawOpts = {}) {
   const k = unit / f.ppu;
@@ -137,6 +167,10 @@ export function drawFrame(ctx: CanvasRenderingContext2D, f: Frame, x: number, y:
   if (o.rot) ctx.rotate(o.rot);
   ctx.scale((o.flip ? -k : k) * (o.sx ?? 1), k * (o.sy ?? 1));
   if (o.alpha !== undefined) ctx.globalAlpha *= o.alpha;
+  if (o.outline) {
+    const { c, r } = outlineOf(f, o.outline.color, o.outline.width);
+    ctx.drawImage(c, -f.ax - r, -f.ay - r);
+  }
   if (o.flash && o.flash > 0) {
     ctx.drawImage(flashed(f, '#ffffff', Math.min(1, o.flash)), 0, 0, f.w, f.h, -f.ax, -f.ay, f.w, f.h);
   } else if (o.tint && o.tintAmount) {
@@ -162,6 +196,9 @@ export function heroDir(face: number): { dir: number; flip: boolean } {
   ][sector];
 }
 
+/** The hero's outline: dark and a little heavier than the sprites' own, so you can always spot yourself. */
+export const HERO_OUTLINE = { color: '#2a1a36', width: 0.035 };
+
 /** Draws the hero sprite; returns false if sprites aren't available so callers can fall back. */
 export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}): boolean {
   const { dir, flip } = heroDir(face);
@@ -169,7 +206,7 @@ export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number
   const f = frame(`hero/${armor}/${dir}/${n}`) ?? frame(`hero/tunic/${dir}/${n}`);
   if (!f) return false;
   const breathe = moving ? 1 : 1 + Math.sin(t * 3) * 0.015;
-  drawFrame(ctx, f, x, y, unit, { ...o, flip, sy: (o.sy ?? 1) * breathe, sx: (o.sx ?? 1) / breathe });
+  drawFrame(ctx, f, x, y, unit, { outline: HERO_OUTLINE, ...o, flip, sy: (o.sy ?? 1) * breathe, sx: (o.sx ?? 1) / breathe });
   return true;
 }
 

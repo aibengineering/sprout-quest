@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { NODES, NODE_SPAWNS, SKILL_MAX, TOOLS, type ZoneId } from '../src/data';
-import { BASE_SPEED, Chop } from '../src/gather';
+import { BASE_SPEED, Chop, GatherView, OUTRO_T } from '../src/gather';
 import { canGather, craftGear, craftTool, gainSkillXp, harvest, skillXpToNext, sweetWidth, toolPower } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
@@ -11,6 +11,30 @@ function moveTo(c: Chop, p: number) {
 }
 
 describe('chopping minigame', () => {
+  test('the blow shows when the tool connects, and the node gives way only after the last one lands', () => {
+    const c = new Chop(20, 1, 0.2, () => 0.5), view = new GatherView({ kind: 'wood', pine: false });
+    const marks = () => (view as unknown as { marks: unknown[] }).marks.length;
+    const step = (secs: number) => { for (let t = 0; t < secs; t += 0.01) { c.update(0.01); view.update(0.01, c); } };
+    moveTo(c, c.center);
+    c.strike();
+    view.update(0.001, c);
+    expect(marks()).toBe(0); // the swing has only just started
+    step(0.15);
+    expect(marks()).toBe(1); // …and it has connected
+    // Keep striking until it's felled; the fall then plays out and the view finishes.
+    for (let i = 0; i < 50 && !c.done; i++) {
+      step(0.4);
+      moveTo(c, c.center);
+      c.strike();
+      view.update(0.001, c);
+    }
+    expect(c.done).toBe(true);
+    expect(view.finished).toBe(false);
+    step(0.15 + OUTRO_T);
+    expect(view.finished).toBe(true);
+    expect(marks()).toBe(c.strikes);
+  });
+
   test('clean hits build a streak that speeds the marker up; a miss resets it and locks you out briefly', () => {
     const c = new Chop(100, 1, 0.2, () => 0.5);
     moveTo(c, c.center);
