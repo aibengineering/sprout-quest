@@ -77,7 +77,9 @@ must pass first:
 
 - **Typecheck, tests and build**, and the **browser smoke test**, on every pull request and every push to `dev`
 - **Version bump and patch notes**, on pull requests into `main`: the `version` in `package.json` must be newer than
-  `main`'s, and the top entry of `PATCH_NOTES` in `src/version.ts` must describe it (`scripts/check-release.ts`)
+  `main`'s, and the top entry of `PATCH_NOTES` in `src/version.ts` must describe it (`scripts/check-release.ts`); pull
+  requests that only change documentation (Markdown, `docs/`) or CI tooling (`.github/`) skip it, since they don't
+  change the game
 
 So a release is: bump `version` in `package.json`, add its patch notes at the top of `src/version.ts`, and open a pull
 request from `dev` to `main`. The version lives only in `package.json`; the game reads it from there, and players
