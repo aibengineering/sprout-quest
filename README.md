@@ -49,6 +49,19 @@ fullscreen, app-like experience. Progress saves automatically (localStorage).
 Every push to `main` runs the typecheck and tests, builds the site and deploys it to GitHub Pages
 (`.github/workflows/deploy.yml`).
 
+## Branches and releases
+
+Work happens on `dev`; `main` is what's live. `main` only takes pull requests, and CI (`.github/workflows/ci.yml`)
+must pass first:
+
+- **Typecheck, tests and build**, and the **browser smoke test**, on every pull request and every push to `dev`
+- **Version bump and patch notes**, on pull requests into `main`: the `version` in `package.json` must be newer than
+  `main`'s, and the top entry of `PATCH_NOTES` in `src/version.ts` must describe it (`scripts/check-release.ts`)
+
+So a release is: bump `version` in `package.json`, add its patch notes at the top of `src/version.ts`, and open a pull
+request from `dev` to `main`. The version lives only in `package.json`; the game reads it from there, and players
+see a dot on the patch notes until they've read the new ones.
+
 ## Build and test
 
 ```sh

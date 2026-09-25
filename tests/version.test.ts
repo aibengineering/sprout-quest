@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import pkg from '../package.json';
-import { newerThan } from '../src/ui';
+import { newerThan } from '../src/semver';
 import { PATCH_NOTES, VERSION } from '../src/version';
 
 describe('version and patch notes', () => {

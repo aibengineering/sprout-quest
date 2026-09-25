@@ -1,9 +1,9 @@
 name: Build and deploy
 
+# Pull requests are checked by ci.yml; this builds and deploys whatever lands on main.
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -33,7 +33,6 @@ jobs:
           path: dist
 
   deploy:
-    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:

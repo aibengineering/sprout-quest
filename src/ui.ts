@@ -11,6 +11,7 @@ import type { Unlock, UnlockId } from './unlocks';
 import { usingKeyboard } from './input';
 import { canShareFiles } from './share';
 import { reportInfo } from './stats';
+import { newerThan } from './semver';
 import { PATCH_NOTES, VERSION } from './version';
 
 /** Which unlock reveals each menu tab (settings is always there). */
@@ -44,12 +45,6 @@ export interface UIHooks {
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-/** Is version `a` newer than `b` (both "major.minor.patch")? */
-export const newerThan = (a: string, b: string) => {
-  const [x, y] = [a, b].map((v) => v.split('.').map(Number));
-  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
-  return false;
-};
 /** Are there patch notes you haven't read? */
 export const hasNews = (s: SaveState) => newerThan(VERSION, s.seenVersion);
 const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', meadow: '🌼', woods: '🌲', cave: '🪨', hollow: '💎', peak: '🌋' };

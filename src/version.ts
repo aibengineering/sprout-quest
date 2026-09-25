@@ -1,7 +1,8 @@
-// The game's version and its patch notes, newest first. Bump VERSION (and package.json) and add an entry with each
-// release; players who haven't read the newest notes get a dot on them in the menu.
+// The game's version and its patch notes, newest first. The version lives only in package.json: bump it there and add
+// an entry here with each release (CI checks both). Players who haven't read the newest notes get a dot on them.
+import { version } from '../package.json';
 
-export const VERSION = '0.2.0';
+export const VERSION: string = version;
 
 export interface PatchNote {
   version: string;
