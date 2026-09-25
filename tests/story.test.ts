@@ -48,7 +48,7 @@ describe('village', () => {
   test('building spends materials, levels up and grants perks', () => {
     const s = newState();
     expect(canBuild(s, 'home')).toBe('missing');
-    Object.assign(s.mats, { goo: 20, fluff: 20, bark: 20, clover: 5, royaljelly: 1, fang: 10 });
+    Object.assign(s.mats, { goo: 20, fluff: 20, bark: 20, stone: 20, copper: 20, clover: 5, royaljelly: 1, fang: 10 });
     const hp = playerStats(s).maxHp, atk = playerStats(s).atk;
     expect(build(s, 'home')).toBe('ok');
     expect(s.build.home).toBe(2);

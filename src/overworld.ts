@@ -1,5 +1,5 @@
 // Overworld: walking around, tall-grass encounters and drawing the tile map.
-import { GEAR, MONSTERS, ZONES, zoneAtX, type Theme, type Zone } from './data';
+import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { currentQuest } from './quests';
 import { drawFrame, drawHero, frame } from './assets';
 import { SPRITE_SCALE } from './battle';
@@ -12,6 +12,8 @@ import type { SaveState } from './state';
 import { hash2, T, type World, type WorldObj } from './world';
 
 const TAU = Math.PI * 2;
+/** Chip colors when mining each kind of rock. */
+const ROCK_CHIPS: Partial<Record<string, string>> = { rock: '#9a9aa8', copper: '#e8904a', iron: '#b8c8e0' };
 /** Chance per tile walked in tall grass of being ambushed by monsters you didn't see. */
 const ENCOUNTER_CHANCE = 0.06;
 /** Map tiles are 1.6 Blender units wide. */
@@ -87,23 +89,30 @@ export class Overworld {
     this.moving = false;
   }
 
-  /** Wood chips fly and the tree shakes; bigger for better strikes. */
+  /** Wood chips (or rock chips and sparks) fly and the node shakes; bigger for better strikes. */
   chopHit(strength: number) {
     const o = this.chopping;
     if (!o) return;
     this.shakeT = 0.25;
     const ts = this.ts, x = (o.x + o.w / 2) * ts, y = (o.y + o.h / 2 - 0.3) * ts;
-    this.fx.burst(x, y, '#c89a6a', 3 + Math.round(strength * 4), ts * 2.2, { size: ts * 0.07, life: 0.5 });
+    const rock = NODES[o.node!].skill === 'mine';
+    this.fx.burst(x, y, rock ? ROCK_CHIPS[o.node!] ?? '#9a9aa8' : '#c89a6a', 3 + Math.round(strength * 4), ts * 2.2, { size: ts * 0.07, life: 0.5 });
+    if (rock) this.fx.burst(x, y - ts * 0.2, '#fff6c8', 2 + Math.round(strength * 2), ts * 2.6, { size: ts * 0.04, life: 0.25 });
     if (strength > 1) this.fx.burst(x, y - ts * 0.5, '#fff6a0', 4, ts * 1.6, { star: true, size: ts * 0.08, life: 0.5 });
   }
 
-  /** The tree comes down in a burst of leaves. */
+  /** The tree comes down in a burst of leaves, or the rock bursts into chunks. */
   felled() {
     const o = this.chopping;
     if (o) {
       const ts = this.ts, x = (o.x + o.w / 2) * ts, y = (o.y - 0.6) * ts;
-      this.fx.burst(x, y, o.node === 'pine' ? '#2f7a45' : '#5ab85a', 22, ts * 3, { size: ts * 0.1, life: 0.9 });
-      this.fx.burst(x, y + ts * 0.6, '#c89a6a', 8, ts * 2, { size: ts * 0.07, life: 0.6 });
+      if (NODES[o.node!].skill === 'mine') {
+        this.fx.burst(x, y + ts * 0.4, ROCK_CHIPS[o.node!] ?? '#9a9aa8', 20, ts * 3, { size: ts * 0.1, life: 0.8 });
+        this.fx.burst(x, y + ts * 0.4, '#e8e0d8', 10, ts * 2, { size: ts * 0.12, life: 0.9, grav: -ts * 0.5 });
+      } else {
+        this.fx.burst(x, y, o.node === 'pine' ? '#2f7a45' : '#5ab85a', 22, ts * 3, { size: ts * 0.1, life: 0.9 });
+        this.fx.burst(x, y + ts * 0.6, '#c89a6a', 8, ts * 2, { size: ts * 0.07, life: 0.6 });
+      }
     }
     this.chopping = null;
   }
@@ -417,9 +426,10 @@ export class Overworld {
     }
   }
 
-  /** A choppable tree: a ribboned tree when ready, a stump while it regrows. */
+  /** A gathering node: a ribboned tree or an ore-flecked rock when ready, a stump or rubble while it comes back. */
   private drawTree(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
     const ready = (this.save.nodes[o.id!] ?? 0) <= Date.now();
+    const rock = NODES[o.node!].skill === 'mine';
     const shake = o === this.chopping && this.shakeT > 0 ? Math.sin(this.shakeT * 70) * this.shakeT * 0.25 : 0;
     const cx = (o.x + o.w / 2) * ts, by = (o.y + o.h - 0.08) * ts;
     if (ready) {
@@ -433,7 +443,7 @@ export class Overworld {
       ctx.restore();
     }
     shadow(ctx, cx, by, ts * (ready ? 0.42 : 0.3));
-    const sprite = frame(`env/${o.node}_${ready ? 'node' : 'stump'}`) ?? (ready ? frame(o.node === 'pine' ? 'env/pine0' : 'env/tree1') : null);
+    const sprite = frame(`env/${o.node}_${ready ? 'node' : rock ? 'rubble' : 'stump'}`) ?? (ready && !rock ? frame(o.node === 'pine' ? 'env/pine0' : 'env/tree1') : null);
     // A touch bigger than the scenery trees so they stand out.
     if (sprite) drawFrame(ctx, sprite, cx, by, (ts / TILE_BU) * (ready ? 1.12 : 1), { rot: ready ? shake + Math.sin(this.t * 1.2 + o.x) * 0.012 : 0 });
     else if (!ready) {

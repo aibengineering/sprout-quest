@@ -123,15 +123,19 @@ grass, and that every tree, sign and campfire can be reached.
   weapon (damage per second against its tier, reach and area as a share of the arena, skill coverage), and the
   tests keep them in line so no weapon or skill can clear the arena by itself. Elements add effects: 🔥 fire burns over
   time, 💎 crystal crits more, 🐉 dragon weapons erupt in dragonfire on every strike.
-- **Woodcutting**: craft an axe at the Forge (Tools tab), then chop trees with a ribbon on them. A marker sweeps
-  along a timing bar: strike in the green to build a streak that speeds it up and hits harder; a miss just resets
-  it, so sloppy chopping is only slower. A flawless chop gives an extra log. Trees on open ground by the path are
-  safe but regrow slowly and give 1 log; trees out in the tall grass give 2, regrow faster and sometimes hide a
-  Lucky Clover, but you risk monsters getting there. Woodcutting levels widen the sweet spot and unlock the Fang
-  Axe (pine) and the gatherer-track gear.
-- **Two gear tracks**: every weapon tier has a hunter option (monster drops only) and a gatherer option (wood, plus a
-  Woodcutting level); ★★★★★ gear needs both. Buildings mostly cost wood.
-- **Crafting**: 13 weapons, 7 armors (each changes how your hero looks), 4 charms and 3 potion recipes at the Forge. The 🗺️ Map lets you warp home
+- **Woodcutting and Mining**: craft axes and picks at the Forge (Tools tab), then chop glowing trees and mine glowing
+  rocks along the routes. Both are timing minigames: chopping is a bar with a green sweet spot; mining is a rock face
+  where you strike when the pickaxe lines up with the glowing seam, and cracks spread as it breaks. Clean hits build
+  a streak that speeds things up and hits harder; a miss just resets it, and a flawless job gives one extra. Nodes by
+  the path are safe but slow to come back; ones out in the tall grass give more, come back faster and can hold a
+  rare find (clover, crystal, a golem core), but monsters roam there. Oak and pine (Stone and Fang Axe), rock,
+  copper and iron (Stone, Copper and Iron Pick); skill levels widen the sweet spot and unlock the better tools.
+- **Two gear tracks**: hunter gear is forged only from monster drops; gatherer gear only from wood, stone and ore,
+  and needs a Woodcutting or Mining level. Every weapon tier from ★ to ★★★★ has both, armor too (Timber Vest,
+  Copper Mail and Iron Plate on the gatherer side). The ★★★★★ weapons and Dragon Mail need both, and beat everything
+  else. Village buildings and tools mix the two: the Cottage needs logs and stone, the Smithy copper, the Master
+  Forge iron.
+- **Crafting**: 13 weapons, 10 armors (each changes how your hero looks), 4 charms and 3 potion recipes at the Forge. The 🗺️ Map lets you warp home
   from anywhere and hop to discovered areas from the village.
 
 On a computer the game shows key hints on every button (switching back to touch hints as soon as you touch the screen):
@@ -171,6 +175,6 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
 - `src/data.ts` — monsters, zones, guardians, gear, recipes, village projects and story chapters (tweak balance here)
 - `src/quests.ts` — story progression logic
 - `src/rules.ts` — pure stat/damage/XP/crafting/gathering rules (unit tested)
-- `src/gather.ts` — the chopping timing-bar minigame
+- `src/gather.ts` — the chopping and mining timing minigames
 - `src/balance.ts` — balance targets for fights, pacing and the material economy; `bun run balance` prints the table, `tests/balance.test.ts` enforces it
 - `src/ui.ts`, `public/` — DOM HUD, menus, styles

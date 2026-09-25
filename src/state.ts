@@ -73,8 +73,8 @@ export function newState(): SaveState {
     fresh: [],
     wins: 0,
     cloverDry: 0,
-    tools: { wood: 0 },
-    skills: { wood: { lv: 1, xp: 0 } },
+    tools: { wood: 0, mine: 0 },
+    skills: { wood: { lv: 1, xp: 0 }, mine: { lv: 1, xp: 0 } },
     nodes: {},
     flags: [],
   };

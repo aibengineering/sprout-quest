@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { GEAR } from '../src/data';
+import { GEAR, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
 import {
-  CHECKPOINTS, DPS_SPREAD, KILLS_PER_LEVEL, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, dpsVsTier, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToWoodLevel,
-  weaponTrack, zoneMatchups, type Range,
+  CHECKPOINTS, DPS_SPREAD, KILLS_PER_LEVEL, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, dpsVsTier, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
+  zoneMatchups, type Range,
 } from '../src/balance';
 
 // Run `bun run balance` to see the whole table while tuning.
@@ -44,18 +44,35 @@ describe('balance', () => {
     expect(off).toEqual([]);
   });
 
-  test('Woodcutting reaches the Fang Axe in ≤8 minutes of chopping and mastery in ≤20', () => {
-    expect(minutesToWoodLevel(5)).toBeLessThanOrEqual(8);
-    expect(minutesToWoodLevel(10)).toBeLessThanOrEqual(20);
+  test('each gathering skill reaches its next tool in ≤8 minutes of gathering, and mastery in ≤20', () => {
+    for (const t of TOOLS.filter((t) => t.level > 1)) expect({ tool: t.id, minutes: minutesToSkillLevel(t.skill, t.level) <= 8 }).toEqual({ tool: t.id, minutes: true });
+    for (const sk of ['wood', 'mine'] as const) expect(minutesToSkillLevel(sk, SKILL_MAX)).toBeLessThanOrEqual(20);
   });
 
-  test('every weapon tier has a hunter and a gatherer option, and the top tier needs both', () => {
-    const weapons = Object.values(GEAR).filter((g) => g.slot === 'weapon' && g.recipe);
+  test('hunter gear is all monster drops, gatherer gear is all wood/stone/ore and needs a skill level', () => {
+    for (const g of Object.values(GEAR).filter((g) => g.recipe)) {
+      const track = gearTrack(g);
+      expect({ id: g.id, needsSkill: !!g.needs }).toEqual({ id: g.id, needsSkill: track !== 'hunter' });
+    }
+  });
+
+  test('every weapon tier and forge level has a hunter and a gatherer option, and the "both" gear beats them all', () => {
+    const craftable = Object.values(GEAR).filter((g) => g.recipe);
     for (const tier of [1, 2, 3, 4]) {
-      const tracks = new Set(weapons.filter((g) => g.tier === tier).map(weaponTrack));
+      const tracks = new Set(craftable.filter((g) => g.slot === 'weapon' && g.tier === tier).map(gearTrack));
       expect({ tier, hunter: tracks.has('hunter'), gatherer: tracks.has('gatherer') }).toEqual({ tier, hunter: true, gatherer: true });
     }
-    for (const g of weapons.filter((g) => g.tier === 5)) expect(weaponTrack(g)).toBe('both');
+    for (const lv of [1, 2]) {
+      const tracks = new Set(craftable.filter((g) => g.slot === 'armor' && forgeLevelFor(g) === lv).map(gearTrack));
+      expect({ armorForge: lv, hunter: tracks.has('hunter'), gatherer: tracks.has('gatherer') }).toEqual({ armorForge: lv, hunter: true, gatherer: true });
+    }
+    for (const slot of ['weapon', 'armor'] as const) {
+      const both = craftable.filter((g) => g.slot === slot && gearTrack(g) === 'both');
+      const single = craftable.filter((g) => g.slot === slot && gearTrack(g) !== 'both');
+      expect(both.length).toBeGreaterThan(0);
+      const power = (g: (typeof craftable)[number]) => (slot === 'weapon' ? g.atk ?? 0 : g.def ?? 0);
+      for (const b of both) expect({ id: b.id, strongest: single.every((o) => power(b) > power(o)) }).toEqual({ id: b.id, strongest: true });
+    }
   });
 
   test(`every Dragon Scale takes ≤${MAX_DRAGON_FIGHTS} Emberwyrm fights`, () => {

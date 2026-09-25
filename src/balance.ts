@@ -1,7 +1,7 @@
 // Balance model: where we expect the player to be at each point in the story, and how fights should feel there.
 // tests/balance.test.ts enforces the targets; `bun run balance` prints the full table while tuning.
 import { ARENA_RX, ARENA_RY } from './arena';
-import { GEAR, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type Style, type ZoneId } from './data';
+import { GEAR, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
 import { MOVESETS, comboDps, skillShape, strikeShape, tierScale } from './weapons';
 import { GENTLE_ATK, calcDamage, playerStats, scaleMonster, skillXpToNext, xpToNext, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
@@ -126,7 +126,7 @@ export interface Farm {
   need: number;
   /** Guaranteed from one-time guardian fights along the story. */
   fromGuardians: number;
-  source: 'monsters' | 'trees' | 'bosses';
+  source: 'monsters' | 'gathering' | 'bosses';
   zone?: ZoneId;
   perMinute: number;
   /** Minutes in the best zone to cover what the guardians don't; 0 if the guardians cover it all. */
@@ -174,8 +174,8 @@ function chopRate(zone: ZoneId, kind: NodeKind, per: (spot: { yield: number; xp:
   return gChops * per(n.grass) + sChops * per(n.safe);
 }
 
-/** Wood per second from the best zone for each tree material. */
-export function woodPerSecond(mat: MatId): Partial<Record<ZoneId, number>> {
+/** Material per second from chopping or mining in each zone that has nodes giving it. */
+export function gatherPerSecond(mat: MatId): Partial<Record<ZoneId, number>> {
   const out: Partial<Record<ZoneId, number>> = {};
   for (const [kind, n] of Object.entries(NODES) as [NodeKind, (typeof NODES)[NodeKind]][]) {
     if (n.mat !== mat) continue;
@@ -193,13 +193,13 @@ export function farmTable(): Farm[] {
     const fromGuardians = guardians.reduce((a, g) => a + g.drops.filter((d) => d.mat === mat && d.chance === 1).reduce((b, d) => b + d.min, 0), 0);
     const rest = Math.max(0, need! - fromGuardians);
     const best = (rates: Partial<Record<ZoneId, number>>) => (Object.entries(rates) as [ZoneId, number][]).sort((a, b) => b[1] - a[1])[0];
-    const kill = best(yieldPerKill(mat)), wood = best(woodPerSecond(mat));
+    const kill = best(yieldPerKill(mat)), wood = best(gatherPerSecond(mat));
     const killPerMin = kill ? (kill[1] * 60) / SECONDS_PER_KILL : 0, woodPerMin = wood ? wood[1] * 60 : 0;
     const trees = woodPerMin > killPerMin;
     const perMinute = Math.max(killPerMin, woodPerMin);
     return {
       mat, need: need!, fromGuardians,
-      source: perMinute ? (trees ? 'trees' : 'monsters') : 'bosses',
+      source: perMinute ? (trees ? 'gathering' : 'monsters') : 'bosses',
       zone: trees ? wood?.[0] : kill?.[0],
       perMinute,
       minutes: rest ? (perMinute ? rest / perMinute : Infinity) : 0,
@@ -213,11 +213,12 @@ export function dragonFights(): number {
 }
 
 /** Minutes of chopping to reach a Woodcutting level, always at the best trees your axe (and level) allow. */
-export function minutesToWoodLevel(target: number): number {
+/** Minutes of gathering to reach a skill level, always at the best nodes your tools (which need levels too) allow. */
+export function minutesToSkillLevel(skill: SkillId, target: number): number {
   let secs = 0;
   for (let lv = 1; lv < Math.min(target, SKILL_MAX + 1); lv++) {
-    // The Fang Axe (pine) needs Woodcutting 5; before that it's oaks.
-    const kinds: NodeKind[] = lv >= TOOLS[1].level ? ['pine', 'oak'] : ['oak'];
+    const tier = Math.max(...TOOLS.filter((t) => t.skill === skill && t.level <= lv).map((t) => t.tier));
+    const kinds = (Object.keys(NODES) as NodeKind[]).filter((k) => NODES[k].skill === skill && NODES[k].tier <= tier);
     const xpPerSec = Math.max(...kinds.flatMap((k) => (Object.entries(NODE_SPAWNS) as [ZoneId, { kind: NodeKind }[]][])
       .filter(([, sp]) => sp.some((x) => x.kind === k)).map(([z]) => chopRate(z, k, (sp) => sp.xp))));
     secs += skillXpToNext(lv) / xpPerSec;
@@ -225,12 +226,16 @@ export function minutesToWoodLevel(target: number): number {
   return secs / 60;
 }
 
-/** Weapon tracks: hunter recipes use only monster drops; gatherer recipes need wood or a Woodcutting level. */
-export function weaponTrack(g: Gear): 'hunter' | 'gatherer' | 'both' {
-  const wood = Object.keys(g.recipe ?? {}).some((m) => Object.values(NODES).some((n) => n.mat === m)) || !!g.wood;
-  const monster = Object.keys(g.recipe ?? {}).some((m) => !Object.values(NODES).some((n) => n.mat === m));
-  if (!wood) return 'hunter';
-  return (g.tier ?? 0) >= 5 && monster ? 'both' : 'gatherer';
+const gathered = (m: string) => Object.values(NODES).some((n) => n.mat === m);
+
+/**
+ * Gear tracks: hunter gear is made only from monster drops; gatherer gear only from wood, stone and ore (and needs a
+ * gathering skill level); the strongest top-tier pieces need both.
+ */
+export function gearTrack(g: Gear): 'hunter' | 'gatherer' | 'both' {
+  const mats = Object.keys(g.recipe ?? {});
+  const wild = mats.some(gathered), hunted = mats.some((m) => !gathered(m));
+  return wild && hunted ? 'both' : wild ? 'gatherer' : 'hunter';
 }
 
 // ----------------------------------------------------------------------------- weapons
@@ -303,10 +308,13 @@ export function report(): string {
     out.push(`  ${f.mat.padEnd(12)} ${String(f.need).padStart(4)} ${String(f.fromGuardians).padStart(5)}  ${f.source.padEnd(9)} ${(f.zone ?? '-').padEnd(7)} ${f.perMinute.toFixed(1).padStart(5)}  ${mins.padStart(7)}`);
   }
   out.push(`  scale: ${totalDemand().scale ?? 0} needed, ${flag(dragonFights(), [0, MAX_DRAGON_FIGHTS])} Emberwyrm fights`);
-  out.push(`\nWoodcutting: Lv 5 (Fang Axe) in ~${minutesToWoodLevel(5).toFixed(1)} min, Lv 10 in ~${minutesToWoodLevel(10).toFixed(1)} min of chopping`);
+  for (const sk of Object.keys(SKILL_NAMES) as SkillId[]) {
+    const tools = TOOLS.filter((t) => t.skill === sk && t.level > 1).map((t) => `Lv ${t.level} (${t.name}) in ~${minutesToSkillLevel(sk, t.level).toFixed(1)} min`);
+    out.push(`${SKILL_NAMES[sk]}: ${tools.join(', ')}, Lv ${SKILL_MAX} in ~${minutesToSkillLevel(sk, SKILL_MAX).toFixed(1)} min`);
+  }
   const tiers = [1, 2, 3, 4, 5].map((t) => {
     const ws = Object.values(GEAR).filter((g) => g.slot === 'weapon' && g.tier === t);
-    return `  ★${t}: ${ws.map((g) => `${g.name} (${weaponTrack(g)})`).join(', ')}`;
+    return `  ★${t}: ${ws.map((g) => `${g.name} (${gearTrack(g)})`).join(', ')}`;
   });
   out.push(`\nWeapon tracks\n${tiers.join('\n')}`);
   const rel = dpsVsTier();

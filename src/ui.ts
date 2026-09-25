@@ -5,7 +5,7 @@ import {
   TOOLS, ZONES, forgeLevelFor, type SkillId, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
 } from './data';
 import { currentQuest, progress } from './quests';
-import { canBuild, hasMats, playerStats, skillXpToNext, xpToNext } from './rules';
+import { canBuild, hasMats, missingSkill, playerStats, skillXpToNext, xpToNext } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
 import { usingKeyboard } from './input';
@@ -576,7 +576,7 @@ export class UI {
           <div class="info"><div class="name">${esc(t.name)} <span class="stars">${'★'.repeat(t.tier)}</span></div>
           <div class="desc">${esc(t.desc)}</div>${owned || locked ? '' : `<div class="chips">${costChips(s, t.recipe)}</div>`}</div>${action}</div>`;
       }).join('');
-      return `${note}${seg}<p class="sub">Tools are used automatically. Walk up to a tree with a ribbon on it to chop.</p>${cards}`;
+      return `${note}${seg}<p class="sub">Tools are used automatically. Walk up to a glowing tree to chop it, or a glowing rock to mine it.</p>${cards}`;
     }
     if (this.sub.forge === 'potion') {
       const cards = POTION_RECIPES.map((p) => {
@@ -591,12 +591,13 @@ export class UI {
       const g = GEAR[id];
       const owned = s.owned.includes(id);
       const need = forgeLevelFor(g);
-      const skillLocked = !!g.wood && s.skills.wood.lv < g.wood;
+      const skillLock = missingSkill(s, g.needs);
+      const skillLocked = !!skillLock;
       const locked = flv < need || skillLocked;
       let action: string;
       if (owned) action = s.equip[g.slot] === id ? '<span class="tag">✓ Equipped</span>' : `<button class="go ghost" data-equip="${id}">Equip</button>`;
       else if (flv < need) action = `<span class="tag lock">🔒 ${esc(PROJECTS.forge.levels[need - 1].name)}</span>`;
-      else if (skillLocked) action = `<span class="tag lock">🔒 🪓 ${SKILL_NAMES.wood} ${g.wood}</span>`;
+      else if (skillLock) action = `<span class="tag lock">🔒 ${SKILL_NAMES[skillLock.skill]} ${skillLock.level}</span>`;
       else action = `<button class="go" data-craft="${id}" ${at && hasMats(s, g.recipe!) ? '' : 'disabled'}>Craft</button>`;
       return `<div class="mcard rcp ${locked ? 'locked' : ''} ${owned ? 'owned' : ''}"><div class="ico">${icon(g.id, g.icon, 'icon lg')}</div>
         <div class="info"><div class="name">${esc(g.name)} ${stars(g)}</div><div class="stats">${gearStats(g)}</div>

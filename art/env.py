@@ -73,6 +73,26 @@ def stump(bark, heart):
     return root
 
 
+def ore_node(body, dark, nugget):
+    """A mineable boulder: chunky stone studded with glinting nuggets of whatever it holds."""
+    root = empty('ore')
+    sphere((0, 0, 0.3), (0.5, 0.42, 0.36), toon(body), root, seg=14, rot=(0, 0, 0.4))
+    sphere((0.3, -0.12, 0.18), (0.26, 0.22, 0.2), toon(dark), root, seg=10)
+    sphere((-0.28, 0.05, 0.16), (0.22, 0.2, 0.18), toon(dark), root, seg=10)
+    for x, z, s in ((-0.2, 0.42, 0.07), (0.1, 0.52, 0.06), (0.22, 0.3, 0.075), (-0.05, 0.25, 0.05), (0.34, 0.2, 0.05)):
+        crystal((x, -0.36, z), s, s * 1.8, toon(nugget, emit=0.35, rim=0.5), root, rot=(0.9, 0.2 * x, 0), sides=5, line=0.012)
+    return root
+
+
+def rubble(body, nugget):
+    """What's left once a rock is mined out: a scatter of pebbles and a fleck or two."""
+    root = empty('rubble')
+    for x, y, s in ((0, 0, 0.16), (0.2, -0.08, 0.12), (-0.2, 0.02, 0.13), (0.06, 0.14, 0.1), (-0.08, -0.16, 0.09)):
+        sphere((x, y, s * 0.6), (s, s * 0.9, s * 0.7), toon(body), root, seg=8, line=0.014)
+    crystal((0.1, -0.2, 0.05), 0.04, 0.07, toon(nugget, emit=0.3), root, rot=(0.9, 0, 0), sides=5, line=0)
+    return root
+
+
 def crystals(seed):
     r = random.Random(seed)
     root = empty('crystals')
@@ -416,6 +436,9 @@ SCENERY['oak_node'] = (oak_node, 150, 190)
 SCENERY['pine_node'] = (pine_node, 130, 200)
 SCENERY['oak_stump'] = (lambda: stump('#9a6a44', '#e8c890'), 80, 70)
 SCENERY['pine_stump'] = (lambda: stump('#7a5238', '#f0dca0'), 80, 70)
+for name, (body, dark, nugget) in {'rock': ('#9aa0b0', '#80869a', '#f0f0f8'), 'copper': ('#8a7a6a', '#6e6054', '#ff9a4a'), 'iron': ('#5e6272', '#4a4d5c', '#c8dcf8')}.items():
+    SCENERY[f'{name}_node'] = (lambda b=body, d=dark, n=nugget: ore_node(b, d, n), 130, 120)
+    SCENERY[f'{name}_rubble'] = (lambda b=body, n=nugget: rubble(b, n), 80, 60)
 SCENERY['forge0'] = (forge_ruins, 480, 380)
 SCENERY['forge'] = (forge, 480, 420)
 SCENERY['forge2'] = (lambda: forge(2), 520, 420)

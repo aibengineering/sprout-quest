@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { NODES, NODE_SPAWNS, SKILL_MAX, TOOLS, type ZoneId } from '../src/data';
 import { BASE_SPEED, Chop } from '../src/gather';
-import { canChop, craftGear, craftTool, fellTree, gainSkillXp, skillXpToNext, sweetWidth } from '../src/rules';
+import { canGather, craftGear, craftTool, gainSkillXp, harvest, skillXpToNext, sweetWidth } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
 
@@ -54,24 +54,24 @@ describe('chopping minigame', () => {
 describe('woodcutting rules', () => {
   test('trees need the right axe, pay out wood and XP, then regrow', () => {
     const s = newState();
-    expect(canChop(s, 'oak', 'x', 0)).toBe('tool');
+    expect(canGather(s, 'oak', 'x', 0)).toBe('tool');
     Object.assign(s.mats, { goo: 3, fluff: 2 });
     expect(craftTool(s, 'axe1')).toBe('ok');
     expect(craftTool(s, 'axe1')).toBe('owned');
-    expect(canChop(s, 'oak', 'x', 0)).toBe('ok');
-    expect(canChop(s, 'pine', 'y', 0)).toBe('tool');
-    const r = fellTree(s, 'oak', 'x', true, true, () => 1, 0);
+    expect(canGather(s, 'oak', 'x', 0)).toBe('ok');
+    expect(canGather(s, 'pine', 'y', 0)).toBe('tool');
+    const r = harvest(s, 'oak', 'x', true, true, () => 1, 0);
     expect(r.drops.bark).toBe(NODES.oak.grass.yield + 1);
     expect(s.mats.bark).toBe(NODES.oak.grass.yield + 1);
     expect(s.skills.wood.xp).toBe(NODES.oak.grass.xp);
-    expect(canChop(s, 'oak', 'x', 1000)).toBe('regrowing');
-    expect(canChop(s, 'oak', 'x', NODES.oak.grass.regrow * 1000)).toBe('ok');
+    expect(canGather(s, 'oak', 'x', 1000)).toBe('regrowing');
+    expect(canGather(s, 'oak', 'x', NODES.oak.grass.regrow * 1000)).toBe('ok');
   });
 
   test('grass trees can turn up a rare find; safe ones never do', () => {
     const s = newState();
-    expect(fellTree(s, 'oak', 'a', true, false, () => 0, 0).drops.clover).toBe(1);
-    expect(fellTree(s, 'oak', 'b', false, false, () => 0, 0).drops.clover).toBeUndefined();
+    expect(harvest(s, 'oak', 'a', true, false, () => 0, 0).drops.clover).toBe(1);
+    expect(harvest(s, 'oak', 'b', false, false, () => 0, 0).drops.clover).toBeUndefined();
   });
 
   test('skill levels gate better axes and gatherer gear, and stop at the cap', () => {
@@ -88,12 +88,32 @@ describe('woodcutting rules', () => {
     expect(skillXpToNext(1)).toBeGreaterThan(0);
   });
 
-  test('every tree tier has an axe that can chop it', () => {
-    for (const n of Object.values(NODES)) expect(TOOLS.some((t) => t.skill === n.skill && t.tier === n.tier)).toBe(true);
+  test('rocks need picks: stone with a Stone Pick, copper and iron with better picks that need Mining levels', () => {
+    const s = newState();
+    Object.assign(s.mats, { goo: 9, fluff: 9, stone: 20, bark: 20, fang: 9, copper: 20, crystal: 9 });
+    expect(canGather(s, 'rock', 'r', 0)).toBe('tool');
+    expect(craftTool(s, 'pick1')).toBe('ok');
+    expect(canGather(s, 'rock', 'r', 0)).toBe('ok');
+    expect(canGather(s, 'copper', 'c', 0)).toBe('tool');
+    expect(craftTool(s, 'pick2')).toBe('skill');
+    const r = harvest(s, 'rock', 'r', false, false, () => 1, 0);
+    expect(r.drops.stone).toBe(NODES.rock.safe.yield);
+    expect(s.skills.mine.xp).toBe(NODES.rock.safe.xp);
+    expect(s.skills.wood.xp).toBe(0);
+    gainSkillXp(s, 'mine', 10_000);
+    expect(craftTool(s, 'pick2')).toBe('ok');
+    expect(canGather(s, 'copper', 'c', 0)).toBe('ok');
+    expect(canGather(s, 'iron', 'i', 0)).toBe('tool');
+    expect(craftTool(s, 'pick3')).toBe('ok');
+    expect(canGather(s, 'iron', 'i', 0)).toBe('ok');
+  });
+
+  test('every node tier has a tool that can gather it', () => {
+    for (const n of Object.values(NODES)) expect({ n: n.name, tool: TOOLS.some((t) => t.skill === n.skill && t.tier === n.tier) }).toEqual({ n: n.name, tool: true });
   });
 });
 
-describe('trees on the map', () => {
+describe('trees and rocks on the map', () => {
   const w = new World();
   const nodes = w.objs.filter((o) => o.kind === 'node');
   const reach = w.reachable();

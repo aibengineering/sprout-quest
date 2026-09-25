@@ -119,6 +119,29 @@ def axe(blade, points, lash='#e8d8a0'):
     return r
 
 
+def ore(body, nugget):
+    r = empty('i')
+    sphere((0, 0, 0), (0.42, 0.36, 0.34), toon(body), r, seg=14, rot=(0.3, 0.2, 0.5))
+    sphere((0.2, -0.1, -0.12), (0.2, 0.18, 0.16), toon(body), r, seg=10)
+    if nugget:
+        for x, z, s in ((-0.12, 0.12, 0.09), (0.12, 0.2, 0.08), (0.18, -0.05, 0.07), (-0.2, -0.1, 0.06)):
+            crystal((x, -0.3, z), s, s * 1.8, toon(nugget, emit=0.35, rim=0.5), r, rot=(0.9, 0.3 * x, 0), sides=5, line=0.012)
+    return r
+
+
+def pick(head, lash='#e8d8a0'):
+    """Handle along X with a curved two-pointed head across its far end; tilted like the axe icons."""
+    r = empty('i')
+    cylinder((0, 0, 0), 0.05, 1.0, toon('#b98a5a'), r, seg=10, rot=(0, math.pi / 2, 0))
+    profile([(0.28, -0.44), (0.44, -0.24), (0.55, 0.0), (0.44, 0.24), (0.28, 0.44), (0.36, 0.2), (0.39, 0.0), (0.36, -0.2)], 0.12, toon(head, rim=0.35), r, bevel=0.025)
+    box((0.42, 0, 0), (0.12, 0.11, 0.14), toon(head), r, bevel=0.03)
+    torus((0.3, 0, 0), 0.06, 0.02, toon(lash), r, rot=(0, math.pi / 2, 0), line=0.01)
+    r.rotation_euler = (0, -math.pi / 4, 0)
+    r.scale = (0.85, 0.85, 0.85)
+    r.location = (0.02, 0, -0.1)
+    return r
+
+
 def fang():
     r = empty('i')
     profile([(-0.12, 0.4), (0.12, 0.4), (0.14, 0.1), (0.05, -0.2), (-0.1, -0.45), (-0.08, -0.1), (-0.14, 0.15)], 0.16, toon('#f4eee0'), r, bevel=0.05)
@@ -201,10 +224,14 @@ def kingcrystal():
 CHARMS = {'clovercharm': clovercharm, 'toothcharm': toothcharm, 'crystalheart': crystalheart, 'impring': impring}
 MATERIALS = {
     'goo': goo, 'fluff': fluff, 'clover': clover, 'cap': cap, 'bark': bark, 'pine': pine_log, 'fang': fang, 'wing': wing,
+    'stone': lambda: ore('#9aa0b0', None), 'copper': lambda: ore('#8a7a6a', '#ff9a4a'), 'iron': lambda: ore('#5e6272', '#c8dcf8'),
     'crystal': crystal_mat, 'core': core, 'ember': ember, 'horn': horn, 'scale': scale,
     'royaljelly': royaljelly, 'alphapelt': alphapelt, 'kingcrystal': kingcrystal,
 }
 TOOLS = {
     'axe1': lambda: axe('#9aa0b0', [(0.32, 0.03), (0.46, 0.03), (0.56, 0.3), (0.48, 0.37), (0.4, 0.38), (0.32, 0.37), (0.24, 0.3)]),
     'axe2': lambda: axe('#fff0e0', [(0.32, 0.03), (0.46, 0.03), (0.58, 0.22), (0.66, 0.46), (0.52, 0.36), (0.38, 0.32), (0.26, 0.26)], '#e8505a'),
+    'pick1': lambda: pick('#9aa0b0'),
+    'pick2': lambda: pick('#e8904a', '#8a5a3a'),
+    'pick3': lambda: pick('#c8d4e8', '#5e6272'),
 }

@@ -14,6 +14,9 @@ ARMORS = {
     'crystalmail': dict(body='#8ad8f0', trim='#c8b0ff'),
     'magmamail': dict(body='#e8703a', trim='#5a3a3a'),
     'dragonmail': dict(body='#c83a3a', trim='#ffd35a'),
+    'barkvest': dict(body='#9a6a44', trim='#6fbf5a'),
+    'coppermail': dict(body='#e8904a', trim='#8a5a3a'),
+    'ironplate': dict(body='#aab4c8', trim='#5e6272'),
 }
 
 
@@ -50,7 +53,7 @@ def build(armor):
         sphere((0.21 * side, -0.27, -0.11), (0.055, 0.02, 0.03), toon('#ff9aaa', rim=0), head, line=0)
     sphere((0, -0.33, -0.12), (0.03, 0.012, 0.014), toon('#8a3a4a', rim=0), head, line=0)
 
-    helm = armor in ('shroomhood', 'dragonmail')
+    helm = armor in ('shroomhood', 'dragonmail', 'ironplate')
     # Hair: a cap over the back/top of the head plus soft bangs.
     sphere((0, 0.05, 0.07), (0.39, 0.34, 0.31), hair, head, seg=32)
     if not helm:
@@ -88,6 +91,26 @@ def build(armor):
             sphere((0.25 * side, 0, 0.45), (0.12, 0.12, 0.08), plate, bodyp)
         box((0, -0.2, 0.3), (0.28, 0.06, 0.16), plate, bodyp, bevel=0.03)
         box((0, -0.235, 0.3), (0.16, 0.02, 0.04), glow, bodyp, bevel=0.01, line=0)
+    elif armor == 'barkvest':
+        leaf = toon('#6fbf5a')
+        for side in (-1, 1):
+            sphere((0.24 * side, 0, 0.46), (0.11, 0.11, 0.07), toon('#7a5238'), bodyp)
+            sphere((0.12 * side, -0.2, 0.47), (0.07, 0.03, 0.04), leaf, bodyp, rot=(0, 0.6 * side, 0), line=0.012)
+        sphere((0, -0.24, 0.3), 0.04, toon('#9aa0b0'), bodyp, line=0.012)
+    elif armor == 'coppermail':
+        plate = toon('#c8703a')
+        for side in (-1, 1):
+            sphere((0.25 * side, 0, 0.45), (0.13, 0.12, 0.08), plate, bodyp)
+        for x, z in ((-0.12, 0.38), (0.12, 0.38), (-0.14, 0.26), (0.14, 0.26)):
+            sphere((x, -0.215, z), 0.022, toon('#ffd8a0'), bodyp, line=0)
+        box((0, -0.22, 0.2), (0.1, 0.03, 0.07), toon('#ffd35a'), bodyp, bevel=0.01)
+    elif armor == 'ironplate':
+        iron = toon('#8a94a8')
+        sphere((0, 0.03, 0.12), (0.4, 0.36, 0.29), iron, head, seg=32)
+        box((0, -0.31, 0.08), (0.46, 0.05, 0.06), toon('#5e6272'), head, bevel=0.02)
+        for side in (-1, 1):
+            sphere((0.26 * side, 0, 0.46), (0.14, 0.13, 0.09), iron, bodyp)
+        box((0, -0.2, 0.32), (0.3, 0.06, 0.18), toon('#c8d4e8'), bodyp, bevel=0.03)
     elif armor == 'dragonmail':
         helmet = toon('#c83a3a')
         sphere((0, 0.03, 0.1), (0.41, 0.37, 0.3), helmet, head, seg=32)

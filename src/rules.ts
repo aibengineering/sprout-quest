@@ -139,7 +139,7 @@ export function craftGear(s: SaveState, id: string): CraftResult {
   if (!g?.recipe) return 'unknown';
   if (s.owned.includes(id)) return 'owned';
   if ((s.build?.forge ?? 1) < forgeLevelFor(g)) return 'forge';
-  if (g.wood && s.skills.wood.lv < g.wood) return 'skill';
+  if (missingSkill(s, g.needs)) return 'skill';
   if (!hasMats(s, g.recipe)) return 'missing';
   spend(s, g.recipe);
   s.owned.push(id);
@@ -181,6 +181,12 @@ export function weightedPick<T extends { w: number }>(items: T[], rng: Rng = Mat
 
 // ----------------------------------------------------------------------------- gathering
 
+/** The first gathering skill below what a recipe needs, if any. */
+export function missingSkill(s: SaveState, needs?: Partial<Record<SkillId, number>>): { skill: SkillId; level: number } | null {
+  for (const [k, lv] of Object.entries(needs ?? {}) as [SkillId, number][]) if (s.skills[k].lv < lv) return { skill: k, level: lv };
+  return null;
+}
+
 export function skillXpToNext(lv: number): number {
   return 15 * lv + 5;
 }
@@ -211,8 +217,8 @@ export function craftTool(s: SaveState, id: string): CraftResult {
   return 'ok';
 }
 
-/** Why a tree can't be chopped right now, or 'ok'. */
-export function canChop(s: SaveState, kind: NodeKind, nodeId: string, now = Date.now()): 'ok' | 'tool' | 'regrowing' {
+/** Why a node can't be gathered right now, or 'ok'. */
+export function canGather(s: SaveState, kind: NodeKind, nodeId: string, now = Date.now()): 'ok' | 'tool' | 'regrowing' {
   const n = NODES[kind];
   if (s.tools[n.skill] < n.tier) return 'tool';
   if ((s.nodes[nodeId] ?? 0) > now) return 'regrowing';
@@ -229,10 +235,10 @@ export function toolPower(toolTier: number, nodeTier: number): number {
   return 1 + 0.5 * Math.max(0, toolTier - nodeTier);
 }
 
-export interface ChopReward { drops: Partial<Record<MatId, number>>; xp: number; levels: number }
+export interface GatherReward { drops: Partial<Record<MatId, number>>; xp: number; levels: number }
 
-/** Fells a tree: pays out wood (+1 for a flawless chop), the grass tree's rare find, skill XP, and starts regrowth. */
-export function fellTree(s: SaveState, kind: NodeKind, nodeId: string, grass: boolean, flawless: boolean, rng: Rng = Math.random, now = Date.now()): ChopReward {
+/** Fells a tree or breaks a rock: pays out its material (+1 for a flawless job), a grass node's rare find, skill XP, and starts regrowth. */
+export function harvest(s: SaveState, kind: NodeKind, nodeId: string, grass: boolean, flawless: boolean, rng: Rng = Math.random, now = Date.now()): GatherReward {
   const n = NODES[kind];
   const spot = grass ? n.grass : n.safe;
   const drops: Partial<Record<MatId, number>> = { [n.mat]: spot.yield + (flawless ? 1 : 0) };

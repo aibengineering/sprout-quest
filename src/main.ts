@@ -2,14 +2,14 @@
 import { loadAssets } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
-import { GEAR, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, TOOLS, ZONES, zoneById, type MatId, type MonsterKind, type Zone, type ZoneId } from './data';
-import { Chop, drawChop } from './gather';
+import { GEAR, GEAR_ORDER, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, SKILL_VERB, TOOLS, ZONES, forgeLevelFor, zoneById, type MatId, type MonsterKind, type NodeKind, type Recipe, type Zone, type ZoneId } from './data';
+import { Chop, drawChop, type Look } from './gather';
 import type { Roamer } from './roamers';
 import { Input, trackInputDevice, usingKeyboard } from './input';
 import { Overworld } from './overworld';
 import { advanceQuests, currentQuest, recordKills } from './quests';
 import { checkUnlocks, has } from './unlocks';
-import { build, canChop, craftGear, craftPotion, craftTool, equip, fellTree, gainXp, hasMats, mergeDrops, playerStats, potionRefill, sweetWidth, toolPower, weightedPick } from './rules';
+import { build, canGather, craftGear, craftPotion, craftTool, equip, gainXp, harvest, hasMats, mergeDrops, missingSkill, playerStats, potionRefill, sweetWidth, toolPower, weightedPick } from './rules';
 import { clearState, loadState, newState, saveState, type SaveState } from './state';
 import { UI } from './ui';
 import { World, type WorldObj } from './world';
@@ -536,7 +536,7 @@ async function interact() {
       input.reset();
       break;
     case 'node':
-      tryChop(o);
+      tryGather(o);
       break;
     case 'lair': {
       mode = 'dialog';
@@ -560,19 +560,32 @@ async function interact() {
 
 let chop: { game: Chop; obj: WorldObj } | null = null;
 
-function tryChop(o: WorldObj) {
+/** Colors for each kind of rock face in the mining minigame. */
+const ROCK_LOOKS: Partial<Record<NodeKind, Look>> = {
+  rock: { kind: 'mine', rock: '#9a9aa8', dark: '#6a6a78', fleck: '#d8d8e0' },
+  copper: { kind: 'mine', rock: '#8a7a6a', dark: '#5e5048', fleck: '#ff9a4a' },
+  iron: { kind: 'mine', rock: '#5e6272', dark: '#40434f', fleck: '#c8d8f0' },
+};
+
+const timeLeft = (ms: number) => {
+  const secs = Math.ceil(ms / 1000);
+  return secs >= 60 ? `${Math.floor(secs / 60)}m ${secs % 60}s` : `${secs}s`;
+};
+
+/** Walk up to a tree or rock and start the timing minigame, if you have the tool for it. */
+function tryGather(o: WorldObj) {
   const n = NODES[o.node!];
-  const why = canChop(save, o.node!, o.id!);
+  const why = canGather(save, o.node!, o.id!);
   if (why === 'tool') {
     const t = TOOLS.find((t) => t.skill === n.skill && t.tier === n.tier)!;
+    const what = n.skill === 'wood' ? 'chop trees' : 'break rocks';
     ui.toast(save.tools[n.skill] === 0
-      ? `🪓 You need a ${t.name} to chop trees. Craft one at the Forge!`
-      : `🌲 ${n.name} is too tough for your axe. Craft a ${t.name} (${SKILL_NAMES[n.skill]} ${t.level}).`, 3200);
+      ? `${t.icon} You need a ${t.name} to ${what}. Craft one at the Forge (Tools)!`
+      : `${t.icon} ${n.name} is too tough for your ${n.skill === 'wood' ? 'axe' : 'pick'}. Craft a ${t.name} (${SKILL_NAMES[n.skill]} ${t.level}).`, 3200);
     return;
   }
   if (why === 'regrowing') {
-    const secs = Math.ceil(((save.nodes[o.id!] ?? 0) - Date.now()) / 1000);
-    ui.toast(`🌱 Regrowing… back in ${secs >= 60 ? `${Math.floor(secs / 60)}m ${secs % 60}s` : `${secs}s`}.`);
+    ui.toast(n.skill === 'wood' ? `🌱 Regrowing… back in ${timeLeft((save.nodes[o.id!] ?? 0) - Date.now())}.` : `🪨 Nothing left to break… it builds back up in ${timeLeft((save.nodes[o.id!] ?? 0) - Date.now())}.`);
     return;
   }
   const lv = save.skills[n.skill].lv;
@@ -586,7 +599,7 @@ function updateChop(dt: number) {
   const c = chop!;
   c.game.update(dt);
   const a = input.axis();
-  // Walking away (or Esc) cancels; the tree stays as it was.
+  // Walking away (or Esc) cancels; the node stays as it was.
   if (Math.hypot(a.x, a.y) > 0.6 || input.consume('menu')) {
     chop = null;
     over.chopping = null;
@@ -599,7 +612,8 @@ function updateChop(dt: number) {
     if (r) {
       audio.play(r === 'perfect' ? 'crit' : r === 'hit' ? 'hit' : 'dodge');
       over.chopHit(r === 'perfect' ? 2 : r === 'hit' ? 1 : 0.3);
-      if (!save.tips.includes('chopped')) save.tips.push('chopped');
+      const tip = NODES[c.obj.node!].skill === 'wood' ? 'chopped' : 'mined';
+      if (!save.tips.includes(tip)) save.tips.push(tip);
     }
   }
   if (c.game.done) finishChop();
@@ -609,11 +623,12 @@ function finishChop() {
   const { game, obj } = chop!;
   chop = null;
   const n = NODES[obj.node!];
-  const r = fellTree(save, obj.node!, obj.id!, !!obj.grass, game.flawless);
-  audio.play('kill');
+  const r = harvest(save, obj.node!, obj.id!, !!obj.grass, game.flawless);
+  audio.play(n.skill === 'mine' ? 'boom' : 'kill');
   over.felled();
   const got = Object.entries(r.drops).map(([m, k]) => `+${k} ${MATS[m as MatId].icon} ${MATS[m as MatId].name}`).join('  ');
-  ui.toast(`${game.flawless ? '✨ Flawless! ' : ''}${got}  ·  🪓 +${r.xp} XP`, 2600);
+  const tool = TOOLS.find((t) => t.skill === n.skill)!.icon;
+  ui.toast(`${game.flawless ? '✨ Flawless! ' : ''}${got}  ·  ${tool} +${r.xp} XP`, 2600);
   if (r.levels) {
     audio.play('levelup');
     setTimeout(() => ui.toast(`🎉 ${SKILL_NAMES[n.skill]} Lv ${save.skills[n.skill].lv}! The sweet spot grows.`, 3200), 1400);
@@ -624,21 +639,39 @@ function finishChop() {
   void progressQuests();
 }
 
-/** Trees show "Chop" when ready and "Regrowing" while they grow back. */
-function syncTrees() {
+/** Nodes say "Chop" or "Mine" when ready, and what they're doing while they come back. */
+function syncNodes() {
   const now = Date.now();
-  for (const o of world.objs) if (o.kind === 'node') o.label = (save.nodes[o.id!] ?? 0) <= now ? 'Chop' : 'Regrowing';
+  for (const o of world.objs) {
+    if (o.kind !== 'node') continue;
+    const skill = NODES[o.node!].skill;
+    o.label = (save.nodes[o.id!] ?? 0) <= now ? SKILL_VERB[skill] : skill === 'wood' ? 'Regrowing' : 'Rubble';
+  }
 }
 
-/** Nearest ready tree that gives `mat` and that you can chop. */
-function nearestTree(mat: MatId): WorldObj | null {
+/** Nearest ready node that gives `mat` and that you can gather. */
+function nearestNode(mat: MatId): WorldObj | null {
   let best: WorldObj | null = null, bd = Infinity;
   for (const o of world.objs) {
-    if (o.kind !== 'node' || NODES[o.node!].mat !== mat || canChop(save, o.node!, o.id!) !== 'ok') continue;
+    if (o.kind !== 'node' || NODES[o.node!].mat !== mat || canGather(save, o.node!, o.id!) !== 'ok') continue;
     const d = (o.x - over.x) ** 2 + (o.y - over.y) ** 2;
     if (d < bd) { bd = d; best = o; }
   }
   return best;
+}
+
+/**
+ * Where to go for a recipe's missing gathered material: the Forge if you still need the tool, otherwise the nearest
+ * ready tree or rock. Null if nothing gathered is missing.
+ */
+function gatherPointer(cost: Recipe): { x: number; y: number } | null {
+  const mat = (Object.keys(cost) as MatId[]).find((m) => save.mats[m] < (cost[m] ?? 0) && Object.values(NODES).some((n) => n.mat === m));
+  if (!mat) return null;
+  const n = Object.values(NODES).find((n) => n.mat === mat)!;
+  const forge = world.obj('forge')!;
+  if (save.tools[n.skill] < n.tier) return has(save, 'forge') ? { x: forge.x + forge.w / 2, y: forge.y + forge.h + 0.7 } : null;
+  const node = nearestNode(mat);
+  return node ? { x: node.x + node.w / 2, y: node.y + node.h + 0.5 } : null;
 }
 
 // ------------------------------------------------------------------ title
@@ -760,20 +793,18 @@ function objective(): { x: number; y: number } | null {
       const foe = world.objs.find((o) => o.kind === 'foe' && o.flag === g.flag);
       return foe ? { x: foe.x + 0.5, y: foe.y + 2.7 } : null;
     }
-    case 'craft':
-      return has(save, 'forge') ? center(world.obj('forge')) : null;
+    case 'craft': {
+      if (!has(save, 'forge')) return null;
+      // Aim for the gear that's closest to craftable; if it's short on stone or wood, send you to gather it.
+      const options = GEAR_ORDER.map((id) => GEAR[id]).filter((g) => g.recipe && !save.owned.includes(g.id) && forgeLevelFor(g) <= save.build.forge && !missingSkill(save, g.needs));
+      const short = (g: typeof options[number]) => Object.entries(g.recipe!).reduce((a, [m, n]) => a + Math.max(0, (n ?? 0) - save.mats[m as MatId]), 0);
+      const target = options.sort((a, b) => short(a) - short(b))[0];
+      return (target && gatherPointer(target.recipe!)) ?? center(world.obj('forge'));
+    }
     case 'build': {
       const lvl = PROJECTS[g.project].levels[save.build[g.project]];
-      if (lvl && !hasMats(save, lvl.cost)) {
-        // Missing wood: point at the Forge for an axe, then at the nearest tree.
-        const wood = (Object.keys(lvl.cost) as MatId[]).find((m) => save.mats[m] < (lvl.cost[m] ?? 0) && Object.values(NODES).some((n) => n.mat === m));
-        if (wood) {
-          const n = Object.values(NODES).find((n) => n.mat === wood)!;
-          if (save.tools[n.skill] < n.tier) return has(save, 'forge') ? center(world.obj('forge')) : null;
-          const tree = nearestTree(wood);
-          if (tree) return { x: tree.x + tree.w / 2, y: tree.y + tree.h + 0.5 };
-        }
-      }
+      const gather = lvl && gatherPointer(lvl.cost);
+      if (gather) return gather;
       return g.project === 'forge' ? center(world.obj('forge')) : center(world.obj('plot', g.project));
     }
     case 'boss': {
@@ -873,7 +904,7 @@ function frame(now: number) {
     treeSync += dt;
     if (treeSync > 0.5) {
       treeSync = 0;
-      syncTrees();
+      syncNodes();
     }
     const canAct = mode === 'world' && !busy;
     if (canAct && input.consume('bag') && has(save, 'bag')) openFromHud('items');
@@ -910,7 +941,7 @@ function frame(now: number) {
       if (ev?.type === 'encounter') startFieldBattle(ev.roamer, false);
     }
     const near = canAct ? over.nearbyObject() : null;
-    ui.setAction(mode === 'gather' ? 'Chop!' : prey ? 'Attack!' : near ? near.label : null);
+    ui.setAction(mode === 'gather' && chop ? `${SKILL_VERB[NODES[chop.obj.node!].skill]}!` : prey ? 'Attack!' : near ? near.label : null);
     over.objective = mode === 'world' ? objective() : null;
     over.keyHints = usingKeyboard();
     ui.dragHint(mode === 'world' && !trans && !save.tips.includes('moved'));
@@ -925,8 +956,12 @@ function frame(now: number) {
     }
     if (mode === 'gather' && chop) {
       const n = NODES[chop.obj.node!];
-      const tip = save.tips.includes('chopped') ? 'Walk away to stop' : usingKeyboard() ? 'Press E or Space in the green!' : 'Tap when the marker is in the green!';
-      drawChop(ctx, chop.game, vw, vh, `🪓 ${chop.obj.grass ? 'Wild ' : ''}${n.name}`, tip);
+      const mine = n.skill === 'mine';
+      const seen = save.tips.includes(mine ? 'mined' : 'chopped');
+      const how = mine ? 'when the pick lines up with the seam!' : 'in the green!';
+      const tip = seen ? 'Walk away to stop' : usingKeyboard() ? `Press E or Space ${how}` : `Tap ${how}`;
+      const icon = TOOLS.find((t) => t.skill === n.skill)!.icon;
+      drawChop(ctx, chop.game, vw, vh, `${icon} ${chop.obj.grass ? 'Wild ' : ''}${n.name}`, tip, mine ? ROCK_LOOKS[chop.obj.node!] : { kind: 'wood' });
     }
     if (mode === 'title') {
       // Soft overlay so the title text pops over the live world behind it.

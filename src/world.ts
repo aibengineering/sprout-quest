@@ -18,7 +18,14 @@ export const GATE_Y = 12;
 const ROUTE_TILE: Record<string, number> = {
   '#': T.OBST, '.': T.GROUND, ',': T.GRASS, '=': T.PATH, '~': T.POOL, '*': T.DECOR,
   E: T.PATH, S: T.GROUND, C: T.GROUND, L: T.GROUND, k: T.GROUND, p: T.GROUND, K: T.GRASS, P: T.GRASS,
+  r: T.GROUND, u: T.GROUND, i: T.GROUND, R: T.GRASS, U: T.GRASS, I: T.GRASS,
 };
+
+/** Route map markers for gathering nodes: [character, node, out in the grass]. */
+const NODE_MARKS: [string, NodeKind, boolean][] = [
+  ['k', 'oak', false], ['K', 'oak', true], ['p', 'pine', false], ['P', 'pine', true],
+  ['r', 'rock', false], ['R', 'rock', true], ['u', 'copper', false], ['U', 'copper', true], ['i', 'iron', false], ['I', 'iron', true],
+];
 
 export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node';
 
@@ -201,9 +208,8 @@ export class World {
       if (z.guardian) add({ kind: 'gate', zone: z.id, x: z.x0, y: GATE_Y, w: 1, h: 4, label: 'Challenge', text: z.name }, false);
       for (const p of this.mark(z.id, 'C')) add({ kind: 'camp', zone: z.id, x: p.x + 0.1, y: p.y + 0.2, w: 0.8, h: 0.6, label: 'Rest', text: 'Campfire' }, false);
       for (const p of this.mark(z.id, 'L')) add({ kind: 'lair', x: p.x, y: p.y, w: 3, h: 2, label: 'Enter', text: "Emberwyrm's Lair" }, false);
-      // Choppable trees: by the path (safe) or out in the grass.
-      const trees: [string, NodeKind, boolean][] = [['k', 'oak', false], ['K', 'oak', true], ['p', 'pine', false], ['P', 'pine', true]];
-      for (const [c, kind, grass] of trees) {
+      // Trees to chop and rocks to mine: by the path (safe) or out in the grass.
+      for (const [c, kind, grass] of NODE_MARKS) {
         this.mark(z.id, c).forEach((p, i) => this.objs.push({
           kind: 'node', node: kind, id: `${z.id}:${kind}:${grass ? 'g' : 's'}${i}`, grass, x: p.x + 0.1, y: p.y + 0.35, w: 0.8, h: 0.6, label: 'Chop', text: kind,
         }));
