@@ -8,6 +8,10 @@
 
 **▶ Play it: https://aibengineering.github.io/sprout-quest/** (best on a phone, in portrait)
 
+<p align="center">
+  <a href="https://aibengineering.github.io/sprout-quest/"><img src="docs/teaser.webp" width="300" alt="Sprout Quest gameplay: the title, a sword fight, chopping a tree, mining crystal, and the Emberwyrm boss"></a>
+</p>
+
 ## How it was built
 
 ### Release day: a playable game from a handful of prompts (0.1.0)
