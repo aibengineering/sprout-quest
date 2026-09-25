@@ -143,57 +143,55 @@ export function strikeShape(s: Strike, reach: number): { reach: number; area: nu
   return wave ? { reach: Math.max(r.reach, wave.reach), area: r.area + wave.area } : r;
 }
 
-/** Seconds per full combo, chaining each strike as early as the game allows (35% into its recovery), plus the rest after it. */
+/** One strike's damage multiplier on a target in front of you: its shockwave hits it too, and every pellet of a spread lands (as it does point-blank). */
+const strikeDamage = (s: Strike) => (s.shape === 'shot' ? s.mult * (s.shots?.length ?? 1) : s.mult) + (s.wave?.mult ?? 0);
+/** Seconds a strike takes when you chain into the next as early as the game allows (35% into its recovery). */
+const strikeTime = (s: Strike) => s.windup + s.active + s.recover * 0.35;
+/** A strike's time, plus the rest after it if it ends the combo. */
+const stepTime = (m: Moveset, i: number) => strikeTime(m.combo[i]) + (i === m.combo.length - 1 ? m.rest : 0);
+
+/** Seconds per full combo, chaining each strike as early as possible, plus the rest after it. */
 export function comboTime(m: Moveset): number {
-  return m.combo.reduce((a, s) => a + s.windup + s.active + s.recover * 0.35, 0) + m.rest;
+  return m.combo.reduce((a, s) => a + strikeTime(s), 0) + m.rest;
 }
 
-/** How long a typical fight lasts: ranged weapons are judged on this window, opening burst included. */
+/** How long a typical fight lasts: weapons are judged over this window, opening burst included. */
 export const FIGHT_WINDOW = 5;
 
 /**
- * Damage multiplier per second against one target in front of you (its shockwave hits it too; every pellet of a
- * spread lands, as it does point-blank), simulated over a typical fight from full stamina, so a big opening burst
- * counts as much as the pause that follows it.
+ * Damage multiplier per second against one target in front of you, simulated over a typical fight from full stamina,
+ * so a big opening burst counts as much as the pause that follows it.
  */
 export function comboDps(m: Moveset): number {
-  const hit = (s: Strike) => (s.shape === 'shot' ? s.mult * (s.shots?.length ?? 1) : s.mult) + (s.wave?.mult ?? 0);
-  const step = (s: Strike) => s.windup + s.active + s.recover * 0.35;
   const { max, regen, delay } = m.ammo;
   let t = 0, ammo = max, refill = 0, dmg = 0, i = 0;
   while (t < FIGHT_WINDOW) {
     if (ammo < 1) {
-      // Wait out the reload for one shot.
-      t += Math.max(0, regen - refill);
+      // Out of stamina: wait for one pip to come back.
+      t += regen - refill;
       refill = 0;
       ammo = 1;
       continue;
     }
-    const s = m.combo[i];
-    dmg += hit(s);
+    dmg += strikeDamage(m.combo[i]);
     ammo--;
-    refill = -delay;
-    const dt = step(s) + (i === m.combo.length - 1 ? m.rest : 0);
+    // Stamina starts refilling once `delay` has passed since this strike.
+    const dt = stepTime(m, i);
     t += dt;
-    // Reload ticks in while you're between shots, but never before the delay has passed.
-    refill += dt;
+    refill = dt - delay;
     while (refill >= regen && ammo < max) { refill -= regen; ammo++; }
-    if (refill < 0) refill = Math.max(refill, -delay);
     i = (i + 1) % m.combo.length;
   }
   return dmg / t;
 }
 
-/** Damage multiplier landed in the first second of a fight: how hard a weapon opens before any cooldown bites. */
+/** Damage multiplier landed in the first second of a fight: how hard a weapon opens before stamina runs out. */
 export function openingBurst(m: Moveset): number {
-  const hit = (s: Strike) => (s.shape === 'shot' ? s.mult * (s.shots?.length ?? 1) : s.mult) + (s.wave?.mult ?? 0);
   let t = 0, dmg = 0, i = 0, ammo = m.ammo.max;
-  while (ammo >= 1) {
-    const s = m.combo[i];
-    if (t + s.windup > 1) break;
-    dmg += hit(s);
+  while (ammo >= 1 && t + m.combo[i].windup <= 1) {
+    dmg += strikeDamage(m.combo[i]);
     ammo--;
-    t += s.windup + s.active + s.recover * 0.35 + (i === m.combo.length - 1 ? m.rest : 0);
+    t += stepTime(m, i);
     i = (i + 1) % m.combo.length;
   }
   return dmg;

@@ -743,120 +743,132 @@ export class Overworld {
     }
   }
 
+  /** Draws something on the map: a sprite if the art is loaded, otherwise a simple canvas drawing. */
   private drawObj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
-    const x = o.x * ts, y = o.y * ts, w = o.w * ts, h = o.h * ts;
-    const labelAt = (text: string, top: number) => {
-      ctx.font = `900 ${Math.round(ts * 0.34)}px ui-rounded, "Nunito", system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineWidth = ts * 0.1;
-      ctx.strokeStyle = 'rgba(60,30,60,0.8)';
-      ctx.strokeText(text, x + w / 2, top - ts * 0.25);
-      ctx.fillStyle = '#fff';
-      ctx.fillText(text, x + w / 2, top - ts * 0.25);
-    };
-    const label = (text: string) => {
-      ctx.font = `900 ${Math.round(ts * 0.34)}px ui-rounded, "Nunito", system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineWidth = ts * 0.1;
-      ctx.strokeStyle = 'rgba(60,30,60,0.8)';
-      ctx.strokeText(text, x + w / 2, y - ts * 0.9);
-      ctx.fillStyle = '#fff';
-      ctx.fillText(text, x + w / 2, y - ts * 0.9);
-    };
     if (o.hidden) return;
-    const unit = ts / TILE_BU;
-    if (o.kind === 'gate' && this.drawGate(ctx, o, ts)) return;
-    if (o.kind === 'elder') {
-      const f = frame(`npc/elder/${Math.floor(this.t * 3) % 4}`);
-      if (f) {
-        const ax = x + w / 2, ay = y + h;
-        shadow(ctx, ax, ay, ts * 0.27);
-        drawFrame(ctx, f, ax, ay, ts / 1.35);
-        const q = currentQuest(this.save);
-        const top = ay - f.ay * (ts / 1.35 / f.ppu);
-        // A bouncing "!" when Elder Bloom has something new to say.
-        if (q?.goal.type === 'talk' || (q && !this.save.tips.includes(`elder:${q.id}`))) {
-          const by = top - ts * 0.35 + Math.abs(Math.sin(this.t * 4)) * -ts * 0.12;
-          ctx.fillStyle = '#ffd35a';
-          rrect(ctx, ax - ts * 0.17, by - ts * 0.46, ts * 0.34, ts * 0.46, ts * 0.12);
-          ctx.fill();
-          ctx.fillStyle = '#5a3a6a';
-          ctx.font = `900 ${Math.round(ts * 0.36)}px ui-rounded, system-ui, sans-serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('!', ax, by - ts * 0.22);
-        }
-        return;
-      }
-    }
-    if (o.kind === 'pickup') {
-      const f = frame('wpn/twig');
-      const ax = x + w / 2, ay = y + h;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = `rgba(255,230,120,${0.25 + Math.sin(this.t * 4) * 0.1})`;
-      ctx.beginPath();
-      ctx.ellipse(ax, ay, ts * 0.6, ts * 0.25, 0, 0, TAU);
-      ctx.fill();
-      ctx.restore();
-      // Stuck in the ground, blade down, gently wobbling.
-      if (f) drawFrame(ctx, f, ax + ts * 0.05, ay - ts * 0.75, ts / TILE_BU * 1.2, { rot: Math.PI / 2 + 0.2 + Math.sin(this.t * 2) * 0.04 });
-      if (Math.random() < 0.12) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.5, ay - Math.random() * ts, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.6, life: 0.8 });
-      return;
-    }
-    if (o.kind === 'node') {
-      this.drawTree(ctx, o, ts);
-      return;
-    }
-    if (o.kind === 'foe') {
-      const f = frame(`mon/${o.monster}/${Math.floor(this.t * 6) % 6}`);
-      const ax = x + w / 2, ay = y + ts * 2.7;
-      shadow(ctx, ax, ay, ts * 0.45, 0.25);
-      if (f) drawFrame(ctx, f, ax, ay, (ts / TILE_BU) * 1.5, { flip: true });
-      return;
-    }
-    const lv = (id: keyof SaveState['build']) => this.save.build[id];
-    let spriteName: string;
-    let back = 0.42;
     switch (o.kind) {
-      case 'forge': spriteName = ['forge0', 'forge', 'forge2', 'forge3'][lv('forge')] ?? 'forge'; break;
-      case 'house': spriteName = 'house_blue'; break;
-      case 'fountain': spriteName = 'fountain'; back = 0.45; break;
-      case 'sign': spriteName = 'sign'; back = 0.05; break;
-      case 'lair': spriteName = 'lair'; back = 0.4; break;
-      case 'camp': spriteName = 'campfire'; back = 0.05; break;
+      case 'gate':
+        if (this.drawGate(ctx, o, ts)) return;
+        break;
+      case 'elder':
+        if (this.drawElder(ctx, o, ts)) return;
+        break;
+      case 'pickup':
+        return this.drawPickup(ctx, o, ts);
+      case 'node':
+        return this.drawTree(ctx, o, ts);
+      case 'foe':
+        return this.drawFoe(ctx, o, ts);
+    }
+    if (!this.drawBuilding(ctx, o, ts)) this.drawBuildingFallback(ctx, o, ts);
+  }
+
+  /** A white name tag centered over an object whose top is at `top`. */
+  private nameTag(ctx: CanvasRenderingContext2D, text: string, cx: number, top: number, ts: number) {
+    ctx.font = `900 ${Math.round(ts * 0.34)}px ui-rounded, "Nunito", system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = ts * 0.1;
+    ctx.strokeStyle = 'rgba(60,30,60,0.8)';
+    ctx.strokeText(text, cx, top - ts * 0.25);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(text, cx, top - ts * 0.25);
+  }
+
+  /** Elder Bloom, with a bouncing "!" when she has something new to say. False if her sprite isn't loaded. */
+  private drawElder(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): boolean {
+    const f = frame(`npc/elder/${Math.floor(this.t * 3) % 4}`);
+    if (!f) return false;
+    const ax = (o.x + o.w / 2) * ts, ay = (o.y + o.h) * ts;
+    shadow(ctx, ax, ay, ts * 0.27);
+    drawFrame(ctx, f, ax, ay, ts / 1.35);
+    const q = currentQuest(this.save);
+    const top = ay - f.ay * (ts / 1.35 / f.ppu);
+    if (q?.goal.type === 'talk' || (q && !this.save.tips.includes(`elder:${q.id}`))) {
+      const by = top - ts * 0.35 + Math.abs(Math.sin(this.t * 4)) * -ts * 0.12;
+      ctx.fillStyle = '#ffd35a';
+      rrect(ctx, ax - ts * 0.17, by - ts * 0.46, ts * 0.34, ts * 0.46, ts * 0.12);
+      ctx.fill();
+      ctx.fillStyle = '#5a3a6a';
+      ctx.font = `900 ${Math.round(ts * 0.36)}px ui-rounded, system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('!', ax, by - ts * 0.22);
+    }
+    return true;
+  }
+
+  /** The Twig Sword in the glade: stuck in the ground, blade down, glowing and gently wobbling. */
+  private drawPickup(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+    const f = frame('wpn/twig');
+    const ax = (o.x + o.w / 2) * ts, ay = (o.y + o.h) * ts;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = `rgba(255,230,120,${0.25 + Math.sin(this.t * 4) * 0.1})`;
+    ctx.beginPath();
+    ctx.ellipse(ax, ay, ts * 0.6, ts * 0.25, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    if (f) drawFrame(ctx, f, ax + ts * 0.05, ay - ts * 0.75, ts / TILE_BU * 1.2, { rot: Math.PI / 2 + 0.2 + Math.sin(this.t * 2) * 0.04 });
+    if (Math.random() < 0.12) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.5, ay - Math.random() * ts, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.6, life: 0.8 });
+  }
+
+  /** A prologue monster standing in the path. */
+  private drawFoe(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+    const f = frame(`mon/${o.monster}/${Math.floor(this.t * 6) % 6}`);
+    const ax = (o.x + o.w / 2) * ts, ay = o.y * ts + ts * 2.7;
+    shadow(ctx, ax, ay, ts * 0.45, 0.25);
+    if (f) drawFrame(ctx, f, ax, ay, (ts / TILE_BU) * 1.5, { flip: true });
+  }
+
+  /** A building's sprite (by its upgrade level) and how far to push it back so its front meets the collision box. */
+  private buildingSprite(o: WorldObj): { name: string; back: number } | null {
+    const lv = (id: keyof SaveState['build']) => this.save.build[id];
+    switch (o.kind) {
+      case 'forge': return { name: ['forge0', 'forge', 'forge2', 'forge3'][lv('forge')] ?? 'forge', back: 0.42 };
+      case 'house': return { name: 'house_blue', back: 0.42 };
+      case 'fountain': return { name: 'fountain', back: 0.45 };
+      case 'sign': return { name: 'sign', back: 0.05 };
+      case 'lair': return { name: 'lair', back: 0.4 };
+      case 'camp': return { name: 'campfire', back: 0.05 };
       case 'plot': {
         const p = o.project!, l = lv(p);
-        if (p === 'home') spriteName = `home${l}`;
-        else if (p === 'warp') { spriteName = `warp${l}`; back = 0.1; }
-        else { spriteName = l ? `${p}${l}` : 'plot'; back = 0.28; }
+        if (p === 'home') return { name: `home${l}`, back: 0.42 };
+        if (p === 'warp') return { name: `warp${l}`, back: 0.1 };
+        return { name: l ? `${p}${l}` : 'plot', back: 0.28 };
+      }
+      default: return null;
+    }
+  }
+
+  /** Buildings, plots, signs and the campfire from their sprites, with their name tags and little effects. False if the art isn't loaded. */
+  private drawBuilding(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): boolean {
+    const spec = this.buildingSprite(o);
+    const sprite = spec && frame(`env/${spec.name}`);
+    if (!spec || !sprite) return false;
+    const w = o.w * ts, unit = ts / TILE_BU;
+    // Model origins sit in the middle of their footprint; push them back so their fronts line up with the collision box.
+    const ax = o.x * ts + w / 2, ay = (o.y + o.h) * ts - spec.back * ts;
+    if (o.kind !== 'sign' && o.kind !== 'camp') shadow(ctx, ax, ay, w * 0.52, 0.2);
+    if (o.kind === 'camp') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(255,150,60,${0.16 + Math.sin(this.t * 9) * 0.04})`;
+      ctx.beginPath();
+      ctx.ellipse(ax, ay - ts * 0.1, ts * 1.1, ts * 0.7, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+    drawFrame(ctx, sprite, ax, ay, unit);
+    const top = ay - sprite.ay * (unit / sprite.ppu);
+    switch (o.kind) {
+      case 'forge': {
+        const lit = this.save.build.forge > 0;
+        if (lit && Math.random() < 0.08) this.fx.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
+        this.nameTag(ctx, lit ? '⚒ Forge' : '⚒ Old Forge', ax, top, ts);
         break;
       }
-      default: spriteName = '';
-    }
-    const sprite = frame(`env/${spriteName}`);
-    if (sprite) {
-      // Model origins sit in the middle of their footprint; push them back so their fronts line up with the collision box.
-      const ax = x + w / 2, ay = y + h - back * ts;
-      if (o.kind !== 'sign' && o.kind !== 'camp') shadow(ctx, ax, ay, w * 0.52, 0.2);
-      if (o.kind === 'camp') {
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = `rgba(255,150,60,${0.16 + Math.sin(this.t * 9) * 0.04})`;
-        ctx.beginPath();
-        ctx.ellipse(ax, ay - ts * 0.1, ts * 1.1, ts * 0.7, 0, 0, TAU);
-        ctx.fill();
-        ctx.restore();
-      }
-      drawFrame(ctx, sprite, ax, ay, unit);
-      const top = ay - sprite.ay * (unit / sprite.ppu);
-      if (o.kind === 'forge') {
-        const lit = lv('forge') > 0;
-        if (lit && Math.random() < 0.08) this.fx.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
-        labelAt(lit ? '⚒ Forge' : '⚒ Old Forge', top);
-      } else if (o.kind === 'fountain') {
+      case 'fountain':
         for (let i = 0; i < 3; i++) {
           const q = (this.t * 1.5 + i / 3) % 1;
           ctx.fillStyle = `rgba(190,240,255,${1 - q})`;
@@ -864,16 +876,29 @@ export class Overworld {
           ctx.arc(ax + (i - 1) * q * ts * 0.5, top + ts * 0.15 - Math.sin(q * Math.PI) * ts * 0.4 + q * ts * 0.5, ts * 0.07, 0, TAU);
           ctx.fill();
         }
-        labelAt('💧 Fountain', top);
-      } else if (o.kind === 'camp') {
+        this.nameTag(ctx, '💧 Fountain', ax, top, ts);
+        break;
+      case 'camp':
         if (Math.random() < 0.3) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.3, ay - ts * 0.35, Math.random() < 0.5 ? '#ffb03a' : '#ff7a2a', 1, ts * 0.4, { size: ts * 0.06, grav: -ts * 1.5, life: 0.7 });
-      } else if (o.kind === 'plot') {
+        break;
+      case 'plot': {
+        // Empty plots (and your home, always) say what goes there.
         const p = o.project!;
         const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Warp Stone' } as Record<string, string>)[p] ?? '';
-        if (!lv(p) || p === 'home') labelAt(name, top);
-      } else if (o.kind === 'lair') labelAt(this.save.bosses.includes('dragon') ? '🐉 Lair (rematch)' : '🐉 Dragon Lair', top);
-      return;
+        if (!this.save.build[p] || p === 'home') this.nameTag(ctx, name, ax, top, ts);
+        break;
+      }
+      case 'lair':
+        this.nameTag(ctx, this.save.bosses.includes('dragon') ? '🐉 Lair (rematch)' : '🐉 Dragon Lair', ax, top, ts);
+        break;
     }
+    return true;
+  }
+
+  /** Simple canvas drawings for buildings, used only if the sprites failed to load. */
+  private drawBuildingFallback(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+    const x = o.x * ts, y = o.y * ts, w = o.w * ts, h = o.h * ts;
+    const tag = (text: string) => this.nameTag(ctx, text, x + w / 2, y - ts * 0.65, ts);
     switch (o.kind) {
       case 'forge':
       case 'house': {
@@ -914,7 +939,7 @@ export class Overworld {
           rrect(ctx, x + w - ts * 0.95, y + h - ts * 0.45, ts * 0.6, ts * 0.22, ts * 0.06);
           ctx.fill();
           ctx.fillRect(x + w - ts * 0.75, y + h - ts * 0.25, ts * 0.2, ts * 0.25);
-          label('⚒ Forge');
+          tag('⚒ Forge');
         }
         break;
       }
@@ -937,7 +962,7 @@ export class Overworld {
           ctx.arc(x + w / 2 + (i - 1) * q * ts * 0.5, y + h * 0.1 - Math.sin(q * Math.PI) * ts * 0.4 + q * ts * 0.3, ts * 0.07, 0, TAU);
           ctx.fill();
         }
-        label('💧 Fountain');
+        tag('💧 Fountain');
         break;
       }
       case 'sign': {
@@ -971,7 +996,7 @@ export class Overworld {
             ctx.fill();
           }
         }
-        label(this.save.bossWins ? '🐉 Lair (rematch)' : '🐉 Dragon Lair');
+        tag(this.save.bosses.includes('dragon') ? '🐉 Lair (rematch)' : '🐉 Dragon Lair');
         break;
       }
     }

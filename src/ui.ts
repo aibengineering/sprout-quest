@@ -477,6 +477,9 @@ export class UI {
     const dot = (t: Tab) => (TAB_UNLOCK[t] && s.fresh.includes(TAB_UNLOCK[t]!) ? '<i class="dot on"></i>' : '');
     const scroll = fresh ? 0 : this.sheet.querySelector('.body')?.scrollTop ?? 0;
     this.sheet.className = 'sheet menu';
+    const closeBtn = '<button class="tab-close" data-do="close" aria-label="Close menu"><span>✕</span>Close<kbd class="key">Esc</kbd></button>';
+    const tabBtns = tabs.map(([id, ico, label], i) =>
+      `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}<kbd class="key">${i + 1}</kbd></button>`).join('');
     this.sheet.innerHTML = `
       <div class="grab" aria-hidden="true"></div>
       <header class="mhead">
@@ -490,7 +493,7 @@ export class UI {
       <div class="statrow"><span>⚔️ <b>${st.atk}</b></span><span>🛡️ <b>${st.def}</b></span><span>🧪 <b>${s.potions}/${MAX_POTIONS}</b></span>${
         st.spd ? `<span>💨 <b>+${st.spd}%</b></span>` : ''}${st.luck ? `<span>🍀 <b>+${Math.round(st.luck * 100)}%</b></span>` : ''}</div>
       <div class="body">${this.renderTab(s)}</div>
-      <nav class="tabbar" style="grid-template-columns:auto repeat(${tabs.length},1fr)"><button class="tab-close" data-do="close" aria-label="Close menu"><span>✕</span>Close<kbd class="key">Esc</kbd></button>${tabs.map(([id, ico, label], i) => `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}<kbd class="key">${i + 1}</kbd></button>`).join('')}</nav>`;
+      <nav class="tabbar" style="grid-template-columns:auto repeat(${tabs.length},1fr)">${closeBtn}${tabBtns}</nav>`;
     const body = this.sheet.querySelector('.body') as HTMLElement;
     body.scrollTop = scroll;
     if (fresh && this.focus) {

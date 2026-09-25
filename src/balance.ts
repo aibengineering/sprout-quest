@@ -356,13 +356,30 @@ export function report(): string {
   });
   out.push(`\nWeapon tracks\n${tiers.join('\n')}`);
   const rel = dpsVsGatherers(), relBurst = dpsVsGatherers('burst');
-  out.push(`\nWeapons  (targets: hunter DPS ${HUNTER_DPS.join('–')} of its tier's gatherer (wands ${RANGED_DPS.join('–')}), opening burst ≤${MAX_HUNTER_BURST}×, reach ≤${MAX_STRIKE_REACH} of the arena's half-width, strike ≤${MAX_STRIKE_AREA * 100}% / skill ≤${MAX_SKILL_AREA * 100}% of the arena)`);
-  out.push(`  ${'weapon'.padEnd(16)} ${'★'.padStart(2)} ${'style'.padEnd(7)} ${'track'.padEnd(9)} ${'dps'.padStart(5)} ${'vs gath'.padStart(8)} ${'burst'.padStart(6)} ${'reach'.padStart(6)} ${'area'.padStart(6)} ${'skill'.padStart(6)} ${'×skill'.padStart(7)}`);
+  const targets = [
+    `hunter DPS ${HUNTER_DPS.join('–')} of its tier's gatherer (wands ${RANGED_DPS.join('–')})`,
+    `opening burst ≤${MAX_HUNTER_BURST}×`,
+    `reach ≤${MAX_STRIKE_REACH} of the arena's half-width`,
+    `strike ≤${MAX_STRIKE_AREA * 100}% / skill ≤${MAX_SKILL_AREA * 100}% of the arena`,
+  ];
+  out.push(`\nWeapons  (targets: ${targets.join(', ')})`);
+  // Column widths: negative pads on the right (names), positive on the left (numbers). "!" marks a missed target.
+  const cols: [string, number][] = [['weapon', -16], ['★', 2], ['style', -7], ['track', -9], ['dps', 5], ['vs gath', 8], ['burst', 6], ['reach', 6], ['area', 6], ['skill', 6], ['×skill', 7]];
+  const row = (cells: string[]) => `  ${cells.map((c, i) => (cols[i][1] < 0 ? c.padEnd(-cols[i][1]) : c.padStart(cols[i][1]))).join(' ')}`;
+  const miss = (text: string, bad: boolean) => text + (bad ? '!' : '');
   const pct = (v: number) => `${Math.round(v * 100)}%`;
+  out.push(row(cols.map(([h]) => h)));
   for (const w of weaponStats()) {
-    const band = dpsBand(w), bad = w.track === 'hunter' && (rel[w.id] < band[0] || rel[w.id] > band[1]);
-    const burstBad = w.track === 'hunter' && relBurst[w.id] > MAX_HUNTER_BURST;
-    out.push(`  ${w.name.padEnd(16)} ${String(w.tier).padStart(2)} ${w.style.padEnd(7)} ${w.track.padEnd(9)} ${w.dps.toFixed(0).padStart(5)} ${(rel[w.id].toFixed(2) + (bad ? '!' : '')).padStart(8)} ${(relBurst[w.id].toFixed(2) + (burstBad ? '!' : '')).padStart(6)} ${(w.reach.toFixed(2) + (w.reach > MAX_STRIKE_REACH ? '!' : '')).padStart(6)} ${(pct(w.area) + (w.area > MAX_STRIKE_AREA ? '!' : '')).padStart(6)} ${(pct(w.skillArea) + (w.skillArea > MAX_SKILL_AREA ? '!' : '')).padStart(6)} ${w.skillMult.toFixed(1).padStart(7)}`);
+    const band = dpsBand(w), hunter = w.track === 'hunter';
+    out.push(row([
+      w.name, String(w.tier), w.style, w.track, w.dps.toFixed(0),
+      miss(rel[w.id].toFixed(2), hunter && (rel[w.id] < band[0] || rel[w.id] > band[1])),
+      miss(relBurst[w.id].toFixed(2), hunter && relBurst[w.id] > MAX_HUNTER_BURST),
+      miss(w.reach.toFixed(2), w.reach > MAX_STRIKE_REACH),
+      miss(pct(w.area), w.area > MAX_STRIKE_AREA),
+      miss(pct(w.skillArea), w.skillArea > MAX_SKILL_AREA),
+      w.skillMult.toFixed(1),
+    ]));
   }
   out.push(`\nWeapon handling: switching to a fresh class costs ${[2, 3, 4, 5].map((t) => `★${t} ~${minutesToHandle(t).toFixed(1)} min`).join(', ')} of fighting (target ≤${MAX_HANDLING_MINUTES})`);
   return out.join('\n');
