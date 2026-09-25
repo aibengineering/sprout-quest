@@ -2,3 +2,4 @@ node_modules
 dist
 art/out
 __pycache__
+tests/e2e/out

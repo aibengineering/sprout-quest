@@ -8,10 +8,12 @@
     "test": "bun test",
     "balance": "bun run src/balance.ts",
     "typecheck": "tsc --noEmit",
-    "art": "bash art/build.sh"
+    "art": "bash art/build.sh",
+    "e2e": "bun run tests/e2e/smoke.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "playwright-core": "1.58",
     "typescript": "^5.6.0"
   }
 }
