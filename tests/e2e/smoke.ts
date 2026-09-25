@@ -100,6 +100,61 @@ function check(ok: unknown, msg: string) {
 
 console.log('Sprout Quest smoke test');
 
+await scenario('a new game plays through the prologue to Elder Bloom', null, async (page) => {
+  // Start over from the title (base's save is replaced by New Game).
+  await run(page, `localStorage.clear()`);
+  await page.reload();
+  await page.waitForSelector('.title-btns:not([hidden])');
+  await page.click('#btn-new');
+  await page.waitForTimeout(800);
+  await closeDialogs(page); // the waking-up caption
+  check(await game(page, 'g.save.quest') === 0, 'a new game should start on the first quest');
+  /** Stands you just in front of an object and presses the action key. */
+  const use = async (find: string) => {
+    await run(page, `const o = ${find}; g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5)`);
+    await page.waitForTimeout(300);
+    await page.keyboard.press('KeyE');
+    await page.waitForTimeout(500);
+  };
+  await use(`g.over.world.objs.find((o) => o.kind === 'pickup')`);
+  await closeDialogs(page);
+  check(await game(page, `g.save.flags.includes('sword')`), 'picking up the Twig Sword did not give it to you');
+  // The two monsters blocking the path: each is a scripted fight that sets its flag when won.
+  for (const flag of ['glade1', 'glade2']) {
+    await closeDialogs(page);
+    await use(`g.over.world.objs.find((o) => o.kind === 'foe' && o.flag === '${flag}')`);
+    await waitFor(page, `the ${flag} fight`, async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`), 4000);
+    await page.waitForTimeout(1300);
+    await endFight(page);
+    await waitFor(page, `the ${flag} result`, async () => !!(await page.$('#modal:not([hidden]) [data-dialog]')), 5000);
+    await closeDialogs(page);
+    await waitFor(page, 'back on the map', async () => game<boolean>(page, `g.mode === 'world' && !g.battle`), 5000);
+    check(await game(page, `g.save.flags.includes('${flag}')`), `winning the ${flag} fight did not clear the path`);
+  }
+  // Walking into the village plays Elder Bloom's welcome tour.
+  await closeDialogs(page);
+  // Stand just outside and walk in (teleporting straight in wouldn't count as arriving).
+  await run(page, `const w = g.over.world, p = w.entryPoint('village'); let x = p.x; while (w.zoneAt(x).id === 'village') x -= 0.5; g.over.teleport(x - 0.5, p.y)`);
+  await page.waitForTimeout(300);
+  await page.keyboard.down('KeyD');
+  await waitFor(page, 'arriving in the village', async () => game<boolean>(page, `g.over.currentZone.id === 'village' && g.mode === 'dialog'`), 4000);
+  await page.keyboard.up('KeyD');
+  for (let i = 0; i < 12 && !(await game<boolean>(page, `g.save.flags.includes('village')`)); i++) {
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(900);
+  }
+  check(await game(page, `g.save.flags.includes('village')`), 'arriving in the village did not finish the welcome');
+  await closeDialogs(page);
+  await page.waitForTimeout(500);
+  check(await game(page, `g.mode`) === 'world', 'not back in control after the welcome');
+  // Talking to Elder Bloom tells you what to do next, then hands you back the controls.
+  await use(`g.over.world.obj('elder')`);
+  const said = await closeDialogs(page);
+  check(said.some((t) => t.includes('Elder Bloom')), 'Elder Bloom did not speak');
+  await page.waitForTimeout(400);
+  check(await game(page, `g.mode`) === 'world', 'not back in control after talking to Elder Bloom');
+});
+
 await scenario('quest tracker shows material progress', null, async (page) => {
   check(await page.$('#quest-pill:not([hidden]) .qbar'), 'no progress bar on the quest tracker');
   check((await page.$$('#quest-pill .qm')).length > 0, 'no material counts on the quest tracker');

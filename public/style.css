@@ -459,6 +459,8 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 900; opacity: 0.75; }
   padding: 20px;
   text-align: center;
 }
+/* A popup over the title (the "New game?" check) must sit above it, or it can't be tapped. */
+body:has(#modal:not([hidden])) #title { z-index: 19; }
 .logo h1 {
   margin: 0;
   font-size: clamp(48px, 14vw, 84px);
