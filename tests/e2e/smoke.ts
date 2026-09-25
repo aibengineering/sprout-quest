@@ -8,6 +8,7 @@
 import { chromium, type Page } from 'playwright-core';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { startServer } from '../../server';
+import { MONSTERS } from '../../src/data';
 
 const SHOTS = process.argv.includes('--shots');
 const OUT = new URL('./out/', import.meta.url).pathname;
@@ -147,6 +148,29 @@ await scenario('every weapon runs out of stamina when mashed', (g) => {
     // A full meter, plus what refills while you pause between swings: well short of one swing per press.
     const cap = max + Math.ceil(2 / (regen + delay)) + 1;
     check(swings <= cap, `${w}: ${swings} swings in 2s (stamina allows ≤${cap})`);
+    await endFight(page);
+    await page.waitForTimeout(2600);
+    await closeDialogs(page);
+  }
+});
+
+await scenario('every monster fights (and is drawn) without errors', (g) => {
+  g.save.lv = 20;
+  g.save.owned.push('wyrmbreaker');
+  g.save.equip.weapon = 'wyrmbreaker';
+}, async (page) => {
+  for (const kind of Object.keys(MONSTERS)) {
+    await run(page, `g.fight('${kind}', ${MONSTERS[kind as keyof typeof MONSTERS].boss ? 20 : 10}, 2)`);
+    await waitFor(page, `a fight with ${kind}`, async () => (await game<boolean>(page, 'g.mode === "battle" && !!g.battle')));
+    // Let it run through a few of its moves, with you too tough to fall, swinging now and then.
+    const t0 = Date.now();
+    while (Date.now() - t0 < 2500) {
+      await run(page, 'if (g.battle) { g.battle.p.hp = 9999; g.battle.p.iframes = 1; }');
+      await page.keyboard.press('KeyJ');
+      await page.waitForTimeout(250);
+    }
+    const states = await game<string[]>(page, 'g.battle.enemies.map((e) => e.state)');
+    check(states.length > 0, `${kind}: no enemies spawned`);
     await endFight(page);
     await page.waitForTimeout(2600);
     await closeDialogs(page);

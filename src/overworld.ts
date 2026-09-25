@@ -2,7 +2,7 @@
 import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { currentQuest } from './quests';
 import { drawFrame, drawHero, frame } from './assets';
-import { SPRITE_SCALE } from './battle';
+import { spriteScale } from './battle/monsters';
 import { Roamers, type Roamer } from './roamers';
 import { MOVESETS } from './weapons';
 import { Fx } from './fx';
@@ -286,7 +286,7 @@ export class Overworld {
     if (!f) return;
     shadow(ctx, px, py, ts * 0.28 * (flying ? 0.7 : 1));
     // Same size relative to the hero as in battle.
-    drawFrame(ctx, f, px, py - lift, ts * 0.74 * (SPRITE_SCALE[r.kind] ?? 1), { flip: r.face < 0 });
+    drawFrame(ctx, f, px, py - lift, ts * 0.74 * spriteScale(r.kind), { flip: r.face < 0 });
     if (r.golden && Math.random() < 0.1) this.fx.burst(px + (Math.random() - 0.5) * ts * 0.6, py - Math.random() * ts * 0.8, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.6 });
     // Tall grass hides their feet, like yours.
     if (this.world.tile(Math.floor(r.x), Math.floor(r.y - 0.1)) === T.GRASS && !flying) {

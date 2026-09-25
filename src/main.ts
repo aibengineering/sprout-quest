@@ -1,7 +1,8 @@
 // Entry point: owns the game loop, mode switching and glue between world, battles and UI.
 import { loadAssets, preloadIcons } from './assets';
 import { Audio } from './audio';
-import { Battle, type BattleOutcome, type Foe } from './battle';
+import { Battle, type BattleOutcome, type Foe } from './battle/battle';
+import { drawBattle } from './battle/render';
 import { GEAR, GEAR_ORDER, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, SKILL_VERB, STYLE_NAMES, TOOLS, ZONES, forgeLevelFor, zoneById, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Zone, type ZoneId } from './data';
 import { Chop, GatherView, type Look } from './gather';
 import type { Roamer } from './roamers';
@@ -1044,7 +1045,7 @@ function frame(now: number) {
   if (b) {
     // Keep drawing the arena behind the victory dialog until we transition out.
     b.update(busy ? 0 : dt);
-    b.render(ctx, vw, vh);
+    drawBattle(b, ctx, vw, vh);
     ui.hud(mode === 'battle' ? b.p.hp : save.hp, over.currentZone.name);
     ui.questPill(false);
     ui.dock(false);
