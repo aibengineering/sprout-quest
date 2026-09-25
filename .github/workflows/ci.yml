@@ -1,7 +1,8 @@
 name: CI
 
-# Every pull request (and every push to dev) is typechecked, tested, built and played through in a headless browser.
-# Pull requests into main must also be a release: a version bump in package.json with patch notes for it.
+# Every pull request (and every push to dev) that touches the game is typechecked, tested, built and played through in
+# a headless browser. Pull requests into main that touch the game must also be a release: a version bump in
+# package.json with patch notes for it.
 on:
   pull_request:
   push:
@@ -12,8 +13,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Documentation and CI-only changes skip the build and browser test. Skipped jobs count as passing for the checks
+  # main requires, so those pull requests can still merge.
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    outputs:
+      game: ${{ steps.diff.outputs.game }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - id: diff
+        run: bun run scripts/changes.ts "${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}"
+
   check:
     name: Typecheck, tests and build
+    needs: changes
+    if: needs.changes.outputs.game == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -27,6 +47,8 @@ jobs:
 
   e2e:
     name: Browser smoke test
+    needs: changes
+    if: needs.changes.outputs.game == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
