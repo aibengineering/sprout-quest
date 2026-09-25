@@ -14,6 +14,16 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.2.1',
+    date: '2026-09-25',
+    title: 'A sharper look',
+    notes: [
+      '🧥 Every armor now changes how you look, not just its color: a scarf, a fluffy collar, a leafy crown, a copper circlet, a plumed helm, a golden tiara, crystal spikes, glowing lava cracks and dragon wings.',
+      '✨ Your hero is sharper on phone screens, has a bold outline so you always stand out, and is drawn bigger, especially in battle.',
+      '🪓 Axes and picks swing right at the tree or rock, with a proper wind-up and chop, and every blow lands when the tool connects.',
+    ],
+  },
+  {
     version: '0.2.0',
     date: '2026-09-25',
     title: 'Gather, forge and fight smarter',
