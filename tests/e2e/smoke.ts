@@ -74,6 +74,18 @@ async function waitFor(page: Page, what: string, cond: () => Promise<boolean>, m
   throw new Error(`timed out waiting for ${what}`);
 }
 
+/** Opens the menu's More tab (retrying while a screen transition finishes). */
+async function openMore(page: Page) {
+  await waitFor(page, 'the menu', async () => {
+    const open = () => page.$('#modal:not([hidden]) [data-tab="settings"]');
+    if (!(await open())) await page.keyboard.press('KeyM');
+    await page.waitForTimeout(300);
+    return !!(await open());
+  });
+  await page.click('#modal:not([hidden]) [data-tab="settings"]');
+  await page.waitForTimeout(300);
+}
+
 /** Enemies that stand still in front of you and can't die (or die in one hit, with `hp: 1`). */
 const pinFoes = (page: Page, hp = 1e6) => run(page, `const b = g.battle; for (const e of b.enemies) { e.hp = e.maxHp = ${hp}; e.stun = 99; e.x = b.p.x; e.y = b.p.y - 60; } b.p.face = -Math.PI / 2`);
 const endFight = (page: Page) => run(page, `const b = g.battle; for (const e of b.enemies) if (!e.dead) { e.hp = 0; b.kill(e); }`);
@@ -290,21 +302,63 @@ await scenario('the Forge keeps gear a mystery until you reach its level', (g) =
   check(after.names.some((n) => n.includes('Stone Sword')), 'Stone Sword still hidden at Mining 2');
 });
 
-await scenario('the play report exports fights', null, async (page) => {
+await scenario('the play report records fights, stamina, deaths and time, and exports', (g) => {
+  g.save.owned.push('stonesword');
+  g.save.equip.weapon = 'stonesword';
+}, async (page) => {
+  // A win where you mash the attack button (stamina runs dry)…
   await run(page, 'g.encounter()');
   await page.waitForTimeout(900);
+  await pinFoes(page);
+  const t0 = Date.now();
+  while (Date.now() - t0 < 1500) { await page.keyboard.press('KeyJ'); await page.waitForTimeout(40); }
   await endFight(page);
   await page.waitForTimeout(2600);
   await closeDialogs(page);
-  await page.keyboard.press('KeyM');
-  await page.waitForTimeout(400);
-  await page.click('[data-tab="settings"]');
-  await page.waitForTimeout(300);
+  // …and a loss, so the report says what got you.
+  await run(page, `g.fight('wolf', 12, 2)`);
+  await waitFor(page, 'the wolf fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`));
+  await page.waitForTimeout(1500);
+  await run(page, 'g.battle.p.hp = 1; g.battle.p.iframes = 0');
+  await waitFor(page, 'losing', async () => !!(await page.$('#modal:not([hidden]) [data-dialog]')), 15000);
+  await closeDialogs(page);
+  await waitFor(page, 'back on the map', async () => game<boolean>(page, `g.mode === 'world' && !g.battle`), 6000);
+
+  await openMore(page);
+  // The full report: a file with the summary, then one line per event.
   const download = page.waitForEvent('download');
   await page.click('[data-do="report"]');
-  const report = JSON.parse(readFileSync(await (await download).path(), 'utf8'));
-  check(report.summary?.fights >= 1, 'report has no fights');
-  check(report.events?.some((e: any) => e.kind === 'fight' && e.result === 'win'), 'report has no won fight event');
+  const text = readFileSync(await (await download).path(), 'utf8');
+  const report = JSON.parse(text);
+  const s = report.summary;
+  check(s.fights >= 2 && s.deaths >= 1, `report has ${s.fights} fights, ${s.deaths} deaths`);
+  const fight = report.events.fight;
+  check(fight.cols.includes('emptied') && fight.rows.every((r: unknown[]) => r.length === fight.cols.length), 'fight rows do not line up with their columns');
+  check(text.split('\n').length > fight.rows.length + 20, 'events are not one per line');
+  const win = fight.rows.find((r: unknown[]) => r[fight.cols.indexOf('result')] === 'win');
+  check(win[fight.cols.indexOf('emptied')] > 0, 'mashing never ran stamina dry in the report');
+  const loss = s.defeatsAndRuns.find((d: { result: string }) => d.result === 'lose');
+  check(/^wolf:(contact|shot)$/.test(loss?.by ?? ''), `the loss does not say what got you (${loss?.by})`);
+  check(s.time.totalMinutes.fighting > 0 && s.time.totalMinutes.walking > 0 && s.time.byZone.meadow, 'no time split');
+  check(s.fightsByWeapon.stonesword?.avgEmptied > 0, 'no per-weapon stamina summary');
+
+  // The summary copies to the clipboard, small enough to paste, both with the clipboard API and without it (http).
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  const copied = async () => {
+    await page.evaluate(`(window.__clip ?? navigator.clipboard).writeText("")`).catch(() => {});
+    await page.click('[data-do="report-copy"]');
+    await waitFor(page, 'the copied toast', async () => /copied/.test((await page.textContent('#toast')) ?? ''), 3000);
+    return JSON.parse(await page.evaluate(`(window.__clip ?? navigator.clipboard).readText()`) as string);
+  };
+  const summary = await copied();
+  check(summary.summary?.fights === s.fights && !summary.events, 'the copied summary is wrong (or includes every event)');
+  check(JSON.stringify(summary).length < 20000, 'the copied summary is too big to paste');
+  // Plain http has no clipboard API: hide it, and the copy should still work.
+  await page.evaluate(`window.__clip = navigator.clipboard; Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(2500);
+  await openMore(page);
+  check((await copied()).summary?.fights === s.fights, 'copying without the clipboard API failed');
 });
 
 await browser.close();

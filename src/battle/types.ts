@@ -76,6 +76,8 @@ export interface Enemy {
 export interface Proj {
   x: number; y: number; vx: number; vy: number; r: number;
   atk: number; mult: number; owner: 'p' | 'e'; life: number; color: string;
+  /** The monster that fired it (for the play report's "what got you"). */
+  from?: MonsterKind;
   /** Bat bolts swerve toward foes. */
   homing?: boolean;
 }
@@ -86,10 +88,16 @@ export interface Flame { x: number; y: number; r: number; t: number; life: numbe
 export interface Zap { x1: number; y1: number; x2: number; y2: number; t: number }
 
 /** What happened in a fight, for the play report. */
-export interface BattleLog { time: number; swings: number; hits: number; crits: number; skills: number; dodges: number; potions: number; dealt: number; taken: number }
+export interface BattleLog {
+  time: number; swings: number; hits: number; crits: number; skills: number; dodges: number; potions: number; dealt: number; taken: number;
+  /** Times your stamina ran dry, and seconds you wanted to attack but were out of stamina or resting after a combo. */
+  emptied: number; starved: number; rested: number;
+  /** What last hurt you, as "monster:contact|shot|hazard" (on a loss, what knocked you out). */
+  lastHitBy: string;
+}
 
 /** A telegraphed danger zone that goes off after `delay`. */
-export interface Hazard { x: number; y: number; r: number; t: number; delay: number; atk: number; mult: number; done: boolean }
+export interface Hazard { x: number; y: number; r: number; t: number; delay: number; atk: number; mult: number; done: boolean; from?: MonsterKind }
 export interface Ring { x: number; y: number; r0: number; r1: number; t: number; dur: number; color: string; width?: number }
 
 /** A strike in progress. */

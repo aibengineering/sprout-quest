@@ -191,7 +191,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
           e.state = 'slam';
           e.t = 1.0;
           e.vx = e.vy = 0;
-          w.hazard({ x: e.x, y: e.y, r: 95, delay: 0.9, atk: e.atk, mult: 1.3 });
+          w.hazard({ x: e.x, y: e.y, r: 95, delay: 0.9, atk: e.atk, from: e.kind, mult: 1.3 });
         }
       } else {
         e.windup = 1 - e.t / 1.0;
@@ -298,7 +298,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
         case 'stomp': {
           e.windup = 0.4;
           if (e.t <= 0) {
-            w.hazard({ x: p.x + p.vx * 0.3, y: p.y + p.vy * 0.3, r: 60, delay: 0.8, atk: e.atk, mult: 1.1 });
+            w.hazard({ x: p.x + p.vx * 0.3, y: p.y + p.vy * 0.3, r: 60, delay: 0.8, atk: e.atk, from: e.kind, mult: 1.1 });
             e.sub++;
             e.t = 0.45 * rage;
             if (e.sub >= (rage < 1 ? 5 : 3)) { e.state = 'walk'; e.t = 1.4 * rage; e.windup = 0; }
@@ -331,7 +331,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
           e.ty = ty;
           e.vx = (tx - e.x) / dur;
           e.vy = (ty - e.y) / dur;
-          w.hazard({ x: tx, y: ty, r: 72, delay: dur, atk: e.atk, mult: 1.4 });
+          w.hazard({ x: tx, y: ty, r: 72, delay: dur, atk: e.atk, from: e.kind, mult: 1.4 });
         }
       } else if (e.state === 'hop') {
         const dur = 0.95 * rage;
@@ -417,7 +417,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
             e.vx = e.vy = 0;
             if (e.state === 'slam') {
               e.t = 1.0 * rage;
-              w.hazard({ x: e.x, y: e.y, r: 125, delay: 1.0 * rage, atk: e.atk, mult: 1.3 });
+              w.hazard({ x: e.x, y: e.y, r: 125, delay: 1.0 * rage, atk: e.atk, from: e.kind, mult: 1.3 });
             } else if (e.state === 'spikes') {
               e.t = 0.9;
               const lines = rage < 1 ? [-0.4, 0, 0.4] : [0];
@@ -426,7 +426,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
                   const d = 55 + i * 42, a = toP + off;
                   const x = e.x + Math.cos(a) * d, y = e.y + Math.sin(a) * d;
                   if (!w.arena.inside(x, y)) break;
-                  w.hazard({ x, y, r: 30, delay: 0.65 + i * 0.07, atk: e.atk, mult: 1.1 });
+                  w.hazard({ x, y, r: 30, delay: 0.65 + i * 0.07, atk: e.atk, from: e.kind, mult: 1.1 });
                 }
               }
             } else {

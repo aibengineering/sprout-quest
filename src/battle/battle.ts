@@ -74,7 +74,7 @@ export class Battle implements FoeWorld, HitWorld {
   hits = 0;
   private onceKeys = new Set<number>();
   /** Running tallies for the play report. */
-  readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0 };
+  readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0, emptied: 0, starved: 0, rested: 0, lastHitBy: '' };
 
   constructor(
     readonly setup: BattleSetup,
@@ -227,7 +227,7 @@ export class Battle implements FoeWorld, HitWorld {
   enemyShoot(e: Enemy, ang: number, speed: number, r: number, color: string, mult = 1) {
     this.projs.push({
       x: e.x + Math.cos(ang) * e.r, y: e.y - e.r * 0.8 - e.z + Math.sin(ang) * e.r,
-      vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, r, atk: e.atk, mult, owner: 'e', life: 3, color,
+      vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, r, atk: e.atk, mult, owner: 'e', life: 3, color, from: e.kind,
     });
   }
 
@@ -298,6 +298,9 @@ export class Battle implements FoeWorld, HitWorld {
     if (inp.consume('attack')) p.atkBuffer = 0.25;
     const wantAttack = p.atkBuffer > 0 || inp.isHeld('attack');
     const loaded = p.ammo >= 1;
+    // For the play report: how long you're kept waiting by stamina and the post-combo rest.
+    if (wantAttack && !loaded) this.log.starved += dt;
+    else if (wantAttack && p.restT > 0) this.log.rested += dt;
     if (wantAttack && this.canStrike() && p.restT <= 0 && loaded && p.dodgeT <= 0 && p.whirlT <= 0) {
       p.atkBuffer = 0;
       const combo = this.moves.combo;
@@ -393,6 +396,7 @@ export class Battle implements FoeWorld, HitWorld {
     if (!sw.skill) {
       p.ammo = Math.max(0, p.ammo - 1);
       p.ammoT = -this.moves.ammo.delay;
+      if (p.ammo < 1) this.log.emptied++;
     }
     if (s.lunge) this.fx.burst(p.x, p.y, '#e8dcc8', 5, 60, { size: 3, grav: 0, life: 0.3 });
   }
@@ -730,12 +734,14 @@ export class Battle implements FoeWorld, HitWorld {
     }
   }
 
-  private hurtPlayer(atk: number, mult: number, fx: number, fy: number) {
+  /** `by` says what hit you ("monster:contact|shot|hazard"), for the play report. */
+  private hurtPlayer(atk: number, mult: number, fx: number, fy: number, by: string) {
     const p = this.p;
     if (p.iframes > 0 || p.dodgeT > 0 || this.endT >= 0) return;
     const { dmg } = calcDamage(atk, this.stats.def, mult, 0.04);
     p.hp -= dmg;
     this.log.taken += dmg;
+    this.log.lastHitBy = by;
     p.iframes = 0.8;
     p.hurtT = 0.25;
     const ang = Math.atan2(p.y - fy, p.x - fx);
@@ -830,7 +836,7 @@ export class Battle implements FoeWorld, HitWorld {
     // Contact damage (slimes mid-hop sail over you).
     const airborne = ai.hops && e.z > 10;
     if (!airborne && Math.hypot(p.x - e.x, p.y - e.y) < p.r + e.r * 0.85) {
-      this.hurtPlayer(e.atk, (e.def.boss ? 0.8 : 1) * (fast ? 1.2 : 1), e.x, e.y);
+      this.hurtPlayer(e.atk, (e.def.boss ? 0.8 : 1) * (fast ? 1.2 : 1), e.x, e.y, `${e.kind}:contact`);
     }
   }
 
@@ -881,7 +887,7 @@ export class Battle implements FoeWorld, HitWorld {
       if (pr.owner === 'e') {
         if (Math.hypot(pr.x - p.x, pr.y - (p.y - 10)) < pr.r + p.r) {
           if (p.iframes <= 0 && p.dodgeT <= 0) {
-            this.hurtPlayer(pr.atk, pr.mult, pr.x, pr.y);
+            this.hurtPlayer(pr.atk, pr.mult, pr.x, pr.y, `${pr.from ?? '?'}:shot`);
             pr.life = 0;
           }
         }
@@ -906,7 +912,7 @@ export class Battle implements FoeWorld, HitWorld {
       h.t += dt;
       if (!h.done && h.t >= h.delay) {
         h.done = true;
-        if (Math.hypot(p.x - h.x, p.y - h.y) < h.r + p.r * 0.5) this.hurtPlayer(h.atk, h.mult, h.x, h.y);
+        if (Math.hypot(p.x - h.x, p.y - h.y) < h.r + p.r * 0.5) this.hurtPlayer(h.atk, h.mult, h.x, h.y, `${h.from ?? '?'}:hazard`);
         this.fx.burst(h.x, h.y, '#c8a080', 16, 200, { size: 5 });
         this.rings.push({ x: h.x, y: h.y, r0: h.r * 0.3, r1: h.r * 1.1, t: 0, dur: 0.3, color: '255,160,100' });
         this.shakeAtLeast(8);

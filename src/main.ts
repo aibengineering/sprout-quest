@@ -13,6 +13,7 @@ import { boot, setUpTitle } from './game/title';
 import { objective } from './game/waypoint';
 import { trackInputDevice, usingKeyboard, type Input } from './input';
 import { UI } from './ui';
+import { flushTime, trackTime, type Activity } from './stats';
 import { has } from './unlocks';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
@@ -56,7 +57,9 @@ bind('btn-act', 'act');
 // Any touch also unlocks audio on iOS.
 window.addEventListener('pointerdown', () => G.audio.unlock(), { passive: true });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && G.mode !== 'title') persist();
+  if (!document.hidden || G.mode === 'title') return;
+  persist();
+  flushTime();
 });
 
 // ------------------------------------------------------------------ loop
@@ -180,13 +183,19 @@ function updateTransitions(dt: number) {
   }
 }
 
+/** How each mode counts in the play report's time split (popups, menus and cutscenes all count as menus). */
+const ACTIVITY: Record<Exclude<typeof G.mode, 'title'>, Activity> = { world: 'walking', battle: 'fighting', gather: 'gathering', dialog: 'menus' };
+
 let last = performance.now();
 
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   updateTransitions(dt);
-  if (G.mode !== 'title') G.save.playtime += dt;
+  if (G.mode !== 'title') {
+    G.save.playtime += dt;
+    trackTime(G.battle?.setup.zone.id ?? G.over.currentZone.id, ACTIVITY[G.mode], dt);
+  }
   // A fight on the map can end inside update() and hand straight back to the overworld, so hold on to it for this frame.
   const b = G.battle;
   if (b) battleFrame(b, dt);

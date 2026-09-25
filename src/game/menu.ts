@@ -1,7 +1,8 @@
 // What the menu's buttons do: crafting, building, equipping, travel, settings and the play report.
 import { GEAR, PROJECTS, POTION_HEAL, TOOLS, zoneById, type ZoneId } from '../data';
 import { build, craftGear, craftPotion, craftTool, equip, playerStats, revealed } from '../rules';
-import { buildReport, logEvent } from '../stats';
+import { copyText, shareOrDownload } from '../share';
+import { logEvent, reportText, summaryText } from '../stats';
 import { clearState, newState } from '../state';
 import type { UIHooks } from '../ui';
 import { G, menuCtx, paused, persist, showZoneBanner, syncWorld, transition } from './context';
@@ -20,17 +21,16 @@ function travelTo(id: ZoneId) {
   });
 }
 
-function exportReport(how: 'download' | 'copy') {
-  const json = JSON.stringify(buildReport(G.save), null, 1);
+/** The full report goes out as a file (the share sheet on phones); the summary alone is small enough to paste. */
+async function exportReport(how: 'file' | 'copy') {
   if (how === 'copy') {
-    void navigator.clipboard?.writeText(json).then(() => G.ui.toast('📋 Play report copied'), () => G.ui.toast('Could not copy: try Download'));
+    const ok = await copyText(summaryText(G.save));
+    G.ui.toast(ok ? '📋 Report summary copied: paste it into a chat' : 'Could not copy here: try Share file');
     return;
   }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-  a.download = `sprout-quest-report-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`;
-  a.click();
-  G.ui.toast('📊 Play report downloaded');
+  const name = `sprout-quest-report-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`;
+  const r = await shareOrDownload(reportText(G.save), name);
+  if (r === 'downloaded') G.ui.toast('📊 Play report downloaded');
 }
 
 export const menuHooks: UIHooks = {
@@ -122,7 +122,7 @@ export const menuHooks: UIHooks = {
     document.getElementById('btn-continue')!.hidden = true;
   },
 
-  exportReport,
+  exportReport: (how) => void exportReport(how),
 
   menuClosed() {
     if (G.mode === 'dialog') G.mode = 'world';

@@ -9,6 +9,8 @@ import { MASTERY_MAX, canBuild, hasMats, levelLock, masteryXpToNext, playerStats
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
 import { usingKeyboard } from './input';
+import { canShareFiles } from './share';
+import { reportInfo } from './stats';
 
 /** Which unlock reveals each menu tab (settings is always there). */
 const TAB_UNLOCK: Partial<Record<Tab, UnlockId>> = { journey: 'journal', items: 'bag', forge: 'forge', village: 'village' };
@@ -32,8 +34,8 @@ export interface UIHooks {
   warpHome(): void;
   toggleMute(): void;
   resetSave(): void;
-  /** Play report: download it as a file, or copy it to the clipboard. */
-  exportReport(how: 'download' | 'copy'): void;
+  /** Play report: share or download the full file, or copy the summary to paste. */
+  exportReport(how: 'file' | 'copy'): void;
   menuClosed(): void;
 }
 
@@ -697,6 +699,7 @@ export class UI {
   }
 
   private settings(s: SaveState): string {
+    const rep = reportInfo();
     return `
       <div class="mcard row"><div class="ico">${s.muted ? '🔇' : '🔊'}</div><div class="info"><div class="name">Sound</div></div>
         <button class="go" data-do="mute">${s.muted ? 'Off' : 'On'}</button></div>
@@ -712,8 +715,8 @@ export class UI {
         • Keyboard: WASD/arrows, J/Space attack, K dodge, L skill, H potion, E interact, M menu.
       </div>
       <div class="mcard row"><div class="ico">📊</div><div class="info"><div class="name">Play report</div>
-        <div class="desc">Every fight and gather is recorded (time, hits, damage…). Export it to share for balancing.</div></div>
-        <div class="stack"><button class="go" data-do="report">Download</button><button class="go ghost" data-do="report-copy">Copy</button></div></div>
+        <div class="desc">${rep.fights} fights and ${rep.gathers} gathers recorded, with time, damage, stamina and more. Share the file for balancing, or copy the summary to paste.</div></div>
+        <div class="stack"><button class="go" data-do="report">${canShareFiles() ? 'Share file' : 'Download'}</button><button class="go ghost" data-do="report-copy">Copy summary</button></div></div>
       <div class="mcard row"><div class="ico">🗑️</div><div class="info"><div class="name">Reset save</div><div class="desc">Start over from scratch.</div></div>
         <button class="go alt" data-do="reset">Reset</button></div>`;
   }
@@ -753,7 +756,7 @@ export class UI {
     else if (d.do === 'home') this.hooks.warpHome();
     else if (d.do === 'mute') this.hooks.toggleMute();
     else if (d.do === 'reset') this.hooks.resetSave();
-    else if (d.do === 'report') this.hooks.exportReport('download');
+    else if (d.do === 'report') this.hooks.exportReport('file');
     else if (d.do === 'report-copy') this.hooks.exportReport('copy');
     this.refresh();
   }
