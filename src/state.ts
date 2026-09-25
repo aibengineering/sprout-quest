@@ -1,3 +1,4 @@
+import { VERSION } from './version';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
 export interface SaveState {
@@ -44,6 +45,8 @@ export interface SaveState {
   playtime: number;
   /** Story flags set by scripted events (prologue fights, arriving in the village…). */
   flags: string[];
+  /** The newest version whose patch notes you've read (older than VERSION shows a "new" dot on them). */
+  seenVersion: string;
 }
 
 const KEY = 'sprout-quest-save';
@@ -83,6 +86,8 @@ export function newState(): SaveState {
     mastery: { sword: { lv: 1, xp: 0 }, hammer: { lv: 1, xp: 0 }, whip: { lv: 1, xp: 0 }, wand: { lv: 1, xp: 0 } },
     playtime: 0,
     flags: [],
+    // A new adventure has nothing to catch up on.
+    seenVersion: VERSION,
   };
 }
 
@@ -127,6 +132,8 @@ export function loadState(): SaveState | null {
       merged.crafted = Math.max(0, merged.owned.length - 2);
       if ((data.bossWins ?? 0) > 0) merged.bosses = ['dragon'];
     }
+    // Saves from before patch notes existed were made on 0.1.0.
+    if (data.seenVersion === undefined) merged.seenVersion = '0.1.0';
     return merged;
   } catch {
     return null;

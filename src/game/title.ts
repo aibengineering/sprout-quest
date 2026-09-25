@@ -3,8 +3,9 @@ import { loadAssets, preloadIcons } from '../assets';
 import { QUESTS } from '../data';
 import { playerStats } from '../rules';
 import { clearLog, logEvent } from '../stats';
-import { clearState, loadState, newState } from '../state';
-import { allIconIds } from '../ui';
+import { clearState, loadState, newState, saveState } from '../state';
+import { allIconIds, hasNews } from '../ui';
+import { VERSION } from '../version';
 import { G, persist, showZoneBanner, syncWorld } from './context';
 import { progressQuests, unlocks } from './story';
 
@@ -31,6 +32,7 @@ export async function boot() {
   const saved = !!loadState();
   document.getElementById('btn-continue')!.hidden = !saved;
   document.getElementById('new-key')!.textContent = saved ? 'N' : 'Enter';
+  showVersion();
   const btns = document.querySelector('.title-btns') as HTMLElement;
   btns.hidden = false;
   btns.classList.add('appear');
@@ -38,6 +40,25 @@ export async function boot() {
   loading.classList.add('done');
   setTimeout(() => (loading.hidden = true), 300);
   booted = true;
+}
+
+/** The version under the title, with a dot if a saved game hasn't read the newest patch notes. */
+function showVersion() {
+  const btn = document.getElementById('btn-notes')!;
+  const saved = loadState();
+  btn.innerHTML = `v${VERSION} · What's new${saved && hasNews(saved) ? '<i class="dot on"></i>' : ''}`;
+  btn.hidden = false;
+}
+
+/** Patch notes from the title screen; a saved game counts them as read. */
+async function showNotes() {
+  const saved = loadState();
+  await G.ui.patchNotes(saved?.seenVersion ?? VERSION);
+  if (saved) {
+    G.save.seenVersion = VERSION;
+    saveState(G.save);
+  }
+  showVersion();
 }
 
 function startGame(fresh: boolean) {
@@ -81,6 +102,9 @@ export function setUpTitle() {
     else if (e.code === 'KeyN') fresh.click();
   });
   cont.addEventListener('click', () => startGame(false));
+  document.getElementById('btn-notes')!.addEventListener('click', () => {
+    if (G.mode === 'title' && !G.ui.isOpen) void showNotes();
+  });
   fresh.addEventListener('click', async () => {
     if (loadState()) {
       const r = await G.ui.dialog('<div class="big" style="font-size:24px">New game?</div><p>This replaces your current save.</p>', [

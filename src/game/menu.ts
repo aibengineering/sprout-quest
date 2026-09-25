@@ -6,6 +6,7 @@ import { logEvent, reportText, summaryText } from '../stats';
 import { clearState, newState } from '../state';
 import type { UIHooks } from '../ui';
 import { G, menuCtx, paused, persist, showZoneBanner, syncWorld, transition } from './context';
+import { VERSION } from '../version';
 import { newlyRevealed } from './rewards';
 import { progressQuests } from './story';
 
@@ -123,6 +124,14 @@ export const menuHooks: UIHooks = {
   },
 
   exportReport: (how) => void exportReport(how),
+
+  async patchNotes() {
+    const seen = G.save.seenVersion;
+    G.save.seenVersion = VERSION;
+    persist();
+    await G.ui.patchNotes(seen);
+    G.ui.openMenu(menuCtx(), 'settings');
+  },
 
   menuClosed() {
     if (G.mode === 'dialog') G.mode = 'world';

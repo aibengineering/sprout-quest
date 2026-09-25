@@ -167,6 +167,31 @@ await scenario('a new game plays through the prologue to Elder Bloom', null, asy
   check(await game(page, `g.mode`) === 'world', 'not back in control after talking to Elder Bloom');
 });
 
+await scenario('patch notes: a dot until you read them, from the menu or the title', (g) => {
+  // A save from 0.1.0 has the newest notes to read.
+  g.save.seenVersion = '0.1.0';
+}, async (page) => {
+  check(await page.$('#btn-bag.has-dot'), 'no dot on the Bag button for unread patch notes');
+  await openMore(page);
+  check(await page.$('#modal:not([hidden]) [data-tab="settings"] .dot.on'), 'no dot on the More tab');
+  await page.click('[data-do="notes"]');
+  await waitFor(page, 'the patch notes', async () => !!(await page.$('#modal:not([hidden]) .patches')));
+  const text = (await page.textContent('#modal .patches')) ?? '';
+  check(text.includes('v0.2.0') && text.includes('v0.1.0') && text.includes('New!'), 'patch notes missing a version or the New! badge');
+  await closeDialogs(page);
+  await waitFor(page, 'back to the menu', async () => !!(await page.$('#modal:not([hidden]) [data-tab="settings"]')));
+  check(!(await page.$('#modal:not([hidden]) [data-tab="settings"] .dot.on')), 'the More tab dot stayed after reading');
+  check(await game(page, 'g.save.seenVersion') !== '0.1.0', 'reading did not mark the notes seen');
+  // The title shows the version, without a dot now it's been read, and opens the notes too.
+  await page.reload();
+  await page.waitForSelector('#btn-notes:not([hidden])');
+  check(/v\d+\.\d+\.\d+/.test((await page.textContent('#btn-notes')) ?? ''), 'no version on the title');
+  check(!(await page.$('#btn-notes .dot.on')), 'the title still shows a dot after reading');
+  await page.click('#btn-notes');
+  await waitFor(page, 'the patch notes from the title', async () => !!(await page.$('#modal:not([hidden]) .patches')));
+  await closeDialogs(page);
+});
+
 await scenario('quest tracker shows material progress', null, async (page) => {
   check(await page.$('#quest-pill:not([hidden]) .qbar'), 'no progress bar on the quest tracker');
   check((await page.$$('#quest-pill .qm')).length > 0, 'no material counts on the quest tracker');

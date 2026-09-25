@@ -11,6 +11,7 @@ import type { Unlock, UnlockId } from './unlocks';
 import { usingKeyboard } from './input';
 import { canShareFiles } from './share';
 import { reportInfo } from './stats';
+import { PATCH_NOTES, VERSION } from './version';
 
 /** Which unlock reveals each menu tab (settings is always there). */
 const TAB_UNLOCK: Partial<Record<Tab, UnlockId>> = { journey: 'journal', items: 'bag', forge: 'forge', village: 'village' };
@@ -36,11 +37,21 @@ export interface UIHooks {
   resetSave(): void;
   /** Play report: share or download the full file, or copy the summary to paste. */
   exportReport(how: 'file' | 'copy'): void;
+  /** Shows the patch notes (and marks them read). */
+  patchNotes(): void;
   menuClosed(): void;
 }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+/** Is version `a` newer than `b` (both "major.minor.patch")? */
+export const newerThan = (a: string, b: string) => {
+  const [x, y] = [a, b].map((v) => v.split('.').map(Number));
+  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  return false;
+};
+/** Are there patch notes you haven't read? */
+export const hasNews = (s: SaveState) => newerThan(VERSION, s.seenVersion);
 const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', meadow: '🌼', woods: '🌲', cave: '🪨', hollow: '💎', peak: '🌋' };
 
 /** Blender-rendered icon with the emoji as a fallback if the image is missing. */
@@ -257,7 +268,7 @@ export class UI {
   dock(show: boolean) {
     const s = this.hooks.save();
     const j = show && s.unlocked.includes('journal'), b = show && s.unlocked.includes('bag');
-    const jDot = s.fresh.includes('journal'), bDot = s.fresh.some((f) => f === 'bag' || f === 'forge' || f === 'village');
+    const jDot = s.fresh.includes('journal'), bDot = s.fresh.some((f) => f === 'bag' || f === 'forge' || f === 'village') || hasNews(s);
     this.set('dock', `${j}${b}${jDot}${bDot}`, () => {
       $('btn-journal').hidden = !j;
       $('btn-bag').hidden = !b;
@@ -476,7 +487,7 @@ export class UI {
     // Looking at a tab clears its "new" dot.
     const seenKey = TAB_UNLOCK[this.tab];
     if (seenKey) s.fresh = s.fresh.filter((f) => f !== seenKey);
-    const dot = (t: Tab) => (TAB_UNLOCK[t] && s.fresh.includes(TAB_UNLOCK[t]!) ? '<i class="dot on"></i>' : '');
+    const dot = (t: Tab) => ((TAB_UNLOCK[t] && s.fresh.includes(TAB_UNLOCK[t]!)) || (t === 'settings' && hasNews(s)) ? '<i class="dot on"></i>' : '');
     const scroll = fresh ? 0 : this.sheet.querySelector('.body')?.scrollTop ?? 0;
     this.sheet.className = 'sheet menu';
     const closeBtn = '<button class="tab-close" data-do="close" aria-label="Close menu"><span>✕</span>Close<kbd class="key">Esc</kbd></button>';
@@ -701,6 +712,9 @@ export class UI {
   private settings(s: SaveState): string {
     const rep = reportInfo();
     return `
+      <div class="mcard row news"><div class="ico">📰</div><div class="info"><div class="name">What's new${hasNews(s) ? ' <span class="tag new">New!</span>' : ''}</div>
+        <div class="desc">Version ${VERSION}: ${esc(PATCH_NOTES[0].title)}</div></div>
+        <button class="go" data-do="notes">Patch notes</button></div>
       <div class="mcard row"><div class="ico">${s.muted ? '🔇' : '🔊'}</div><div class="info"><div class="name">Sound</div></div>
         <button class="go" data-do="mute">${s.muted ? 'Off' : 'On'}</button></div>
       <h3>How to play</h3>
@@ -758,10 +772,23 @@ export class UI {
     else if (d.do === 'reset') this.hooks.resetSave();
     else if (d.do === 'report') this.hooks.exportReport('file');
     else if (d.do === 'report-copy') this.hooks.exportReport('copy');
+    else if (d.do === 'notes') return this.hooks.patchNotes();
     this.refresh();
   }
 
   // ------------------------------------------------------------ Dialogs
+
+  /** Every version's patch notes, newest first; ones newer than `seen` are marked new. */
+  patchNotes(seen: string) {
+    const fmt = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+    const list = PATCH_NOTES.map((p) => `
+      <section class="patch">
+        <h3>v${p.version} · ${esc(p.title)}${newerThan(p.version, seen) ? ' <span class="tag new">New!</span>' : ''}</h3>
+        <div class="when">${fmt(p.date)}</div>
+        <ul>${p.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>
+      </section>`).join('');
+    return this.dialog(`<div class="big" style="font-size:24px">📰 Patch notes</div><div class="patches">${list}</div>`, [['ok', 'Nice!']], 'notes');
+  }
 
   /** Shows a centered dialog; resolves with the chosen button's value. */
   dialog(html: string, buttons: [string, string, string?][], cls = ''): Promise<string> {
