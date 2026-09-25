@@ -105,8 +105,8 @@ grass, and that every tree, sign and campfire can be reached.
 - **Battles**: no wipe or countdown. The camera swoops in on you, and you land in a clearing dressed in the area's
   scenery (meadow trees and butterflies, woods pines and falling leaves, cave crystals, peak boulders and embers).
   Win and it swoops back out with a toast for XP and loot. Guardians and the dragon fight inside an old stone ring
-  with their full fanfare. Drag to move; ⚔️ attack auto-aims at the nearest enemy (hold to
-  keep swinging); 💨 dodge gives brief invincibility; ✨ uses your weapon's skill; 🧪 drinks a potion.
+  with their full fanfare. Drag to move; ⚔️ attacks the way you last moved, with a small
+  nudge onto an enemy that's nearly dead ahead (an arrow at your feet shows where; hold to keep swinging); 💨 dodge gives brief invincibility; ✨ uses your weapon's skill; 🧪 drinks a potion.
   Enemies telegraph attacks — shaking/glowing before a charge, red circles before a slam.
 - **Weapons play differently** — each type has its own combo, animation and hitbox (hitboxes sweep with the weapon,
   so what you see is what you hit):
@@ -119,7 +119,9 @@ grass, and that every tree, sign and campfire can be reached.
   | 🔨 Hammer | overhead slam that sends a shockwave line forward (×2, bigger) | Quake (stun + 8 shockwaves) |
   | 🪄 Wand | shot → shot → spread | Nova |
 
-  Tiers (★ to ★★★★★) extend reach, grow the trails and hit harder. Elements add effects: 🔥 fire burns over
+  Tiers (★ to ★★★★★) extend reach a little, grow the trails and hit harder. `bun run balance` also measures every
+  weapon (damage per second against its tier, reach and area as a share of the arena, skill coverage), and the
+  tests keep them in line so no weapon or skill can clear the arena by itself. Elements add effects: 🔥 fire burns over
   time, 💎 crystal crits more, 🐉 dragon weapons erupt in dragonfire on every strike.
 - **Woodcutting**: craft an axe at the Forge (Tools tab), then chop trees with a ribbon on them. A marker sweeps
   along a timing bar: strike in the green to build a streak that speeds it up and hits harder; a miss just resets

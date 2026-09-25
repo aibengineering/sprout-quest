@@ -639,7 +639,7 @@ export class UI {
         • Drag anywhere to move. Walk through <b>tall grass</b> to meet monsters.<br>
         • Follow the 📜 goal at the top of the screen. Elder Bloom has hints!<br>
         • <b>Guardians</b> block the roads. Beat them to open the way and light a 🔥 campfire checkpoint.<br>
-        • In battle: ⚔️ attack (hold to combo, auto-aims), 💨 dodge, ✨ weapon skill, 🧪 potion. Red circles mean danger!<br>
+        • In battle: ⚔️ attack the way you last moved (hold to combo), 💨 dodge, ✨ weapon skill, 🧪 potion. Red circles mean danger!<br>
         • Craft gear at the ⚒ Forge and build up the 🏡 Village for permanent boosts.<br>
         • Craft an axe (Forge → Tools) and chop ribboned trees: strike when the marker is in the green. Trees out in the grass give more.<br>
         • Keyboard: WASD/arrows, J/Space attack, K dodge, L skill, H potion, E interact, M menu.

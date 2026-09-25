@@ -1,6 +1,8 @@
 // Balance model: where we expect the player to be at each point in the story, and how fights should feel there.
 // tests/balance.test.ts enforces the targets; `bun run balance` prints the full table while tuning.
-import { GEAR, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type ZoneId } from './data';
+import { ARENA_RX, ARENA_RY } from './arena';
+import { GEAR, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type Style, type ZoneId } from './data';
+import { MOVESETS, comboDps, skillShape, strikeShape, tierScale } from './weapons';
 import { GENTLE_ATK, calcDamage, playerStats, scaleMonster, skillXpToNext, xpToNext, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
@@ -231,6 +233,47 @@ export function weaponTrack(g: Gear): 'hunter' | 'gatherer' | 'both' {
   return (g.tier ?? 0) >= 5 && monster ? 'both' : 'gatherer';
 }
 
+// ----------------------------------------------------------------------------- weapons
+
+/** The arena's area, for judging how much of it one strike covers. */
+export const ARENA_AREA = Math.PI * ARENA_RX * ARENA_RY;
+/** No regular strike (shockwave included) reaches further than this share of the arena's half-width. */
+export const MAX_STRIKE_REACH = 0.7;
+/** …or covers more than this share of the arena. */
+export const MAX_STRIKE_AREA = 0.1;
+/** A skill can clear a crowd, but not the whole arena. */
+export const MAX_SKILL_AREA = 0.3;
+/** A weapon's damage per second (attack × combo rate) stays within this share of its tier's average. */
+export const DPS_SPREAD = 0.2;
+
+export interface WeaponStats { id: string; name: string; tier: number; style: Style; dps: number; reach: number; area: number; skillArea: number; skillMult: number }
+
+export function weaponStats(): WeaponStats[] {
+  return Object.values(GEAR).filter((g) => g.slot === 'weapon').map((g) => {
+    const m = MOVESETS[g.style ?? 'sword'], k = tierScale(g.tier ?? 0);
+    const shapes = m.combo.map((s) => strikeShape(s, k)).filter((_, i) => m.combo[i].shape !== 'shot');
+    const sk = skillShape(m.skill, k);
+    return {
+      id: g.id, name: g.name, tier: g.tier ?? 0, style: g.style ?? 'sword',
+      dps: comboDps(m) * (g.atk ?? 0),
+      reach: Math.max(0, ...shapes.map((s) => s.reach)) / ARENA_RX,
+      area: Math.max(0, ...m.combo.map((s) => strikeShape(s, k).area)) / ARENA_AREA,
+      skillArea: sk.area / ARENA_AREA,
+      skillMult: sk.mult,
+    };
+  });
+}
+
+/** Each weapon's damage per second relative to the average of its tier. */
+export function dpsVsTier(): Record<string, number> {
+  const ws = weaponStats(), out: Record<string, number> = {};
+  for (const w of ws) {
+    const same = ws.filter((o) => o.tier === w.tier);
+    out[w.id] = w.dps / (same.reduce((a, o) => a + o.dps, 0) / same.length);
+  }
+  return out;
+}
+
 const flag = (v: number, [lo, hi]: Range) => (v < lo || v > hi ? `${v}!` : `${v}`);
 
 function levelPace(c: Checkpoint): string {
@@ -266,6 +309,14 @@ export function report(): string {
     return `  ★${t}: ${ws.map((g) => `${g.name} (${weaponTrack(g)})`).join(', ')}`;
   });
   out.push(`\nWeapon tracks\n${tiers.join('\n')}`);
+  const rel = dpsVsTier();
+  out.push(`\nWeapons  (targets: DPS within ±${DPS_SPREAD * 100}% of its tier, reach ≤${MAX_STRIKE_REACH} of the arena's half-width, strike ≤${MAX_STRIKE_AREA * 100}% / skill ≤${MAX_SKILL_AREA * 100}% of the arena)`);
+  out.push(`  ${'weapon'.padEnd(16)} ${'★'.padStart(2)} ${'style'.padEnd(7)} ${'dps'.padStart(5)} ${'vs tier'.padStart(8)} ${'reach'.padStart(6)} ${'area'.padStart(6)} ${'skill'.padStart(6)} ${'×skill'.padStart(7)}`);
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  for (const w of weaponStats()) {
+    const vs = Math.abs(rel[w.id] - 1) > DPS_SPREAD ? `${rel[w.id].toFixed(2)}!` : rel[w.id].toFixed(2);
+    out.push(`  ${w.name.padEnd(16)} ${String(w.tier).padStart(2)} ${w.style.padEnd(7)} ${w.dps.toFixed(0).padStart(5)} ${vs.padStart(8)} ${(w.reach.toFixed(2) + (w.reach > MAX_STRIKE_REACH ? '!' : '')).padStart(6)} ${(pct(w.area) + (w.area > MAX_STRIKE_AREA ? '!' : '')).padStart(6)} ${(pct(w.skillArea) + (w.skillArea > MAX_SKILL_AREA ? '!' : '')).padStart(6)} ${w.skillMult.toFixed(1).padStart(7)}`);
+  }
   return out.join('\n');
 }
 

@@ -10,11 +10,16 @@ import type { Input } from './input';
 import { GENTLE_ATK, calcDamage, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from './rules';
 import { drawMonster, drawPlayer, drawWeapon, rrect, shadow } from './sprites';
 import type { SaveState } from './state';
-import { MOVESETS, tierScale, type Moveset, type Strike } from './weapons';
+import { MOVESETS, SKILL_DATA, tierScale, type Moveset, type Strike } from './weapons';
 import { hash2 } from './world';
 
 const TAU = Math.PI * 2;
 const SKILL_CD = 4.5;
+/**
+ * Attacks go the way you last moved. An enemy within this angle (radians) of that direction gets lined up
+ * with, so thumbsticks don't whiff on something just off-line; anything wider you have to turn to face.
+ */
+export const AIM_ASSIST = 0.3;
 /** Arena units per Blender unit for sprites (drawn a little larger than their hitboxes so they read on phones). */
 const UNIT = 34;
 
@@ -124,10 +129,6 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a);
 /** Per-monster display scale so every model reads at a similar size to its hitbox. */
 export const SPRITE_SCALE: Partial<Record<MonsterKind, number>> = { wolf: 1.4, bunny: 1.25, bat: 1.2, imp: 1.2, shroom: 1.1, dragon: 1.1 };
 
-const SKILLS: Record<'spin' | 'quake', Strike> = {
-  spin: { anim: 'spin', shape: 'arc', windup: 0.06, active: 0.3, recover: 0.16, range: 100, size: TAU, mult: 1.7, kb: 260, turns: 1.5, shake: 7, hitstop: 0.06, move: 0.6, stun: 0.3 },
-  quake: { anim: 'slam', shape: 'circle', windup: 0.36, active: 0.1, recover: 0.42, range: 0, reach: 0, size: 150, mult: 2.2, kb: 360, shake: 16, hitstop: 0.12, move: 0.1, stun: 1.3 },
-};
 
 const ELEMENT_COLORS: Record<Element, string[]> = {
   none: ['#ffffff', '#e8eef8'],
@@ -324,14 +325,14 @@ export class Battle {
       if (Math.random() < 0.6) this.fx.burst(p.x, p.y - 4, 'rgba(255,255,255,0.8)', 1, 30, { size: 4, grav: 0, life: 0.3 });
     } else if (p.lungeT > 0) {
       p.lungeT -= dt;
-      p.vx = Math.cos(p.lungeDir) * 150 * 4.8;
-      p.vy = Math.sin(p.lungeDir) * 150 * 4.8;
+      p.vx = Math.cos(p.lungeDir) * SKILL_DATA.lunge.speed;
+      p.vy = Math.sin(p.lungeDir) * SKILL_DATA.lunge.speed;
       this.trailPuff(p.x, p.y - 12);
       for (const e of this.enemies) {
         if (e.dead || e.hitId === p.lungeId) continue;
-        if (Math.hypot(e.x - p.x, e.y - e.r * 0.6 - (p.y - 10)) < e.r + 30 * this.reach) {
+        if (Math.hypot(e.x - p.x, e.y - e.r * 0.6 - (p.y - 10)) < e.r + SKILL_DATA.lunge.radius * this.reach) {
           e.hitId = p.lungeId;
-          this.hitEnemy(e, 2.1, p.lungeDir, 220, 0.2, p.lungeId, 0.07);
+          this.hitEnemy(e, SKILL_DATA.lunge.mult, p.lungeDir, 220, 0.2, p.lungeId, 0.07);
         }
       }
     } else {
@@ -381,18 +382,21 @@ export class Battle {
     return sw.t >= sw.s.windup + sw.s.active + sw.s.recover * 0.35;
   }
 
-  private nearestEnemy(maxD = 320): Enemy | null {
-    let best: Enemy | null = null, bd = maxD;
+  /** The enemy almost straight ahead of you (within AIM_ASSIST), if any. */
+  private aimTarget(): Enemy | null {
+    const p = this.p;
+    let best: Enemy | null = null, bd = AIM_ASSIST;
     for (const e of this.enemies) {
-      if (e.dead) continue;
-      const d = Math.hypot(e.x - this.p.x, e.y - this.p.y) - e.r;
+      if (e.dead || Math.hypot(e.x - p.x, e.y - p.y) - e.r > 220) continue;
+      const d = Math.abs(angDiff(Math.atan2(e.y - e.r * 0.6 - (p.y - 10), e.x - p.x), p.face));
       if (d < bd) { bd = d; best = e; }
     }
     return best;
   }
 
+  /** Where the next attack goes: the way you're facing, nudged onto an enemy that's nearly dead ahead. */
   private aim(): number {
-    const e = this.nearestEnemy();
+    const e = this.aimTarget();
     return e ? Math.atan2(e.y - e.r * 0.6 - (this.p.y - 10), e.x - this.p.x) : this.p.face;
   }
 
@@ -554,9 +558,10 @@ export class Battle {
     }
     if (sw.skill) {
       // Quake: shockwaves burst out in every direction.
-      for (let i = 0; i < 8; i++) {
-        const dir = sw.aim + (i / 8) * TAU;
-        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: 190 * this.reach, width: 40, speed: 560, mult: 0.9, id: ++this.hitCounter, spikeAt: 0 });
+      const q = SKILL_DATA.quake.waves;
+      for (let i = 0; i < q.count; i++) {
+        const dir = sw.aim + (i / q.count) * TAU;
+        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: q.mult, id: ++this.hitCounter, spikeAt: 0 });
       }
     }
   }
@@ -607,8 +612,8 @@ export class Battle {
     const col = ELEMENT_COLORS[this.element];
     switch (this.moves.skill) {
       case 'spin':
-        this.startSwing(SKILLS.spin, true, true);
-        this.rings.push({ x: p.x, y: p.y - 10, r0: 20, r1: 110 * this.reach, t: 0, dur: 0.35, color: '255,255,200' });
+        this.startSwing(SKILL_DATA.spin, true, true);
+        this.rings.push({ x: p.x, y: p.y - 10, r0: 20, r1: SKILL_DATA.spin.range * this.reach, t: 0, dur: 0.35, color: '255,255,200' });
         if (this.element === 'fire' || this.element === 'dragon') {
           for (let i = 0; i < 16; i++) {
             const a = (i / 16) * TAU;
@@ -617,22 +622,22 @@ export class Battle {
         }
         break;
       case 'lunge':
-        p.lungeT = 0.24;
+        p.lungeT = SKILL_DATA.lunge.dur;
         p.lungeDir = ang;
         p.lungeId = ++this.hitCounter;
         p.iframes = Math.max(p.iframes, 0.38);
         p.face = ang;
         break;
       case 'whirl':
-        p.whirlT = 1.2;
+        p.whirlT = SKILL_DATA.whirl.dur;
         p.whirlTick = 0;
         p.whirlAng = ang;
         break;
       case 'quake':
-        this.startSwing(SKILLS.quake, true, true);
+        this.startSwing(SKILL_DATA.quake.strike, true, true);
         break;
       case 'nova':
-        for (let i = 0; i < 14; i++) this.shoot(ang + (i / 14) * TAU, 1.1, 8);
+        for (let i = 0; i < SKILL_DATA.nova.shots; i++) this.shoot(ang + (i / SKILL_DATA.nova.shots) * TAU, SKILL_DATA.nova.mult, SKILL_DATA.nova.size);
         this.rings.push({ x: p.x, y: p.y - 10, r0: 10, r1: 70, t: 0, dur: 0.3, color: '160,230,255' });
         break;
     }
@@ -645,13 +650,13 @@ export class Battle {
     p.whirlAng += dt * 20;
     p.face = p.whirlAng;
     if (p.whirlTick <= 0) {
-      p.whirlTick = 0.16;
+      p.whirlTick = SKILL_DATA.whirl.tick;
       const id = ++this.hitCounter;
-      const range = 92 * this.reach;
+      const range = SKILL_DATA.whirl.radius * this.reach;
       for (const e of this.enemies) {
         if (e.dead) continue;
         if (Math.hypot(e.x - p.x, e.y - e.r * 0.6 - (p.y - 10)) - e.r > range) continue;
-        this.hitEnemy(e, 0.8, Math.atan2(e.y - p.y, e.x - p.x), 160, 0.1, id, 0.02);
+        this.hitEnemy(e, SKILL_DATA.whirl.mult, Math.atan2(e.y - p.y, e.x - p.x), 160, 0.1, id, 0.02);
       }
       this.audio.play('swing');
     }
@@ -1430,8 +1435,24 @@ export class Battle {
       ctx.stroke();
     }
 
-    // Auto-aim target marker
-    const tgt = this.endT < 0 ? this.nearestEnemy() : null;
+    // Which way you'll swing: an arrow on the ground ahead of you, and a ring on the enemy you're lined up with.
+    if (this.endT < 0 && this.intro <= 0) {
+      const p = this.p, a = p.face, d = 30;
+      ctx.save();
+      ctx.translate(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d * 0.62);
+      ctx.scale(1, 0.62);
+      ctx.rotate(a);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.beginPath();
+      ctx.moveTo(9, 0);
+      ctx.lineTo(-5, -8);
+      ctx.lineTo(-2, 0);
+      ctx.lineTo(-5, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    const tgt = this.endT < 0 ? this.aimTarget() : null;
     if (tgt) {
       ctx.strokeStyle = 'rgba(255,255,255,0.55)';
       ctx.lineWidth = 2;
@@ -1869,7 +1890,7 @@ export class Battle {
       ctx.globalAlpha = 0.35;
       ctx.strokeStyle = this.weapon.trail ?? '#fff';
       ctx.lineWidth = 16;
-      const R = 80 * this.reach;
+      const R = SKILL_DATA.whirl.radius * this.reach;
       for (let k = 0; k < 3; k++) {
         ctx.beginPath();
         ctx.ellipse(p.x, p.y - 10, R, R * 0.8, 0, ang - 1.4 + (k * TAU) / 3, ang + (k * TAU) / 3);

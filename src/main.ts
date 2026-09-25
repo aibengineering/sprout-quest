@@ -804,7 +804,7 @@ function coachBattle(b: Battle) {
   if (save.wins === 0) {
     if (coachStep === 0) {
       if (b.hits > 0) { coachStep = 1; coachT = 0; }
-      return ui.coach(`${press('J', '⚔️')} to attack! It aims for you.`, 'btn-attack');
+      return ui.coach(`Walk toward it, then ${press('J', '⚔️')}: you swing the way you're facing.`, 'btn-attack');
     }
     return ui.coach(null);
   }

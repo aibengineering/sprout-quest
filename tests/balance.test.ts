@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { GEAR } from '../src/data';
 import {
-  CHECKPOINTS, KILLS_PER_LEVEL, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToWoodLevel,
+  CHECKPOINTS, DPS_SPREAD, KILLS_PER_LEVEL, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, dpsVsTier, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToWoodLevel,
   weaponTrack, zoneMatchups, type Range,
 } from '../src/balance';
 
@@ -60,5 +60,19 @@ describe('balance', () => {
 
   test(`every Dragon Scale takes ≤${MAX_DRAGON_FIGHTS} Emberwyrm fights`, () => {
     expect(dragonFights()).toBeLessThanOrEqual(MAX_DRAGON_FIGHTS);
+  });
+
+  test(`every weapon's damage per second is within ±${DPS_SPREAD * 100}% of its tier`, () => {
+    const off = Object.entries(dpsVsTier()).filter(([, r]) => Math.abs(r - 1) > DPS_SPREAD).map(([id, r]) => `${id}: ${r.toFixed(2)}× its tier`);
+    expect(off).toEqual([]);
+  });
+
+  test('no strike reaches or covers too much of the arena, and no skill clears it', () => {
+    const off = weaponStats().flatMap((w) => [
+      ...(w.reach > MAX_STRIKE_REACH ? [`${w.name} reaches ${w.reach.toFixed(2)} of the arena`] : []),
+      ...(w.area > MAX_STRIKE_AREA ? [`${w.name} strike covers ${(w.area * 100).toFixed(0)}%`] : []),
+      ...(w.skillArea > MAX_SKILL_AREA ? [`${w.name} skill covers ${(w.skillArea * 100).toFixed(0)}%`] : []),
+    ]);
+    expect(off).toEqual([]);
   });
 });
