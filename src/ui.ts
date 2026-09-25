@@ -78,6 +78,17 @@ function goalIcon(q: Quest): string {
   return icon('npc_elder', '🌿', 'icon xl');
 }
 
+/** Every icon the menus can show (materials, gear, tools, guardians, buildings, the Elder), for preloading. */
+export function allIconIds(): string[] {
+  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'campfire',
+    ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`))];
+  return [
+    ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
+    ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
+    ...buildings.map((b) => `b_${b}`), 'npc_elder',
+  ];
+}
+
 function buildingIcon(id: ProjectId, level: number): string {
   if (level === 0) return icon(id === 'warp' ? 'b_warp0' : 'b_plot', PROJECTS[id].icon, 'icon lg');
   const name = id === 'forge' ? ['forge', 'forge2', 'forge3'][level - 1] : `${id}${level}`;

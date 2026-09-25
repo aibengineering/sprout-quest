@@ -42,7 +42,8 @@ bun install
 bun run dev        # http://localhost:3000 — also prints a LAN URL to open on your phone
 ```
 
-On a phone, "Add to Home Screen" for a fullscreen, app-like experience. Progress saves automatically (localStorage).
+The title screen shows a loading bar (game code, then sprite download in MB, then menu icons) and only offers
+Continue / New Game once everything is in, so nothing starts half-drawn. On a phone, "Add to Home Screen" for a fullscreen, app-like experience. Progress saves automatically (localStorage).
 
 Every push to `main` runs the typecheck and tests, builds the site and deploys it to GitHub Pages
 (`.github/workflows/deploy.yml`).

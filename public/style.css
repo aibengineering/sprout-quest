@@ -482,6 +482,16 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 900; opacity: 0.75; }
 }
 .big-btn.alt { background: var(--paper); color: var(--ink); box-shadow: 0 6px 0 rgba(74, 42, 90, 0.4); }
 .big-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #c85a3a; }
+/* Loading bar: animated stripes until the game code runs, then real progress. */
+#loading { width: min(280px, 80vw); display: flex; flex-direction: column; align-items: center; gap: 10px; transition: opacity 0.3s; }
+#loading.done { opacity: 0; }
+.lbar { width: 100%; height: 16px; border-radius: 10px; background: rgba(42, 26, 48, 0.45); box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.2), 0 2px 0 rgba(255, 255, 255, 0.25); overflow: hidden; }
+.lbar i { display: block; height: 100%; width: 0; border-radius: 10px; background: linear-gradient(#8af09a, #4fb043); transition: width 0.2s; }
+.lbar.waiting i { width: 35%; animation: lwait 1.1s infinite ease-in-out; }
+@keyframes lwait { 0% { transform: translateX(-100%); } 100% { transform: translateX(290%); } }
+#load-text { color: #fff; font-size: 14px; font-weight: 800; text-shadow: 0 2px 0 var(--ink); min-height: 1.2em; }
+.title-btns.appear { animation: appear 0.35s ease-out; }
+@keyframes appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .hint { color: #fff; font-size: 13px; font-weight: 700; opacity: 0.9; text-shadow: 0 1px 0 var(--ink); line-height: 1.5; }
 #modal:not([hidden]) ~ #toast { top: calc(10px + var(--safe-t)); }
 img.icon { width: 44px; height: 44px; object-fit: contain; display: inline-block; vertical-align: middle; filter: drop-shadow(0 2px 0 rgba(74, 42, 90, 0.18)); }

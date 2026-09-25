@@ -281,10 +281,12 @@ export class Overworld {
     const hop = r.moving || r.state === 'notice' ? Math.abs(Math.sin(this.t * (r.state === 'chase' ? 12 : 7) + r.seed)) * ts * 0.14 : 0;
     const flying = r.kind === 'bat' || r.kind === 'imp';
     const lift = flying ? ts * (0.35 + Math.sin(this.t * 3 + r.seed) * 0.06) : hop;
-    shadow(ctx, px, py, ts * 0.28 * (flying ? 0.7 : 1));
     const f = frame(`mon/${r.kind}${r.golden ? '_gold' : ''}/${Math.floor(this.t * 7 + r.seed) % 6}`);
+    // Nothing at all until its sprite is in (no lone shadow or badge floating in the grass).
+    if (!f) return;
+    shadow(ctx, px, py, ts * 0.28 * (flying ? 0.7 : 1));
     // Same size relative to the hero as in battle.
-    if (f) drawFrame(ctx, f, px, py - lift, ts * 0.74 * (SPRITE_SCALE[r.kind] ?? 1), { flip: r.face < 0 });
+    drawFrame(ctx, f, px, py - lift, ts * 0.74 * (SPRITE_SCALE[r.kind] ?? 1), { flip: r.face < 0 });
     if (r.golden && Math.random() < 0.1) this.fx.burst(px + (Math.random() - 0.5) * ts * 0.6, py - Math.random() * ts * 0.8, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.6 });
     // Tall grass hides their feet, like yours.
     if (this.world.tile(Math.floor(r.x), Math.floor(r.y - 0.1)) === T.GRASS && !flying) {
@@ -430,6 +432,8 @@ export class Overworld {
   private drawTree(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
     const ready = (this.save.nodes[o.id!] ?? 0) <= Date.now();
     const rock = NODES[o.node!].skill === 'mine';
+    // Rocks have no drawn fallback: skip them (glow and all) until the sprites are in.
+    if (rock && !frame(`env/${o.node}_node`)) return;
     const shake = o === this.chopping && this.shakeT > 0 ? Math.sin(this.shakeT * 70) * this.shakeT * 0.25 : 0;
     const cx = (o.x + o.w / 2) * ts, by = (o.y + o.h - 0.08) * ts;
     if (ready) {

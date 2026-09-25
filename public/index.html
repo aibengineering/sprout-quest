@@ -64,7 +64,12 @@
         <h1>Sprout<br />Quest</h1>
         <p>Fight cute monsters · Craft cool gear</p>
       </div>
-      <div class="title-btns">
+      <!-- Shown from the first paint, before any code runs; the buttons appear only once everything is loaded. -->
+      <div id="loading" aria-live="polite">
+        <div class="lbar waiting"><i id="load-fill"></i></div>
+        <div id="load-text">Loading the game…</div>
+      </div>
+      <div class="title-btns" hidden>
         <button id="btn-continue" class="big-btn" hidden>Continue<kbd class="key">Enter</kbd></button>
         <button id="btn-new" class="big-btn alt">New Game<kbd class="key" id="new-key">N</kbd></button>
       </div>

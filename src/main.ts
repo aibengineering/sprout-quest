@@ -1,5 +1,5 @@
 // Entry point: owns the game loop, mode switching and glue between world, battles and UI.
-import { loadAssets } from './assets';
+import { loadAssets, preloadIcons } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
 import { GEAR, GEAR_ORDER, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, SKILL_VERB, TOOLS, ZONES, forgeLevelFor, zoneById, type MatId, type MonsterKind, type NodeKind, type Recipe, type Zone, type ZoneId } from './data';
@@ -11,7 +11,7 @@ import { advanceQuests, currentQuest, recordKills } from './quests';
 import { checkUnlocks, has } from './unlocks';
 import { build, canGather, craftGear, craftPotion, craftTool, equip, gainXp, harvest, hasMats, mergeDrops, missingSkill, playerStats, potionRefill, sweetWidth, toolPower, weightedPick } from './rules';
 import { clearState, loadState, newState, saveState, type SaveState } from './state';
-import { UI } from './ui';
+import { UI, allIconIds } from './ui';
 import { World, type WorldObj } from './world';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
@@ -716,11 +716,41 @@ function startGame(fresh: boolean) {
   void progressQuests();
 }
 
-document.getElementById('btn-continue')!.hidden = !loadState();
-document.getElementById('new-key')!.textContent = loadState() ? 'N' : 'Enter';
+/** Set once the sprites and icons are in; the title's buttons only exist from then on. */
+let booted = false;
+
+/**
+ * Title screen loading: the HTML shows an animated bar from the first paint; here it becomes real progress
+ * (sprite bytes, then menu icons), and only then do Continue / New Game appear, so nothing starts half-drawn.
+ */
+async function boot() {
+  const fill = document.getElementById('load-fill')!, text = document.getElementById('load-text')!;
+  const show = (frac: number, msg: string) => {
+    fill.style.width = `${Math.round(Math.min(1, frac) * 100)}%`;
+    text.textContent = msg;
+  };
+  fill.parentElement!.classList.remove('waiting');
+  show(0.03, 'Fetching monsters and scenery…');
+  const mb = (n: number) => (n / 1048576).toFixed(1);
+  const ok = await loadAssets((p) => show(0.05 + 0.8 * (p.total ? p.done / p.total : 0), `Fetching monsters and scenery… ${mb(p.done)} / ${mb(p.total)} MB`));
+  if (!ok) show(0.85, 'Sprites unavailable: using simple drawings');
+  await preloadIcons(allIconIds(), (p) => show(0.85 + 0.15 * (p.done / p.total), `Unpacking menu icons… ${p.done} / ${p.total}`));
+  show(1, 'Ready!');
+  const saved = !!loadState();
+  document.getElementById('btn-continue')!.hidden = !saved;
+  document.getElementById('new-key')!.textContent = saved ? 'N' : 'Enter';
+  const btns = document.querySelector('.title-btns') as HTMLElement;
+  btns.hidden = false;
+  btns.classList.add('appear');
+  const loading = document.getElementById('loading')!;
+  loading.classList.add('done');
+  setTimeout(() => (loading.hidden = true), 300);
+  booted = true;
+}
+
 // Title screen: Enter continues (or starts), N starts a new game.
 window.addEventListener('keydown', (e) => {
-  if (mode !== 'title' || ui.isOpen || e.repeat) return;
+  if (mode !== 'title' || ui.isOpen || e.repeat || !booted) return;
   const cont = document.getElementById('btn-continue')!;
   if (e.code === 'Enter' || e.code === 'Space') (cont.hidden ? document.getElementById('btn-new')! : cont).click();
   else if (e.code === 'KeyN') document.getElementById('btn-new')!.click();
@@ -1004,7 +1034,7 @@ function drawIris(q: number) {
 }
 
 ui.setMode('title');
-void loadAssets();
+void boot();
 requestAnimationFrame(frame);
 
 // Exposed for quick debugging from the console / automated smoke tests.
