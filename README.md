@@ -1,16 +1,20 @@
 # 🌱 Sprout Quest
 
-> **This game is a test of Claude Opus 5.5's capabilities, built on release day (22–23 September 2026).**
+> **Sprout Quest has been built entirely by Claude Opus 5.5, starting on the model's release day (22 September 2026).**
 >
-> Everything here (the game code, the Blender art pipeline and every 3D model, the tests and this repo) was written by
-> Claude Opus 5.5 in [Claude Code](https://claude.com/claude-code) from a single conversation of plain-language requests.
-> A human played it on their phone and gave feedback between turns; no code or art was written by hand.
+> Everything here (the game code, the Blender art pipeline and every 3D model, the tests, CI and this repo) was written
+> by Claude Opus 5.5 in [Claude Code](https://claude.com/claude-code) from plain-language requests. A human plays it on
+> their phone and gives feedback between turns; no code or art has been written by hand.
 
 **▶ Play it: https://aibengineering.github.io/sprout-quest/** (best on a phone, in portrait)
 
-### How it was built, by the numbers
+## How it was built
 
-Measured from the Claude Code session log, up to the first push of this repo:
+### Release day: a playable game from a handful of prompts (0.1.0)
+
+The first version was built in one conversation on release day, and was a complete, playable game by the first push:
+a prologue, four areas, real-time battles, guardian bosses, a village to rebuild and gear to craft. Measured from the
+Claude Code session log, up to that first push:
 
 | | |
 | --- | --- |
@@ -27,6 +31,23 @@ different and powerful* · *add story, bosses and milestones that gate progressi
 experience less overwhelming* · *start with a prologue before the village* · *move the bag near the thumbs* ·
 *let me close the menu from the bottom* · *fix two bugs with the forge quest*.
 
+### Since then: playing it and iterating (0.2.0 onward)
+
+Since the first release, development has been a loop: play the game on a phone, describe what feels off, and have
+Opus 5.5 rework it. Some of the bigger rounds so far:
+
+- **Progression overhaul (0.2.0):** a new area, woodcutting and mining with tool tiers, four weapon classes with monster
+  and ore tracks, weapon handling, stamina, level-up screens and gear that stays a mystery until you reach its level
+- **Playtest data:** an in-game play report (fights, stamina, deaths, time per area) exported after a playthrough and
+  handed back to Opus 5.5 to tune the balance against real play, not just the balance model
+- **Engineering:** splitting the largest modules, an end-to-end browser test, CI, a `dev` → `main` release flow and
+  in-game patch notes
+- **Visual pass (0.2.1):** a sharper, outlined hero whose every armor changes their silhouette, and axes and picks
+  that swing into the tree or rock
+
+Each release's player-facing changes are in the in-game patch notes (`src/version.ts`).
+
+## The game
 
 A cute, mobile-first little adventure game. Wander from Sprout Village through tall grass, get pulled into
 real-time arena battles, level up, chop and mine your way up the material tiers, and craft better gear at the Forge,
