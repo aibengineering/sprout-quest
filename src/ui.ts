@@ -2,10 +2,10 @@
 import { iconUrl } from './assets';
 import {
   GEAR, GEAR_ORDER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
-  STYLE_NAMES, TOOLS, ZONES, forgeLevelFor, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
+  STYLE_NAMES, TOOLS, ZONES, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
 } from './data';
 import { currentQuest, progress, questNeeds } from './quests';
-import { MASTERY_MAX, canBuild, hasMats, masteryShort, masteryXpToNext, missingSkill, playerStats, skillXpToNext, xpToNext } from './rules';
+import { MASTERY_MAX, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, skillXpToNext, xpToNext, type Lock } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
 import { usingKeyboard } from './input';
@@ -58,6 +58,23 @@ export function gearStats(g: Gear): string {
 }
 
 const stars = (g: Gear) => (g.slot === 'weapon' ? `<span class="stars">${STYLE_NAMES[g.style!]} ${'★'.repeat(g.tier ?? 0) || '☆'}</span>` : '');
+
+/** What a lock asks of you, in a few words. */
+function lockLabel(l: Lock): string {
+  switch (l.kind) {
+    case 'forge': return PROJECTS.forge.levels[l.level - 1].name;
+    case 'skill': return `${SKILL_NAMES[l.skill]} ${l.level}`;
+    case 'handling': return `${STYLE_NAMES[l.style]} handling ${l.level}`;
+  }
+}
+
+/** A Forge item you haven't reached the level for: a silhouette and a "?", and only what level reveals it. */
+function mysteryCard(art: string, tier: string, l: Lock): string {
+  const how = l.kind === 'forge' ? `Upgrade the Forge to the ${lockLabel(l)} to reveal it.` : `Reach ${lockLabel(l)} to reveal it.`;
+  return `<div class="mcard rcp mystery"><div class="ico">${art}</div>
+    <div class="info"><div class="name">??? ${tier}</div><div class="desc">${esc(how)}</div></div>
+    <span class="tag lock">🔒 ${esc(lockLabel(l))}</span></div>`;
+}
 
 function costChips(s: SaveState, r: Recipe): string {
   return Object.entries(r)
@@ -618,14 +635,12 @@ export class UI {
     if (this.sub.forge === 'tool') {
       const cards = TOOLS.map((t) => {
         const owned = s.tools[t.skill] >= t.tier;
-        const locked = s.skills[t.skill].lv < t.level;
-        let action: string;
-        if (owned) action = '<span class="tag">✓ Owned</span>';
-        else if (locked) action = `<span class="tag lock">🔒 ${SKILL_NAMES[t.skill]} ${t.level}</span>`;
-        else action = `<button class="go" data-tool="${t.id}" ${at && hasMats(s, t.recipe) ? '' : 'disabled'}>Craft</button>`;
-        return `<div class="mcard rcp ${locked ? 'locked' : ''} ${owned ? 'owned' : ''}"><div class="ico">${icon(t.id, t.icon, 'icon lg')}</div>
+        const lock = owned ? null : levelLock(s, t);
+        if (lock) return mysteryCard(icon(t.id, t.icon, 'icon lg'), `<span class="stars">${'★'.repeat(t.tier)}</span>`, lock);
+        const action = owned ? '<span class="tag">✓ Owned</span>' : `<button class="go" data-tool="${t.id}" ${at && hasMats(s, t.recipe) ? '' : 'disabled'}>Craft</button>`;
+        return `<div class="mcard rcp ${owned ? 'owned' : ''}"><div class="ico">${icon(t.id, t.icon, 'icon lg')}</div>
           <div class="info"><div class="name">${esc(t.name)} <span class="stars">${'★'.repeat(t.tier)}</span></div>
-          <div class="desc">${esc(t.desc)}</div>${owned || locked ? '' : `<div class="chips">${costChips(s, t.recipe)}</div>`}</div>${action}</div>`;
+          <div class="desc">${esc(t.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, t.recipe)}</div>`}</div>${action}</div>`;
       }).join('');
       return `${note}${seg}<p class="sub">Tools are used automatically. Walk up to a glowing tree to chop it, or a glowing rock to mine it.</p>${cards}`;
     }
@@ -641,20 +656,14 @@ export class UI {
     const cards = GEAR_ORDER.filter((id) => GEAR[id].slot === this.sub.forge && GEAR[id].recipe).map((id) => {
       const g = GEAR[id];
       const owned = s.owned.includes(id);
-      const need = forgeLevelFor(g);
-      const skillLock = missingSkill(s, g.needs);
-      const handlingLock = masteryShort(s, g);
-      const skillLocked = !!skillLock || !!handlingLock;
-      const locked = flv < need || skillLocked;
-      let action: string;
-      if (owned) action = s.equip[g.slot] === id ? '<span class="tag">✓ Equipped</span>' : `<button class="go ghost" data-equip="${id}">Equip</button>`;
-      else if (flv < need) action = `<span class="tag lock">🔒 ${esc(PROJECTS.forge.levels[need - 1].name)}</span>`;
-      else if (skillLock) action = `<span class="tag lock">🔒 ${SKILL_NAMES[skillLock.skill]} ${skillLock.level}</span>`;
-      else if (handlingLock) action = `<span class="tag lock">🔒 ${STYLE_NAMES[g.style!]} handling ${handlingLock}</span>`;
-      else action = `<button class="go" data-craft="${id}" ${at && hasMats(s, g.recipe!) ? '' : 'disabled'}>Craft</button>`;
-      return `<div class="mcard rcp ${locked ? 'locked' : ''} ${owned ? 'owned' : ''}"><div class="ico">${icon(g.id, g.icon, 'icon lg')}</div>
+      const lock = owned ? null : levelLock(s, g);
+      if (lock) return mysteryCard(icon(g.id, g.icon, 'icon lg'), stars(g), lock);
+      const action = owned
+        ? s.equip[g.slot] === id ? '<span class="tag">✓ Equipped</span>' : `<button class="go ghost" data-equip="${id}">Equip</button>`
+        : `<button class="go" data-craft="${id}" ${at && hasMats(s, g.recipe!) ? '' : 'disabled'}>Craft</button>`;
+      return `<div class="mcard rcp ${owned ? 'owned' : ''}"><div class="ico">${icon(g.id, g.icon, 'icon lg')}</div>
         <div class="info"><div class="name">${esc(g.name)} ${stars(g)}</div><div class="stats">${gearStats(g)}</div>
-        <div class="desc">${esc(g.desc)}</div>${owned || locked ? '' : `<div class="chips">${costChips(s, g.recipe!)}</div>`}</div>${action}</div>`;
+        <div class="desc">${esc(g.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, g.recipe!)}</div>`}</div>${action}</div>`;
     }).join('');
     return `${note}${seg}${cards}`;
   }
@@ -849,7 +858,7 @@ export class UI {
     return this.dialog(
       `<div class="lvup"><div class="confetti">${emoji}✨${emoji}</div><div class="qchap">${esc(title)}</div>
        <div class="big" style="font-size:36px">Level ${lv}</div><p>${esc(note)}</p>
-       ${list ? `<div class="qchap">Now you can craft</div><div class="unlocks">${list}</div>` : ''}</div>`,
+       ${list ? `<div class="qchap">Unlocked in the Forge</div><div class="unlocks">${list}</div>` : ''}</div>`,
       [['ok', 'Nice!']],
       'celebrate',
     );

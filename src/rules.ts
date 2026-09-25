@@ -1,5 +1,5 @@
 // Pure game rules: stats, damage, leveling, drops and crafting. No DOM access, so it's unit-testable.
-import { GEAR, MASTERY_FOR_TIER, MAX_POTIONS, NODES, POTION_RECIPES, PROJECTS, SKILL_MAX, SLOW_TOOL, TOOLS, forgeLevelFor, type Gear, type MatId, type MonsterDef, type NodeKind, type ProjectId, type Recipe, type SkillId, type Style } from './data';
+import { GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MAX_POTIONS, NODES, POTION_RECIPES, PROJECTS, SKILL_MAX, SLOW_TOOL, TOOLS, forgeLevelFor, type Gear, type Tool, type MatId, type MonsterDef, type NodeKind, type ProjectId, type Recipe, type SkillId, type Style } from './data';
 import type { SaveState } from './state';
 
 export type Rng = () => number;
@@ -264,6 +264,27 @@ export function masteryShort(s: SaveState, g: Gear): number | null {
   if (g.slot !== 'weapon' || !g.style) return null;
   const need = MASTERY_FOR_TIER[g.tier ?? 0] ?? 0;
   return s.mastery[g.style].lv < need ? need : null;
+}
+
+/** A level an item is still waiting on: the Forge's, a gathering skill's, or a weapon class's handling. */
+export type Lock = { kind: 'forge'; level: number } | { kind: 'skill'; skill: SkillId; level: number } | { kind: 'handling'; style: Style; level: number };
+
+/** The first level an item still needs. Until it has none, the Forge keeps it a mystery. */
+export function levelLock(s: SaveState, item: Gear | Tool): Lock | null {
+  if ('skill' in item) return s.skills[item.skill].lv < item.level ? { kind: 'skill', skill: item.skill, level: item.level } : null;
+  const forge = forgeLevelFor(item);
+  if (s.build.forge < forge) return { kind: 'forge', level: forge };
+  const skill = missingSkill(s, item.needs);
+  if (skill) return { kind: 'skill', ...skill };
+  const handling = masteryShort(s, item);
+  if (handling) return { kind: 'handling', style: item.style!, level: handling };
+  return null;
+}
+
+/** Every craftable gear and tool id whose level requirements are all met: what the Forge reveals. */
+export function revealed(s: SaveState): Set<string> {
+  const gear = GEAR_ORDER.map((id) => GEAR[id]).filter((g) => g.recipe && !levelLock(s, g));
+  return new Set([...gear.map((g) => g.id), ...TOOLS.filter((t) => !levelLock(s, t)).map((t) => t.id)]);
 }
 
 export interface GatherReward { drops: Partial<Record<MatId, number>>; xp: number; levels: number }

@@ -2,14 +2,14 @@
 import { loadAssets, preloadIcons } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
-import { GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, SKILL_VERB, STYLE_NAMES, TOOLS, ZONES, forgeLevelFor, zoneById, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Zone, type ZoneId } from './data';
+import { GEAR, GEAR_ORDER, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, SKILL_VERB, STYLE_NAMES, TOOLS, ZONES, forgeLevelFor, zoneById, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Zone, type ZoneId } from './data';
 import { Chop, GatherView, type Look } from './gather';
 import type { Roamer } from './roamers';
 import { Input, trackInputDevice, usingKeyboard } from './input';
 import { Overworld } from './overworld';
 import { advanceQuests, currentQuest, recordKills } from './quests';
 import { checkUnlocks, has } from './unlocks';
-import { build, canGather, craftGear, craftPotion, craftTool, equip, gainMastery, gainXp, harvest, hasMats, mergeDrops, missingSkill, playerStats, potionRefill, sweetWidth, toolPower, weightedPick } from './rules';
+import { build, canGather, craftGear, craftPotion, craftTool, equip, gainMastery, gainXp, harvest, hasMats, mergeDrops, missingSkill, playerStats, potionRefill, revealed, sweetWidth, toolPower, weightedPick } from './rules';
 import { buildReport, clearLog, logEvent } from './stats';
 import { clearState, loadState, newState, saveState, type SaveState } from './state';
 import { UI, allIconIds, icon as iconHtml } from './ui';
@@ -63,11 +63,13 @@ const ui = new UI({
     if (!advanced) ui.openMenu(menuCtx(true), 'forge');
   },
   build(id) {
+    const shown = revealed(save);
     if (build(save, id) === 'ok') {
       logEvent(save, { kind: 'build', id, lv: save.build[id] });
       audio.play('levelup');
       const lvl = PROJECTS[id].levels[save.build[id] - 1];
-      ui.toast(`🏗 Built the ${lvl.name}! ${lvl.perk}`, 3200);
+      const fresh = newlyRevealed(shown).length;
+      ui.toast(`🏗 Built the ${lvl.name}! ${lvl.perk}${fresh ? ` · ${fresh} new recipe${fresh > 1 ? 's' : ''} in the Forge!` : ''}`, 3600);
       // Upgrades that raise max HP also top you up.
       save.hp = Math.min(playerStats(save).maxHp, save.hp + 10);
       persist();
@@ -336,11 +338,25 @@ function lootLines(drops: Partial<Record<MatId, number>>, xp: { n: number; what?
 }
 
 /**
+ * Gear and tools a level just revealed in the Forge (everything shown now that wasn't in `before`). Lights the Forge's
+ * "new" dot so you go and look.
+ */
+function newlyRevealed(before: Set<string>) {
+  const now = revealed(save);
+  const items = [
+    ...TOOLS.filter((t) => now.has(t.id) && !before.has(t.id)).map((t) => ({ id: t.id, name: t.name, emoji: t.icon })),
+    ...GEAR_ORDER.map((id) => GEAR[id]).filter((g) => now.has(g.id) && !before.has(g.id)).map((g) => ({ id: g.id, name: g.name, emoji: g.icon })),
+  ];
+  if (items.length && !save.fresh.includes('forge')) save.fresh.push('forge');
+  return items;
+}
+
+/**
  * Rewards for a win: XP (combat and weapon handling), loot, kills toward the story. Returns what's needed to
  * celebrate any level-ups afterwards.
  */
 function grantWin(o: BattleOutcome, b: Battle) {
-  const fromLv = save.lv, before = playerStats(save);
+  const fromLv = save.lv, before = playerStats(save), shown = revealed(save);
   save.hp = o.hp;
   save.wins++;
   gainXp(save, o.xp);
@@ -349,7 +365,7 @@ function grantWin(o: BattleOutcome, b: Battle) {
   const fromHandling = save.mastery[style].lv;
   gainMastery(save, style, o.xp);
   if (!b.setup.boss) recordKills(save, b.setup.zone.id, o.defeated.length);
-  return { fromLv, before, style, fromHandling };
+  return { fromLv, before, style, fromHandling, shown };
 }
 
 /** Level-up screens, one after another, with the game waiting behind them. */
@@ -363,8 +379,7 @@ async function celebrate(win: ReturnType<typeof grantWin>) {
   if (m > win.fromHandling) {
     audio.play('levelup');
     logEvent(save, { kind: 'level', track: `handling:${win.style}`, lv: m });
-    const unlocks = GEAR_ORDER.map((id) => GEAR[id]).filter((g) => g.slot === 'weapon' && g.style === win.style && (MASTERY_FOR_TIER[g.tier ?? 0] ?? 0) > win.fromHandling && (MASTERY_FOR_TIER[g.tier ?? 0] ?? 0) <= m);
-    await ui.skillUp(`${STYLE_NAMES[win.style]} handling`, m, '⚔️', `Your ${STYLE_NAMES[win.style].toLowerCase()} work is getting sharper.`, unlocks.map((g) => ({ id: g.id, name: g.name, emoji: g.icon })));
+    await ui.skillUp(`${STYLE_NAMES[win.style]} handling`, m, '⚔️', `Your ${STYLE_NAMES[win.style].toLowerCase()} work is getting sharper.`, newlyRevealed(win.shown));
   }
 }
 
@@ -715,7 +730,7 @@ function finishChop() {
   const { game, obj } = chop!;
   chop = null;
   const n = NODES[obj.node!];
-  const fromLv = save.skills[n.skill].lv;
+  const fromLv = save.skills[n.skill].lv, shown = revealed(save);
   const r = harvest(save, obj.node!, obj.id!, !!obj.grass, game.flawless);
   audio.play(n.skill === 'mine' ? 'boom' : 'kill');
   over.felled();
@@ -727,22 +742,17 @@ function finishChop() {
   mode = 'world';
   input.reset();
   persist();
-  if (r.levels) void celebrateSkill(n.skill, fromLv).then(() => progressQuests());
+  if (r.levels) void celebrateSkill(n.skill, shown).then(() => progressQuests());
   else void progressQuests();
 }
 
 /** A gathering skill level: a screen with what it unlocks (the game waits behind it). */
-async function celebrateSkill(skill: SkillId, fromLv: number) {
+async function celebrateSkill(skill: SkillId, shown: Set<string>) {
   const lv = save.skills[skill].lv;
   audio.play('levelup');
   logEvent(save, { kind: 'level', track: skill, lv });
-  const newly = (need: number | undefined) => need !== undefined && need > fromLv && need <= lv;
-  const unlocks = [
-    ...TOOLS.filter((t) => t.skill === skill && newly(t.level)).map((t) => ({ id: t.id, name: t.name, emoji: t.icon })),
-    ...GEAR_ORDER.map((id) => GEAR[id]).filter((g) => newly(g.needs?.[skill])).map((g) => ({ id: g.id, name: g.name, emoji: g.icon })),
-  ];
   mode = 'dialog';
-  await ui.skillUp(SKILL_NAMES[skill], lv, skill === 'wood' ? '🪓' : '⛏️', 'The sweet spot grows a little wider.', unlocks);
+  await ui.skillUp(SKILL_NAMES[skill], lv, skill === 'wood' ? '🪓' : '⛏️', 'The sweet spot grows a little wider.', newlyRevealed(shown));
   mode = 'world';
   input.reset();
 }

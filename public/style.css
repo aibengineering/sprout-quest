@@ -606,6 +606,13 @@ img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
 .mcard .info { flex: 1; min-width: 0; }
 .rcp { display: flex; align-items: center; gap: 10px; }
 .rcp.locked { opacity: 0.62; }
+/* Not reached the level for it yet: a dark silhouette with a "?", no name, stats or recipe. */
+.rcp.mystery { background: #f1ebf3; }
+.rcp.mystery .ico { position: relative; }
+.rcp.mystery .ico img, .rcp.mystery .ico .emo { filter: brightness(0) opacity(0.28); }
+.rcp.mystery .ico::after { content: '?'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 26px; font-weight: 900; color: #fff; text-shadow: 0 1px 3px rgba(74, 42, 90, 0.6); }
+.rcp.mystery .name { color: #8a7a92; letter-spacing: 2px; }
+.rcp.mystery .name .stars { letter-spacing: 0; }
 .rcp.owned { background: #f4fff4; }
 img.icon.lg { width: 56px; height: 56px; }
 img.icon.xl { width: 72px; height: 72px; }

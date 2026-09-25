@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { GEAR, MONSTERS, NODES, TOOLS, ZONES, MASTERY_FOR_TIER } from '../src/data';
-import { CLOVER_PITY, gainMastery, masteryShort, masteryXpToNext, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpToNext } from '../src/rules';
+import { CLOVER_PITY, gainMastery, levelLock, revealed, masteryShort, masteryXpToNext, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpToNext } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
 
@@ -87,6 +87,22 @@ describe('rules', () => {
     const droppable = new Set([...Object.values(MONSTERS).flatMap((m) => m.drops.map((d) => d.mat)), ...Object.values(NODES).map((n) => n.mat)]);
     for (const g of Object.values(GEAR)) for (const m of Object.keys(g.recipe ?? {})) expect(droppable.has(m as never)).toBe(true);
     for (const t of TOOLS) for (const m of Object.keys(t.recipe)) expect(droppable.has(m as never)).toBe(true);
+  });
+});
+
+describe('forge reveals', () => {
+  test('items stay a mystery until every level they need is reached', () => {
+    const s = newState();
+    s.build.forge = 1;
+    const shown = revealed(s);
+    // Monster gear and first tools need no levels; ore gear waits on Mining, better whips on handling, ★3+ on the Forge.
+    for (const id of ['jellywhip', 'jellysling', 'fluffvest', 'axe1', 'pick1']) expect({ id, shown: shown.has(id) }).toEqual({ id, shown: true });
+    for (const id of ['stonesword', 'sporewhip', 'pick2', 'ironsword']) expect({ id, shown: shown.has(id) }).toEqual({ id, shown: false });
+    expect(levelLock(s, GEAR.stonesword)).toEqual({ kind: 'skill', skill: 'mine', level: 2 });
+    expect(levelLock(s, GEAR.sporewhip)).toEqual({ kind: 'handling', style: 'whip', level: MASTERY_FOR_TIER[2] });
+    expect(levelLock(s, GEAR.ironsword)).toEqual({ kind: 'forge', level: 2 });
+    s.skills.mine.lv = 2;
+    expect(revealed(s).has('stonesword')).toBe(true);
   });
 });
 
