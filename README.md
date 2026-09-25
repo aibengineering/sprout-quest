@@ -125,7 +125,9 @@ grass, and that every tree, sign and campfire can be reached.
   time, 💎 crystal crits more, 🐉 dragon weapons erupt in dragonfire on every strike.
 - **Woodcutting and Mining**: craft axes and picks at the Forge (Tools tab), then chop glowing trees and mine glowing
   rocks along the routes. Both are timing minigames: chopping is a bar with a green sweet spot; mining is a rock face
-  where you strike when the pickaxe lines up with the glowing seam, and cracks spread as it breaks. Clean hits build
+  where you strike when the pickaxe lines up with the glowing seam. Above the bar, the tree or rock shows every blow:
+  the notch in the trunk deepens and cracks run down the rock from where you struck, as far as the blow was strong
+  (perfect blows fork, misses just scuff it), and at the end the tree topples or the rock splits. Clean hits build
   a streak that speeds things up and hits harder; a miss just resets it, and a flawless job gives one extra. Nodes by
   the path are safe but slow to come back; ones out in the tall grass give more, come back faster and can hold a
   rare find (clover, crystal, a golem core), but monsters roam there. Oak and pine (Stone and Fang Axe), rock,

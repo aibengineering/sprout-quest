@@ -3,7 +3,7 @@ import { loadAssets } from './assets';
 import { Audio } from './audio';
 import { Battle, type BattleOutcome, type Foe } from './battle';
 import { GEAR, GEAR_ORDER, MATS, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, SKILL_NAMES, SKILL_VERB, TOOLS, ZONES, forgeLevelFor, zoneById, type MatId, type MonsterKind, type NodeKind, type Recipe, type Zone, type ZoneId } from './data';
-import { Chop, drawChop, type Look } from './gather';
+import { Chop, GatherView, type Look } from './gather';
 import type { Roamer } from './roamers';
 import { Input, trackInputDevice, usingKeyboard } from './input';
 import { Overworld } from './overworld';
@@ -558,7 +558,7 @@ async function interact() {
 
 // ------------------------------------------------------------------ gathering
 
-let chop: { game: Chop; obj: WorldObj } | null = null;
+let chop: { game: Chop; obj: WorldObj; view: GatherView } | null = null;
 
 /** Colors for each kind of rock face in the mining minigame. */
 const ROCK_LOOKS: Partial<Record<NodeKind, Look>> = {
@@ -589,7 +589,8 @@ function tryGather(o: WorldObj) {
     return;
   }
   const lv = save.skills[n.skill].lv;
-  chop = { game: new Chop(n.hp, toolPower(save.tools[n.skill], n.tier), sweetWidth(lv)), obj: o };
+  const look: Look = n.skill === 'mine' ? ROCK_LOOKS[o.node!]! : { kind: 'wood', pine: o.node === 'pine' };
+  chop = { game: new Chop(n.hp, toolPower(save.tools[n.skill], n.tier), sweetWidth(lv)), obj: o, view: new GatherView(look) };
   over.startChop(o);
   mode = 'gather';
   input.reset();
@@ -598,6 +599,13 @@ function tryGather(o: WorldObj) {
 function updateChop(dt: number) {
   const c = chop!;
   c.game.update(dt);
+  c.view.update(dt, c.game);
+  // Once it gives way, let the tree topple (or the rock split) before paying out.
+  if (c.game.done) {
+    input.flush();
+    if (c.view.finished) finishChop();
+    return;
+  }
   const a = input.axis();
   // Walking away (or Esc) cancels; the node stays as it was.
   if (Math.hypot(a.x, a.y) > 0.6 || input.consume('menu')) {
@@ -616,7 +624,6 @@ function updateChop(dt: number) {
       if (!save.tips.includes(tip)) save.tips.push(tip);
     }
   }
-  if (c.game.done) finishChop();
 }
 
 function finishChop() {
@@ -961,7 +968,7 @@ function frame(now: number) {
       const how = mine ? 'when the pick lines up with the seam!' : 'in the green!';
       const tip = seen ? 'Walk away to stop' : usingKeyboard() ? `Press E or Space ${how}` : `Tap ${how}`;
       const icon = TOOLS.find((t) => t.skill === n.skill)!.icon;
-      drawChop(ctx, chop.game, vw, vh, `${icon} ${chop.obj.grass ? 'Wild ' : ''}${n.name}`, tip, mine ? ROCK_LOOKS[chop.obj.node!] : { kind: 'wood' });
+      chop.view.draw(ctx, chop.game, vw, vh, `${icon} ${chop.obj.grass ? 'Wild ' : ''}${n.name}`, tip);
     }
     if (mode === 'title') {
       // Soft overlay so the title text pops over the live world behind it.
