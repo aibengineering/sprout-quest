@@ -178,7 +178,7 @@ export class Battle {
     hp: 0, face: -Math.PI / 2, moving: false,
     atkBuffer: 0, skillCd: 1, dodgeCd: 0, dodgeT: 0, dodgeDir: 0, iframes: 0, hurtT: 0,
     potionCd: 0, regenAcc: 0,
-    /** Cooldown after a full combo, and the ranged clip. */
+    /** Cooldown after a full combo, and stamina pips. */
     restT: 0, ammo: 0, ammoT: 0,
     whirlT: 0, whirlTick: 0, whirlAng: 0,
     swing: null as Swing | null,
@@ -229,7 +229,7 @@ export class Battle {
     this.element = this.weapon.fx ?? 'none';
     this.weaponColor = this.weapon.color ?? '#ccc';
     this.armorColor = GEAR[save.equip.armor]?.color ?? '#6fa8ff';
-    this.p.ammo = this.moves.ammo?.max ?? 0;
+    this.p.ammo = this.moves.ammo.max;
     // Regular fights swoop in and get going at once; bosses keep their dramatic "Boss battle!" beat.
     this.intro = setup.boss || setup.foes.some((f) => f.gentle) ? 1.2 : ZOOM_T + 0.1;
     const n = setup.foes.length;
@@ -278,9 +278,15 @@ export class Battle {
   get skillFrac() { return Math.max(0, this.p.skillCd) / SKILL_CD; }
   get dodgeFrac() { return Math.max(0, this.p.dodgeCd) / 0.7; }
   /** How much of the post-combo rest is left (0 = ready), for the attack button's ring. */
-  get attackFrac() { return this.moves.rest ? Math.max(0, this.p.restT) / this.moves.rest : 0; }
-  /** Shots in the clip, for ranged weapons. */
-  get clip(): { n: number; max: number } | null { return this.moves.ammo ? { n: this.p.ammo, max: this.moves.ammo.max } : null; }
+  /** How much of the attack cooldown is left: the rest after a combo, or waiting on the next stamina pip. */
+  get attackFrac() {
+    const rest = this.moves.rest ? Math.max(0, this.p.restT) / this.moves.rest : 0;
+    const { regen, delay } = this.moves.ammo;
+    const empty = this.p.ammo < 1 ? Math.min(1, Math.max(0, (regen - this.p.ammoT) / (regen + delay))) : 0;
+    return Math.max(rest, empty);
+  }
+  /** Stamina pips left (shots in the clip, for ranged weapons). */
+  get clip(): { n: number; max: number } { return { n: this.p.ammo, max: this.moves.ammo.max }; }
   get boss(): Enemy | undefined { return this.enemies.find((e) => e.def.boss); }
 
   update(dt: number) {
@@ -332,7 +338,7 @@ export class Battle {
     p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt;
     p.potionCd -= dt; p.atkBuffer -= dt; p.comboT -= dt; this.runCd -= dt; p.restT -= dt;
     const clip = this.moves.ammo;
-    if (clip && p.ammo < clip.max) {
+    if (p.ammo < clip.max) {
       p.ammoT += dt;
       if (p.ammoT >= clip.regen) {
         p.ammoT -= clip.regen;
@@ -391,7 +397,7 @@ export class Battle {
     }
     if (inp.consume('attack')) p.atkBuffer = 0.25;
     const wantAttack = p.atkBuffer > 0 || inp.isHeld('attack');
-    const loaded = !clip || p.ammo >= 1;
+    const loaded = p.ammo >= 1;
     if (wantAttack && this.canStrike() && p.restT <= 0 && loaded && p.dodgeT <= 0 && p.whirlT <= 0) {
       p.atkBuffer = 0;
       const combo = this.moves.combo;
@@ -529,7 +535,10 @@ export class Battle {
     this.audio.play(s.shape === 'shot' ? 'shoot' : heavy ? 'heavy' : 'swing');
     if (s.shape === 'shot') {
       for (const off of s.shots ?? [0]) this.shoot(sw.aim + off, s.mult, s.size * (1 + this.tier * 0.06));
-      if (!sw.skill && this.moves.ammo) p.ammo = Math.max(0, p.ammo - 1);
+    }
+    if (!sw.skill) {
+      p.ammo = Math.max(0, p.ammo - 1);
+      p.ammoT = -this.moves.ammo.delay;
     }
     if (s.lunge) this.fx.burst(p.x, p.y, '#e8dcc8', 5, 60, { size: 3, grav: 0, life: 0.3 });
   }
@@ -818,7 +827,7 @@ export class Battle {
         this.fx.burst(hx, hy, '#9af06a', 8, 60, { size: 5, grav: -20, life: 0.8 });
         break;
       case 'jelly':
-        e.slow = Math.max(e.slow, 1.4);
+        e.slow = Math.max(e.slow, 1);
         this.fx.burst(hx, hy, '#8af09a', 6, 90, { size: 4, life: 0.5 });
         break;
       case 'bat': {

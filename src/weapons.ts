@@ -52,8 +52,11 @@ export interface Moveset {
   size: number;
   /** Cooldown after the last strike of the combo before you can start swinging again. */
   rest: number;
-  /** Ranged weapons fire from a clip that refills over time: `max` shots, one back every `regen` seconds. */
-  ammo?: { max: number; regen: number };
+  /**
+   * Stamina (a clip, for ranged weapons): every swing or shot spends one of `max` pips, and one comes back every
+   * `regen` seconds once you've held off for `delay` seconds. Mashing gets you a combo, then a real pause.
+   */
+  ammo: { max: number; regen: number; delay: number };
 }
 
 const TAU = Math.PI * 2;
@@ -65,7 +68,8 @@ export const MOVESETS: Record<Style, Moveset> = {
     skill: 'spin',
     skillName: 'Spin',
     size: 1,
-    rest: 0.25,
+    rest: 0.4,
+    ammo: { max: 3, regen: 0.35, delay: 0.3 },
     combo: [
       { anim: 'slashR', shape: 'arc', windup: 0.05, active: 0.11, recover: 0.1, range: 60, size: 2.1, mult: 1, kb: 150, shake: 2, hitstop: 0.035, move: 0.65 },
       { anim: 'slashL', shape: 'arc', windup: 0.05, active: 0.11, recover: 0.1, range: 60, size: 2.1, mult: 1, kb: 150, shake: 2, hitstop: 0.035, move: 0.65 },
@@ -78,7 +82,8 @@ export const MOVESETS: Record<Style, Moveset> = {
     skill: 'quake',
     skillName: 'Quake',
     size: 1.1,
-    rest: 0.4,
+    rest: 0.6,
+    ammo: { max: 2, regen: 0.6, delay: 0.35 },
     combo: [
       {
         anim: 'slam', shape: 'circle', windup: 0.28, active: 0.1, recover: 0.3, range: 0, reach: 42, size: 40, mult: 1.5, kb: 300,
@@ -96,25 +101,26 @@ export const MOVESETS: Record<Style, Moveset> = {
     skill: 'whirl',
     skillName: 'Twirl',
     size: 0.9,
-    rest: 0.3,
+    rest: 0.45,
+    ammo: { max: 3, regen: 0.4, delay: 0.3 },
     combo: [
       { anim: 'slashR', shape: 'arc', windup: 0.07, active: 0.1, recover: 0.13, range: 104, size: 0.9, mult: 0.95, kb: 90, shake: 2, hitstop: 0.03, move: 0.7 },
       { anim: 'slashL', shape: 'arc', windup: 0.07, active: 0.1, recover: 0.13, range: 104, size: 0.9, mult: 0.95, kb: 90, shake: 2, hitstop: 0.03, move: 0.7 },
       { anim: 'thrust', shape: 'line', windup: 0.14, active: 0.1, recover: 0.2, range: 118, size: 16, mult: 1.6, kb: 200, shake: 4, hitstop: 0.06, move: 0.4 },
     ],
   },
-  // Rapid shots from a clip that refills (so you can't spray forever); the third shot is a spread.
+  // Rapid shots from a small clip that reloads once you stop firing; the third shot is a weaker spread.
   wand: {
     window: 0.3,
     skill: 'nova',
     skillName: 'Nova',
     size: 1,
-    rest: 0.3,
-    ammo: { max: 5, regen: 0.4 },
+    rest: 0.5,
+    ammo: { max: 3, regen: 0.4, delay: 0.2 },
     combo: [
-      { anim: 'cast', shape: 'shot', windup: 0.04, active: 0.05, recover: 0.2, range: 0, size: 7, mult: 1.1, kb: 70, shots: [0], shake: 1, hitstop: 0.02, move: 0.85 },
-      { anim: 'cast', shape: 'shot', windup: 0.04, active: 0.05, recover: 0.2, range: 0, size: 7, mult: 1.1, kb: 70, shots: [0], shake: 1, hitstop: 0.02, move: 0.85 },
-      { anim: 'cast', shape: 'shot', windup: 0.08, active: 0.06, recover: 0.28, range: 0, size: 8, mult: 1.0, kb: 90, shots: [-0.22, 0, 0.22], shake: 2, hitstop: 0.03, move: 0.7 },
+      { anim: 'cast', shape: 'shot', windup: 0.04, active: 0.05, recover: 0.2, range: 0, size: 7, mult: 0.8, kb: 70, shots: [0], shake: 1, hitstop: 0.02, move: 0.85 },
+      { anim: 'cast', shape: 'shot', windup: 0.04, active: 0.05, recover: 0.2, range: 0, size: 7, mult: 0.8, kb: 70, shots: [0], shake: 1, hitstop: 0.02, move: 0.85 },
+      { anim: 'cast', shape: 'shot', windup: 0.08, active: 0.06, recover: 0.28, range: 0, size: 8, mult: 0.45, kb: 90, shots: [-0.22, 0, 0.22], shake: 2, hitstop: 0.03, move: 0.7 },
     ],
   },
 };
@@ -142,15 +148,55 @@ export function comboTime(m: Moveset): number {
   return m.combo.reduce((a, s) => a + s.windup + s.active + s.recover * 0.35, 0) + m.rest;
 }
 
+/** How long a typical fight lasts: ranged weapons are judged on this window, opening burst included. */
+export const FIGHT_WINDOW = 5;
+
 /**
- * Sustained damage multiplier per second against one target in front of you (its shockwave hits it too; one shot of
- * a spread). Ranged weapons are capped by how fast their clip refills.
+ * Damage multiplier per second against one target in front of you (its shockwave hits it too; every pellet of a
+ * spread lands, as it does point-blank), simulated over a typical fight from full stamina, so a big opening burst
+ * counts as much as the pause that follows it.
  */
 export function comboDps(m: Moveset): number {
-  const perCombo = m.combo.reduce((a, s) => a + s.mult + (s.wave?.mult ?? 0), 0);
-  const rate = perCombo / comboTime(m);
-  if (!m.ammo) return rate;
-  return Math.min(rate, (perCombo / m.combo.length) / m.ammo.regen);
+  const hit = (s: Strike) => (s.shape === 'shot' ? s.mult * (s.shots?.length ?? 1) : s.mult) + (s.wave?.mult ?? 0);
+  const step = (s: Strike) => s.windup + s.active + s.recover * 0.35;
+  const { max, regen, delay } = m.ammo;
+  let t = 0, ammo = max, refill = 0, dmg = 0, i = 0;
+  while (t < FIGHT_WINDOW) {
+    if (ammo < 1) {
+      // Wait out the reload for one shot.
+      t += Math.max(0, regen - refill);
+      refill = 0;
+      ammo = 1;
+      continue;
+    }
+    const s = m.combo[i];
+    dmg += hit(s);
+    ammo--;
+    refill = -delay;
+    const dt = step(s) + (i === m.combo.length - 1 ? m.rest : 0);
+    t += dt;
+    // Reload ticks in while you're between shots, but never before the delay has passed.
+    refill += dt;
+    while (refill >= regen && ammo < max) { refill -= regen; ammo++; }
+    if (refill < 0) refill = Math.max(refill, -delay);
+    i = (i + 1) % m.combo.length;
+  }
+  return dmg / t;
+}
+
+/** Damage multiplier landed in the first second of a fight: how hard a weapon opens before any cooldown bites. */
+export function openingBurst(m: Moveset): number {
+  const hit = (s: Strike) => (s.shape === 'shot' ? s.mult * (s.shots?.length ?? 1) : s.mult) + (s.wave?.mult ?? 0);
+  let t = 0, dmg = 0, i = 0, ammo = m.ammo.max;
+  while (ammo >= 1) {
+    const s = m.combo[i];
+    if (t + s.windup > 1) break;
+    dmg += hit(s);
+    ammo--;
+    t += s.windup + s.active + s.recover * 0.35 + (i === m.combo.length - 1 ? m.rest : 0);
+    i = (i + 1) % m.combo.length;
+  }
+  return dmg;
 }
 
 /** Every weapon skill's numbers, in one place so the balance model can measure them. */

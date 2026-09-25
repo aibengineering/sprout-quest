@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { GEAR, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
 import {
-  CHECKPOINTS, HUNTER_DPS, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
+  CHECKPOINTS, HUNTER_DPS, RANGED_DPS, MAX_HUNTER_BURST, dpsBand, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
   zoneMatchups, type Range,
 } from '../src/balance';
 
@@ -79,10 +79,14 @@ describe('balance', () => {
     expect(dragonFights()).toBeLessThanOrEqual(MAX_DRAGON_FIGHTS);
   });
 
-  test(`hunter weapons hit for ${HUNTER_DPS.join('–')} of their tier's gatherer weapons, each track stays even, legendaries lead`, () => {
-    const ws = weaponStats().filter((w) => w.tier > 0), rel = dpsVsGatherers();
+  test(`hunter weapons hit for ${HUNTER_DPS.join('–')} (wands ${RANGED_DPS.join('–')}) of their tier's gatherer weapons, never open harder, each track stays even, legendaries lead`, () => {
+    const ws = weaponStats().filter((w) => w.tier > 0), rel = dpsVsGatherers(), burst = dpsVsGatherers('burst');
     const off: string[] = [];
-    for (const w of ws.filter((w) => w.track === 'hunter')) if (rel[w.id] < HUNTER_DPS[0] || rel[w.id] > HUNTER_DPS[1]) off.push(`${w.id}: ${rel[w.id].toFixed(2)}× gatherers`);
+    for (const w of ws.filter((w) => w.track === 'hunter')) {
+      const band = dpsBand(w);
+      if (rel[w.id] < band[0] || rel[w.id] > band[1]) off.push(`${w.id}: ${rel[w.id].toFixed(2)}× gatherers`);
+      if (burst[w.id] > MAX_HUNTER_BURST) off.push(`${w.id}: opens with ${burst[w.id].toFixed(2)}× gatherers' burst`);
+    }
     for (const w of ws) {
       const peers = ws.filter((o) => o.tier === w.tier && o.track === w.track);
       const mean = peers.reduce((a, o) => a + o.dps, 0) / peers.length;
