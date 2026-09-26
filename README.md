@@ -163,8 +163,8 @@ across the map with emoji bubbles (😨 cornered, 😢 missing something, 💖 h
 The first, **Poppy's Bunny**, opens once you've settled in the village: a girl cornered by slimes at the mouth of the
 **Secret Grove** off the meadow's south-east corner (sneak up behind them for a surprise attack), a walk home with her
 following you, a stolen toy, a gauntlet of tougher monsters down the grove and the **Big Bun** mini-boss in its
-clearing. It ends with a **perk**, Trail Boots (+25% walking speed on the map), and the grove's trees, rocks and copper
-vein free to gather. Side stories show in the tracker while you're in
+clearing. It ends with a **perk**, Trail Boots (+25% walking speed on the map), and the grove's oaks and rocks free to
+gather. Side stories show in the tracker while you're in
 one, and in the Journal.
 
 ## Areas

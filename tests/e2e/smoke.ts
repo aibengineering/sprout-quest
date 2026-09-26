@@ -459,6 +459,8 @@ await scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   // Give him back: a hug, and Granny's boots.
   await waitFor(page, 'free to walk', mode('world'));
   await goTo(29.4, 11.5);
+  // Turn to face her (you only talk to someone you're facing).
+  await page.keyboard.down('KeyW'); await page.waitForTimeout(120); await page.keyboard.up('KeyW');
   await page.keyboard.press('KeyE');
   await lines();
   await closeDialogs(page);

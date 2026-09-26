@@ -75,4 +75,10 @@ describe('route maps', () => {
       }
     });
   }
+
+  // Each area's gathering nodes are its own tier, so exploring never hands you materials meant for later.
+  test('the Sunny Meadow (and its Secret Grove) only has oaks and rocks', () => {
+    const nodes = new Set(ROUTES.meadow!.join('').replace(/[^kKpPrRuUiIyY]/g, ''));
+    expect([...nodes].sort()).toEqual(['K', 'R', 'k', 'r']);
+  });
 });

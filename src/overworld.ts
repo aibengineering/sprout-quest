@@ -129,9 +129,16 @@ export class Overworld {
     this.chopping = null;
   }
 
-  /** What the action button would use: a character you can talk to, or the nearest object. */
+  /**
+   * What the action button would use: a character you're facing (so someone following you, or standing beside a tree,
+   * doesn't get in the way of chopping), or the nearest object.
+   */
   nearbyObject(): WorldObj | null {
-    const talk = this.actors.list.find((a) => a.label && Math.hypot(a.x - this.x, a.y - (this.y - 0.2)) < 1.4);
+    const facing = (a: { x: number; y: number }) => {
+      const turn = Math.abs(((Math.atan2(a.y - this.y, a.x - this.x) - this.face + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+      return turn < Math.PI / 3;
+    };
+    const talk = this.actors.list.find((a) => a.label && Math.hypot(a.x - this.x, a.y - (this.y - 0.2)) < 1.4 && facing(a));
     if (talk) return { kind: 'npc', id: talk.id, x: talk.x - 0.35, y: talk.y - 0.45, w: 0.7, h: 0.45, label: talk.label! };
     return this.world.nearestObj(this.x, this.y - 0.2, 1.4);
   }
