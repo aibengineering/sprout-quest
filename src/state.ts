@@ -1,3 +1,4 @@
+import { slotKey } from './slots';
 import { VERSION } from './version';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
@@ -53,7 +54,8 @@ export interface SaveState {
   perks: string[];
 }
 
-const KEY = 'sprout-quest-save';
+/** Where the save lives (see slots.ts). */
+export const SAVE_KEY = 'sprout-quest-save';
 
 export function newState(): SaveState {
   const mats = Object.fromEntries(MAT_ORDER.map((m) => [m, 0])) as Record<MatId, number>;
@@ -99,7 +101,7 @@ export function newState(): SaveState {
 
 export function loadState(): SaveState | null {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(slotKey(SAVE_KEY));
     if (!raw) return null;
     const data = JSON.parse(raw) as Partial<SaveState>;
     if (data.version !== 1) return null;
@@ -167,7 +169,7 @@ function migrateToTracks(s: SaveState) {
 
 export function saveState(s: SaveState): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(s));
+    localStorage.setItem(slotKey(SAVE_KEY), JSON.stringify(s));
   } catch {
     // Storage full or disabled (private mode) — the game still runs, it just won't persist.
   }
@@ -175,7 +177,7 @@ export function saveState(s: SaveState): void {
 
 export function clearState(): void {
   try {
-    localStorage.removeItem(KEY);
+    localStorage.removeItem(slotKey(SAVE_KEY));
   } catch {
     // ignore
   }

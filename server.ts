@@ -1,4 +1,5 @@
-// Dev server: rebuilds the bundle on every request to /main.js and serves public/ as-is.
+// Dev server: rebuilds the bundle on every request to /main.js (a dev build, with save slots and presets on the title
+// screen) and serves public/ as-is.
 // Binds to 0.0.0.0 so you can open it on your phone over the LAN.
 import { networkInterfaces } from 'node:os';
 
@@ -10,7 +11,7 @@ export function startServer(port: number) {
     async fetch(req) {
       const path = new URL(req.url).pathname;
       if (path === '/main.js') {
-        const out = await Bun.build({ entrypoints: ['./src/main.ts'], target: 'browser', sourcemap: 'inline' });
+        const out = await Bun.build({ entrypoints: ['./src/main.ts'], target: 'browser', sourcemap: 'inline', define: { __DEV__: 'true' } });
         if (!out.success) return new Response(out.logs.map(String).join('\n'), { status: 500 });
         return new Response(out.outputs[0], { headers: { 'content-type': 'text/javascript', 'cache-control': 'no-store' } });
       }

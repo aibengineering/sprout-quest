@@ -19,9 +19,11 @@ export const PATCH_NOTES: PatchNote[] = [
     title: "Poppy's Bunny",
     notes: [
       "🧸 A side story: once you've settled into Sprout Village, explore the far corner of the Sunny Meadow. Someone there needs a hero.",
+      '🌳 A new place: the Secret Grove, tucked away off the meadow, with good trees, rocks and a copper vein to gather once it is safe.',
       '💬 People show how they feel with little emoji bubbles you can read from across the map, and talk to you face to face with portraits that change with their mood.',
       '🎬 Story scenes: the camera pans to what matters, and dialogue moves out of the way of the action.',
       '🐰 A new mini-boss with a nasty charge, and its gang guarding the path to it.',
+      '📷 The camera can look a little past the edge of the map, so nothing at the edges hides under the buttons.',
       "👢 A new kind of reward: perks. Finish Poppy's story for one that makes getting around a lot quicker.",
       '📔 The Journal lists your side stories, and the Bag your perks.',
     ],

@@ -401,7 +401,7 @@ await scenario("Poppy's story plays from the rescue to the reunion", (g) => {
     const said: string[] = [];
     for (let i = 0; i < max; i++) {
       let b = null;
-      for (let t = 0; t < 2500 && !b; t += 150) if (!(b = await page.$('#modal:not([hidden]) .sheet.caption [data-dialog]'))) await page.waitForTimeout(150);
+      for (let t = 0; t < 5000 && !b; t += 150) if (!(b = await page.$('#modal:not([hidden]) .sheet.caption [data-dialog]'))) await page.waitForTimeout(150);
       if (!b) break;
       said.push((await page.textContent('#modal .sheet')) ?? '');
       await b.dispatchEvent('pointerdown');
@@ -419,10 +419,15 @@ await scenario("Poppy's story plays from the rescue to the reunion", (g) => {
     await closeDialogs(page);
   };
 
-  // Wandering into the meadow's corner: she's cornered by slimes.
-  await goTo(68.5, 19.5);
+  // Coming down into the meadow's south-east pocket: she's cornered in the grove's mouth.
+  const M = 38;
+  await goTo(M + 31, 21.6);
   check(/Somebody, help/.test(await lines()), 'no cry for help');
-  await waitFor(page, 'the rescue fight', async () => game<boolean>(page, `!!g.battle?.setup.bystander`), 8000);
+  await waitFor(page, 'free to walk', mode('world'));
+  check((await step()) === 1 && !(await game<boolean>(page, `g.over.world.objs.find((o) => o.flag === 'poppy:rescue').hidden`)), 'the slimes are not blocking the grove');
+  // Run up behind them: a surprise attack, with Poppy watching.
+  await goTo(M + 28.4, 23.2);
+  await waitFor(page, 'the rescue fight', async () => game<boolean>(page, `!!g.battle?.setup.bystander && !!g.battle.setup.ambush`), 8000);
   await win('the rescue fight');
   check(/walk me home/.test(await lines()), 'Poppy never asks to be walked home');
   check((await step()) === 2 && (await game<boolean>(page, `g.over.actors.get('poppy:poppy').follow`)), 'Poppy is not following you');
@@ -435,15 +440,15 @@ await scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   await waitFor(page, 'free to walk', mode('world'));
   check((await step()) === 3, `home scene left the story at step ${await step()}`);
 
-  // Back where you met her: the thief runs, and its friends guard the way.
-  await goTo(68.5, 20.5);
+  // Back at the grove: the thief runs in, and its friends guard the way.
+  await goTo(M + 29, 23.3);
   await waitFor(page, 'the thief scene', mode('dialog'));
   await waitFor(page, 'the getaway', async () => !!(await page.$('#modal:not([hidden]) .sheet.caption')), 12000);
-  check(/Hopbun ran off/.test(await lines()), 'nobody says where the thief went');
+  check(/ran deep into the grove/.test(await lines()), 'nobody says where the thief went');
   await waitFor(page, 'free to walk', mode('world'));
   check((await step()) === 4, 'the chase never started');
-  check(await game<boolean>(page, `g.over.world.objs.find((o) => o.flag === 'poppy:bigbun').hidden`), 'Big Bun shows before its guards are beaten');
-  for (const [flag, x, y] of [['pack1', 65.7, 12], ['pack2', 61, 9.6], ['bigbun', 67.5, 5.6]] as const) {
+  for (const [flag, x, y] of [['pack1', M + 24.4, 23.2], ['pack2', M + 19.5, 24.6], ['bigbun', M + 8.3, 23.2]] as const) {
+    check(!(await game<boolean>(page, `g.over.world.objs.find((o) => o.flag === 'poppy:${flag}').hidden`)), `${flag} is not there`);
     await goTo(x, y);
     await win(`the ${flag} fight`);
     await waitFor(page, 'back on the map', async () => game<boolean>(page, `g.save.flags.includes('poppy:${flag}')`), 8000);
@@ -459,6 +464,23 @@ await scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   await closeDialogs(page);
   await waitFor(page, 'the end', async () => (await step()) === 6, 8000);
   check(await game<boolean>(page, `g.save.perks.includes('trailboots') && g.over.actors.get('poppy:poppy').look.name === 'poppy_hug'`), 'no hug, or no boots');
+});
+
+await scenario('dev builds: a preset plays in its own slot, and your real save is untouched', null, async (page) => {
+  const url = page.url().split('?')[0];
+  await page.goto(`${url}?preset=poppy-chase`);
+  await waitFor(page, 'the preset to start', async () => game<boolean>(page, `g.mode === 'world' && g.save.stories.poppy === 4`), 20000);
+  check(await game<boolean>(page, `localStorage.getItem('sprout-quest-slot') === 'preset-poppy-chase' && !location.search`), 'not in the preset slot');
+  check(await game<boolean>(page, `JSON.parse(localStorage.getItem('sprout-quest-save')).lv === 4`), 'the main save changed');
+  // And back to the real one.
+  await page.goto(`${url}?slot=main`);
+  await waitFor(page, 'the main save', async () => game<boolean>(page, `g.mode === 'world' && !g.save.stories.poppy && !localStorage.getItem('sprout-quest-slot')`), 20000);
+  // The title offers every slot and preset.
+  await page.reload();
+  await page.waitForSelector('.title-btns:not([hidden])');
+  await page.click('#btn-dev');
+  const panel = (await page.textContent('#modal .sheet')) ?? '';
+  check(/preset-poppy-chase/.test(panel) && /Sandbox/.test(panel), 'the dev panel is missing slots or presets');
 });
 
 await browser.close();

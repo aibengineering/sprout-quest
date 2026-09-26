@@ -95,17 +95,29 @@ see a dot on the patch notes until they've read the new ones.
 ## Build and test
 
 ```sh
-bun run build      # static site in dist/: host anywhere (GitHub Pages, Netlify, itch.io…)
-bun test           # rules, balance, story, routes and map tests
+bun run build          # static site in dist/: host anywhere (GitHub Pages, Netlify, itch.io…)
+bun run build --dev    # the same, with the dev tools (save slots and presets, see below) for a test server
+bun test               # rules, balance, story, routes and map tests
 bun run typecheck
-bun run balance    # prints the balance model: fights, pacing, the material economy, every weapon
-bun run e2e        # plays the real game in headless Chromium (add --shots for screenshots in tests/e2e/out/)
+bun run balance        # prints the balance model: fights, pacing, the material economy, every weapon
+bun run e2e            # plays the real game in headless Chromium (add --shots for screenshots in tests/e2e/out/)
 ```
+
+### Dev tools: save slots and preset saves
+
+The dev server (and `bun run build --dev`, for hosting a test build) adds a **🛠 Save slot** button to the title
+screen. Each slot keeps its own save and play report, and **main** is your real playthrough, so testing never touches
+it. From there you can switch slots, copy one, or start a **preset**: a save partway through the game (Poppy's story at
+each step, each guardian, Glimmer Hollow, the dragon, a sandbox with everything), with the gear and levels from the
+balance checkpoints. Presets also work as links: `?preset=poppy-chase`, and `?slot=main` to go back. Outside the main
+slot a small badge at the bottom of the screen shows which slot you're in. None of this is in the published build
+(`__DEV__` is compiled out).
 
 The end-to-end smoke test (`tests/e2e/smoke.ts`) needs Playwright's Chromium once:
 `bunx playwright-core install chromium-headless-shell`. It plays a new game through the prologue, wins a fight
 through its level-up screens, mashes every weapon class, fights every monster, mines crystal, checks the Forge's
-mystery cards, exports a play report and plays Poppy's side story start to finish, failing on any page error.
+mystery cards, exports a play report, plays Poppy's side story start to finish and starts a preset save in its own
+slot, failing on any page error.
 `bun run e2e --only <name>` runs just the scenarios whose name contains it.
 
 ## Play report
@@ -148,9 +160,11 @@ for the materials it needs.
 
 **Side stories.** Alongside the main chapters, small stories wait to be stumbled into. People show how they feel from
 across the map with emoji bubbles (😨 cornered, 😢 missing something, 💖 happy again), and you talk to them face to face.
-The first, **Poppy's Bunny**, opens once you've settled in the village: a girl cornered by slimes in the meadow's far
-corner, a walk home with her following you, a stolen toy, a gauntlet of tougher monsters and the **Big Bun** mini-boss.
-It ends with a **perk**, Trail Boots (+25% walking speed on the map). Side stories show in the tracker while you're in
+The first, **Poppy's Bunny**, opens once you've settled in the village: a girl cornered by slimes at the mouth of the
+**Secret Grove** off the meadow's south-east corner (sneak up behind them for a surprise attack), a walk home with her
+following you, a stolen toy, a gauntlet of tougher monsters down the grove and the **Big Bun** mini-boss in its
+clearing. It ends with a **perk**, Trail Boots (+25% walking speed on the map), and the grove's trees, rocks and copper
+vein free to gather. Side stories show in the tracker while you're in
 one, and in the Journal.
 
 ## Areas
@@ -282,3 +296,5 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
   them, `tests/balance.test.ts` enforces them
 - `src/assets.ts`, `src/sprites.ts`: sprite atlas loading and drawing, and the procedural fallbacks
 - `src/ui.ts`, `public/`: DOM HUD, menus, styles
+- `src/slots.ts`: which save slot is in use (always the main one in the published game)
+- `src/dev/`: dev-build-only tools: `presets.ts` (preset saves), `devtools.ts` (the title's slot panel, `?preset=`)

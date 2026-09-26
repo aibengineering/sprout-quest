@@ -35,6 +35,8 @@ resize();
 trackInputDevice();
 G.ui = new UI(menuHooks);
 setUpTitle();
+// Save slots and preset saves for testing; compiled out of the published game.
+if (__DEV__) void import('./dev/devtools').then((m) => m.install());
 
 // ------------------------------------------------------------------ page buttons
 

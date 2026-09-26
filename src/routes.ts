@@ -15,7 +15,8 @@
 import type { ZoneId } from './data';
 
 export const ROUTES: Partial<Record<ZoneId, string[]>> = {
-  // Sunny Meadow: north through the grass, around the pond, south through the grass again, out east.
+  // Sunny Meadow: north through the grass, around the pond, south through the grass again, out east. Off the
+  // south-east pocket, a secret grove (Poppy's story) winds west to a clearing with good trees and rocks.
   meadow: [
     '########################################',
     '########################################',
@@ -38,10 +39,10 @@ export const ROUTES: Partial<Record<ZoneId, string[]>> = {
     '###.#####..,,,,,K,,,,,.####...==....==.#',
     '###########.,,,,,,,,,.######..========.#',
     '#############.,,,,,.########..========.#',
-    '############################...........#',
-    '###########################......,,,,,.#',
-    '#############################..#,,,K,,,#',
-    '#################################,,,,,##',
+    '###.k..*..p.################...........#',
+    '#..*.....*...########..*.........,,,,,.#',
+    '#.r.....*.......###..*.........#,,,K,,,#',
+    '##...u...r.##........############,,,,,##',
     '########################################',
   ],
   // Whisper Woods: down, east, a long climb north through the grass past the pond, then down and out east.

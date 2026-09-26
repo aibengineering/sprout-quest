@@ -29,8 +29,6 @@ export interface Actor {
   /** Up close: the action button's label, and what talking to them does. */
   label?: string;
   talk?: () => Promise<void> | void;
-  /** Monsters hop as they move. */
-  hop?: boolean;
   /** Drawn bigger or smaller than usual. */
   scale?: number;
   arrived?: () => void;

@@ -55,8 +55,10 @@ export interface WorldObj {
   /** A story's monster group: who you fight when you walk into it (a guardian-style fight if `boss`). */
   foes?: { kind: MonsterKind; lv: number }[];
   boss?: boolean;
-  /** Only there at this step of a side story, and once these fights (flags) are won. */
-  story?: { id: string; step: number; after?: string[] };
+  /** Which way the group looks: -1 west, 1 east (they face every which way if unset). */
+  facing?: -1 | 1;
+  /** Only there at this step of a side story. */
+  story?: { id: string; step: number };
 }
 
 export function hash2(x: number, y: number, seed: number): number {

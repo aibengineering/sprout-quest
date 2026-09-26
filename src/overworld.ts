@@ -24,6 +24,9 @@ const TILE_BU = 1.6;
 /** `roamer` is the monster that caught you, or null for an ambush from the grass. */
 export type WorldEvent = { type: 'encounter'; roamer: Roamer | null } | { type: 'zone'; zone: Zone } | null;
 
+/** How far (in tiles) the camera may look past the map's top and bottom: about the HUD's and the buttons' height. */
+const OVERSCROLL = { top: 1.5, bottom: 3 };
+
 export class Overworld {
   x: number;
   y: number;
@@ -216,7 +219,10 @@ export class Overworld {
     let camX = this.camX * ts - vw / 2;
     let camY = (this.camY - 0.5) * ts - vh / 2;
     camX = mapW <= vw ? (mapW - vw) / 2 : Math.max(0, Math.min(mapW - vw, camX));
-    camY = mapH <= vh ? (mapH - vh) / 2 : Math.max(0, Math.min(mapH - vh, camY));
+    // The camera can look a little past the top and bottom of the map (the forest carries on out there), so nothing
+    // on the edge rows hides under the HUD or the buttons.
+    const overTop = ts * OVERSCROLL.top, overBottom = ts * OVERSCROLL.bottom;
+    camY = mapH + overTop + overBottom <= vh ? (mapH - vh) / 2 : Math.max(-overTop, Math.min(mapH - vh + overBottom, camY));
     camX = Math.round(camX);
     camY = Math.round(camY);
     this.view = { top: camY, ts, vh };
@@ -254,7 +260,8 @@ export class Overworld {
     ctx.translate(-camX, -camY);
 
     const x0 = Math.max(0, Math.floor(camX / ts) - 1), x1 = Math.min(W.w - 1, Math.ceil((camX + vw) / ts) + 1);
-    const y0 = Math.max(0, Math.floor(camY / ts) - 1), y1 = Math.min(W.h - 1, Math.ceil((camY + vh) / ts) + 2);
+    // Rows past the map's edges are forest (World.tile calls them obstacles).
+    const y0 = Math.max(-Math.ceil(OVERSCROLL.top) - 1, Math.floor(camY / ts) - 1), y1 = Math.min(W.h + Math.ceil(OVERSCROLL.bottom), Math.ceil((camY + vh) / ts) + 2);
 
     // Ground layer
     for (let y = y0; y <= y1; y++) {
@@ -881,18 +888,20 @@ export class Overworld {
     if (f) drawFrame(ctx, f, ax, ay, (ts / TILE_BU) * 1.5, { flip: true });
   }
 
-  /** A story's monster group, standing in a huddle on the path. */
+  /** A story's monster group, in a huddle filling its box (two ranks if it's tall), all looking one way if it says. */
   private drawFoePack(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
-    const cx = (o.x + o.w / 2) * ts, cy = (o.y + o.h) * ts;
-    const n = o.foes!.length;
-    o.foes!.forEach((m, i) => {
+    const n = o.foes!.length, rise = Math.max(0.25, o.h - 1);
+    const spots = o.foes!.map((m, i) => ({
+      m, i,
+      x: o.x + o.w / 2 + (n === 1 ? 0 : (i / (n - 1) - 0.5) * Math.min(o.w, 1.6)),
+      y: o.y + o.h - 0.1 - (i % 2) * rise,
+    }));
+    for (const { m, i, x, y } of spots.sort((a, b) => a.y - b.y)) {
       const f = frame(`mon/${m.kind}/${Math.floor(this.t * 6 + i * 2) % 6}`);
-      if (!f) return;
-      const off = n === 1 ? 0 : (i / (n - 1) - 0.5) * Math.min(o.w, 1.6) * ts;
-      const px = cx + off, py = cy - (i % 2) * ts * 0.25;
-      shadow(ctx, px, py, ts * 0.28 * spriteScale(m.kind));
-      drawFrame(ctx, f, px, py, ts * 0.74 * spriteScale(m.kind), { flip: i % 2 === 0 });
-    });
+      if (!f) continue;
+      shadow(ctx, x * ts, y * ts, ts * 0.28 * spriteScale(m.kind));
+      drawFrame(ctx, f, x * ts, y * ts, ts * 0.74 * spriteScale(m.kind), { flip: o.facing ? o.facing < 0 : i % 2 === 0 });
+    }
   }
 
   /** A building's sprite (by its upgrade level) and how far to push it back so its front meets the collision box. */

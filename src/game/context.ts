@@ -108,8 +108,8 @@ export function syncWorld() {
     }
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);
-    // A story's monsters are only there at their step, once the fights before them are won.
-    if (o.story) o.hidden ||= (s.stories[o.story.id] ?? 0) !== o.story.step || !(o.story.after ?? []).every((f) => s.flags.includes(f));
+    // A story's monsters are only there at their step.
+    if (o.story) o.hidden ||= (s.stories[o.story.id] ?? 0) !== o.story.step;
   }
 }
 
