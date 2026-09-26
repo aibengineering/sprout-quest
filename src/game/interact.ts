@@ -90,6 +90,11 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
 
   node: (o) => tryGather(o),
 
+  /** A story character: whatever they have to say. */
+  async npc(o) {
+    await G.over.actors.get(o.id!)?.talk?.();
+  },
+
   async lair() {
     const s = G.save;
     G.mode = 'dialog';

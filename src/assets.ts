@@ -199,15 +199,24 @@ export function heroDir(face: number): { dir: number; flip: boolean } {
 /** The hero's outline: dark and a little heavier than the sprites' own, so you can always spot yourself. */
 export const HERO_OUTLINE = { color: '#2a1a36', width: 0.035 };
 
-/** Draws the hero sprite; returns false if sprites aren't available so callers can fall back. */
-export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}): boolean {
+/**
+ * Draws a character rendered like the hero (`<prefix>/<dir>/<frame>`: 5 directions, standing + 4 steps), facing
+ * `face` and walking if `moving`. Returns false if the sprite isn't loaded so callers can fall back.
+ */
+export function drawWalker(ctx: CanvasRenderingContext2D, prefix: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}): boolean {
   const { dir, flip } = heroDir(face);
   const n = moving ? 1 + (Math.floor(t * 9) % 4) : 0;
-  const f = frame(`hero/${armor}/${dir}/${n}`) ?? frame(`hero/tunic/${dir}/${n}`);
+  const f = frame(`${prefix}/${dir}/${n}`) ?? frame(`${prefix}/${dir}/0`) ?? frame(`${prefix}/0/0`);
   if (!f) return false;
   const breathe = moving ? 1 : 1 + Math.sin(t * 3) * 0.015;
-  drawFrame(ctx, f, x, y, unit, { outline: HERO_OUTLINE, ...o, flip, sy: (o.sy ?? 1) * breathe, sx: (o.sx ?? 1) / breathe });
+  drawFrame(ctx, f, x, y, unit, { ...o, flip, sy: (o.sy ?? 1) * breathe, sx: (o.sx ?? 1) / breathe });
   return true;
+}
+
+/** Draws the hero sprite; returns false if sprites aren't available so callers can fall back. */
+export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}): boolean {
+  const prefix = frame(`hero/${armor}/0/0`) ? `hero/${armor}` : 'hero/tunic';
+  return drawWalker(ctx, prefix, x, y, unit, face, moving, t, { outline: HERO_OUTLINE, ...o });
 }
 
 export function iconUrl(id: string) {

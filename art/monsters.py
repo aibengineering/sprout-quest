@@ -348,6 +348,21 @@ def crystalking():
     return P, anim
 
 
+def bigbun():
+    """Big Bun: a burly Hopbun with a scowl and a red bandana, clutching Poppy's Mr. Floppers."""
+    from hero import toy_bunny
+    from lib import torus
+    P, anim = bunny()
+    head = P['head']
+    for s in (-1, 1):
+        # Angry brows slanting down to the middle.
+        sphere((0.1 * s, surf(0.27, 0.25, 0.24, 0.1, 0.1, inset=1.02), 0.1), (0.085, 0.03, 0.028), M('#4a3a4a', rim=0), head, rot=(0, 0.5 * s, 0), line=0)
+    torus((0, -0.02, 0.44), 0.2, 0.045, M('#e8404a'), P['piv'])
+    profile([(-0.05, 0), (0.05, 0), (0.08, -0.16), (-0.03, -0.13)], 0.04, M('#e8404a'), P['piv'], loc=(0.1, -0.2, 0.44))
+    toy_bunny(P['piv'], (0, -0.36, 0.14), 0.75)
+    return P, anim
+
+
 BUILDERS = {
     'slime': lambda: slime(False),
     'magma': lambda: slime(True),
@@ -362,10 +377,11 @@ BUILDERS = {
     'kingslime': kingslime,
     'alphawolf': alphawolf,
     'crystalking': crystalking,
+    'bigbun': bigbun,
 }
 
 # Guardians are the base models scaled up to their hitbox size.
-BOSS_SCALE = {'kingslime': 2.2, 'alphawolf': 2.1, 'crystalking': 1.7}
+BOSS_SCALE = {'kingslime': 2.2, 'alphawolf': 2.1, 'crystalking': 1.7, 'bigbun': 1.55}
 
 
 def build(kind, gold=False):

@@ -1,17 +1,19 @@
 // Starting and finishing fights: field encounters, guardians and scripted prologue fights, rewards, the swoop in and
 // out, and the in-battle coaching.
-import { Battle, type BattleOutcome, type Foe } from '../battle/battle';
-import { GEAR, MONSTERS, STYLE_NAMES, ZONES, zoneById, type MonsterKind, type Zone } from '../data';
+import { Battle, type BattleOutcome, type BattleSetup, type Foe } from '../battle/battle';
+import { GEAR, MONSTERS, STYLE_NAMES, ZONES, zoneById, type Zone } from '../data';
 import { usingKeyboard } from '../input';
 import { recordKills } from '../quests';
 import type { Roamer } from '../roamers';
 import { gainMastery, gainXp, mergeDrops, playerStats, weightedPick } from '../rules';
 import { logEvent } from '../stats';
 import { has } from '../unlocks';
+import type { WorldObj } from '../world';
 import { G, backToWorld, persist, showZoneBanner, syncWorld, transition } from './context';
 import { cancelGather } from './gathering';
 import { celebrate, leveledUp, lootLines, markLevels, type LevelMark } from './rewards';
 import { progressQuests } from './story';
+import { storyFightExtras } from './stories';
 
 /** HP when the current fight began, for the play report. */
 let fightHp = 0;
@@ -32,8 +34,8 @@ function rollFoes(z: Zone): Foe[] {
   }));
 }
 
-function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false) {
-  G.battle = new Battle({ zone, foes, boss, ambush }, G.save, G.input, G.audio, onBattleEnd);
+function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Partial<BattleSetup> = {}) {
+  G.battle = new Battle({ zone, foes, boss, ambush, ...extra }, G.save, G.input, G.audio, onBattleEnd);
   G.mode = 'battle';
   G.ui.setMode('battle');
   G.input.reset();
@@ -61,18 +63,25 @@ export function startFieldBattle(r: Roamer | null, ambush: boolean) {
 }
 
 /** Guardians, the dragon and scripted fights: an iris transition and a "Boss battle!" beat. */
-export function startBattle(zone: Zone, foes: Foe[], boss: boolean, flag?: string) {
+export function startBattle(zone: Zone, foes: Foe[], boss: boolean, flag?: string, extra?: Partial<BattleSetup>) {
   fightHp = Math.round(G.save.hp);
   G.audio.play('encounter');
   G.mode = 'dialog';
   battleFlag = flag;
-  transition(() => begin(zone, foes, boss), 0.9);
+  transition(() => begin(zone, foes, boss, false, extra), 0.9);
 }
 
-/** Prologue monsters block the forest path; walking into one starts a scripted fight. */
-export function challengeFoe(o: { flag?: string; monster?: MonsterKind }) {
+/**
+ * Monsters blocking the way: walking into them starts a scripted fight that sets their flag when won. The prologue's
+ * pair are gentle level-1 foes; a story's group brings its own lineup.
+ */
+export function challengeFoe(o: WorldObj) {
   if (!G.save.flags.includes('sword')) {
     G.ui.toast('😰 You need something to fight with! Something was glinting back in the clearing…');
+    return;
+  }
+  if (o.foes) {
+    startBattle(zoneById(o.zone ?? G.over.currentZone.id), o.foes.map((f) => ({ ...f, golden: false })), !!o.boss, o.flag, storyFightExtras(o));
     return;
   }
   startBattle(zoneById('glade'), [{ kind: o.monster!, lv: 1, golden: false, gentle: true }], false, o.flag);

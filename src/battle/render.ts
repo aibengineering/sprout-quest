@@ -7,6 +7,7 @@ import { drawMonster, drawPlayer, drawWeapon, rrect, shadow } from '../sprites';
 import { SKILL_DATA } from '../weapons';
 import { hash2 } from '../world';
 import type { Battle } from './battle';
+import { drawBubble } from '../bubble';
 import { BURN_COLOR, ELEMENTS } from './elements';
 import { MONSTER_AI, spriteScale } from './monsters';
 import { pose } from './pose';
@@ -134,6 +135,16 @@ function drawField(b: Battle, ctx: Ctx) {
     actors.push({ y: e.y, draw: () => drawEnemy(b, ctx, e) });
   }
   for (const s of b.spikes) actors.push({ y: s.y, draw: () => drawSpike(b, ctx, s) });
+  const by = b.setup.bystander;
+  if (by) {
+    // Hiding at the edge of the clearing, trembling a little.
+    const x = -ARENA_RX * 0.78, y = ARENA_RY * 0.52, f = frame(`${by.look}/0/0`) ?? frame(`${by.look}/0`);
+    actors.push({ y, draw: () => {
+      shadow(ctx, x, y, 12);
+      if (f) drawFrame(ctx, f, x + Math.sin(b.t * 30) * 0.8, y, UNIT * HERO_SCALE * 0.95);
+      drawBubble(ctx, x, y - UNIT * 1.35, by.mood, 26, 1 + b.t);
+    } });
+  }
   actors.push({ y: b.p.y, draw: () => drawHero(b, ctx) });
   actors.sort((a, c) => a.y - c.y);
   for (const a of actors) a.draw();

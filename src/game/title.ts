@@ -6,7 +6,8 @@ import { clearLog, logEvent } from '../stats';
 import { clearState, loadState, newState, saveState } from '../state';
 import { allIconIds, hasNews } from '../ui';
 import { VERSION } from '../version';
-import { G, persist, showZoneBanner, syncWorld } from './context';
+import { G, persist, showZoneBanner } from './context';
+import { setUpStories } from './stories';
 import { progressQuests, unlocks } from './story';
 
 /** Set once the sprites and icons are in; the title's buttons only exist from then on. */
@@ -87,7 +88,7 @@ function startGame(fresh: boolean) {
   // Old saves catch up on unlocks quietly; new players get them one at a time.
   const catchUp = s.unlocked.length === 0 && (s.lv > 1 || s.quest > 0);
   unlocks(catchUp);
-  syncWorld();
+  setUpStories();
   showZoneBanner(G.over.currentZone);
   persist();
   void progressQuests();

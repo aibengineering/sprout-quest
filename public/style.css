@@ -535,6 +535,7 @@ img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
 .quest-pill .qt small { font-size: 11px; font-weight: 700; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .quest-pill .qc { background: var(--accent); border-radius: 10px; padding: 2px 8px; font-weight: 900; font-size: 13px; flex: none; }
 .quest-pill.bump { animation: pop 0.35s cubic-bezier(0.3, 1.8, 0.5, 1); }
+.quest-pill.side { background: rgba(160, 60, 110, 0.9); }
 .quest-pill .qms { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .quest-pill .qm { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 900; background: rgba(255, 255, 255, 0.14); border-radius: 8px; padding: 1px 6px 1px 2px; }
 .quest-pill .qm.ok { background: rgba(122, 238, 138, 0.35); }
@@ -837,3 +838,11 @@ body.kbd .drag-hint .keys { display: flex; }
 .drag-hint .keys span kbd:nth-child(1) { animation-delay: 1.2s; }
 @keyframes keytap { 0%, 30%, 100% { transform: none; } 15% { transform: translateY(3px); box-shadow: inset 0 -1px 0 rgba(74, 42, 90, 0.25); } }
 .u-key { margin-top: 6px !important; font-weight: 800 !important; }
+
+/* Someone talking up close: a big portrait by their name. */
+.talk { display: flex; align-items: center; gap: 12px; }
+.talk img.icon.lg, .talk .icon.lg { width: 72px; height: 72px; flex: none; }
+.talk-name { display: block; font-size: 17px; font-weight: 900; color: #5a3a6a; }
+/* When the action's low on the screen, the dialogue moves up out of its way. */
+#modal.cine.top { align-items: flex-start; padding-top: calc(10vh + var(--safe-t)); padding-bottom: 0; }
+.zrow.done { opacity: 0.75; }

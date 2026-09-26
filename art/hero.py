@@ -224,3 +224,153 @@ def build_elder():
     sphere((0, -0.05, 1.12), 0.035, toon('#ffd35a'), staff, line=0)
     sphere((0.3, -0.04, 0.36), 0.065, skin, bodyp)
     return P
+
+
+# ----------------------------------------------------------------------------- Poppy's story
+
+
+def toy_bunny(parent, loc=(0, 0, 0), s=1.0):
+    """Mr. Floppers: a well-loved blue plush bunny with one floppy ear, button eyes and a heart patch."""
+    plush, inner = toon('#9ec4ff'), toon('#ffb4c8')
+    t = empty('floppers', parent, loc)
+    t.scale = (s, s, s)
+    sphere((0, 0, 0.14), (0.14, 0.12, 0.15), plush, t)
+    sphere((0, -0.105, 0.14), (0.05, 0.02, 0.05), toon('#ff6a8a'), t, line=0.01)  # heart patch
+    head = empty('fhead', t, (0, 0, 0.34))
+    sphere((0, 0, 0), (0.15, 0.13, 0.13), plush, head)
+    for side in (-1, 1):
+        sphere((0.06 * side, -0.12, 0.02), 0.022, toon('#2a2233', rim=0), head, line=0)  # button eyes
+        sphere((0.13 * side, -0.04, 0.17), (0.05, 0.05, 0.05), plush, t)  # paws
+    sphere((0, -0.13, -0.03), (0.02, 0.012, 0.014), toon('#ff8aa8', rim=0), head, line=0)
+    # One ear up, one flopped over.
+    up = empty('earup', head, (-0.06, 0, 0.1))
+    sphere((0, 0, 0.12), (0.045, 0.03, 0.13), plush, up)
+    sphere((0, -0.022, 0.12), (0.025, 0.01, 0.09), inner, up, line=0)
+    flop = empty('earflop', head, (0.07, 0, 0.1))
+    flop.rotation_euler = (0, 1.2, 0)
+    sphere((0, 0, 0.1), (0.045, 0.03, 0.11), plush, flop)
+    for side in (-1, 1):
+        sphere((0.07 * side, -0.06, 0.03), (0.05, 0.06, 0.04), plush, t)  # feet
+    return t
+
+
+def _face(head, mood, hair):
+    """Big chibi eyes, and a mood: happy, scared (tiny pupils, open mouth, raised brows, a sweat drop) or sad (tears)."""
+    face_y = -0.315
+    for side in (-1, 1):
+        if mood == 'scared':
+            sphere((0.125 * side, face_y, -0.02), (0.055, 0.03, 0.08), toon('#ffffff', rim=0), head, line=0.012)
+            sphere((0.125 * side, face_y - 0.02, -0.01), (0.025, 0.02, 0.035), toon('#2a2233', rim=0), head, line=0)
+        else:
+            sphere((0.125 * side, face_y, -0.03), (0.05, 0.03, 0.075), toon('#2a2233', rim=0), head, line=0)
+            sphere((0.125 * side - 0.018, face_y - 0.025, 0.0), 0.018, toon('#ffffff', rim=0), head, line=0)
+        sphere((0.21 * side, -0.27, -0.11), (0.055, 0.02, 0.03), toon('#ff9aaa', rim=0), head, line=0)
+        if mood in ('scared', 'sad'):
+            # Brows tilted up at the middle.
+            sphere((0.12 * side, -0.31, 0.1), (0.06, 0.015, 0.015), toon(hair, rim=0), head, rot=(0, -0.45 * side, 0), line=0)
+        if mood == 'sad':
+            sphere((0.13 * side, -0.33, -0.13), (0.025, 0.02, 0.04), toon('#8ad8ff', rim=0.4), head, line=0)  # tears
+    if mood == 'scared':
+        sphere((0, -0.33, -0.14), (0.035, 0.015, 0.04), toon('#8a3a4a', rim=0), head, line=0)  # "o"
+        sphere((0.3, -0.2, 0.1), (0.035, 0.02, 0.05), toon('#bfe8ff', rim=0.4), head, line=0.01)  # sweat drop
+    elif mood == 'sad':
+        sphere((0, -0.33, -0.14), (0.04, 0.01, 0.01), toon('#8a3a4a', rim=0), head, line=0)
+    else:
+        sphere((0, -0.33, -0.12), (0.035, 0.012, 0.016), toon('#8a3a4a', rim=0), head, line=0)
+
+
+def build_poppy(mood='happy', hug=False):
+    """Poppy: a little girl from Sprout Village, with auburn pigtails, pink bows and a sunny yellow dress.
+
+    Same part names as the hero, so she walks with `pose`. With `hug`, she holds Mr. Floppers.
+    """
+    P = {}
+    root = P['root'] = empty('poppy')
+    bodyp = P['body'] = empty('bodyPivot', root)
+    skin, hair = toon(SKIN), toon('#c8643a')
+    dress, trim = toon('#ffd35a'), toon('#ffffff')
+    for side in (-1, 1):
+        f = P[f'foot{side}'] = empty(f'foot{side}', root, (0.11 * side, 0, 0))
+        sphere((0, -0.03, 0.05), (0.08, 0.11, 0.06), toon('#e8505a'), f)
+    # A flared dress with a white collar.
+    cone((0, 0, 0.2), 0.3, 0.3, dress, bodyp, r2=0.18)
+    sphere((0, 0, 0.36), (0.22, 0.19, 0.2), dress, bodyp)
+    torus((0, 0, 0.5), 0.15, 0.035, trim, bodyp)
+    for side in (-1, 1):
+        arm = P[f'arm{side}'] = empty(f'arm{side}', bodyp, (0.22 * side, 0, 0.38))
+        sphere((0.02 * side, 0, -0.03), (0.075, 0.075, 0.08), dress, arm)
+        sphere((0.03 * side, -0.01, -0.11), 0.055, skin, arm)
+    if hug:
+        for side in (-1, 1):
+            P[f'arm{side}'].rotation_euler = (1.1, 0, -0.5 * side)
+        toy_bunny(bodyp, (0, -0.28, 0.2), 0.8)
+
+    head = P['head'] = empty('head', bodyp, (0, 0, 0.74))
+    sphere((0, 0, 0), (0.35, 0.32, 0.31), skin, head, seg=32)
+    _face(head, mood, '#9a4a2a')
+    sphere((0, 0.05, 0.07), (0.37, 0.33, 0.3), hair, head, seg=32)
+    for x, z, s in ((-0.19, 0.16, 0.11), (-0.06, 0.2, 0.12), (0.07, 0.2, 0.12), (0.19, 0.15, 0.1)):
+        sphere((x, -0.2, z), (s, 0.08, s * 0.8), hair, head)
+    bow = toon('#ff8ab0')
+    for side in (-1, 1):
+        # Pigtails with pink bows.
+        sphere((0.36 * side, 0.08, -0.08), (0.11, 0.11, 0.17), hair, head)
+        for k in (-1, 1):
+            sphere((0.32 * side + 0.05 * k, 0.02, 0.1), (0.05, 0.03, 0.04), bow, head, line=0.012)
+        sphere((0.32 * side, 0.0, 0.1), 0.025, bow, head, line=0.01)
+    # A little flower clip.
+    for i in range(5):
+        a = i / 5 * math.tau
+        sphere((-0.18 + math.cos(a) * 0.04, -0.2, 0.3 + math.sin(a) * 0.04), 0.03, toon('#ffffff'), head, line=0.008)
+    sphere((-0.18, -0.22, 0.3), 0.022, toon('#ffd35a'), head, line=0)
+    root.scale = (0.85, 0.85, 0.85)
+    return P
+
+
+def build_granny(mood='happy'):
+    """Granny Clover, the village cobbler: silver bun, round glasses, a lilac shawl over her apron."""
+    P = {}
+    root = P['root'] = empty('granny')
+    bodyp = P['body'] = empty('bodyPivot', root)
+    skin, hair = toon(SKIN), toon('#e8e4f0')
+    for side in (-1, 1):
+        sphere((0.12 * side, -0.03, 0.05), (0.09, 0.12, 0.06), toon('#6b4a3a'), root)
+    cone((0, 0, 0.22), 0.32, 0.36, toon('#8a6ab8'), bodyp, r2=0.22)
+    sphere((0, 0, 0.4), (0.26, 0.22, 0.22), toon('#8a6ab8'), bodyp)
+    box((0, -0.2, 0.26), (0.26, 0.04, 0.3), toon('#fff6e0'), bodyp, bevel=0.03)  # apron
+    torus((0, 0, 0.52), 0.2, 0.06, toon('#e89ac8'), bodyp)  # shawl
+    for side in (-1, 1):
+        sphere((0.26 * side, -0.04, 0.34), (0.08, 0.08, 0.1), toon('#8a6ab8'), bodyp)
+        sphere((0.27 * side, -0.07, 0.24), 0.06, skin, bodyp)
+    head = P['head'] = empty('head', bodyp, (0, 0, 0.8))
+    sphere((0, 0, 0), (0.33, 0.3, 0.29), skin, head, seg=32)
+    face_y = -0.29
+    for side in (-1, 1):
+        # Kind, squinty eyes behind round glasses.
+        sphere((0.12 * side, face_y, -0.01), (0.045, 0.02, 0.016), toon('#2a2233', rim=0), head, line=0)
+        torus((0.12 * side, face_y - 0.02, -0.01), 0.075, 0.012, toon('#c89a4a'), head, rot=(math.pi / 2, 0, 0), line=0)
+        sphere((0.2 * side, -0.25, -0.1), (0.05, 0.02, 0.03), toon('#ff9aaa', rim=0), head, line=0)
+        if mood == 'worried':
+            sphere((0.12 * side, -0.29, 0.1), (0.06, 0.015, 0.015), toon('#b8b4c0', rim=0), head, rot=(0, -0.4 * side, 0), line=0)
+    sphere((0, -0.31, -0.13), (0.04, 0.012, 0.012 if mood == 'worried' else 0.018), toon('#8a3a4a', rim=0), head, line=0)
+    sphere((0, 0.04, 0.08), (0.35, 0.31, 0.27), hair, head, seg=32)
+    sphere((0, 0.12, 0.32), (0.16, 0.16, 0.14), hair, head)  # bun
+    cylinder((0.08, 0.12, 0.34), 0.012, 0.3, toon('#c89a4a'), head, rot=(0, 1.2, 0), seg=8)  # hairpin
+    return P
+
+
+def build_boots():
+    """Trail Boots: sturdy little brown boots with green laces and a leaf charm."""
+    root = empty('boots')
+    leather, sole = toon('#9a6a44'), toon('#5a3a2a')
+    for side in (-1, 1):
+        b = empty(f'boot{side}', root, (0.16 * side, 0, 0))
+        sphere((0, -0.06, 0.06), (0.12, 0.18, 0.08), leather, b)
+        cylinder((0, 0.02, 0.2), 0.1, 0.26, leather, b, seg=16)
+        box((0, -0.04, 0.0), (0.24, 0.38, 0.04), sole, b, bevel=0.02)
+        for z in (0.14, 0.22, 0.3):
+            box((0, -0.09, z), (0.12, 0.02, 0.018), toon('#6fbf5a'), b, bevel=0.005, line=0)
+    sphere((0.2, -0.14, 0.3), (0.06, 0.02, 0.04), toon('#7ad85a'), root, rot=(0, 0.6, 0), line=0.01)
+    # Turned to show off the toes and soles.
+    root.rotation_euler = (0, 0, math.radians(60))
+    return root

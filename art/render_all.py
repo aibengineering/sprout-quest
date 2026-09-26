@@ -119,17 +119,44 @@ elif GROUP == 'icons':
         shot(f'icon/{name}', 128, 128, 120, elevation=math.radians(12), fit_origin=0.5)
 
 elif GROUP == 'npc':
-    lib.clear_objects()
-    P = hero.build_elder()
-    for f in range(4):
-        ph = f / 4 * math.tau
-        P['body'].scale = (1 + 0.02 * math.sin(ph), 1, 1 - 0.025 * math.sin(ph))
-        P['hat'].rotation_euler = (0, 0.06 * math.sin(ph), 0)
-        shot(f'npc/elder/{f}', 200, 220, 80)
+    if wanted('elder'):
+        lib.clear_objects()
+        P = hero.build_elder()
+        for f in range(4):
+            ph = f / 4 * math.tau
+            P['body'].scale = (1 + 0.02 * math.sin(ph), 1, 1 - 0.025 * math.sin(ph))
+            P['hat'].rotation_euler = (0, 0.06 * math.sin(ph), 0)
+            shot(f'npc/elder/{f}', 200, 220, 80)
+    if wanted('granny'):
+        lib.clear_objects()
+        P = hero.build_granny()
+        for f in range(4):
+            ph = f / 4 * math.tau
+            P['body'].scale = (1 + 0.02 * math.sin(ph), 1, 1 - 0.025 * math.sin(ph))
+            P['head'].rotation_euler = (0, 0.05 * math.sin(ph), 0)
+            shot(f'npc/granny/{f}', 280, 300, HERO_PPU)
+    # Poppy walks like the hero (5 directions, standing + 4 steps), and hugs Mr. Floppers once he's home.
+    if wanted('poppy'):
+        lib.clear_objects()
+        P = hero.build_poppy()
+        for d, ang in enumerate(HERO_DIRS):
+            P['root'].rotation_euler = (0, 0, math.radians(ang))
+            hero.pose(P, 0, False)
+            shot(f'npc/poppy/{d}/0', 280, 280, HERO_PPU)
+            for f in range(4):
+                hero.pose(P, f / 4 + 0.125, True)
+                shot(f'npc/poppy/{d}/{f + 1}', 280, 280, HERO_PPU)
+    if wanted('poppy_hug'):
+        lib.clear_objects()
+        P = hero.build_poppy(hug=True)
+        for f in range(4):
+            ph = f / 4 * math.tau
+            P['body'].scale = (1 + 0.02 * math.sin(ph), 1, 1 - 0.025 * math.sin(ph))
+            shot(f'npc/poppy_hug/0/{f}', 280, 280, HERO_PPU)
 
 elif GROUP == 'icons2':
     # Auto-framed icons for guardians and village buildings.
-    for kind in ('kingslime', 'alphawolf', 'crystalking', 'dragon'):
+    for kind in ('kingslime', 'alphawolf', 'crystalking', 'dragon', 'bigbun'):
         if not wanted(kind):
             continue
         lib.clear_objects()
@@ -139,6 +166,21 @@ elif GROUP == 'icons2':
         path = os.path.join(OUT, 'icons2', f'{kind}.png')
         lib.render_fit(path, 128, math.radians(15))
         frames.append({'name': f'icon/boss_{kind}', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
+    # Dialogue portraits, one per mood, and the story's items.
+    for name, build in (('npc_poppy', lambda: hero.build_poppy('happy')), ('npc_poppy_scared', lambda: hero.build_poppy('scared')),
+                        ('npc_poppy_sad', lambda: hero.build_poppy('sad')), ('npc_poppy_hug', lambda: hero.build_poppy('happy', hug=True)),
+                        ('npc_granny', lambda: hero.build_granny()), ('npc_granny_worried', lambda: hero.build_granny('worried')),
+                        ('floppers', lambda: hero.toy_bunny(None)), ('trailboots', hero.build_boots)):
+        if not wanted(name):
+            continue
+        lib.clear_objects()
+        built = build()
+        root = built['root'] if isinstance(built, dict) else built
+        if name.startswith('npc_'):
+            root.rotation_euler = (0, 0, math.radians(12))
+        path = os.path.join(OUT, 'icons2', f'{name}.png')
+        lib.render_fit(path, 128, math.radians(12))
+        frames.append({'name': f'icon/{name}', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
     if wanted('npc_elder'):
         lib.clear_objects()
         hero.build_elder()

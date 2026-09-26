@@ -38,7 +38,9 @@ export const MAT_ORDER = Object.keys(MATS) as MatId[];
 export type MonsterKind =
   | 'slime' | 'bunny' | 'shroom' | 'wolf' | 'bat'
   | 'golem' | 'glimmer' | 'imp' | 'magma' | 'dragon'
-  | 'kingslime' | 'alphawolf' | 'crystalking';
+  | 'kingslime' | 'alphawolf' | 'crystalking'
+  /** Poppy's story: the bully who stole Mr. Floppers. */
+  | 'bigbun';
 
 export interface Drop { mat: MatId; chance: number; min: number; max: number }
 
@@ -97,6 +99,11 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
   dragon: {
     name: 'Emberwyrm', lv: 20, hp: 2400, atk: 46, def: 18, spd: 70, r: 44, xp: 600, boss: true, title: 'Dragon of Ember Peak',
     drops: [{ mat: 'scale', chance: 1, min: 4, max: 5 }, { mat: 'ember', chance: 1, min: 3, max: 5 }],
+  },
+  // A mini-boss: tougher than anything else in the meadow, well short of the Slime King.
+  bigbun: {
+    name: 'Big Bun', lv: 4, hp: 175, atk: 10, def: 2, spd: 85, r: 22, xp: 60, boss: true, title: 'The Bunny Bully',
+    drops: [{ mat: 'fluff', chance: 1, min: 3, max: 5 }, { mat: 'clover', chance: 1, min: 1, max: 1 }],
   },
   kingslime: {
     name: 'Slime King', lv: 5, hp: 280, atk: 11, def: 3, spd: 60, r: 34, xp: 120, boss: true, title: 'Guardian of the Woods Road',

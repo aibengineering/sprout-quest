@@ -8,6 +8,7 @@ import type { UIHooks } from '../ui';
 import { G, menuCtx, paused, persist, showZoneBanner, syncWorld, transition } from './context';
 import { VERSION } from '../version';
 import { newlyRevealed } from './rewards';
+import { activeStory, storyLog } from './stories';
 import { progressQuests } from './story';
 
 /** Travel (by warp or fast travel) with an iris transition, landing somewhere safe in the area. */
@@ -124,6 +125,12 @@ export const menuHooks: UIHooks = {
   },
 
   exportReport: (how) => void exportReport(how),
+
+  story() {
+    const a = activeStory();
+    return a && { icon: a.story.icon, title: a.story.title, label: a.step.label };
+  },
+  stories: storyLog,
 
   async patchNotes() {
     const seen = G.save.seenVersion;

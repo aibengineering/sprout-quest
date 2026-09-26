@@ -28,7 +28,7 @@ const NODE_MARKS: [string, NodeKind, boolean][] = [
   ['y', 'crystal', false], ['Y', 'crystal', true],
 ];
 
-export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node';
+export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -52,6 +52,11 @@ export interface WorldObj {
   node?: NodeKind;
   id?: string;
   grass?: boolean;
+  /** A story's monster group: who you fight when you walk into it (a guardian-style fight if `boss`). */
+  foes?: { kind: MonsterKind; lv: number }[];
+  boss?: boolean;
+  /** Only there at this step of a side story, and once these fights (flags) are won. */
+  story?: { id: string; step: number; after?: string[] };
 }
 
 export function hash2(x: number, y: number, seed: number): number {

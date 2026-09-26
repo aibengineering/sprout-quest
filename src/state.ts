@@ -47,6 +47,10 @@ export interface SaveState {
   flags: string[];
   /** The newest version whose patch notes you've read (older than VERSION shows a "new" dot on them). */
   seenVersion: string;
+  /** Side stories: how far through each one you are (see game/stories.ts; missing = not started). */
+  stories: Record<string, number>;
+  /** Lasting upgrades earned from side stories (e.g. 'trailboots'). */
+  perks: string[];
 }
 
 const KEY = 'sprout-quest-save';
@@ -88,6 +92,8 @@ export function newState(): SaveState {
     flags: [],
     // A new adventure has nothing to catch up on.
     seenVersion: VERSION,
+    stories: {},
+    perks: [],
   };
 }
 

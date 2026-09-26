@@ -311,6 +311,43 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
     },
   },
 
+  // Big Bun: charges like a Hopbun but chains them when angry, stomps the ground after a charge, and yells for its
+  // friends once it's hurt.
+  bigbun: {
+    start: 'idle', color: '#ffffff', scale: 1.25,
+    think(e, w, _dt, _dist, toP, rage) {
+      if (!e.flag && e.hp < e.maxHp * 0.5) {
+        e.flag = true;
+        w.summon('bunny', Math.max(1, e.lv - 1), e, 2);
+        w.ring({ x: e.x, y: e.y - 20, r0: 10, r1: 80, dur: 0.4, color: '255,230,240' });
+      }
+      if (e.state === 'idle') {
+        e.vx = e.vy = 0;
+        e.windup = e.t < 0.3 ? 1 - e.t / 0.3 : 0;
+        if (e.t <= 0) { e.state = 'windup'; e.t = 0.6 * rage; e.dir = toP; e.sub = 0; }
+      } else if (e.state === 'windup') {
+        e.windup = 1 - e.t / (0.6 * rage);
+        if (e.t > 0.15) e.dir = toP;
+        if (e.t <= 0) { e.state = 'charge'; e.t = 0.5; e.windup = 0; moveToward(e, e.dir, e.spd * 3.6); }
+      } else if (e.state === 'charge') {
+        if (Math.random() < 0.4) w.fx.burst(e.x, e.y, '#ffffff', 1, 40, { size: 5, grav: 0, life: 0.3 });
+        if (e.t <= 0) {
+          e.vx = e.vy = 0;
+          e.sub++;
+          if (rage < 1 && e.sub < 2) { e.state = 'windup'; e.t = 0.3; e.dir = toP; }
+          else if (Math.random() < 0.5) {
+            e.state = 'stomp';
+            e.t = 0.7;
+            w.hazard({ x: e.x, y: e.y, r: 70, delay: 0.6, atk: e.atk, from: e.kind, mult: 1.1 });
+          } else { e.state = 'idle'; e.t = rand(0.8, 1.4) * rage; }
+        }
+      } else if (e.state === 'stomp') {
+        e.windup = 1 - e.t / 0.7;
+        if (e.t <= 0) { e.state = 'idle'; e.t = rand(0.7, 1.2) * rage; e.windup = 0; e.squash = 0.25; }
+      } else e.state = 'idle';
+    },
+  },
+
   // Slime King: huge telegraphed belly-flops that splash goo, and he calls little slimes every few landings.
   kingslime: {
     start: 'idle', color: '#8ac8ff', hops: true,

@@ -129,6 +129,8 @@ export interface BattleSetup {
   boss: boolean;
   /** You got the jump on them: they start stunned. */
   ambush?: boolean;
+  /** Someone watching from the arena's edge (e.g. Poppy, hiding while you fight for her): their sprite and feeling. */
+  bystander?: { look: string; mood: string };
 }
 
 export interface BattleOutcome {

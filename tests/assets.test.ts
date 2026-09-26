@@ -37,6 +37,17 @@ describe('rendered assets', () => {
     }
   });
 
+  test("Poppy's story: her walk and hug, Granny, and every portrait and keepsake", () => {
+    for (let d = 0; d < 5; d++) for (let f = 0; f < 5; f++) expect(atlas.frames[`npc/poppy/${d}/${f}`]).toBeDefined();
+    for (let f = 0; f < 4; f++) {
+      expect(atlas.frames[`npc/granny/${f}`]).toBeDefined();
+      expect(atlas.frames[`npc/poppy_hug/0/${f}`]).toBeDefined();
+    }
+    for (const id of ['npc_poppy', 'npc_poppy_scared', 'npc_poppy_sad', 'npc_poppy_hug', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots', 'boss_bigbun']) {
+      expect(existsSync(`public/assets/icons/${id}.webp`)).toBe(true);
+    }
+  });
+
   test('every material and charm has an icon', () => {
     for (const id of [...Object.keys(MATS), ...Object.values(GEAR).map((g) => g.id)]) {
       expect(existsSync(`public/assets/icons/${id}.webp`)).toBe(true);

@@ -48,6 +48,8 @@ Opus 5.5 rework it. Some of the bigger rounds so far:
   in-game patch notes
 - **Visual pass (0.2.1):** a sharper, outlined hero whose every armor changes their silhouette, and axes and picks
   that swing into the tree or rock
+- **Side stories (0.3.0):** Poppy's Bunny, a small story told with camera pans, emoji feelings over people's heads and
+  face-to-face dialogue, built on reusable pieces (story characters, scenes, story steps) for the ones to come
 
 Each release's player-facing changes are in the in-game patch notes (`src/version.ts`).
 
@@ -103,7 +105,8 @@ bun run e2e        # plays the real game in headless Chromium (add --shots for s
 The end-to-end smoke test (`tests/e2e/smoke.ts`) needs Playwright's Chromium once:
 `bunx playwright-core install chromium-headless-shell`. It plays a new game through the prologue, wins a fight
 through its level-up screens, mashes every weapon class, fights every monster, mines crystal, checks the Forge's
-mystery cards and exports a play report, failing on any page error.
+mystery cards, exports a play report and plays Poppy's side story start to finish, failing on any page error.
+`bun run e2e --only <name>` runs just the scenarios whose name contains it.
 
 ## Play report
 
@@ -142,6 +145,13 @@ for the materials it needs.
 - **Levels you can feel**: a combat level-up pauses the game on its own screen with your stat changes and what you're
   now ready for (a guardian, a new area). Woodcutting, Mining and weapon handling levels get a screen too, listing what
   they just unlocked in the Forge.
+
+**Side stories.** Alongside the main chapters, small stories wait to be stumbled into. People show how they feel from
+across the map with emoji bubbles (😨 cornered, 😢 missing something, 💖 happy again), and you talk to them face to face.
+The first, **Poppy's Bunny**, opens once you've settled in the village: a girl cornered by slimes in the meadow's far
+corner, a walk home with her following you, a stolen toy, a gauntlet of tougher monsters and the **Big Bun** mini-boss.
+It ends with a **perk**, Trail Boots (+25% walking speed on the map). Side stories show in the tracker while you're in
+one, and in the Journal.
 
 ## Areas
 
@@ -229,7 +239,7 @@ BLENDER=/path/to/blender bun run art
 ```
 
 - `art/lib.py`: toon material, outlines, primitive builders, ortho camera and render helpers
-- `art/hero.py`: the hero (every armor looks different) plus the walk cycle
+- `art/hero.py`: the hero (every armor looks different) plus the walk cycle, and the villagers who share its rig
 - `art/monsters.py`: monsters with idle loops and golden variants
 - `art/weapons.py`, `art/env.py`, `art/icons.py`: weapons (built from reusable parts per material), scenery and
   buildings, menu icons
@@ -244,6 +254,9 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
   - `fights.ts`: starting and finishing fights, rewards, the swoop in and out, in-battle coaching
   - `gathering.ts`: the chop/mine minigame on the map
   - `story.ts`: quests, unlock cards, Elder Bloom, the village cutscene
+  - `stories.ts`: side stories as steps (a check, then a scene), and the characters and monster groups each step puts
+    on the map; one file per story in `stories/` (`poppy.ts`)
+  - `scenes.ts`: writing scenes as plain async code: pan, follow, walk, emoji bubbles, dialogue, narration
   - `rewards.ts`: loot rows, level-up screens, gear the Forge reveals
   - `interact.ts`: what the action button does next to each kind of map object
   - `menu.ts`: what the menu's buttons do (crafting, building, travel, the play report)
@@ -257,6 +270,8 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
   grass encounters, rendering
 - `src/routes.ts`: the hand-drawn route maps, one character per tile (legend at the top)
 - `src/roamers.ts`: monsters wandering the grass: noticing, chasing, surprise attacks
+- `src/actors.ts`, `src/bubble.ts`: story characters on the map (walking paths, following you, moods, talking) and
+  their emoji speech bubbles
 - `src/weapons.ts`: each class's moveset (combo timings, hitbox shapes, stamina) and the damage model
 - `src/data.ts`: monsters, zones, guardians, gear, recipes, tools, village projects and story chapters
 - `src/rules.ts`: pure stat, damage, XP, crafting and gathering rules (unit tested)

@@ -1,7 +1,9 @@
 // Overworld: walking around, tall-grass encounters and drawing the tile map.
 import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { currentQuest } from './quests';
-import { drawFrame, drawHero, frame } from './assets';
+import { Actors, type Actor } from './actors';
+import { drawFrame, drawHero, drawWalker, frame } from './assets';
+import { drawBubble } from './bubble';
 import { spriteScale } from './battle/monsters';
 import { Roamers, type Roamer } from './roamers';
 import { MOVESETS } from './weapons';
@@ -43,7 +45,13 @@ export class Overworld {
   /** Camera position in tiles. It follows the hero, or glides to `camTarget` during cutscenes. */
   camX = 0;
   camY = 0;
-  camTarget: { x: number; y: number } | null = null;
+  camTarget: { x: number; y: number } | (() => { x: number; y: number }) | null = null;
+  /** During scenes: no action prompt or waypoint arrow. */
+  quiet = false;
+  /** The last frame's view (camera top in pixels, tile size, height), to tell where things are on screen. */
+  private view = { top: 0, ts: 1, vh: 1 };
+  /** Story characters on the map. */
+  readonly actors = new Actors();
   /** Tree being chopped, and how long it keeps shaking from the last strike. */
   chopping: WorldObj | null = null;
   private shakeT = 0;
@@ -75,6 +83,7 @@ export class Overworld {
     this.camY = y;
     this.roamers.calm = 3;
     this.zone = this.world.zoneAt(x);
+    this.actors.regroup(x, y);
   }
 
   /** A few seconds where no monster notices you, so you aren't jumped the moment a fight ends. */
@@ -117,7 +126,10 @@ export class Overworld {
     this.chopping = null;
   }
 
+  /** What the action button would use: a character you can talk to, or the nearest object. */
   nearbyObject(): WorldObj | null {
+    const talk = this.actors.list.find((a) => a.label && Math.hypot(a.x - this.x, a.y - (this.y - 0.2)) < 1.4);
+    if (talk) return { kind: 'npc', id: talk.id, x: talk.x - 0.35, y: talk.y - 0.45, w: 0.7, h: 0.45, label: talk.label! };
     return this.world.nearestObj(this.x, this.y - 0.2, 1.4);
   }
 
@@ -134,7 +146,8 @@ export class Overworld {
     }
     this.shakeT = Math.max(0, this.shakeT - dt);
     this.fx.update(dt);
-    const target = this.camTarget ?? { x: this.x, y: this.y };
+    this.actors.update(dt, this);
+    const target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? { x: this.x, y: this.y };
     const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : 12));
     this.camX += (target.x - this.camX) * k;
     this.camY += (target.y - this.camY) * k;
@@ -153,7 +166,7 @@ export class Overworld {
     if (!this.moving) return null;
     this.face = Math.atan2(a.y, a.x);
     const spdBonus = (GEAR[this.save.equip.armor]?.spd ?? 0) + (this.save.equip.charm ? GEAR[this.save.equip.charm]?.spd ?? 0 : 0);
-    const speed = 5 * (1 + spdBonus / 100);
+    const speed = 5 * (1 + spdBonus / 100) * (this.save.perks.includes('trailboots') ? 1.25 : 1);
     const dx = a.x * speed * dt, dy = a.y * speed * dt;
     const r = 0.28;
     const ox = this.x, oy = this.y;
@@ -186,6 +199,11 @@ export class Overworld {
     return ev;
   }
 
+  /** How far down the screen a map row is (0 top, 1 bottom), as of the last frame. */
+  screenY(y: number) {
+    return (y * this.view.ts - this.view.top) / this.view.vh;
+  }
+
   /** Tile size in pixels for this screen (fights on the map zoom in from this). */
   static tileSize(vw: number, vh: number) {
     return Math.round(Math.max(32, Math.min(60, Math.min(vw, vh) / 9.5)));
@@ -201,14 +219,15 @@ export class Overworld {
     camY = mapH <= vh ? (mapH - vh) / 2 : Math.max(0, Math.min(mapH - vh, camY));
     camX = Math.round(camX);
     camY = Math.round(camY);
+    this.view = { top: camY, ts, vh };
     this.drawScene(ctx, camX / ts, camY / ts, ts, vw, vh);
 
     ctx.save();
     ctx.translate(-camX, -camY);
-    if (this.objective) this.drawObjective(ctx, camX, camY, vw, vh, ts);
+    if (this.objective && !this.quiet) this.drawObjective(ctx, camX, camY, vw, vh, ts);
 
     // Interaction hint bubble
-    const near = this.nearbyObject();
+    const near = this.quiet ? null : this.nearbyObject();
     if (near && this.alert <= 0) {
       const bx = (near.x + near.w / 2) * ts, by = near.y * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
       ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
@@ -268,10 +287,24 @@ export class Overworld {
       if (r.x < x0 - 2 || r.x > x1 + 2) continue;
       items.push({ y: r.y, draw: () => this.drawRoamer(ctx, r, ts) });
     }
+    for (const a of this.actors.list) {
+      if (a.x < x0 - 2 || a.x > x1 + 2) continue;
+      items.push({ y: a.y, draw: () => this.drawActor(ctx, a, ts) });
+    }
     items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
     this.fx.draw(ctx);
+    // Feelings float above everything, so you can read them from across the screen.
+    for (const a of this.actors.list) {
+      const emoji = a.bubble?.emoji ?? a.mood;
+      if (!emoji || a.x < x0 - 2 || a.x > x1 + 2) continue;
+      drawBubble(ctx, a.x * ts, (a.y - this.actorHeight(a)) * ts, emoji, ts * 0.62, a.bubble ? a.bubble.t : 1 + this.t, a.bubble?.hold ?? Infinity);
+    }
+    for (const o of W.objs) {
+      if (o.hidden || !o.foes || o.x + o.w < x0 - 2 || o.x > x1 + 2) continue;
+      drawBubble(ctx, (o.x + o.w / 2) * ts, (o.y + o.h / 2 - (o.boss ? 1.9 : 1.2)) * ts, o.boss ? '😠' : '❗', ts * 0.55, 1 + this.t);
+    }
     ctx.restore();
   }
 
@@ -813,12 +846,53 @@ export class Overworld {
     if (Math.random() < 0.12) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.5, ay - Math.random() * ts, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.6, life: 0.8 });
   }
 
-  /** A prologue monster standing in the path. */
+  /** How tall an actor stands, in tiles (where their bubble goes). */
+  private actorHeight(a: Actor) {
+    const k = a.scale ?? 1;
+    return a.look.kind === 'monster' ? 0.95 * spriteScale(a.look.name) * k : 1.15 * k;
+  }
+
+  /** A story character: walking like the hero, idling in place, or a scripted monster hopping along. */
+  private drawActor(ctx: CanvasRenderingContext2D, a: Actor, ts: number) {
+    const px = a.x * ts, py = a.y * ts, k = a.scale ?? 1;
+    const L = a.look;
+    if (L.kind === 'monster') {
+      const f = frame(`mon/${L.name}/${Math.floor(this.t * 7) % 6}`);
+      if (!f) return;
+      const hop = a.moving ? Math.abs(Math.sin(this.t * 12)) * ts * 0.16 : 0;
+      shadow(ctx, px, py, ts * 0.28 * k);
+      drawFrame(ctx, f, px, py - hop, ts * 0.74 * spriteScale(L.name) * k, { flip: Math.cos(a.face) < 0 });
+      return;
+    }
+    shadow(ctx, px, py, ts * 0.24 * k);
+    if (L.kind === 'walker') drawWalker(ctx, `npc/${L.name}`, px, py, (ts / 1.2) * k, a.face, a.moving, this.t);
+    else {
+      const f = frame(`npc/${L.name}/${Math.floor(this.t * 3) % 4}`) ?? frame(`npc/${L.name}/0/${Math.floor(this.t * 3) % 4}`);
+      if (f) drawFrame(ctx, f, px, py, (ts / 1.2) * k);
+    }
+  }
+
+  /** A prologue monster standing in the path (or a story's group). */
   private drawFoe(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+    if (o.foes) return this.drawFoePack(ctx, o, ts);
     const f = frame(`mon/${o.monster}/${Math.floor(this.t * 6) % 6}`);
     const ax = (o.x + o.w / 2) * ts, ay = o.y * ts + ts * 2.7;
     shadow(ctx, ax, ay, ts * 0.45, 0.25);
     if (f) drawFrame(ctx, f, ax, ay, (ts / TILE_BU) * 1.5, { flip: true });
+  }
+
+  /** A story's monster group, standing in a huddle on the path. */
+  private drawFoePack(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+    const cx = (o.x + o.w / 2) * ts, cy = (o.y + o.h) * ts;
+    const n = o.foes!.length;
+    o.foes!.forEach((m, i) => {
+      const f = frame(`mon/${m.kind}/${Math.floor(this.t * 6 + i * 2) % 6}`);
+      if (!f) return;
+      const off = n === 1 ? 0 : (i / (n - 1) - 0.5) * Math.min(o.w, 1.6) * ts;
+      const px = cx + off, py = cy - (i % 2) * ts * 0.25;
+      shadow(ctx, px, py, ts * 0.28 * spriteScale(m.kind));
+      drawFrame(ctx, f, px, py, ts * 0.74 * spriteScale(m.kind), { flip: i % 2 === 0 });
+    });
   }
 
   /** A building's sprite (by its upgrade level) and how far to push it back so its front meets the collision box. */

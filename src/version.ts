@@ -14,6 +14,19 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.0',
+    date: '2026-09-26',
+    title: "Poppy's Bunny",
+    notes: [
+      "🧸 A side story: once you've settled into Sprout Village, explore the far corner of the Sunny Meadow. Someone there needs a hero.",
+      '💬 People show how they feel with little emoji bubbles you can read from across the map, and talk to you face to face with portraits that change with their mood.',
+      '🎬 Story scenes: the camera pans to what matters, and dialogue moves out of the way of the action.',
+      '🐰 A new mini-boss with a nasty charge, and its gang guarding the path to it.',
+      "👢 A new kind of reward: perks. Finish Poppy's story for one that makes getting around a lot quicker.",
+      '📔 The Journal lists your side stories, and the Bag your perks.',
+    ],
+  },
+  {
     version: '0.2.1',
     date: '2026-09-25',
     title: 'A sharper look',

@@ -3,6 +3,7 @@
 //
 //   bun run e2e            run every scenario
 //   bun run e2e --shots    also save a screenshot per scenario to tests/e2e/out/
+//   bun run e2e --only X   just the scenarios whose name contains X
 //
 // Needs Playwright's Chromium once: `bunx playwright-core install chromium-headless-shell`.
 import { chromium, type Page } from 'playwright-core';
@@ -11,6 +12,7 @@ import { startServer } from '../../server';
 import { MONSTERS } from '../../src/data';
 
 const SHOTS = process.argv.includes('--shots');
+const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].toLowerCase() : null;
 const OUT = new URL('./out/', import.meta.url).pathname;
 if (SHOTS) mkdirSync(OUT, { recursive: true });
 
@@ -91,6 +93,7 @@ const pinFoes = (page: Page, hp = 1e6) => run(page, `const b = g.battle; for (co
 const endFight = (page: Page) => run(page, `const b = g.battle; for (const e of b.enemies) if (!e.dead) { e.hp = 0; b.kill(e); }`);
 
 async function scenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>) {
+  if (ONLY && !name.toLowerCase().includes(ONLY)) return;
   const { page, errors, close } = await boot(seed ?? (() => {}));
   const t0 = Date.now();
   try {
@@ -99,6 +102,7 @@ async function scenario(name: string, seed: Seed | null, body: (page: Page) => P
     console.log(`  ✓ ${name} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
   } catch (e) {
     failures.push(`${name}: ${(e as Error).message}`);
+    if (errors.length) console.log(`    page errors: ${errors.join(' | ')}`);
     console.log(`  ✗ ${name}: ${(e as Error).message}`);
   } finally {
     if (SHOTS) await page.screenshot({ path: `${OUT}${name.replace(/\W+/g, '-')}.png` }).catch(() => {});
@@ -384,6 +388,77 @@ await scenario('the play report records fights, stamina, deaths and time, and ex
   await page.waitForTimeout(2500);
   await openMore(page);
   check((await copied()).summary?.fights === s.fights, 'copying without the clipboard API failed');
+});
+
+await scenario("Poppy's story plays from the rescue to the reunion", (g) => {
+  g.save.lv = 5;
+  g.save.pos = { x: 58, y: 15 };
+}, async (page) => {
+  const step = () => game<number>(page, `g.save.stories.poppy ?? 0`);
+  const mode = (m: string) => async () => (await game<string>(page, 'g.mode')) === m;
+  // Scene lines only: a popup that isn't someone talking (loot, a level up) is left for closeDialogs.
+  const lines = async (max = 12) => {
+    const said: string[] = [];
+    for (let i = 0; i < max; i++) {
+      let b = null;
+      for (let t = 0; t < 2500 && !b; t += 150) if (!(b = await page.$('#modal:not([hidden]) .sheet.caption [data-dialog]'))) await page.waitForTimeout(150);
+      if (!b) break;
+      said.push((await page.textContent('#modal .sheet')) ?? '');
+      await b.dispatchEvent('pointerdown');
+      await b.click();
+      await page.waitForTimeout(400);
+    }
+    return said.join(' ');
+  };
+  const goTo = (x: number, y: number) => run(page, `g.over.teleport(${x}, ${y}); g.over.roamers.calm = 9999`);
+  const win = async (what: string) => {
+    await waitFor(page, what, async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`), 8000);
+    await page.waitForTimeout(1200);
+    await endFight(page);
+    await page.waitForTimeout(2400);
+    await closeDialogs(page);
+  };
+
+  // Wandering into the meadow's corner: she's cornered by slimes.
+  await goTo(68.5, 19.5);
+  check(/Somebody, help/.test(await lines()), 'no cry for help');
+  await waitFor(page, 'the rescue fight', async () => game<boolean>(page, `!!g.battle?.setup.bystander`), 8000);
+  await win('the rescue fight');
+  check(/walk me home/.test(await lines()), 'Poppy never asks to be walked home');
+  check((await step()) === 2 && (await game<boolean>(page, `g.over.actors.get('poppy:poppy').follow`)), 'Poppy is not following you');
+
+  // Home (she catches up when you travel), then the toy's gone.
+  await waitFor(page, 'free to walk', mode('world'));
+  await goTo(33, 11.5);
+  await page.keyboard.down('KeyA'); await page.waitForTimeout(500); await page.keyboard.up('KeyA');
+  check(/Mr\. Floppers/.test(await lines()), 'Poppy never misses Mr. Floppers');
+  await waitFor(page, 'free to walk', mode('world'));
+  check((await step()) === 3, `home scene left the story at step ${await step()}`);
+
+  // Back where you met her: the thief runs, and its friends guard the way.
+  await goTo(68.5, 20.5);
+  await waitFor(page, 'the thief scene', mode('dialog'));
+  await waitFor(page, 'the getaway', async () => !!(await page.$('#modal:not([hidden]) .sheet.caption')), 12000);
+  check(/Hopbun ran off/.test(await lines()), 'nobody says where the thief went');
+  await waitFor(page, 'free to walk', mode('world'));
+  check((await step()) === 4, 'the chase never started');
+  check(await game<boolean>(page, `g.over.world.objs.find((o) => o.flag === 'poppy:bigbun').hidden`), 'Big Bun shows before its guards are beaten');
+  for (const [flag, x, y] of [['pack1', 65.7, 12], ['pack2', 61, 9.6], ['bigbun', 67.5, 5.6]] as const) {
+    await goTo(x, y);
+    await win(`the ${flag} fight`);
+    await waitFor(page, 'back on the map', async () => game<boolean>(page, `g.save.flags.includes('poppy:${flag}')`), 8000);
+  }
+  await waitFor(page, 'Mr. Floppers found', async () => (await step()) === 5, 8000);
+  await closeDialogs(page);
+
+  // Give him back: a hug, and Granny's boots.
+  await waitFor(page, 'free to walk', mode('world'));
+  await goTo(29.4, 11.5);
+  await page.keyboard.press('KeyE');
+  await lines();
+  await closeDialogs(page);
+  await waitFor(page, 'the end', async () => (await step()) === 6, 8000);
+  check(await game<boolean>(page, `g.save.perks.includes('trailboots') && g.over.actors.get('poppy:poppy').look.name === 'poppy_hug'`), 'no hug, or no boots');
 });
 
 await browser.close();

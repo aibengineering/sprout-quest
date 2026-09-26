@@ -40,6 +40,9 @@ export interface UIHooks {
   exportReport(how: 'file' | 'copy'): void;
   /** Shows the patch notes (and marks them read). */
   patchNotes(): void;
+  /** The side story you're in the middle of (the tracker shows it over the main quest), and every one you've started. */
+  story(): { icon: string; title: string; label: string } | null;
+  stories(): { icon: string; title: string; label: string; done: boolean }[];
   menuClosed(): void;
 }
 
@@ -208,7 +211,21 @@ export class UI {
   /** The little "current goal" tracker under the HUD. */
   questPill(show: boolean) {
     const s = this.hooks.save();
-    const q = currentQuest(s);
+    const q = currentQuest(s), side = this.hooks.story();
+    if (show && side) {
+      // A side story you're in the middle of takes the tracker until it's done.
+      this.set('pill', `side|${side.title}|${side.label}`, () => {
+        const el = $('quest-pill');
+        el.hidden = false;
+        el.innerHTML = `<span class="qi">${side.icon}</span><span class="qt"><b>${esc(side.title)}</b><small>${esc(side.label)}</small></span>`;
+        el.classList.add('side');
+        el.classList.remove('bump');
+        void el.offsetWidth;
+        el.classList.add('bump');
+      });
+      return;
+    }
+    $('quest-pill').classList.remove('side');
     if (!show || !q) {
       this.set('pill', 'hidden', () => ($('quest-pill').hidden = true));
       return;
@@ -574,7 +591,9 @@ export class UI {
       const mark = st === 'done' ? '✓' : st === 'now' ? '▶' : '🔒';
       return `<li class="${st}"><span class="mk">${mark}</span><span class="ch">${esc(qq.chapter)}</span><span>${st === 'later' ? '???' : esc(qq.title)}</span></li>`;
     }).join('');
-    return `${card}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div>${home}<h3>Story</h3><ol class="chapters">${chapters}</ol>`;
+    const sides = this.hooks.stories().map((st) => `<div class="zrow ${st.done ? 'done' : ''}"><div class="zart"><span class="emo">${st.icon}</span></div>
+      <div class="info"><div class="name">${esc(st.title)}</div><div class="desc">${st.done ? '✓ ' : '▶ '}${esc(st.label)}</div></div></div>`).join('');
+    return `${card}${sides ? `<h3>Side stories</h3><div class="zones">${sides}</div>` : ''}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div>${home}<h3>Story</h3><ol class="chapters">${chapters}</ol>`;
   }
 
   private items(s: SaveState): string {
@@ -632,7 +651,12 @@ export class UI {
         <div class="desc">${max ? 'Mastered!' : `${m.xp}/${need} XP · win fights with a ${STYLE_NAMES[k].toLowerCase()} to train`}</div>
         <div class="pbar"><i style="width:${max ? 100 : (100 * m.xp) / need}%"></i></div></div></div>`;
     }).join('');
-    return `${rows ? `<h3>Skills</h3>${rows}` : ''}${handling ? `<h3>Weapon handling</h3>${handling}` : ''}`;
+    const PERKS: Record<string, [string, string, string]> = { trailboots: ['trailboots', 'Trail Boots', 'From Granny Clover: walk 25% faster outside of fights.'] };
+    const perks = s.perks.filter((p) => PERKS[p]).map((p) => {
+      const [id, name, desc] = PERKS[p];
+      return `<div class="mcard row"><div class="ico">${icon(id, '👢')}</div><div class="info"><div class="name">${esc(name)}</div><div class="desc">${esc(desc)}</div></div></div>`;
+    }).join('');
+    return `${rows ? `<h3>Skills</h3>${rows}` : ''}${handling ? `<h3>Weapon handling</h3>${handling}` : ''}${perks ? `<h3>Perks</h3>${perks}` : ''}`;
   }
 
   private forge(s: SaveState): string {
@@ -841,6 +865,19 @@ export class UI {
   /** Letterbox bars for cutscenes. */
   cinema(on: boolean) {
     document.body.classList.toggle('cinema', on);
+  }
+
+  /** Someone talking up close: their portrait (in the right mood) and their words along the bottom, the world behind. */
+  async talk(name: string, portrait: string, emoji: string, text: string, top = false) {
+    this.modal.classList.add('cine');
+    this.modal.classList.toggle('top', top);
+    const r = await this.dialog(
+      `<div class="talk">${icon(portrait, emoji, 'icon lg')}<div><b class="talk-name">${esc(name)}</b><div class="caption-text">${esc(text)}</div></div></div>`,
+      [['ok', '▶']],
+      'caption',
+    );
+    this.modal.classList.remove('cine', 'top');
+    return r;
   }
 
   /** A story caption along the bottom of the screen; the world stays visible behind it. */

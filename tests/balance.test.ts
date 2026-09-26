@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { GEAR, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
+import { GEAR, MONSTERS, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
 import {
   CHECKPOINTS, HUNTER_DPS, RANGED_DPS, MAX_HUNTER_BURST, dpsBand, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
   zoneMatchups, type Range,
@@ -36,6 +36,15 @@ describe('balance', () => {
       });
     }
   }
+
+  // Poppy's story opens once you're about ready for a first ★ weapon: Big Bun should be a real fight at that point, but
+  // no Slime King.
+  test('Big Bun, the meadow mini-boss, takes 13–20 swings and 6–10 hits to lose: more than a regular fight, less than the Slime King', () => {
+    const c = CHECKPOINTS.find((c) => c.id === 'meadow-gear')!, s = checkpointStats(c);
+    const bun = matchup(s, 'bigbun', MONSTERS.bigbun.lv), king = matchup(s, 'kingslime', 5);
+    expect(within(bun.hitsToKill, [13, 20]) && within(bun.hitsToDie, [6, 10])).toBe(true);
+    expect(bun.hitsToKill < king.hitsToKill && bun.hitsToDie > king.hitsToDie).toBe(true);
+  });
 
   test(`every material for every building, gear piece and tool farms in ≤${MAX_FARM_MINUTES} minutes`, () => {
     const off = farmTable()

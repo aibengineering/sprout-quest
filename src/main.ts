@@ -9,6 +9,7 @@ import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/ga
 import { interact } from './game/interact';
 import { menuHooks } from './game/menu';
 import { arriveAtVillage, maybeAutoTalk, progressQuests } from './game/story';
+import { checkStories, tickStories } from './game/stories';
 import { boot, setUpTitle } from './game/title';
 import { objective } from './game/waypoint';
 import { trackInputDevice, usingKeyboard, type Input } from './input';
@@ -123,10 +124,14 @@ function worldFrame(dt: number) {
       if (ev.zone.id === 'village' && !s.flags.includes('village')) void arriveAtVillage();
     }
     if (canAct && s.flags.includes('sword')) {
-      // Bumping into the monster's blocking box starts the fight.
-      const foe = G.world.objs.find((o) => o.kind === 'foe' && !o.hidden && over.x > o.x - 1.1 && over.x < o.x + o.w + 1.1 && over.y > o.y && over.y < o.y + o.h + 0.4);
+      // Walking into monsters blocking the way starts the fight.
+      const gap = (o: { x: number; y: number; w: number; h: number }) =>
+        Math.hypot(Math.max(o.x - over.x, 0, over.x - (o.x + o.w)), Math.max(o.y - over.y, 0, over.y - (o.y + o.h + 0.3)));
+      const foe = G.world.objs.find((o) => o.kind === 'foe' && !o.hidden && gap(o) < 0.75);
       if (foe) challengeFoe(foe);
     }
+    tickStories();
+    if (canAct) void checkStories();
     if (ev?.type === 'encounter') startFieldBattle(ev.roamer, false);
   }
   const near = canAct ? over.nearbyObject() : null;
