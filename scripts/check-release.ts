@@ -4,7 +4,7 @@
 import { $ } from 'bun';
 import pkg from '../package.json';
 import { newerThan } from '../src/semver';
-import { PATCH_NOTES, releaseTitle } from '../src/version';
+import { PATCH_NOTES } from '../src/version';
 import { changedFiles, touchesGame } from './changes';
 
 const base = process.argv[2] ?? 'origin/main';
@@ -26,18 +26,13 @@ if (!newerThan(version, baseVersion)) {
 if (newest?.version !== version) {
   problems.push(`The newest patch notes in src/version.ts are for ${newest?.version ?? 'nothing'}, not ${version}. Add an entry describing this release at the top of PATCH_NOTES.`);
 } else {
-  // Every entry for this release (a big one can have a few).
-  for (const entry of PATCH_NOTES.filter((p) => p.version === version)) {
-    const what = `The ${version} patch notes${entry.title ? ` ("${entry.title}")` : ''}`;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(entry.date)) problems.push(`${what} need a date as YYYY-MM-DD (got "${entry.date}").`);
-    if (!entry.title.trim()) problems.push(`${what} need a title.`);
-    if (!entry.notes.length || entry.notes.some((n) => !n.trim())) problems.push(`${what} need at least one note, and no empty ones.`);
-  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newest.date)) problems.push(`The ${version} patch notes need a date as YYYY-MM-DD (got "${newest.date}").`);
+  if (!newest.title.trim()) problems.push(`The ${version} patch notes need a title.`);
+  if (!newest.notes.length || newest.notes.some((n) => !n.trim())) problems.push(`The ${version} patch notes need at least one note, and no empty ones.`);
 }
 
 if (problems.length) {
   console.error(`✗ Release check failed:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
   process.exit(1);
 }
-const notes = PATCH_NOTES.filter((p) => p.version === version).reduce((a, p) => a + p.notes.length, 0);
-console.log(`✓ Release ${version} (was ${baseVersion}): "${releaseTitle(version)}", ${notes} notes`);
+console.log(`✓ Release ${version} (was ${baseVersion}): "${newest.title}", ${newest.notes.length} notes`);

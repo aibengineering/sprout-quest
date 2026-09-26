@@ -9,8 +9,8 @@ describe('version and patch notes', () => {
     expect(PATCH_NOTES[0].version).toBe(VERSION);
   });
 
-  test('patch notes run newest first (a release can have a few entries), each with a date and notes', () => {
-    for (let i = 1; i < PATCH_NOTES.length; i++) expect(newerThan(PATCH_NOTES[i].version, PATCH_NOTES[i - 1].version)).toBe(false);
+  test('patch notes run newest first, each with a date and notes', () => {
+    for (let i = 1; i < PATCH_NOTES.length; i++) expect(newerThan(PATCH_NOTES[i - 1].version, PATCH_NOTES[i].version)).toBe(true);
     for (const p of PATCH_NOTES) {
       expect(p.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(p.notes.length).toBeGreaterThan(0);
