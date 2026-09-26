@@ -22,7 +22,7 @@ elif [ $# -eq 1 ]; then
 else
   rm -rf out
   # The hero is the biggest job, so split it per armor and run everything a few at a time.
-  jobs=(monsters weapons env icons icons2 npc)
+  jobs=(monsters weapons env icons icons2 npc gather)
   for a in tunic fluffvest barkvest shroomhood coppermail batcloak ironplate glimmershawl crystalmail magmamail dragonmail; do jobs+=("hero $a"); done
   printf '%s\n' "${jobs[@]}" | xargs -P "${ART_JOBS:-3}" -I{} bash -c 'render {}'
 fi

@@ -229,8 +229,12 @@ you hit), and a weapon at every tier from ★ to ★★★★★:
   material to forge the tool that mines it properly: Stone Axe (oak, slowly pine) → Copper Axe; Stone Pick (stone,
   slowly copper) → Copper Pick → Iron Pick → Crystal Pick.
 - **The minigames**: chopping is a bar with a green sweet spot; mining is a rock face where you strike when the pick
-  lines up with the glowing seam. The tree or rock shows every blow (a deepening notch, cracks that fork on perfect
-  hits), then topples or splits. Clean hits build a streak that speeds things up; a flawless job gives one extra.
+  lines up with the glowing seam. You swing the axe or pick for your tool's tier at a close-up of the tree or rock,
+  which shows every blow: a notch that deepens with chips, sawdust and falling leaves, or cracks that run from where
+  the pick lands (forking on perfect hits) with stone chips, sparks and dust. When it's through, the tree topples off
+  its stump and lands in a shower of leaves, or the rock splits along its cracks and tumbles apart, and the materials
+  you earned pop out and fly to your bag. Clean hits build a streak that speeds things up; a flawless job gives one
+  extra.
   Nodes by the path are safe but slow to come back; ones out in the tall grass give more and can hold a rare find, but
   monsters roam there. Skill levels widen the sweet spot and unlock the better tools.
 - **The Forge**: 20 weapons, 10 armors (each changes how your hero looks), 4 charms and 3 potions. Gear you haven't
@@ -248,13 +252,15 @@ outlines, posed per frame and rendered with EEVEE. It runs headless, with no Ble
 
 ```sh
 bun run art              # re-render everything (~30 min on CPU), then pack into public/assets/
-bun run art monsters     # re-render one group: hero | monsters | weapons | env | icons
+bun run art monsters     # re-render one group: hero | monsters | weapons | env | icons | icons2 | npc | gather
 BLENDER=/path/to/blender bun run art
 ```
 
 - `art/lib.py`: toon material, outlines, primitive builders, ortho camera and render helpers
 - `art/hero.py`: the hero (every armor looks different) plus the walk cycle, and the villagers who share its rig
 - `art/monsters.py`: monsters with idle loops and golden variants
+- `art/gather.py`: close-ups for the chop/mine minigame: trees whole and split into stump and top, big rocks, and
+  the axes and picks for every tool tier
 - `art/weapons.py`, `art/env.py`, `art/icons.py`: weapons (built from reusable parts per material), scenery and
   buildings, menu icons
 - `art/pack.py`: trims frames and packs them into WebP atlases plus `atlas.json`
@@ -290,7 +296,8 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
 - `src/data.ts`: monsters, zones, guardians, gear, recipes, tools, village projects and story chapters
 - `src/rules.ts`: pure stat, damage, XP, crafting and gathering rules (unit tested)
 - `src/quests.ts`, `src/unlocks.ts`: story progression and system unlocks
-- `src/gather.ts`: the chopping and mining minigames
+- `src/gather.ts`: the chopping and mining minigames; `src/nodeart.ts` draws the close-up tree or rock (the notch
+  and the fall, cracks and the break) and `src/particles.ts` the chips, dust, sparks, leaves and loot
 - `src/stats.ts`: the play report log
 - `src/balance.ts`: balance targets for fights, pacing, weapons and the material economy; `bun run balance` prints
   them, `tests/balance.test.ts` enforces them

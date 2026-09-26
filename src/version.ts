@@ -24,6 +24,8 @@ export const PATCH_NOTES: PatchNote[] = [
       '🎬 Story scenes: the camera pans to what matters, and dialogue moves out of the way of the action.',
       '🐰 A new mini-boss with a nasty charge, and its gang guarding the path to it.',
       '📷 The camera can look a little past the edge of the map, so nothing at the edges hides under the buttons.',
+      "🪓 Chopping and mining look and feel new: a detailed tree or rock close up, the axe or pick for your tool's tier, and every blow showing, with chips, sawdust, leaves, sparks and dust flying.",
+      '🌲 Trees topple off their stumps and land with a thud; rocks crack where your pick lands, then split and tumble apart, and what you earned pops out and flies to your bag.',
       "👢 A new kind of reward: perks. Finish Poppy's story for one that makes getting around a lot quicker.",
       '📔 The Journal lists your side stories, and the Bag your perks.',
     ],

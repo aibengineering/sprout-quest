@@ -392,7 +392,7 @@ export const SLOW_TOOL = 0.4;
 
 /** How many nodes of each kind each zone has, on open ground and out in the grass (placed by the route maps). */
 export const NODE_SPAWNS: Partial<Record<ZoneId, { kind: NodeKind; safe: number; grass: number }[]>> = {
-  meadow: [{ kind: 'oak', safe: 3, grass: 5 }, { kind: 'rock', safe: 2, grass: 3 }],
+  meadow: [{ kind: 'oak', safe: 5, grass: 5 }, { kind: 'rock', safe: 5, grass: 3 }],
   woods: [{ kind: 'oak', safe: 2, grass: 2 }, { kind: 'pine', safe: 2, grass: 5 }, { kind: 'rock', safe: 1, grass: 2 }, { kind: 'copper', safe: 2, grass: 3 }],
   cave: [{ kind: 'copper', safe: 2, grass: 2 }, { kind: 'iron', safe: 2, grass: 4 }],
   hollow: [{ kind: 'crystal', safe: 2, grass: 4 }, { kind: 'iron', safe: 1, grass: 2 }],

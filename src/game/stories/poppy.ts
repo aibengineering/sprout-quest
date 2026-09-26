@@ -75,9 +75,9 @@ export const POPPY: Story = {
 
   steps: [
     {
-      // Coming down into the meadow's south-east pocket, you spot her in the grove's mouth.
+      // Coming down into the meadow's south-east pocket (and only there), you spot her in the grove's mouth.
       id: 'meet', label: 'Explore the Sunny Meadow', hidden: true,
-      done: () => G.over.x > M + 28.6 && G.over.y > 20.9,
+      done: () => G.over.x > M + 28.6 && G.over.x < M + 39 && G.over.y > 20.9,
       async then() {
         syncWorld();
         G.over.actors.add({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...COWER, face: 0 });

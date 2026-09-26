@@ -308,6 +308,43 @@ await scenario('an iron pick mines Glimmer Hollow crystal, slowly', (g) => {
   await page.waitForTimeout(600); // a few frames of the minigame drawing
 });
 
+await scenario('a tree falls and a rock breaks all the way, and what you earned lands in your bag', (g) => {
+  g.save.tools.wood = 1;
+  g.save.tools.mine = 1;
+}, async (page) => {
+  for (const [kind, mat] of [['oak', 'bark'], ['rock', 'stone']] as const) {
+    const placed = await game<boolean>(page, `(() => {
+      const o = g.over, w = o.world;
+      for (const r of w.objs.filter((x) => x.kind === 'node' && x.node === '${kind}' && !x.grass && x.id.startsWith('meadow:'))) {
+        for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1]]) {
+          const x = r.x + 0.4 + dx * 0.95, y = r.y + 0.6 + dy * 0.95;
+          if (w.blocked(x, y, 0.28)) continue;
+          o.teleport(x, y);
+          o.roamers.calm = 999;
+          if (o.nearbyObject() === r) return true;
+        }
+      }
+      return false;
+    })()`);
+    check(placed, `no open spot next to a meadow ${kind}`);
+    const before = await game<number>(page, `g.save.mats.${mat}`);
+    await page.keyboard.press('KeyE');
+    await waitFor(page, `the ${kind} minigame`, async () => (await game<string>(page, 'g.mode')) === 'gather');
+    // Strike on the sweet spot until it gives way.
+    for (let i = 0; i < 40 && !(await game<boolean>(page, 'g.chop?.game.done ?? true')); i++) {
+      await waitFor(page, 'the sweet spot', async () => game<boolean>(page, `(() => { const c = g.chop?.game; return !c || c.done || (Math.abs(c.pos - c.center) < c.width * 0.3 && c.lock <= 0); })()`), 3000);
+      await page.keyboard.press('KeyE');
+      await page.waitForTimeout(60);
+    }
+    // It falls or breaks, the loot pops out, and you're back on the map with it.
+    await waitFor(page, `the ${kind} to finish`, async () => (await game<string>(page, 'g.mode')) !== 'gather', 5000);
+    const after = await game<number>(page, `g.save.mats.${mat}`);
+    check(after > before, `felling the ${kind} gave no ${mat} (${before} → ${after})`);
+    await closeDialogs(page);
+    await page.waitForTimeout(300);
+  }
+});
+
 await scenario('the Forge keeps gear a mystery until you reach its level', (g) => {
   g.save.tools.mine = 1;
   g.save.skills.mine = { lv: 1, xp: 0 };
@@ -419,6 +456,10 @@ await scenario("Poppy's story plays from the rescue to the reunion", (g) => {
     await closeDialogs(page);
   };
 
+  // Only the meadow's south-east pocket starts it: not the south edge of any other area.
+  await goTo(134.5, 24.5);
+  await page.waitForTimeout(600);
+  check((await step()) === 0 && (await game<string>(page, 'g.mode')) === 'world', "Poppy's story started outside the meadow");
   // Coming down into the meadow's south-east pocket: she's cornered in the grove's mouth.
   const M = 38;
   await goTo(M + 31, 21.6);

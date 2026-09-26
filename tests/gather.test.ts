@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { NODES, NODE_SPAWNS, SKILL_MAX, TOOLS, type ZoneId } from '../src/data';
-import { BASE_SPEED, Chop, GatherView, OUTRO_T } from '../src/gather';
+import { BASE_SPEED, Chop, GatherView } from '../src/gather';
 import { canGather, craftGear, craftTool, gainSkillXp, harvest, skillXpToNext, sweetWidth, toolPower } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
@@ -12,8 +12,8 @@ function moveTo(c: Chop, p: number) {
 
 describe('chopping minigame', () => {
   test('the blow shows when the tool connects, and the node gives way only after the last one lands', () => {
-    const c = new Chop(20, 1, 0.2, () => 0.5), view = new GatherView({ kind: 'wood', pine: false });
-    const marks = () => (view as unknown as { marks: unknown[] }).marks.length;
+    const c = new Chop(20, 1, 0.2, () => 0.5), view = new GatherView({ kind: 'wood', tree: 'oak', tool: 1 });
+    const marks = () => (view as unknown as { blows: unknown[] }).blows.length;
     const step = (secs: number) => { for (let t = 0; t < secs; t += 0.01) { c.update(0.01); view.update(0.01, c); } };
     moveTo(c, c.center);
     c.strike();
@@ -30,7 +30,10 @@ describe('chopping minigame', () => {
     }
     expect(c.done).toBe(true);
     expect(view.finished).toBe(false);
-    step(0.15 + OUTRO_T);
+    // It falls, lands, and what you earned flies off to the bag within a couple of seconds.
+    step(1);
+    expect(view.finished).toBe(false);
+    step(1.6);
     expect(view.finished).toBe(true);
     expect(marks()).toBe(c.strikes);
   });

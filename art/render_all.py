@@ -1,7 +1,7 @@
 """Renders one group of sprites to art/out/<group>/ plus art/out/<group>.json (frame anchors).
 
 Usage: blender -b --factory-startup -P art/render_all.py -- <group> [filter]
-Groups: hero, monsters, weapons, env, icons
+Groups: hero, monsters, weapons, env, icons, icons2, npc, gather
 """
 import json
 import math
@@ -11,6 +11,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
 import env  # noqa: E402
+import gather  # noqa: E402
 import hero  # noqa: E402
 import icons  # noqa: E402
 import lib  # noqa: E402
@@ -196,6 +197,25 @@ elif GROUP == 'icons2':
         path = os.path.join(OUT, 'icons2', f'{name}.png')
         lib.render_fit(path, 128, math.radians(25))
         frames.append({'name': f'icon/b_{name}', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
+
+elif GROUP == 'gather':
+    # Close-ups for the chop/mine minigame, big and nearly side-on (see art/gather.py).
+    pieces = [(f'{kind}_{part}', lambda k=kind, p=part: getattr(gather, k)(p), 520, 560)
+              for kind in ('oak', 'pine') for part in ('whole', 'stump', 'top')]
+    pieces += [(name, lambda n=name: gather.boulder(n), 420, 320) for name in gather.ROCKS]
+    pieces += [('crystal', gather.crystal_rock, 420, 400)]
+    for name, fn, w, h in pieces:
+        if not wanted(name):
+            continue
+        lib.clear_objects()
+        fn()
+        shot(f'gather/{name}', w, h, gather.PPU, elevation=gather.ELEVATION, fit_origin=0.9)
+    for name, fn in gather.tools():
+        if not wanted(name):
+            continue
+        lib.clear_objects()
+        fn()
+        shot(f'gather/{name}', 220, 260, gather.PPU, elevation=0, fit_origin=0.92)
 
 else:
     raise SystemExit(f'unknown group {GROUP}')

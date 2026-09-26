@@ -239,8 +239,8 @@ export class Overworld {
     ctx.translate(-camX, -camY);
     if (this.objective && !this.quiet) this.drawObjective(ctx, camX, camY, vw, vh, ts);
 
-    // Interaction hint bubble
-    const near = this.quiet ? null : this.nearbyObject();
+    // Interaction hint bubble (not while chopping or mining: the minigame's card is up)
+    const near = this.quiet || this.chopping ? null : this.nearbyObject();
     if (near && this.alert <= 0) {
       const bx = (near.x + near.w / 2) * ts, by = near.y * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
       ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;

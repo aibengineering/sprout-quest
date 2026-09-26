@@ -2,7 +2,10 @@
 
 export type Sfx =
   | 'swing' | 'hit' | 'crit' | 'hurt' | 'kill' | 'levelup' | 'encounter' | 'victory'
-  | 'craft' | 'heal' | 'dodge' | 'shoot' | 'boom' | 'ui' | 'lose' | 'skill' | 'step' | 'heavy';
+  | 'craft' | 'heal' | 'dodge' | 'shoot' | 'boom' | 'ui' | 'lose' | 'skill' | 'step' | 'heavy'
+  // Gathering: an axe biting wood, a pick on stone, a glancing miss, a tree creaking over and landing, a rock
+  // crumbling, and what you earned landing in your bag.
+  | 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup';
 
 export class Audio {
   private ctx: AudioContext | null = null;
@@ -79,6 +82,13 @@ export class Audio {
       case 'skill': this.tone(400, 0.25, 'sawtooth', 0.1, 1200); this.noise(0.2, 0.2, 2000); break;
       case 'ui': this.tone(740, 0.05, 'square', 0.07); break;
       case 'step': this.noise(0.03, 0.05, 700); break;
+      case 'chop': this.tone(170, 0.1, 'triangle', 0.3, 85); this.noise(0.07, 0.3, 1100); break;
+      case 'clink': this.tone(1500, 0.07, 'square', 0.06, 1000); this.tone(720, 0.1, 'triangle', 0.14, 520); this.noise(0.05, 0.22, 3200); break;
+      case 'glance': this.noise(0.08, 0.12, 2600); this.tone(950, 0.06, 'sine', 0.05, 620); break;
+      case 'creak': this.tone(150, 0.55, 'sawtooth', 0.045, 95); this.tone(230, 0.45, 'sawtooth', 0.03, 130, 0.08); break;
+      case 'thud': this.noise(0.32, 0.45, 380); this.tone(95, 0.32, 'sine', 0.38, 42); break;
+      case 'crumble': this.noise(0.5, 0.38, 850); this.noise(0.3, 0.2, 2400, 0.06); this.tone(115, 0.26, 'sine', 0.28, 48); break;
+      case 'pickup': notes([988, 1319], 0.05, 'square', 0.07); break;
     }
   }
 }
