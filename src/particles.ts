@@ -29,6 +29,8 @@ interface Particle {
   img?: HTMLImageElement;
   hang?: number;
   from?: { x: number; y: number };
+  /** Where loot bounces. */
+  floor?: number;
   phase?: number;
 }
 
@@ -116,13 +118,13 @@ export class Particles {
     }
   }
 
-  /** What you earned: each piece pops out, hangs a moment, then flies to your bag. */
-  loot(x: number, y: number, id: string, n: number) {
+  /** What you earned: each piece pops out, hangs a moment, then flies to your bag. It bounces on `floor` (default: the ground). */
+  loot(x: number, y: number, id: string, n: number, floor = this.ground) {
     for (let i = 0; i < n; i++) {
       const a = -Math.PI / 2 + rand(-0.8, 0.8), v = rand(260, 380);
       this.list.push({
         kind: 'loot', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1.1, max: 1.1, size: 17, color: '#fff',
-        rot: rand(-0.4, 0.4), spin: rand(-4, 4), img: iconImage(id), hang: 0.45 + i * 0.07,
+        rot: rand(-0.4, 0.4), spin: rand(-4, 4), img: iconImage(id), hang: 0.45 + i * 0.07, floor,
       });
     }
   }
@@ -185,8 +187,8 @@ export class Particles {
             p.y += p.vy * dt;
             p.rot += p.spin * dt;
             p.spin *= Math.exp(-3 * dt);
-            if (p.y > this.ground - p.size && p.vy > 0) {
-              p.y = this.ground - p.size;
+            if (p.y > p.floor! - p.size && p.vy > 0) {
+              p.y = p.floor! - p.size;
               p.vy *= -0.4;
               p.vx *= 0.6;
             }

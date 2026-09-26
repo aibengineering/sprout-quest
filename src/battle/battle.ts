@@ -3,7 +3,7 @@
 import { ARENA_RX, ARENA_RY, OvalArena } from '../arena';
 import type { Audio, Sfx } from '../audio';
 import { vibrate } from '../audio';
-import { GEAR, MATS, MONSTERS, POTION_HEAL, type Fx as Element, type Gear, type MatId, type MonsterKind } from '../data';
+import { GEAR, MONSTERS, POTION_HEAL, type Fx as Element, type Gear, type MatId, type MonsterKind } from '../data';
 import { Fx } from '../fx';
 import type { Input } from '../input';
 import { GENTLE_ATK, calcDamage, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
@@ -68,6 +68,8 @@ export class Battle implements FoeWorld, HitWorld {
   private runCd = 0;
   private xp = 0;
   private drops: Partial<Record<MatId, number>> = {};
+  /** Drops from each defeated monster, where it fell, waiting for the renderer to pop them out (cosmetic). */
+  readonly dropped: { x: number; y: number; floor: number; drops: Partial<Record<MatId, number>> }[] = [];
   private defeated: string[] = [];
   private hitCounter = 1;
   /** How many times the player has landed a hit (drives the first-battle tutorial). */
@@ -724,8 +726,7 @@ export class Battle implements FoeWorld, HitWorld {
     const d = rollDrops(e.def, this.stats.luck, e.golden);
     cloverPity(this.save, e.def, d);
     mergeDrops(this.drops, d);
-    let i = 0;
-    for (const m in d) this.fx.text(e.x + (i++ - 0.5) * 18, e.y - e.r * 2.6, MATS[m as MatId].icon, '#fff', 18);
+    this.dropped.push({ x: e.x, y: e.y - e.r * 0.8, floor: e.y, drops: d });
     if (e.def.boss) {
       for (const m of this.enemies) if (m.minion && !m.dead) this.kill(m);
       this.shake = 20;

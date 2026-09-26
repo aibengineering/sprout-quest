@@ -8,6 +8,7 @@ import { SKILL_DATA } from '../weapons';
 import { hash2 } from '../world';
 import type { Battle } from './battle';
 import { drawBubble } from '../bubble';
+import { Particles } from '../particles';
 import { BURN_COLOR, ELEMENTS } from './elements';
 import { MONSTER_AI, spriteScale } from './monsters';
 import { pose } from './pose';
@@ -28,6 +29,26 @@ function layout(vw: number, vh: number) {
   const top = 64;
   const k = Math.min(vw / sw, (vh - top - 8) / sh);
   return { k, cx: vw / 2, cy: top + (vh - top) / 2 };
+}
+
+/** Each fight's loot in flight (screen space), and the fight time it was last drawn at. */
+const looting = new WeakMap<Battle, { fx: Particles; t: number }>();
+
+/**
+ * Monster drops: each defeated monster's materials pop out of it, bounce at its feet, then fly to the loot readout at
+ * the top right (where they're listed when the fight ends).
+ */
+function drawLoot(b: Battle, ctx: Ctx, vw: number, toScreen: (x: number, y: number) => { x: number; y: number }) {
+  let st = looting.get(b);
+  if (!st) looting.set(b, (st = { fx: new Particles(), t: b.t }));
+  for (const d of b.dropped.splice(0)) {
+    const at = toScreen(d.x, d.y), floor = toScreen(d.x, d.floor).y;
+    for (const [id, n] of Object.entries(d.drops)) if (n) st.fx.loot(at.x, at.y, id, Math.min(n, 4), floor);
+  }
+  st.fx.lootTo = { x: vw - 34, y: 96 };
+  st.fx.update(Math.max(0, Math.min(0.1, b.t - st.t)));
+  st.t = b.t;
+  st.fx.draw(ctx);
 }
 
 export function drawBattle(b: Battle, ctx: Ctx, vw: number, vh: number) {
@@ -53,6 +74,7 @@ export function drawBattle(b: Battle, ctx: Ctx, vw: number, vh: number) {
     ctx.fillRect(0, 0, vw, vh);
   }
   drawOverlay(b, ctx, vw, vh);
+  drawLoot(b, ctx, vw, (x, y) => ({ x: cx + sx + (x - b.p.x * q) * k, y: cy + sy + (y - (b.p.y - 20) * q) * k }));
 }
 
 /** Everything that happens on the battlefield: telegraphs, fighters, shots and effects. */

@@ -12,7 +12,7 @@ import { usingKeyboard } from './input';
 import { canShareFiles } from './share';
 import { reportInfo } from './stats';
 import { newerThan } from './semver';
-import { PATCH_NOTES, VERSION } from './version';
+import { PATCH_NOTES, VERSION, releaseTitle } from './version';
 
 /** Which unlock reveals each menu tab (settings is always there). */
 const TAB_UNLOCK: Partial<Record<Tab, UnlockId>> = { journey: 'journal', items: 'bag', forge: 'forge', village: 'village' };
@@ -732,7 +732,7 @@ export class UI {
     const rep = reportInfo();
     return `
       <div class="mcard row news"><div class="ico">📰</div><div class="info"><div class="name">What's new${hasNews(s) ? ' <span class="tag new">New!</span>' : ''}</div>
-        <div class="desc">Version ${VERSION}: ${esc(PATCH_NOTES[0].title)}</div></div>
+        <div class="desc">Version ${VERSION}: ${esc(releaseTitle())}</div></div>
         <button class="go" data-do="notes">Patch notes</button></div>
       <div class="mcard row"><div class="ico">${s.muted ? '🔇' : '🔊'}</div><div class="info"><div class="name">Sound</div></div>
         <button class="go" data-do="mute">${s.muted ? 'Off' : 'On'}</button></div>

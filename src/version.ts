@@ -1,5 +1,6 @@
 // The game's version and its patch notes, newest first. The version lives only in package.json: bump it there and add
-// an entry here with each release (CI checks both). Players who haven't read the newest notes get a dot on them.
+// an entry here with each release (CI checks both); a big release can have a few entries, one per headline change.
+// Players who haven't read the newest notes get a dot on them.
 import { version } from '../package.json';
 
 export const VERSION: string = version;
@@ -24,10 +25,18 @@ export const PATCH_NOTES: PatchNote[] = [
       '🎬 Story scenes: the camera pans to what matters, and dialogue moves out of the way of the action.',
       '🐰 A new mini-boss with a nasty charge, and its gang guarding the path to it.',
       '📷 The camera can look a little past the edge of the map, so nothing at the edges hides under the buttons.',
-      "🪓 Chopping and mining look and feel new: a detailed tree or rock close up, the axe or pick for your tool's tier, and every blow showing, with chips, sawdust, leaves, sparks and dust flying.",
-      '🌲 Trees topple off their stumps and land with a thud; rocks crack where your pick lands, then split and tumble apart, and what you earned pops out and flies to your bag.',
       "👢 A new kind of reward: perks. Finish Poppy's story for one that makes getting around a lot quicker.",
       '📔 The Journal lists your side stories, and the Bag your perks.',
+    ],
+  },
+  {
+    version: '0.3.0',
+    date: '2026-09-26',
+    title: 'Chop, crack and crumble',
+    notes: [
+      "🪓 Chopping and mining look and feel new: a detailed tree or rock close up, the axe or pick for your tool's tier, and every blow showing, with chips, sawdust, leaves, sparks and dust flying.",
+      '🌲 Trees topple off their stumps and land with a thud; rocks crack where your pick lands, then split and tumble apart.',
+      '🎁 What you earn pops out and flies to your bag: logs and ore from trees and rocks, and every monster drops its loot as it falls.',
     ],
   },
   {
@@ -74,3 +83,8 @@ export const PATCH_NOTES: PatchNote[] = [
     ],
   },
 ];
+
+/** A release's name: the titles of all its entries (e.g. "Poppy's Bunny · Chop, crack and crumble"). */
+export function releaseTitle(version = VERSION): string {
+  return PATCH_NOTES.filter((p) => p.version === version).map((p) => p.title).join(' · ');
+}

@@ -84,7 +84,8 @@ must pass first:
 - **Typecheck, tests and build**, and the **browser smoke test**, on every pull request and every push to `dev` that
   touches the game (documentation and CI-only changes skip them)
 - **Version bump and patch notes**, on pull requests into `main`: the `version` in `package.json` must be newer than
-  `main`'s, and the top entry of `PATCH_NOTES` in `src/version.ts` must describe it (`scripts/check-release.ts`); pull
+  `main`'s, and the top entries of `PATCH_NOTES` in `src/version.ts` must describe it (`scripts/check-release.ts`; a big
+  release can have a few entries, one per headline change); pull
   requests that only change documentation (Markdown, `docs/`) or CI tooling (`.github/`) skip it, since they don't
   change the game
 
