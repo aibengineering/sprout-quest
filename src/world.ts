@@ -189,15 +189,13 @@ export class World {
         for (let x = Math.floor(o.x) - 1; x <= Math.ceil(o.x + o.w); x++)
           if (this.tile(x, y) !== T.PATH) this.set(x, y, T.GROUND);
     };
-    // The glade where you wake: Veyra looks down on it, and something older sits half-hidden at its edge.
+    // The glade where you wake: Veyra looks down on it.
     add({
       kind: 'statue', id: 'veyra_wild', zone: 'glade', x: 5.6, y: MID - 4.1, w: 0.8, h: 0.6, label: 'Look',
       text: 'A mossy statue of a veiled woman holding a golden seed. Someone has kept the moss off her face. Standing here feels… familiar.',
     });
-    add({
-      kind: 'statue', id: 'king', zone: 'glade', x: 1.3, y: MID + 2.4, w: 0.8, h: 0.6, label: 'Look',
-      text: "A cracked statue of a crowned king, far older than the goddess across the glade. His face has been chiselled away, carefully and on purpose. There's no name on the plinth.",
-    });
+    // The faceless king's statue (env: statue_king) is kept out of the game until its art is improved; see the story
+    // bible (Gods and the old war) for where it goes and what it means.
     // Prologue: the sword in the grass, then two monsters blocking the forest path.
     add({ kind: 'pickup', flag: 'sword', x: 4.2, y: MID - 1.4, w: 0.6, h: 0.5, label: 'Pick up', text: 'Twig Sword' });
     const gy = pathY(10) - 1;

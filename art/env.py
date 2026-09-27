@@ -240,20 +240,29 @@ def crescent(r, inner, steps=10):
     return outer + back
 
 
-def veyra(scale=1.0, plinth=True, weathered=False):
+def veyra(scale=1.0, plinth=True, weathered=False, offerings=False):
     """A statue of Veyra, the Sower: a tall veiled woman in a long robe, a glowing golden seed cupped in one hand and a
-    sickle held low in the other. Pale stone, a gold seed; a mossy one out in the wild."""
+    sickle held low in the other. Pale stone and a gold seed. `weathered`: long forgotten out in the wild, draped in moss
+    and ivy with wildflowers at her feet and a cracked, sunken plinth. `offerings`: fresh flowers laid at her feet."""
     root = empty('veyra')
     s = scale
     stone = toon(STONE if not weathered else '#bdb6c9')
     dark = toon(STONE_DARK)
     z0 = 0.0
     if plinth:
-        box((0, 0, 0.14 * s), (0.72 * s, 0.6 * s, 0.28 * s), dark, root, bevel=0.03)
-        box((0, 0, 0.31 * s), (0.6 * s, 0.5 * s, 0.07 * s), stone, root, bevel=0.02)
+        tilt = (0, 0.04, 0.03) if weathered else (0, 0, 0)
+        box((0, 0, 0.14 * s), (0.72 * s, 0.6 * s, 0.28 * s), dark, root, bevel=0.03, rot=tilt)
+        box((0, 0, 0.31 * s), (0.6 * s, 0.5 * s, 0.07 * s), stone, root, bevel=0.02, rot=tilt)
+        # A carved band of seeds around the plinth.
+        for i in range(5):
+            sphere(((-0.24 + i * 0.12) * s, -0.305 * s, 0.17 * s), (0.028 * s, 0.01 * s, 0.04 * s), toon('#8d86a3'), root, seg=8, line=0)
         z0 = 0.35 * s
     # A long robe flaring to the ground, a sash, and shoulders under a veil that falls to her elbows.
     cylinder((0, 0, z0 + 0.42 * s), 0.3 * s, 0.84 * s, stone, root, seg=24, r2=0.15 * s)
+    # Folds in the robe: soft ridges running down the front.
+    for x in (-0.12, 0.0, 0.12):
+        cylinder((x * s, -0.215 * s + abs(x) * 0.25 * s, z0 + 0.38 * s), 0.022 * s, 0.7 * s, stone, root, seg=8, r2=0.012 * s,
+                 rot=(0.2, -x * 0.9, 0), line=0.01)
     torus((0, 0, z0 + 0.62 * s), 0.2 * s, 0.03 * s, toon(GOLD), root, seg=24, line=0.01)
     sphere((0, 0, z0 + 0.9 * s), (0.22 * s, 0.15 * s, 0.15 * s), stone, root, seg=20)
     cylinder((0, 0.02 * s, z0 + 0.94 * s), 0.25 * s, 0.34 * s, stone, root, seg=24, r2=0.12 * s)
@@ -268,10 +277,38 @@ def veyra(scale=1.0, plinth=True, weathered=False):
     sphere((-0.22 * s, -0.24 * s, z0 + 0.93 * s), 0.085 * s, toon(GOLD, emit=0.5, rim=0.5), root, seg=16, line=0.012)
     sphere((0.23 * s, -0.04 * s, z0 + 0.74 * s), (0.07 * s, 0.07 * s, 0.13 * s), stone, root, seg=12)
     sickle(root, (0.27 * s, -0.1 * s, z0 + 0.5 * s), 1.2 * s, rot=(0, 0.25, 0))
+    moss, moss_light = toon('#5f9a4a'), toon('#7ab85a')
     if weathered:
-        for x, y, z, r in ((0.2, -0.15, 0.25, 0.08), (-0.25, -0.1, 0.15, 0.1), (0.05, 0.2, 1.05, 0.08)):
-            sphere((x * s, y * s, z0 + z * s), r * s, toon('#6fa85a'), root, seg=10, line=0.012)
+        # Moss draped over the hood and shoulders, and gathered in the folds and on the plinth.
+        for x, y, z, rx, ry, rz in ((0.02, 0.02, 1.3, 0.14, 0.13, 0.05), (-0.16, 0.0, 1.06, 0.1, 0.12, 0.05),
+                                    (0.19, 0.02, 1.02, 0.09, 0.11, 0.05), (0.0, -0.12, 0.2, 0.2, 0.08, 0.05),
+                                    (-0.22, -0.02, 0.52, 0.07, 0.09, 0.12), (0.2, -0.1, 0.3, 0.08, 0.06, 0.1)):
+            sphere((x * s, y * s, z0 + z * s), (rx * s, ry * s, rz * s), moss, root, seg=12, line=0.012)
+        for x, y, z, r in ((0.06, -0.06, 1.33, 0.04), (-0.12, -0.08, 1.1, 0.035), (0.14, -0.1, 0.62, 0.035), (-0.05, -0.22, 0.12, 0.04)):
+            sphere((x * s, y * s, z0 + z * s), r * s, moss_light, root, seg=8, line=0)
+        # Ivy trailing from her shoulder down the robe: a line of small leaves.
+        for k in range(8):
+            t = k / 7
+            x, z = (-0.2 + 0.1 * t + 0.04 * math.sin(t * 7)) * s, z0 + (1.0 - 0.9 * t) * s
+            sphere((x, (-0.2 - 0.06 * (1 - t)) * s, z), (0.045 * s, 0.015 * s, 0.03 * s), moss_light if k % 2 else moss, root,
+                   seg=8, rot=(0, 0.6 if k % 2 else -0.6, 0), line=0.008)
+        # Moss on the plinth, wildflowers and grass at her feet.
+        for x, y in ((-0.3, -0.26), (0.28, -0.24), (0.3, 0.2), (-0.25, 0.22)):
+            sphere((x * s, y * s, 0.3 * s), (0.12 * s, 0.1 * s, 0.05 * s), moss, root, seg=10, line=0.012)
+        _flowers(root, s, [(-0.42, -0.34, '#ffffff'), (-0.34, -0.42, '#ffd35a'), (0.4, -0.36, '#ff8ab0'), (0.46, -0.24, '#ffffff'), (0.32, -0.44, '#b08aff')])
+    if offerings:
+        _flowers(root, s, [(-0.12, -0.36, '#ff8ab0'), (0.0, -0.4, '#ffd35a'), (0.13, -0.36, '#ffffff'), (0.26, -0.34, '#ff8ab0')], z=0.34 * s if plinth else 0)
     return root
+
+
+def _flowers(root, s, spots, z=0.0):
+    """Little flowers (a stem and a five-petal head) at the given (x, y, colour) spots."""
+    for x, y, col in spots:
+        cylinder((x * s, y * s, z + 0.05 * s), 0.008 * s, 0.1 * s, toon('#4fae4f'), root, seg=6, line=0)
+        for p in range(5):
+            a = p / 5 * math.tau
+            sphere((x * s + math.cos(a) * 0.025 * s, y * s, z + 0.11 * s + math.sin(a) * 0.025 * s), 0.02 * s, toon(col), root, seg=8, line=0.006)
+        sphere((x * s, (y - 0.01) * s, z + 0.11 * s), 0.013 * s, toon('#ffb03a'), root, seg=8, line=0)
 
 
 def crowned_king():
@@ -567,7 +604,7 @@ for g in ('bramble', 'crystal', 'rock'):
 SCENERY['house_blue'] = (lambda: house('#6a9ae0'), 380, 360)
 SCENERY['house_pink'] = (lambda: house('#e88ab0'), 380, 360)
 SCENERY['fountain'] = (fountain, 220, 240)
-SCENERY['statue_veyra'] = (lambda: veyra(1.0), 140, 220)
+SCENERY['statue_veyra'] = (lambda: veyra(1.0, offerings=True), 140, 220)
 SCENERY['statue_veyra_wild'] = (lambda: veyra(1.0, weathered=True), 140, 220)
 SCENERY['statue_king'] = (crowned_king, 140, 220)
 SCENERY['waystone'] = (waystone, 70, 90)
