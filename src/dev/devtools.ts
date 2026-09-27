@@ -6,8 +6,8 @@
 //
 // Switching reloads the page into the slot and continues straight into the game.
 import { QUESTS, zoneAtX } from '../data';
-import { G } from '../game/context';
-import { activeSlot, setActiveSlot, slotKey } from '../slots';
+import { G, persist } from '../game/context';
+import { activeSlot, freezeStorage, setActiveSlot, slotKey } from '../slots';
 import { SAVE_KEY, type SaveState } from '../state';
 import { LOG_KEY, TIME_KEY } from '../stats';
 import { PRESETS } from './presets';
@@ -33,7 +33,12 @@ export function install() {
   }
   document.head.insertAdjacentHTML('beforeend', `<style>${CSS}</style>`);
   addTitleButton();
-  if (activeSlot()) document.body.insertAdjacentHTML('beforeend', `<div id="dev-badge">🛠 ${esc(activeSlot()!)}</div>`);
+  // The same panel from inside the game: a row at the top of the menu's More tab.
+  G.ui.devRow = {
+    html: `<div class="mcard row"><div class="ico">🛠</div><div class="info"><div class="name">Save slots and presets</div>
+      <div class="desc">Dev build · playing <b>${esc(name(activeSlot()))}</b></div></div><button class="go" data-do="dev">Open</button></div>`,
+    open: () => void inGamePanel(),
+  };
   perfMeter();
   if (sessionStorage.getItem(AUTOPLAY)) {
     sessionStorage.removeItem(AUTOPLAY);
@@ -87,6 +92,9 @@ function deleteSlot(slot: string) {
 
 /** Reloads into a slot, straight into the game if it has a save. */
 function switchTo(slot: string | null) {
+  // Save where you are first, then nothing more: the page saves on its way out, which would land in the new slot.
+  if (G.mode !== 'title') persist();
+  freezeStorage();
   setActiveSlot(slot);
   if (localStorage.getItem(slotKey(SAVE_KEY, slot))) sessionStorage.setItem(AUTOPLAY, '1');
   location.reload();
@@ -144,7 +152,7 @@ function perfMeter() {
       renders = s?.renders ?? 0;
       renderMs = s?.ms ?? 0;
       const avg = times.reduce((a, b) => a + b, 0) / times.length, worst = Math.max(...times);
-      el.innerHTML = `<b>${Math.round((times.length * 1000) / (now - windowStart))} fps</b> · ${avg.toFixed(1)} ms (worst ${worst.toFixed(0)}) · 3D ${dr}/s ${dm.toFixed(1)} ms<br><small>${esc(gpu)}</small>`;
+      el.innerHTML = `<b>${Math.round((times.length * 1000) / (now - windowStart))} fps</b> · ${avg.toFixed(1)} ms<br>worst ${worst.toFixed(0)} ms · 3D ${dr}/s ${dm.toFixed(0)} ms<br><small>${esc(gpu)}${activeSlot() ? `<br>🛠 ${esc(activeSlot()!)}` : ''}</small>`;
       el.classList.toggle('slow', avg > 20);
       times.length = 0;
       windowStart = now;
@@ -165,6 +173,17 @@ function addTitleButton() {
     if (G.mode === 'title' && !G.ui.isOpen) void panel();
   });
   document.querySelector('.title-btns')!.after(btn);
+}
+
+/** The panel from the menu: the world waits behind it, and your progress is saved before switching slots. */
+async function inGamePanel() {
+  const was = G.mode;
+  G.mode = 'dialog';
+  persist();
+  await panel();
+  // Switching slots reloads the page; anything else comes back here.
+  if (G.mode === 'dialog') G.mode = was === 'dialog' ? 'world' : was;
+  G.input.reset();
 }
 
 async function panel() {
@@ -218,16 +237,13 @@ const CSS = `
 .dev-row .go { padding: 6px 12px; font-size: 14px; }
 .dev-copy { margin-top: 8px; width: 100%; }
 #dev-perf {
-  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 40;
-  font: 700 11px/1.25 ui-monospace, Menlo, monospace; color: #d8ffd0; background: rgba(20, 12, 28, 0.72);
-  padding: 3px 8px; border-radius: 8px; text-align: center; white-space: nowrap; pointer-events: none;
+  /* Middle of the left edge: over the world or the arena, clear of the HUD, the goal and every button. */
+  position: fixed; left: calc(4px + env(safe-area-inset-left)); top: 56%; z-index: 15; max-width: 46vw;
+  font: 700 10.5px/1.3 ui-monospace, Menlo, monospace; color: #d8ffd0; background: rgba(20, 12, 28, 0.6);
+  padding: 3px 7px; border-radius: 8px; pointer-events: none; overflow: hidden; text-overflow: ellipsis;
 }
 #dev-perf b { color: #fff; }
 #dev-perf small { color: rgba(255, 255, 255, 0.6); font-size: 10px; }
 #dev-perf.slow b { color: #ffb0a0; }
-#dev-badge {
-  position: fixed; left: 50%; bottom: calc(4px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30;
-  font: 700 11px ui-rounded, system-ui, sans-serif; color: #fff; background: rgba(40, 20, 50, 0.55);
-  padding: 2px 8px; border-radius: 8px; pointer-events: none;
-}
+
 `;

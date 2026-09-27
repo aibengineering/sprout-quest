@@ -728,9 +728,12 @@ export class UI {
     return `${note}${cards}`;
   }
 
+  /** Dev builds add their own row to the More tab (save slots and presets; see src/dev/devtools.ts). */
+  devRow: { html: string; open: () => void } | null = null;
+
   private settings(s: SaveState): string {
     const rep = reportInfo();
-    return `
+    return `${this.devRow?.html ?? ''}
       <div class="mcard row news"><div class="ico">📰</div><div class="info"><div class="name">What's new${hasNews(s) ? ' <span class="tag new">New!</span>' : ''}</div>
         <div class="desc">Version ${VERSION}: ${esc(PATCH_NOTES[0].title)}</div></div>
         <button class="go" data-do="notes">Patch notes</button></div>
@@ -792,6 +795,10 @@ export class UI {
     else if (d.do === 'report') this.hooks.exportReport('file');
     else if (d.do === 'report-copy') this.hooks.exportReport('copy');
     else if (d.do === 'notes') return this.hooks.patchNotes();
+    else if (d.do === 'dev' && this.devRow) {
+      this.closeMenu();
+      return this.devRow.open();
+    }
     this.refresh();
   }
 

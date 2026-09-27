@@ -1,7 +1,7 @@
 // Play report: a log of every fight, gather, level-up, craft and story step, plus time spent per area and activity,
 // kept in their own localStorage entries (so they never bloat the save) and exportable from the More tab.
 import { GEAR, NODES, TOOLS } from './data';
-import { slotKey } from './slots';
+import { slotKey, storageFrozen } from './slots';
 import type { SaveState } from './state';
 
 /** Where the log and time split live (per save slot, see slots.ts). */
@@ -40,6 +40,7 @@ function load(): Stamped[] {
 }
 
 export function logEvent(save: SaveState, e: LogEvent) {
+  if (storageFrozen()) return;
   try {
     const all = load();
     all.push({ at: Date.now(), play: Math.round(save.playtime), lv: save.lv, ...e });
@@ -80,6 +81,7 @@ export function trackTime(zone: string, activity: Activity, dt: number) {
 
 export function flushTime() {
   unsaved = 0;
+  if (storageFrozen()) return;
   try {
     localStorage.setItem(slotKey(TIME_KEY), JSON.stringify(loadTime()));
   } catch {

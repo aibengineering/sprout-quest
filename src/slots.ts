@@ -21,6 +21,13 @@ export function setActiveSlot(slot: string | null) {
   }
 }
 
+let frozen = false;
+/** Stops every save and log write (switching slots: the page's last save on the way out must not land in the new one). */
+export function freezeStorage() {
+  frozen = true;
+}
+export const storageFrozen = () => frozen;
+
 /** A storage key for the active slot (or for `slot`): the main slot keeps the original, unsuffixed keys. */
 export function slotKey(key: string, slot = activeSlot()): string {
   return slot ? `${key}:${slot}` : key;

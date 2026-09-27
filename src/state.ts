@@ -1,4 +1,4 @@
-import { slotKey } from './slots';
+import { slotKey, storageFrozen } from './slots';
 import { VERSION } from './version';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
@@ -168,6 +168,7 @@ function migrateToTracks(s: SaveState) {
 }
 
 export function saveState(s: SaveState): void {
+  if (storageFrozen()) return;
   try {
     localStorage.setItem(slotKey(SAVE_KEY), JSON.stringify(s));
   } catch {
