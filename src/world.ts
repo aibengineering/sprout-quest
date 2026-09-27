@@ -28,7 +28,7 @@ const NODE_MARKS: [string, NodeKind, boolean][] = [
   ['y', 'crystal', false], ['Y', 'crystal', true],
 ];
 
-export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc';
+export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -48,7 +48,8 @@ export interface WorldObj {
   /** Story flag set when this scripted object is resolved (sword picked up, prologue foe beaten). */
   flag?: string;
   monster?: MonsterKind;
-  /** Gathering node: which tree, its stable id (for regrowth timers) and whether it stands in tall grass. */
+  /** Gathering node: which tree, its stable id (for regrowth timers) and whether it stands in tall grass. A statue's
+   * `id` picks its sprite (statue_<id>). */
   node?: NodeKind;
   id?: string;
   grass?: boolean;
@@ -188,6 +189,15 @@ export class World {
         for (let x = Math.floor(o.x) - 1; x <= Math.ceil(o.x + o.w); x++)
           if (this.tile(x, y) !== T.PATH) this.set(x, y, T.GROUND);
     };
+    // The glade where you wake: Veyra looks down on it, and something older sits half-hidden at its edge.
+    add({
+      kind: 'statue', id: 'veyra_wild', zone: 'glade', x: 5.6, y: MID - 4.1, w: 0.8, h: 0.6, label: 'Look',
+      text: 'A mossy statue of a veiled woman holding a golden seed. Someone has kept the moss off her face. Standing here feels… familiar.',
+    });
+    add({
+      kind: 'statue', id: 'king', zone: 'glade', x: 1.3, y: MID + 2.4, w: 0.8, h: 0.6, label: 'Look',
+      text: "A cracked statue of a crowned king, far older than the goddess across the glade. His face has been chiselled away, carefully and on purpose. There's no name on the plinth.",
+    });
     // Prologue: the sword in the grass, then two monsters blocking the forest path.
     add({ kind: 'pickup', flag: 'sword', x: 4.2, y: MID - 1.4, w: 0.6, h: 0.5, label: 'Pick up', text: 'Twig Sword' });
     const gy = pathY(10) - 1;
@@ -199,8 +209,13 @@ export class World {
     add({ kind: 'plot', project: 'home', x: V + 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
     add({ kind: 'plot', project: 'garden', x: V + 7.2, y: 18.4, w: 3, h: 1.6, label: 'Build', text: 'Garden' });
     add({ kind: 'plot', project: 'training', x: V + 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
-    add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Warp Stone' });
-    add({ kind: 'fountain', x: V + 12, y: 17, w: 2, h: 2, label: 'Rest', text: 'Healing Fountain' });
+    add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Waystone' });
+    add({ kind: 'fountain', x: V + 12, y: 17, w: 2, h: 2, label: 'Rest', text: "Veyra's Spring" });
+    // Veyra's shrine, where Elder Bloom prays: north of where he stands, between the forge and the blue house.
+    add({
+      kind: 'statue', id: 'veyra', zone: 'village', x: V + 10.1, y: 7.6, w: 0.8, h: 0.6, label: 'Look',
+      text: 'Veyra, the Sower. A veiled goddess with a golden seed in one hand and a sickle in the other. Fresh flowers lie at her feet. The words on the plinth read: "All that is planted, I tend."',
+    });
     add({
       kind: 'sign', x: V + 18.6, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
       text: 'East: Sunny Meadow. Walk through tall grass to find monsters. Bring back materials to the Forge!',

@@ -23,7 +23,7 @@ const COWER = tile(22.5, 23.4);
 /** Just outside the grove's mouth, and where Big Bun is caught with the toy. */
 const MOUTH = tile(28.6, 23.2);
 const DROPPED = tile(25, 23.3);
-/** Granny's cottage (the blue house in Sprout Village): Poppy's place by the door, and Granny's. */
+/** Granny's cottage (the blue house in Sowerby): Poppy's place by the door, and Granny's. */
 const HOME = { x: 29.4, y: 10.4 };
 const GRANNY_AT = { x: 31.8, y: 10.3 };
 const DOOR = { x: 30.5, y: 10.4 };
@@ -101,13 +101,13 @@ export const POPPY: Story = {
           await walk('poppy:poppy', [{ x: G.over.x - 0.9, y: G.over.y + 0.1 }], 2.4);
           await say(POPPY_TALK, 'Y-you beat them all! Thank you, thank you!');
           await say(POPPY_TALK, "I'm Poppy. I found this secret grove, all full of flowers, and I was picking some for Granny, and then… the slimes came.", 'sad');
-          await say(POPPY_TALK, 'Could you walk me home? Granny lives in Sprout Village, in the blue house.');
+          await say(POPPY_TALK, 'Could you walk me home? Granny lives in Sowerby, in the blue house.');
           bubble('poppy:poppy', '🙂', 2);
         });
       },
     },
     {
-      id: 'escort', label: 'Walk Poppy home to Sprout Village',
+      id: 'escort', label: 'Walk Poppy home to Sowerby',
       target: () => DOOR,
       done: () => near(DOOR, 2.6) && !!poppy() && Math.hypot(poppy()!.x - G.over.x, poppy()!.y - G.over.y) < 3,
       async then() {
@@ -119,7 +119,7 @@ export const POPPY: Story = {
           bubble('poppy:granny', '😮', 1.2);
           await wait(700);
           bubble('poppy:granny', '😊', 3);
-          await say(GRANNY, 'Poppy! Oh, thank goodness. Where have you been, little sprout?', 'worried');
+          await say(GRANNY, 'Poppy! Oh, thank goodness. Where have you been, my little poppyseed?', 'worried');
           await say(POPPY_TALK, 'Slimes chased me, Granny! But this hero saved me!');
           await say(GRANNY, "Then you have my thanks, dear. It's so good to have you both here safe.");
           await wait(400);

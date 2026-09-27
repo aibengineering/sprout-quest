@@ -191,7 +191,8 @@ def pose(P, phase, moving):
 
 
 def build_elder():
-    """Elder Bloom: a tiny old sprout with a big leafy hat, fluffy beard and a flower staff."""
+    """Elder Bloom, Veyra's priest in Sowerby: a little old man in a green robe, a crown of leaves, a fluffy beard, a golden
+    seed pendant and a staff topped with Veyra's sickle."""
     P = {}
     root = P['root'] = empty('elder')
     bodyp = P['body'] = empty('bodyPivot', root)
@@ -218,10 +219,14 @@ def build_elder():
     cone((0, 0, 0.3), 0.04, 0.18, toon('#4aa84a'), hat, seg=8)
     staff = empty('staff', bodyp, (0.36, -0.05, 0.0))
     cylinder((0, 0, 0.55), 0.03, 1.1, toon('#9a6a44'), staff, seg=8)
-    for i in range(5):
-        a = i / 5 * math.tau
-        sphere((math.cos(a) * 0.07, -0.02, 1.12 + math.sin(a) * 0.07), 0.05, toon('#ff8ab0'), staff, line=0.01)
-    sphere((0, -0.05, 1.12), 0.035, toon('#ffd35a'), staff, line=0)
+    # Veyra's sickle crowns the staff, with a golden seed where blade meets pole.
+    from env import crescent
+    blade = empty('blade', staff, (0, 0, 1.08))
+    profile(crescent(0.14, 0.09), 0.03, toon('#e0e4ee'), blade, bevel=0.005, line=0.012)
+    sphere((0, -0.02, 1.1), 0.045, toon('#ffd35a', emit=0.3), staff, line=0.01)
+    # A golden seed pendant on a cord.
+    torus((0, 0, 0.52), 0.16, 0.012, toon('#8a5a3a'), bodyp, rot=(0.35, 0, 0), line=0)
+    sphere((0, -0.27, 0.38), (0.045, 0.03, 0.06), toon('#ffd35a', emit=0.3), bodyp, line=0.01)
     sphere((0.3, -0.04, 0.36), 0.065, skin, bodyp)
     return P
 
@@ -280,7 +285,7 @@ def _face(head, mood, hair):
 
 
 def build_poppy(mood='happy', hug=False):
-    """Poppy: a little girl from Sprout Village, with auburn pigtails, pink bows and a sunny yellow dress.
+    """Poppy: a little girl from Sowerby, with auburn pigtails, pink bows and a sunny yellow dress.
 
     Same part names as the hero, so she walks with `pose`. With `hug`, she holds Mr. Floppers.
     """

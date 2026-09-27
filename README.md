@@ -55,7 +55,7 @@ Each release's player-facing changes are in the in-game patch notes (`src/versio
 
 ## The game
 
-A cute, mobile-first little adventure game. Wander from Sprout Village through tall grass, get pulled into
+A cute, mobile-first little adventure game. Wander from Sowerby through tall grass, get pulled into
 real-time arena battles, level up, chop and mine your way up the material tiers, and craft better gear at the Forge,
 then push east toward stronger monsters and the dragon at the end of Ember Peak.
 
@@ -131,7 +131,7 @@ timeline and the raw events, to tune the balance against real play.
 
 **Prologue.** You wake up in the Quiet Glade west of the village, pick up a Twig Sword, and fight your way down the
 forest path: a slime (attack) and then a Hopbun (its charge teaches dodging), with only ⚔️ and 💨 on screen and coaching
-bubbles. Reaching Sprout Village plays a letterboxed camera tour with Elder Bloom (the empty plots, the ruined forge, the
+bubbles. Reaching Sowerby plays a letterboxed camera tour with Elder Bloom, Veyra's priest (the empty plots, the ruined forge, the
 guarded roads east). From there systems unlock one at a time with a small card: 🎒 Bag, 📜 Journal, ✨ weapon skill,
 🏡 Village building (starting with repairing the forge), ⚒ crafting, then new building plots as guardians fall.
 
@@ -144,7 +144,7 @@ for the materials it needs.
 | Prologue | Wake in the glade → find a sword → beat a slime and a Hopbun → reach the village |
 | 1 | Gather materials in the meadow → repair the Forge → craft gear → craft a Stone Axe and Pick → build a Cottage |
 | 2 | 👑 **Slime King** (Lv 5) guards Whisper Woods → upgrade the Forge to a Smithy |
-| 3 | 🐺 **Alpha Woolf** (Lv 9) guards Echo Cavern → build the Warp Stone |
+| 3 | 🐺 **Alpha Woolf** (Lv 9) guards Echo Cavern → build the Waystone |
 | 4 | 💎 Mine crystal in **Glimmer Hollow** |
 | 5 | 💎 **Crystal King** (Lv 14) guards Ember Peak → upgrade to a Master Forge |
 | Finale | 🐉 **Emberwyrm** (Lv 20), then build your Manor |
@@ -153,7 +153,7 @@ for the materials it needs.
   own attack patterns and summon helpers. Beating one opens the road, lights a 🔥 **campfire checkpoint** (heal, respawn,
   warp point) and drops a **trophy** needed for the next village upgrade.
 - **Village construction**: Home (Tent → Cottage → Manor, +max HP), Forge (Forge → Smithy → Master Forge, gating
-  ★★★ and ★★★★★ recipes), Garden (more free potions), Training Yard (+attack) and Warp Stone (fast travel). Buildings
+  ★★★ and ★★★★★ recipes), Garden (more free potions), Training Yard (+attack) and Waystone (fast travel). Buildings
   visibly change in the village.
 - **Levels you can feel**: a combat level-up pauses the game on its own screen with your stat changes and what you're
   now ready for (a guardian, a new area). Woodcutting, Mining and weapon handling levels get a screen too, listing what
@@ -178,7 +178,7 @@ grass, and that every tree, rock, sign and campfire can be reached. Each area is
 | Area | Lv | Monsters | Materials |
 | --- | --- | --- | --- |
 | 🌳 Quiet Glade | – | Prologue only | Where your story begins |
-| 🏡 Sprout Village | – | – | Forge, Fountain, Elder Bloom, building plots |
+| 🏡 Sowerby | – | – | Forge, Veyra's Spring and shrine, Elder Bloom, building plots |
 | 🌼 Sunny Meadow | 1–3 | Slime, Hopbun | Goo, Fluff, Clover · 🪵 oak, 🪨 stone |
 | 🌲 Whisper Woods | 4–7 | Sporecap, Woolf, Hopbun | Shroom Cap, Fang · 🌲 pine, 🟠 copper |
 | 🪨 Echo Cavern | 8–11 | Flapper, Pebblor, Sporecap | Bat Wing, Golem Core · ⚙️ iron |

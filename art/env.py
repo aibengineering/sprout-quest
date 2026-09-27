@@ -211,7 +211,102 @@ def fountain():
     cylinder((0, 0, 0.7), 0.16, 1.0, toon('#d0c8e0'), root, seg=16)
     lathe([(0.0001, 1.1), (0.5, 1.12), (0.55, 1.25), (0.45, 1.28), (0.0001, 1.2)], toon('#d0c8e0'), root, seg=24)
     cylinder((0, 0, 1.24), 0.42, 0.04, toon('#8ad8f8', rim=0.5), root, seg=24, line=0)
-    sphere((0, 0, 1.45), 0.15, toon('#8ad8f8', rim=0.5), root, line=0.012)
+    # Veyra's Spring: the goddess stands over the water.
+    statue = veyra(0.55, plinth=False)
+    statue.parent = root
+    statue.location = (0, 0, 1.24)
+    return root
+
+
+STONE, STONE_DARK, GOLD = '#d4cfe0', '#a9a3bd', '#ffd35a'
+
+
+def sickle(parent, loc, s=1.0, rot=(0, 0, 0), mat=None):
+    """Veyra's sickle: a short handle and a crescent blade (a partial torus), made of the same stone unless `mat`."""
+    root = empty('sickle', parent, loc)
+    root.rotation_euler = rot
+    root.scale = (s, s, s)
+    m = mat or toon(STONE)
+    cylinder((0, 0, 0.14), 0.035, 0.28, m, root, seg=8, line=0.014)
+    root_blade = empty('blade', root, (0, 0, 0.28))
+    profile(crescent(0.17, 0.11), 0.03, m, root_blade, bevel=0.005, line=0.014)
+    return root
+
+
+def crescent(r, inner, steps=10):
+    """A sickle blade in the XZ plane: an outer arc from the handle up and over, and a thinner inner arc back."""
+    outer = [(r - math.cos(math.radians(a)) * r, math.sin(math.radians(a)) * r) for a in range(-10, 200, 210 // steps)]
+    back = [(r - math.cos(math.radians(a)) * inner * 1.1 + 0.02, math.sin(math.radians(a)) * inner) for a in range(190, -10, -200 // steps)]
+    return outer + back
+
+
+def veyra(scale=1.0, plinth=True, weathered=False):
+    """A statue of Veyra, the Sower: a tall veiled woman in a long robe, a glowing golden seed cupped in one hand and a
+    sickle held low in the other. Pale stone, a gold seed; a mossy one out in the wild."""
+    root = empty('veyra')
+    s = scale
+    stone = toon(STONE if not weathered else '#bdb6c9')
+    dark = toon(STONE_DARK)
+    z0 = 0.0
+    if plinth:
+        box((0, 0, 0.14 * s), (0.72 * s, 0.6 * s, 0.28 * s), dark, root, bevel=0.03)
+        box((0, 0, 0.31 * s), (0.6 * s, 0.5 * s, 0.07 * s), stone, root, bevel=0.02)
+        z0 = 0.35 * s
+    # A long robe flaring to the ground, a sash, and shoulders under a veil that falls to her elbows.
+    cylinder((0, 0, z0 + 0.42 * s), 0.3 * s, 0.84 * s, stone, root, seg=24, r2=0.15 * s)
+    torus((0, 0, z0 + 0.62 * s), 0.2 * s, 0.03 * s, toon(GOLD), root, seg=24, line=0.01)
+    sphere((0, 0, z0 + 0.9 * s), (0.22 * s, 0.15 * s, 0.15 * s), stone, root, seg=20)
+    cylinder((0, 0.02 * s, z0 + 0.94 * s), 0.25 * s, 0.34 * s, stone, root, seg=24, r2=0.12 * s)
+    # The hood, with its rim framing a face lost in shadow and two closed eyes.
+    sphere((0, 0.03 * s, z0 + 1.17 * s), (0.15 * s, 0.15 * s, 0.17 * s), stone, root, seg=24)
+    torus((0, -0.08 * s, z0 + 1.15 * s), 0.1 * s, 0.025 * s, stone, root, rot=(1.35, 0, 0), seg=20, line=0.01)
+    sphere((0, -0.1 * s, z0 + 1.14 * s), (0.085 * s, 0.03 * s, 0.1 * s), toon('#8d86a3'), root, seg=14, line=0)
+    for side in (-1, 1):
+        box((0.035 * side * s, -0.13 * s, z0 + 1.15 * s), (0.03 * s, 0.01 * s, 0.006 * s), toon('#5e5775'), root, bevel=0, line=0)
+    # One hand held out with the golden seed, the other low with the sickle.
+    sphere((-0.2 * s, -0.12 * s, z0 + 0.86 * s), (0.07 * s, 0.13 * s, 0.06 * s), stone, root, seg=12, rot=(0.7, 0, -0.3))
+    sphere((-0.22 * s, -0.24 * s, z0 + 0.93 * s), 0.085 * s, toon(GOLD, emit=0.5, rim=0.5), root, seg=16, line=0.012)
+    sphere((0.23 * s, -0.04 * s, z0 + 0.74 * s), (0.07 * s, 0.07 * s, 0.13 * s), stone, root, seg=12)
+    sickle(root, (0.27 * s, -0.1 * s, z0 + 0.5 * s), 1.2 * s, rot=(0, 0.25, 0))
+    if weathered:
+        for x, y, z, r in ((0.2, -0.15, 0.25, 0.08), (-0.25, -0.1, 0.15, 0.1), (0.05, 0.2, 1.05, 0.08)):
+            sphere((x * s, y * s, z0 + z * s), r * s, toon('#6fa85a'), root, seg=10, line=0.012)
+    return root
+
+
+def crowned_king():
+    """An old, cracked statue of a crowned king on a broken plinth, its face chiselled flat. Older than Veyra's; nobody
+    says whose it is."""
+    root = empty('king')
+    stone, dark, moss = toon('#9a93a8'), toon('#77708a'), toon('#6a9a52')
+    box((0, 0, 0.16), (0.8, 0.66, 0.32), dark, root, bevel=0.03, rot=(0, 0, 0.05))
+    box((0.28, -0.3, 0.05), (0.2, 0.14, 0.1), dark, root, bevel=0.02, rot=(0, 0, 0.6))
+    cylinder((0, 0, 0.72), 0.26, 0.8, stone, root, seg=10, r2=0.2)
+    sphere((0, 0, 1.18), (0.22, 0.18, 0.2), stone, root, seg=16)
+    # Shoulders with a cloak, a sword planted before him.
+    for side in (-1, 1):
+        sphere((0.24 * side, 0, 1.06), (0.1, 0.1, 0.09), stone, root, seg=12)
+    box((0, -0.27, 0.72), (0.05, 0.03, 0.7), dark, root, bevel=0.01)
+    box((0, -0.27, 1.02), (0.2, 0.04, 0.04), dark, root, bevel=0.01)
+    # The head, its face cut away to a flat scar, under a heavy crown.
+    sphere((0, 0, 1.42), (0.15, 0.14, 0.16), stone, root, seg=16)
+    box((0, -0.13, 1.4), (0.2, 0.03, 0.18), toon('#c2bccf'), root, bevel=0.005, line=0.01)
+    cylinder((0, 0, 1.57), 0.16, 0.1, toon('#b8a86a'), root, seg=16)
+    for i in range(6):
+        a = i / 6 * math.tau
+        cone((math.cos(a) * 0.14, math.sin(a) * 0.14, 1.66), 0.035, 0.1, toon('#b8a86a'), root, seg=6, line=0.01)
+    for x, y, z, r in ((-0.3, -0.2, 0.34, 0.12), (0.2, 0.25, 0.36, 0.14), (-0.12, 0.05, 1.62, 0.07), (0.22, -0.15, 0.9, 0.07)):
+        sphere((x, y, z), r, moss, root, seg=10, line=0.012)
+    return root
+
+
+def waystone():
+    """A small shrine stone by each campfire: Veyra's sickle carved on it and a golden seed on top."""
+    root = empty('waystone')
+    box((0, 0, 0.26), (0.26, 0.2, 0.52), toon(STONE), root, bevel=0.05)
+    box((0, 0, 0.04), (0.34, 0.28, 0.08), toon(STONE_DARK), root, bevel=0.02)
+    sickle(root, (0, -0.11, 0.2), 0.7, mat=toon(STONE_DARK))
+    sphere((0, 0, 0.58), 0.07, toon(GOLD, emit=0.5, rim=0.5), root, seg=14, line=0.012)
     return root
 
 
@@ -471,7 +566,11 @@ for g in ('bramble', 'crystal', 'rock'):
     SCENERY[f'gate_{g}'] = (lambda g=g: gate(g), 130, 150)
 SCENERY['house_blue'] = (lambda: house('#6a9ae0'), 380, 360)
 SCENERY['house_pink'] = (lambda: house('#e88ab0'), 380, 360)
-SCENERY['fountain'] = (fountain, 220, 180)
+SCENERY['fountain'] = (fountain, 220, 240)
+SCENERY['statue_veyra'] = (lambda: veyra(1.0), 140, 220)
+SCENERY['statue_veyra_wild'] = (lambda: veyra(1.0, weathered=True), 140, 220)
+SCENERY['statue_king'] = (crowned_king, 140, 220)
+SCENERY['waystone'] = (waystone, 70, 90)
 SCENERY['sign'] = (sign, 90, 90)
 SCENERY['lair'] = (lair, 400, 300)
 for zone, (c, t) in GRASS.items():

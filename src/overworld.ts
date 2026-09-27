@@ -912,6 +912,7 @@ export class Overworld {
       case 'sign': return { name: 'sign', back: 0.05 };
       case 'lair': return { name: 'lair', back: 0.4 };
       case 'camp': return { name: 'campfire', back: 0.05 };
+      case 'statue': return { name: `statue_${o.id}`, back: 0.1 };
       case 'plot': {
         const p = o.project!, l = lv(p);
         if (p === 'home') return { name: `home${l}`, back: 0.42 };
@@ -930,7 +931,7 @@ export class Overworld {
     const w = o.w * ts, unit = ts / TILE_BU;
     // Model origins sit in the middle of their footprint; push them back so their fronts line up with the collision box.
     const ax = o.x * ts + w / 2, ay = (o.y + o.h) * ts - spec.back * ts;
-    if (o.kind !== 'sign' && o.kind !== 'camp') shadow(ctx, ax, ay, w * 0.52, 0.2);
+    if (o.kind !== 'sign' && o.kind !== 'camp') shadow(ctx, ax, ay, w * (o.kind === 'statue' ? 0.6 : 0.52), 0.2);
     if (o.kind === 'camp') {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -940,6 +941,9 @@ export class Overworld {
       ctx.fill();
       ctx.restore();
     }
+    // Each campfire has one of Veyra's little shrine stones beside it (the Waystone answers them).
+    const stone = o.kind === 'camp' && frame('env/waystone');
+    if (stone) drawFrame(ctx, stone, ax + ts * 0.75, ay - ts * 0.25, unit);
     drawFrame(ctx, sprite, ax, ay, unit);
     const top = ay - sprite.ay * (unit / sprite.ppu);
     switch (o.kind) {
@@ -957,7 +961,7 @@ export class Overworld {
           ctx.arc(ax + (i - 1) * q * ts * 0.5, top + ts * 0.15 - Math.sin(q * Math.PI) * ts * 0.4 + q * ts * 0.5, ts * 0.07, 0, TAU);
           ctx.fill();
         }
-        this.nameTag(ctx, '💧 Fountain', ax, top, ts);
+        this.nameTag(ctx, "💧 Veyra's Spring", ax, top, ts);
         break;
       case 'camp':
         if (Math.random() < 0.3) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.3, ay - ts * 0.35, Math.random() < 0.5 ? '#ffb03a' : '#ff7a2a', 1, ts * 0.4, { size: ts * 0.06, grav: -ts * 1.5, life: 0.7 });
@@ -965,7 +969,7 @@ export class Overworld {
       case 'plot': {
         // Empty plots (and your home, always) say what goes there.
         const p = o.project!;
-        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Warp Stone' } as Record<string, string>)[p] ?? '';
+        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Waystone' } as Record<string, string>)[p] ?? '';
         if (!this.save.build[p] || p === 'home') this.nameTag(ctx, name, ax, top, ts);
         break;
       }

@@ -566,7 +566,7 @@ export class UI {
           ${rewards ? `<div class="qrew">Reward ${rewards}</div>` : ''}
         </section>`;
     } else {
-      card = `<section class="qcard done"><div class="qtitle">🌟 All chapters complete!</div><p class="qtext">Sprout Village is safe. Keep building, crafting and rematching bosses!</p></section>`;
+      card = `<section class="qcard done"><div class="qtitle">🌅 The smoke has cleared</div><p class="qtext">Sowerby is safe. Keep building, crafting and rematching bosses!</p></section>`;
     }
     const warp = s.build.warp > 0;
     const here = this.ctx.inVillage;
@@ -584,8 +584,8 @@ export class UI {
       const btn = warp && reachable && !(z.id === 'village' && here) ? `<button class="go sm" data-travel="${z.id}">Warp</button>` : '';
       return `<div class="zrow ${beaten ? '' : 'locked'}"><div class="zart">${art}</div><div class="info"><div class="name">${esc(z.name)}</div><div class="desc">${status}</div></div>${btn}</div>`;
     }).join('');
-    const warpNote = warp ? '' : `<div class="note">🔮 Build the <b>Warp Stone</b> in the village to fast travel between campfires.</div>`;
-    const home = here ? '' : `<button class="wide go alt" data-do="home">🏠 Warp home to Sprout Village</button>`;
+    const warpNote = warp ? '' : `<div class="note">🔮 Build the <b>Waystone</b> in the village to fast travel between campfires.</div>`;
+    const home = here ? '' : `<button class="wide go alt" data-do="home">🏠 Warp home to Sowerby</button>`;
     const chapters = QUESTS.map((qq, i) => {
       const st = i < s.quest ? 'done' : i === s.quest ? 'now' : 'later';
       const mark = st === 'done' ? '✓' : st === 'now' ? '▶' : '🔒';
@@ -665,7 +665,7 @@ export class UI {
     const level = PROJECTS.forge.levels[flv - 1];
     const note = at
       ? `<div class="note">⚒ <b>${esc(level.name)}</b> (Lv ${flv}): ${esc(level.perk)}. Upgrade it in the Village tab.</div>`
-      : `<div class="note">📍 Visit the ⚒ Forge in Sprout Village to craft. You can plan here.</div>`;
+      : `<div class="note">📍 Visit the ⚒ Forge in Sowerby to craft. You can plan here.</div>`;
     const seg = this.seg('forge', [['weapon', 'Weapons'], ['armor', 'Armor'], ['charm', 'Charms'], ['tool', 'Tools'], ['potion', 'Potions']]);
     if (this.sub.forge === 'tool') {
       const cards = TOOLS.map((t) => {
@@ -707,7 +707,7 @@ export class UI {
     const here = this.ctx.inVillage;
     const note = here
       ? `<div class="note">🏗 Build and upgrade to grow stronger. Trophies from guardians unlock the best upgrades!</div>`
-      : `<div class="note">📍 Return to Sprout Village to build. You can plan here.</div>`;
+      : `<div class="note">📍 Return to Sowerby to build. You can plan here.</div>`;
     const cards = PROJECT_ORDER.map((id) => {
       const p = PROJECTS[id];
       const lv = s.build[id];
@@ -851,7 +851,7 @@ export class UI {
       `<div class="confetti">${'🎉✨🌟🎊'.repeat(3)}</div>
        <div class="qchap">${esc(q.chapter)} complete!</div>
        <div class="big">${esc(q.title)}</div>
-       ${rewards ? `<div class="chips">${rewards}</div>` : '<p>Great job, little sprout!</p>'}`,
+       ${rewards ? `<div class="chips">${rewards}</div>` : '<p>Wonderful work!</p>'}`,
       [['ok', 'Hooray!']],
       'celebrate',
     );

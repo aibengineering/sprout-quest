@@ -106,15 +106,15 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
     drops: [{ mat: 'fluff', chance: 1, min: 3, max: 5 }, { mat: 'clover', chance: 1, min: 1, max: 1 }],
   },
   kingslime: {
-    name: 'Slime King', lv: 5, hp: 280, atk: 11, def: 3, spd: 60, r: 34, xp: 120, boss: true, title: 'Guardian of the Woods Road',
+    name: 'Slime King', lv: 5, hp: 280, atk: 11, def: 3, spd: 60, r: 34, xp: 120, boss: true, title: 'Warden of the Bramble Line',
     drops: [{ mat: 'royaljelly', chance: 1, min: 2, max: 2 }, { mat: 'goo', chance: 1, min: 4, max: 6 }],
   },
   alphawolf: {
-    name: 'Alpha Woolf', lv: 9, hp: 560, atk: 17, def: 6, spd: 110, r: 26, xp: 260, boss: true, title: 'Guardian of the Cavern Road',
+    name: 'Alpha Woolf', lv: 9, hp: 560, atk: 17, def: 6, spd: 110, r: 26, xp: 260, boss: true, title: 'Warden of the Stone Line',
     drops: [{ mat: 'alphapelt', chance: 1, min: 2, max: 2 }, { mat: 'fang', chance: 1, min: 3, max: 5 }],
   },
   crystalking: {
-    name: 'Crystal King', lv: 14, hp: 1000, atk: 31, def: 14, spd: 45, r: 38, xp: 520, boss: true, title: 'Guardian of the Peak Road',
+    name: 'Crystal King', lv: 14, hp: 1000, atk: 31, def: 14, spd: 45, r: 38, xp: 520, boss: true, title: 'Warden of the Crystal Line',
     drops: [{ mat: 'kingcrystal', chance: 1, min: 2, max: 2 }, { mat: 'crystal', chance: 1, min: 4, max: 6 }, { mat: 'glimmer', chance: 1, min: 3, max: 4 }],
   },
 };
@@ -255,7 +255,7 @@ export const ZONES: Zone[] = [
     theme: { ground: '#8fd672', ground2: '#88cf6a', grass: '#5fbf4a', grassTip: '#86dc5e', path: '#e4d2a4', obstacle: 'tree', pool: 'water', decor: 'flower', outside: '#4f9a42' },
   },
   {
-    id: 'village', name: 'Sprout Village', x0: 16, w: 22, rec: 1, lv: [1, 1], maxEnemies: 0, monsters: [],
+    id: 'village', name: 'Sowerby', x0: 16, w: 22, rec: 1, lv: [1, 1], maxEnemies: 0, monsters: [],
     theme: { ground: '#9be07a', ground2: '#93d872', grass: '#5fbf4a', grassTip: '#86dc5e', path: '#ecd9aa', obstacle: 'tree', pool: 'water', decor: 'flower', outside: '#5fae4c' },
   },
   {
@@ -450,8 +450,8 @@ export const PROJECTS: Record<ProjectId, Project> = {
     ],
   },
   warp: {
-    name: 'Warp Stone', icon: '🔮',
-    levels: [{ name: 'Warp Stone', cost: { alphapelt: 1, pine: 4, iron: 3 }, perk: 'Fast travel to any campfire you have lit' }],
+    name: 'Waystone', icon: '🔮',
+    levels: [{ name: 'Waystone', cost: { alphapelt: 1, pine: 4, iron: 3 }, perk: 'Fast travel to any campfire you have lit' }],
   },
 };
 
@@ -533,8 +533,8 @@ export const QUESTS: Quest[] = [
     text: "Deep in Whisper Woods, the Alpha Woolf guards the road to Echo Cavern, where the iron is. It's fast, and its pack comes when it howls. Level 9 or so, please!",
   },
   {
-    id: 'warp', chapter: 'Chapter 3', title: 'The Warp Stone', goal: { type: 'build', project: 'warp', level: 1 }, hint: 'Build the Warp Stone in the village',
-    text: "With an Alpha Pelt we can wake the old Warp Stone. Then you can zip to any campfire you've lit!",
+    id: 'warp', chapter: 'Chapter 3', title: 'The Waystone', goal: { type: 'build', project: 'warp', level: 1 }, hint: 'Build the Waystone in the village',
+    text: "With an Alpha Pelt we can wake Veyra's old Waystone. It was raised long before our village, and every campfire you've lit has a little shrine stone that answers it. Then you can travel to any of them!",
     reward: { potions: 1 },
   },
   {
@@ -557,7 +557,7 @@ export const QUESTS: Quest[] = [
   },
   {
     id: 'legend', chapter: 'Epilogue', title: 'Village Legend', goal: { type: 'build', project: 'home', level: 3 }, hint: 'Build yourself a Manor',
-    text: "You did it! The skies are clear again. Now let's make Sprout Village the coziest place in the world. Build yourself a Manor!",
+    text: "You did it! The skies are clear again. Now let's make Sowerby the coziest place in the world. Build yourself a Manor!",
     reward: { potions: 2 },
   },
 ];

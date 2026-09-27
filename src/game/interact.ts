@@ -84,6 +84,10 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     persist();
   },
 
+  async statue(o) {
+    await paused(() => G.ui.message(o.id === 'king' ? '👑 An old statue' : '🌾 Veyra, the Sower', o.text ?? ''));
+  },
+
   async sign(o) {
     await paused(() => G.ui.message('📜 Sign', o.text ?? ''));
   },

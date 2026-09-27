@@ -40,7 +40,7 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'village', icon: '🏡', title: 'Village Building',
-    text: 'Repair and build up Sprout Village for permanent boosts. Walk up to the old forge or a building plot to start!',
+    text: 'Repair and build up Sowerby for permanent boosts. Walk up to the old forge or a building plot to start!',
     when: (s) => reached(s, 'repair'),
   },
   {
@@ -49,8 +49,8 @@ export const UNLOCKS: Unlock[] = [
     when: (s) => s.bosses.includes('kingslime'),
   },
   {
-    id: 'warpplot', icon: '🔮', title: 'The Old Warp Stone',
-    text: 'Ancient ruins by the village hold a Warp Stone. Rebuild it to fast travel!',
+    id: 'warpplot', icon: '🔮', title: "Veyra's Old Waystone",
+    text: "Ancient ruins by the village hold one of Veyra's Waystones, older than anyone remembers. Rebuild it to travel between campfires!",
     when: (s) => s.bosses.includes('alphawolf'),
   },
 ];
