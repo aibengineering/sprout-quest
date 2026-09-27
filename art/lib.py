@@ -153,6 +153,9 @@ def outline_mat():
     em.inputs[0].default_value = (*srgb('#3a2448'), 1)
     nt.links.new(em.outputs[0], nt.nodes['Material Output'].inputs[0])
     m.use_backface_culling = True
+    # Without this the shell casts a shadow onto the model inside it, and almost every surface renders in its shadow
+    # colour (the lit side of the cel shading never shows).
+    m.use_backface_culling_shadow = True
     _MATS['outline'] = m
     return m
 
@@ -284,6 +287,8 @@ def torus(loc, major, minor, mat, parent=None, rot=(0, 0, 0), line=0.018, name='
         prev = ring
     for j in range(12):
         bm.faces.new((prev[j], prev[(j + 1) % 12], first[(j + 1) % 12], first[j]))
+    # The rings above wind the faces inside out; point them outward (outlines are pushed along the normals).
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.normal_update()
     bm.to_mesh(me)
     bm.free()

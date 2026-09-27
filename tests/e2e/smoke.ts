@@ -18,7 +18,9 @@ if (SHOTS) mkdirSync(OUT, { recursive: true });
 
 const server = startServer(0);
 const URL_ = `http://localhost:${server.port}/`;
-const browser = await chromium.launch();
+// Most scenarios run without WebGL (characters fall back to sprites): software 3D is far too slow for the timing they
+// rely on. One scenario at the end checks the 3D characters with WebGL on (see src/models.ts).
+const browser = await chromium.launch({ args: ['--disable-webgl', '--disable-gpu'] });
 const failures: string[] = [];
 
 /** Changes a scenario makes to the save, on top of `base`. Sent to the page as source, so it can't use closures. */
@@ -525,6 +527,36 @@ await scenario('dev builds: a preset plays in its own slot, and your real save i
   const panel = (await page.textContent('#modal .sheet')) ?? '';
   check(/preset-poppy-chase/.test(panel) && /Sandbox/.test(panel), 'the dev panel is missing slots or presets');
 });
+
+// The 3D characters: every model loads, and the hero, villagers and monsters render (in software WebGL here) without
+// errors, on the map and in a fight.
+{
+  const name = 'characters are drawn in 3D: every model loads and renders on the map and in a fight';
+  const gl = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const page = await (await gl.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  // (The preset link reloads the page once, cutting off the first page's downloads; those get retried.)
+  page.on('console', (m) => { if (m.type() === 'error' || (m.type() === 'warning' && /model/.test(m.text()) && !/Failed to fetch/.test(m.text()))) errors.push(m.text()); });
+  const t0 = Date.now();
+  try {
+    await page.goto(`${URL_}?preset=poppy-done`);
+    await waitFor(page, 'the game', async () => (await game<string>(page, 'g?.mode')) === 'world', 60000);
+    await page.waitForTimeout(1500);
+    const map = await game<number>(page, 'g.modelStats.renders');
+    check(map > 0, 'nothing was rendered in 3D on the map');
+    await run(page, `g.fight('bunny', 3, 2)`);
+    await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`), 20000);
+    await page.waitForTimeout(3000);
+    check((await game<number>(page, 'g.modelStats.renders')) > map, 'nothing was rendered in 3D in the fight');
+    if (errors.length) throw new Error(`page errors: ${errors.join(' | ')}`);
+    console.log(`  ✓ ${name} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+  } catch (e) {
+    failures.push(`${name}: ${(e as Error).message}`);
+    console.log(`  ✗ ${name}: ${(e as Error).message}`);
+  }
+  await gl.close();
+}
 
 await browser.close();
 server.stop(true);

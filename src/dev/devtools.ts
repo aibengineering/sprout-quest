@@ -34,6 +34,7 @@ export function install() {
   document.head.insertAdjacentHTML('beforeend', `<style>${CSS}</style>`);
   addTitleButton();
   if (activeSlot()) document.body.insertAdjacentHTML('beforeend', `<div id="dev-badge">🛠 ${esc(activeSlot()!)}</div>`);
+  perfMeter();
   if (sessionStorage.getItem(AUTOPLAY)) {
     sessionStorage.removeItem(AUTOPLAY);
     // Continue as soon as the title's buttons are up (once everything's loaded).
@@ -104,6 +105,50 @@ function startPreset(id: string) {
   switchTo(slot);
 }
 
+// ------------------------------------------------------------------ performance
+
+/**
+ * A small readout in the corner: frames per second, the average and worst frame time over the last second, how many
+ * 3D character images were rendered in that second and the time spent issuing them, and the GPU the browser is using.
+ * It never takes taps, so it can sit over buttons.
+ */
+function perfMeter() {
+  const el = document.createElement('div');
+  el.id = 'dev-perf';
+  document.body.append(el);
+  const gpu = (() => {
+    try {
+      const gl = document.createElement('canvas').getContext('webgl');
+      const ext = gl?.getExtension('WEBGL_debug_renderer_info');
+      const name = gl && ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : gl ? 'WebGL' : 'no WebGL';
+      return name.replace(/^ANGLE \((.*)\)$/, '$1').slice(0, 42);
+    } catch {
+      return '?';
+    }
+  })();
+  const times: number[] = [];
+  let last = performance.now(), windowStart = last;
+  let renders = 0, renderMs = 0;
+  const stats = () => (window as unknown as { game?: { modelStats?: { renders: number; ms: number } } }).game?.modelStats;
+  const tick = (now: number) => {
+    times.push(now - last);
+    last = now;
+    if (now - windowStart >= 1000) {
+      const s = stats();
+      const dr = (s?.renders ?? 0) - renders, dm = (s?.ms ?? 0) - renderMs;
+      renders = s?.renders ?? 0;
+      renderMs = s?.ms ?? 0;
+      const avg = times.reduce((a, b) => a + b, 0) / times.length, worst = Math.max(...times);
+      el.innerHTML = `<b>${Math.round((times.length * 1000) / (now - windowStart))} fps</b> · ${avg.toFixed(1)} ms (worst ${worst.toFixed(0)}) · 3D ${dr}/s ${dm.toFixed(1)} ms<br><small>${esc(gpu)}</small>`;
+      el.classList.toggle('slow', avg > 20);
+      times.length = 0;
+      windowStart = now;
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 // ------------------------------------------------------------------ the panel
 
 function addTitleButton() {
@@ -167,6 +212,14 @@ const CSS = `
 .dev-info small { font-size: 12px; opacity: 0.75; }
 .dev-row .go { padding: 6px 12px; font-size: 14px; }
 .dev-copy { margin-top: 8px; width: 100%; }
+#dev-perf {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 40;
+  font: 700 11px/1.25 ui-monospace, Menlo, monospace; color: #d8ffd0; background: rgba(20, 12, 28, 0.72);
+  padding: 3px 8px; border-radius: 8px; text-align: center; white-space: nowrap; pointer-events: none;
+}
+#dev-perf b { color: #fff; }
+#dev-perf small { color: rgba(255, 255, 255, 0.6); font-size: 10px; }
+#dev-perf.slow b { color: #ffb0a0; }
 #dev-badge {
   position: fixed; left: 50%; bottom: calc(4px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30;
   font: 700 11px ui-rounded, system-ui, sans-serif; color: #fff; background: rgba(40, 20, 50, 0.55);

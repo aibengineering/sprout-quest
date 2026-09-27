@@ -1,8 +1,10 @@
 // Loads the Blender-rendered sprite atlas and draws frames. If loading fails the game falls back to the
-// procedural canvas drawings in sprites.ts, so it always stays playable.
+// procedural canvas drawings in sprites.ts, so it always stays playable. Characters are drawn in 3D (models.ts) once
+// their models are in, with their sprites as the fallback.
+import { drawModel, hasModel } from './models';
 
 export interface Frame {
-  img: HTMLImageElement;
+  img: HTMLImageElement | HTMLCanvasElement;
   x: number;
   y: number;
   w: number;
@@ -199,11 +201,29 @@ export function heroDir(face: number): { dir: number; flip: boolean } {
 /** The hero's outline: dark and a little heavier than the sprites' own, so you can always spot yourself. */
 export const HERO_OUTLINE = { color: '#2a1a36', width: 0.035 };
 
+/** How long the walkers' loops take: a step cycle, and a slow breath standing still. */
+const WALK_T = 4 / 9, IDLE_T = 50 / 24;
+/** Monsters are turned a little toward the camera, like their sprites were rendered. */
+const MONSTER_YAW = (25 * Math.PI) / 180;
+
+let slotCount = 0;
+const slotIds = new WeakMap<object, string>();
+/** A stable name for an on-screen thing (a roamer, an enemy), so its 3D image is reused frame to frame. */
+export function slotOf(thing: object, kind: string): string {
+  let id = slotIds.get(thing);
+  if (!id) slotIds.set(thing, (id = `${kind}${++slotCount}`));
+  return id;
+}
+
 /**
- * Draws a character rendered like the hero (`<prefix>/<dir>/<frame>`: 5 directions, standing + 4 steps), facing
- * `face` and walking if `moving`. Returns false if the sprite isn't loaded so callers can fall back.
+ * Draws a character that walks like the hero (the hero, Poppy): a 3D model once it's loaded, else its sprite
+ * (`<prefix>/<dir>/<frame>`: 5 directions, standing + 4 steps), facing `face` and walking if `moving`. `slot` names this
+ * on-screen character. Returns false if neither is available so callers can fall back.
  */
-export function drawWalker(ctx: CanvasRenderingContext2D, prefix: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}): boolean {
+export function drawWalker(ctx: CanvasRenderingContext2D, prefix: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}, slot = prefix): boolean {
+  const pose = { anim: moving ? 'walk' : 'idle', phase: t / (moving ? WALK_T : IDLE_T), yaw: Math.PI / 2 - face, bold: !!o.outline };
+  // The 3D hero gets its heavier outline from the shader instead of a 2D one.
+  if (drawModel(ctx, slot, prefix.replace('/', '_'), pose, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, { ...o, outline: undefined }))) return true;
   const { dir, flip } = heroDir(face);
   const n = moving ? 1 + (Math.floor(t * 9) % 4) : 0;
   const f = frame(`${prefix}/${dir}/${n}`) ?? frame(`${prefix}/${dir}/0`) ?? frame(`${prefix}/0/0`);
@@ -213,10 +233,39 @@ export function drawWalker(ctx: CanvasRenderingContext2D, prefix: string, x: num
   return true;
 }
 
-/** Draws the hero sprite; returns false if sprites aren't available so callers can fall back. */
-export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}): boolean {
-  const prefix = frame(`hero/${armor}/0/0`) ? `hero/${armor}` : 'hero/tunic';
-  return drawWalker(ctx, prefix, x, y, unit, face, moving, t, { outline: HERO_OUTLINE, ...o });
+/** Draws the hero; returns false if neither the model nor the sprites are available so callers can fall back. */
+export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}, slot = 'hero'): boolean {
+  const prefix = frame(`hero/${armor}/0/0`) || hasModel(`hero_${armor}`) ? `hero/${armor}` : 'hero/tunic';
+  return drawWalker(ctx, prefix, x, y, unit, face, moving, t, { outline: HERO_OUTLINE, ...o }, slot);
+}
+
+/**
+ * Draws a monster with its feet at (x, y): a 3D model once it's loaded, else its sprite. `phase` runs through its idle
+ * loop (1 = once round), `left` turns it to face left. Returns false if neither is available.
+ */
+export function drawMonsterAt(ctx: CanvasRenderingContext2D, slot: string, kind: string, golden: boolean, phase: number, left: boolean, x: number, y: number, unit: number, o: DrawOpts = {}): boolean {
+  const pose = { anim: 'idle', phase, yaw: left ? -MONSTER_YAW : MONSTER_YAW, gold: golden };
+  if (drawModel(ctx, slot, `mon_${kind}`, pose, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, o))) return true;
+  const f = frame(`mon/${kind}${golden ? '_gold' : ''}/${Math.floor((((phase % 1) + 1) % 1) * 6)}`) ?? frame(`mon/${kind}/0`);
+  if (!f) return false;
+  drawFrame(ctx, f, x, y, unit, { ...o, flip: left !== !!o.flip });
+  return true;
+}
+
+/** Can this monster be drawn yet (its model or its sprite is in)? */
+export const monsterReady = (kind: string) => hasModel(`mon_${kind}`) || !!frame(`mon/${kind}/0`);
+
+/**
+ * Draws a villager standing in place and breathing (Elder Bloom, Granny, Poppy hugging her bunny): a 3D model once it's
+ * loaded, else its 4-frame sprite loop. `phase`: 1 = one breath. Returns false if neither is available.
+ */
+export function drawIdler(ctx: CanvasRenderingContext2D, slot: string, name: string, phase: number, x: number, y: number, unit: number, o: DrawOpts = {}): boolean {
+  if (drawModel(ctx, slot, `npc_${name}`, { anim: 'idle', phase, yaw: 0 }, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, o))) return true;
+  const i = Math.floor((((phase % 1) + 1) % 1) * 4);
+  const f = frame(`npc/${name}/${i}`) ?? frame(`npc/${name}/0/${i}`);
+  if (!f) return false;
+  drawFrame(ctx, f, x, y, unit, o);
+  return true;
 }
 
 export function iconUrl(id: string) {

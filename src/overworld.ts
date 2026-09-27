@@ -2,7 +2,7 @@
 import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { currentQuest } from './quests';
 import { Actors, type Actor } from './actors';
-import { drawFrame, drawHero, drawWalker, frame } from './assets';
+import { drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from './assets';
 import { drawBubble } from './bubble';
 import { spriteScale } from './battle/monsters';
 import { Roamers, type Roamer } from './roamers';
@@ -328,12 +328,11 @@ export class Overworld {
     const hop = r.moving || r.state === 'notice' ? Math.abs(Math.sin(this.t * (r.state === 'chase' ? 12 : 7) + r.seed)) * ts * 0.14 : 0;
     const flying = r.kind === 'bat' || r.kind === 'imp';
     const lift = flying ? ts * (0.35 + Math.sin(this.t * 3 + r.seed) * 0.06) : hop;
-    const f = frame(`mon/${r.kind}${r.golden ? '_gold' : ''}/${Math.floor(this.t * 7 + r.seed) % 6}`);
-    // Nothing at all until its sprite is in (no lone shadow or badge floating in the grass).
-    if (!f) return;
+    // Nothing at all until it can be drawn (no lone shadow or badge floating in the grass).
+    if (!monsterReady(r.kind)) return;
     shadow(ctx, px, py, ts * 0.28 * (flying ? 0.7 : 1));
     // Same size relative to the hero as in battle.
-    drawFrame(ctx, f, px, py - lift, ts * 0.74 * spriteScale(r.kind), { flip: r.face < 0 });
+    drawMonsterAt(ctx, slotOf(r, 'roamer'), r.kind, r.golden, (this.t * 7 + r.seed) / 6, r.face < 0, px, py - lift, ts * 0.74 * spriteScale(r.kind));
     if (r.golden && Math.random() < 0.1) this.fx.burst(px + (Math.random() - 0.5) * ts * 0.6, py - Math.random() * ts * 0.8, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.6 });
     // Tall grass hides their feet, like yours.
     if (this.world.tile(Math.floor(r.x), Math.floor(r.y - 0.1)) === T.GRASS && !flying) {
@@ -525,11 +524,10 @@ export class Overworld {
       shadow(ctx, bx, by, ts * 0.45, 0.2);
       drawFrame(ctx, barrier, bx, by, unit, { flip: i % 2 === 1 });
     }
-    const mf = frame(`mon/${g.kind}/${Math.floor(this.t * 5) % 6}`);
     const gx = (o.x - 0.8) * ts, gy = (o.y + 2.6) * ts;
-    if (mf) {
+    if (monsterReady(g.kind)) {
       shadow(ctx, gx, gy, ts * 0.6, 0.25);
-      drawFrame(ctx, mf, gx, gy, unit * 0.8, { flip: true });
+      drawMonsterAt(ctx, `guardian:${g.kind}`, g.kind, false, (this.t * 5) / 6, true, gx, gy, unit * 0.8);
     }
     const m = MONSTERS[g.kind];
     const text = `👑 ${m.name} · Lv ${g.lv}`;
@@ -824,13 +822,12 @@ export class Overworld {
 
   /** Elder Bloom, with a bouncing "!" when she has something new to say. False if her sprite isn't loaded. */
   private drawElder(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): boolean {
-    const f = frame(`npc/elder/${Math.floor(this.t * 3) % 4}`);
-    if (!f) return false;
     const ax = (o.x + o.w / 2) * ts, ay = (o.y + o.h) * ts;
     shadow(ctx, ax, ay, ts * 0.27);
-    drawFrame(ctx, f, ax, ay, ts / 1.35);
+    if (!drawIdler(ctx, 'elder', 'elder', (this.t * 3) / 4, ax, ay, ts / 1.35)) return false;
     const q = currentQuest(this.save);
-    const top = ay - f.ay * (ts / 1.35 / f.ppu);
+    // The top of his hat.
+    const top = ay - ts * 1.25;
     if (q?.goal.type === 'talk' || (q && !this.save.tips.includes(`elder:${q.id}`))) {
       const by = top - ts * 0.35 + Math.abs(Math.sin(this.t * 4)) * -ts * 0.12;
       ctx.fillStyle = '#ffd35a';
@@ -871,28 +868,23 @@ export class Overworld {
     const px = a.x * ts, py = a.y * ts, k = a.scale ?? 1;
     const L = a.look;
     if (L.kind === 'monster') {
-      const f = frame(`mon/${L.name}/${Math.floor(this.t * 7) % 6}`);
-      if (!f) return;
+      if (!monsterReady(L.name)) return;
       const hop = a.moving ? Math.abs(Math.sin(this.t * 12)) * ts * 0.16 : 0;
       shadow(ctx, px, py, ts * 0.28 * k);
-      drawFrame(ctx, f, px, py - hop, ts * 0.74 * spriteScale(L.name) * k, { flip: Math.cos(a.face) < 0 });
+      drawMonsterAt(ctx, a.id, L.name, false, (this.t * 7) / 6, Math.cos(a.face) < 0, px, py - hop, ts * 0.74 * spriteScale(L.name) * k);
       return;
     }
     shadow(ctx, px, py, ts * 0.24 * k);
-    if (L.kind === 'walker') drawWalker(ctx, `npc/${L.name}`, px, py, (ts / 1.2) * k, a.face, a.moving, this.t);
-    else {
-      const f = frame(`npc/${L.name}/${Math.floor(this.t * 3) % 4}`) ?? frame(`npc/${L.name}/0/${Math.floor(this.t * 3) % 4}`);
-      if (f) drawFrame(ctx, f, px, py, (ts / 1.2) * k);
-    }
+    if (L.kind === 'walker') drawWalker(ctx, `npc/${L.name}`, px, py, (ts / 1.2) * k, a.face, a.moving, this.t, {}, a.id);
+    else drawIdler(ctx, a.id, L.name, (this.t * 3) / 4, px, py, (ts / 1.2) * k);
   }
 
   /** A prologue monster standing in the path (or a story's group). */
   private drawFoe(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
     if (o.foes) return this.drawFoePack(ctx, o, ts);
-    const f = frame(`mon/${o.monster}/${Math.floor(this.t * 6) % 6}`);
     const ax = (o.x + o.w / 2) * ts, ay = o.y * ts + ts * 2.7;
     shadow(ctx, ax, ay, ts * 0.45, 0.25);
-    if (f) drawFrame(ctx, f, ax, ay, (ts / TILE_BU) * 1.5, { flip: true });
+    drawMonsterAt(ctx, slotOf(o, 'foe'), o.monster!, false, this.t, true, ax, ay, (ts / TILE_BU) * 1.5);
   }
 
   /** A story's monster group, in a huddle filling its box (two ranks if it's tall), all looking one way if it says. */
@@ -904,10 +896,9 @@ export class Overworld {
       y: o.y + o.h - 0.1 - (i % 2) * rise,
     }));
     for (const { m, i, x, y } of spots.sort((a, b) => a.y - b.y)) {
-      const f = frame(`mon/${m.kind}/${Math.floor(this.t * 6 + i * 2) % 6}`);
-      if (!f) continue;
+      if (!monsterReady(m.kind)) continue;
       shadow(ctx, x * ts, y * ts, ts * 0.28 * spriteScale(m.kind));
-      drawFrame(ctx, f, x * ts, y * ts, ts * 0.74 * spriteScale(m.kind), { flip: o.facing ? o.facing < 0 : i % 2 === 0 });
+      drawMonsterAt(ctx, `${slotOf(o, 'pack')}:${i}`, m.kind, false, this.t + i / 3, o.facing ? o.facing < 0 : i % 2 === 0, x * ts, y * ts, ts * 0.74 * spriteScale(m.kind));
     }
   }
 

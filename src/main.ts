@@ -1,5 +1,6 @@
 // Entry point: the canvas, the frame loop, and wiring the page's buttons to the game. The flows themselves live in
 // game/: fights, gathering, story, interactions, the menu's actions and the title screen, sharing state through `G`.
+import { modelStats, tickModels } from './models';
 import type { Battle } from './battle/battle';
 import { drawBattle } from './battle/render';
 import { MAX_POTIONS, MONSTERS, QUESTS, ZONES, zoneById, type MonsterKind, type ZoneId } from './data';
@@ -207,6 +208,7 @@ function frame(now: number) {
   const b = G.battle;
   if (b) battleFrame(b, dt);
   else worldFrame(dt);
+  tickModels();
   G.input.flush();
   if (G.trans) drawIris(G.trans.t / G.trans.dur);
   requestAnimationFrame(frame);
@@ -235,6 +237,7 @@ requestAnimationFrame(frame);
   get battle() { return G.battle; },
   get over() { return G.over; },
   get chop() { return chop; },
+  get modelStats() { return modelStats; },
   set zoom(z: number) { debugZoom = z; },
   /** A regular grass encounter right here (or in `zone`). */
   encounter(zone?: ZoneId) {

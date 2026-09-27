@@ -266,7 +266,12 @@ BLENDER=/path/to/blender bun run art
   buildings, menu icons
 - `art/pack.py`: trims frames and packs them into WebP atlases plus `atlas.json`
 
-The game falls back to its procedural canvas drawings if the atlas can't load.
+Characters (the hero in every armor, the villagers and every monster) are real-time 3D: `art/models.py` exports each
+one with its animations to `public/assets/models/*.glb` (compressed with gltfpack; `bun run art models`), and
+`src/models.ts` draws them with a cel shader and inverted-hull outlines that match the Blender material. Each character
+is rendered into a small image at its on-screen size and drawn like a sprite, so the 2D world, depth sorting and every
+effect work unchanged. Without WebGL the game falls back to the characters' sprites, and to procedural canvas drawings
+if the atlas can't load either. Dev builds show a performance readout (fps, frame time, 3D renders, GPU).
 
 ## Code map
 

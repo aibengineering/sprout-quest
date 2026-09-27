@@ -16,7 +16,7 @@ export interface PatchNote {
 export const PATCH_NOTES: PatchNote[] = [
   {
     version: '0.3.0',
-    date: '2026-09-26',
+    date: '2026-09-27',
     title: "Poppy's Bunny",
     notes: [
       "🧸 A side story: once you've settled into Sprout Village, explore the far corner of the Sunny Meadow. Someone there needs a hero.",
@@ -30,6 +30,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "🪓 Chopping and mining look and feel new: a detailed tree or rock close up, the axe or pick for your tool's tier, and every blow showing, with chips, sawdust, leaves, sparks and dust flying.",
       '🌲 Trees topple off their stumps and land with a thud; rocks crack where your pick lands, then split and tumble apart.',
       '🎁 What you earn pops out and flies to your bag: logs and ore from trees and rocks, and every monster drops its loot as it falls.',
+      '✨ Everyone is now in real-time 3D: the hero, the villagers and every monster turn smoothly, stay crisp up close, and are properly lit with a sunny side and a shadow side. The scenery got the same brighter lighting.',
     ],
   },
   {

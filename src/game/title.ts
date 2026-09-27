@@ -1,6 +1,7 @@
 // The title screen: loading with real progress, then Continue / New Game.
 import { loadAssets, preloadIcons } from '../assets';
-import { QUESTS } from '../data';
+import { GEAR, MONSTERS, QUESTS } from '../data';
+import { loadModels } from '../models';
 import { playerStats } from '../rules';
 import { clearLog, logEvent } from '../stats';
 import { clearState, loadState, newState, saveState } from '../state';
@@ -26,9 +27,13 @@ export async function boot() {
   fill.parentElement!.classList.remove('waiting');
   show(0.03, 'Fetching monsters and scenery…');
   const mb = (n: number) => (n / 1048576).toFixed(1);
-  const ok = await loadAssets((p) => show(0.05 + 0.8 * (p.total ? p.done / p.total : 0), `Fetching monsters and scenery… ${mb(p.done)} / ${mb(p.total)} MB`));
-  if (!ok) show(0.85, 'Sprites unavailable: using simple drawings');
-  await preloadIcons(allIconIds(), (p) => show(0.85 + 0.15 * (p.done / p.total), `Unpacking menu icons… ${p.done} / ${p.total}`));
+  const ok = await loadAssets((p) => show(0.05 + 0.6 * (p.total ? p.done / p.total : 0), `Fetching scenery… ${mb(p.done)} / ${mb(p.total)} MB`));
+  if (!ok) show(0.65, 'Sprites unavailable: using simple drawings');
+  // Characters are 3D models: the hero in their armor, the villagers and every monster. The other armors follow later.
+  const armor = loadState()?.equip.armor ?? 'tunic';
+  const characters = [`hero_${armor}`, 'npc_elder', 'npc_granny', 'npc_poppy', 'npc_poppy_hug', ...Object.keys(MONSTERS).map((k) => `mon_${k}`)];
+  await loadModels(characters, (done, total) => show(0.65 + 0.22 * (done / total), `Waking everyone up… ${done} / ${total}`));
+  await preloadIcons(allIconIds(), (p) => show(0.87 + 0.13 * (p.done / p.total), `Unpacking menu icons… ${p.done} / ${p.total}`));
   show(1, 'Ready!');
   const saved = !!loadState();
   document.getElementById('btn-continue')!.hidden = !saved;
@@ -41,6 +46,8 @@ export async function boot() {
   loading.classList.add('done');
   setTimeout(() => (loading.hidden = true), 300);
   booted = true;
+  // Every other armor, quietly, so changing gear shows the new look straight away.
+  void loadModels(Object.values(GEAR).filter((g) => g.slot === 'armor' && g.id !== armor).map((g) => `hero_${g.id}`));
 }
 
 /** The version under the title, with a dot if a saved game hasn't read the newest patch notes. */
