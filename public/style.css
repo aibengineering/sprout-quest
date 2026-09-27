@@ -361,21 +361,6 @@ h3::before { content: ''; width: 10px; height: 10px; flex: none; background: #6c
   font-weight: 700;
   margin: 4px 0 8px;
 }
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 8px;
-}
-.mat {
-  background: #fff;
-  border-radius: 14px;
-  padding: 8px;
-  text-align: center;
-}
-.mat .ico { font-size: 26px; }
-.mat b { display: block; font-size: 18px; }
-.mat small { display: block; font-size: 10px; font-weight: 700; opacity: 0.6; line-height: 1.2; }
-.mat.empty { opacity: 0.4; }
 .row {
   display: flex;
   align-items: center;
@@ -416,9 +401,6 @@ h3::before { content: ''; width: 10px; height: 10px; flex: none; background: #6c
 .go:disabled { background: #ddd0d6; border-color: #c9b9c2; box-shadow: 0 3px 0 #c9b9c2; color: #fff; text-shadow: none; cursor: default; }
 .go.alt { background: var(--accent); border-color: #c0563a; box-shadow: 0 3px 0 #c0563a; }
 .go:not(:disabled):active { transform: translateY(2px); box-shadow: none; }
-.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.slot { background: var(--card); border: 2px solid var(--card-edge); border-radius: 14px; padding: 8px; text-align: center; font-size: 12px; font-weight: 800; box-shadow: 0 3px 0 var(--card-edge); }
-.slot .ico { font-size: 28px; display: block; }
 
 /* Result & message dialogs */
 .result { padding: 18px 16px 16px; text-align: center; }
@@ -526,8 +508,6 @@ body:has(#modal:not([hidden])) #title { z-index: 19; }
 img.icon { width: 44px; height: 44px; object-fit: contain; display: inline-block; vertical-align: middle; filter: drop-shadow(0 2px 0 rgba(74, 42, 90, 0.18)); }
 img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
 .result .chip img.icon.sm { width: 26px; height: 26px; vertical-align: -7px; }
-.mat .ico { height: 42px; display: flex; align-items: center; justify-content: center; }
-.slot .ico img.icon { width: 48px; height: 48px; }
 
 /* ================= Story & menu redesign ================= */
 .quest-pill {
@@ -634,16 +614,7 @@ img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
 .mcard .desc { font-size: 12px; font-weight: 700; opacity: 0.7; margin-top: 2px; }
 .mcard .stats { font-size: 12px; font-weight: 800; color: #c85a3a; }
 .mcard .info { flex: 1; min-width: 0; }
-.rcp { display: flex; align-items: center; gap: 10px; }
-.rcp.locked { opacity: 0.62; }
 /* Not reached the level for it yet: a dark silhouette with a "?", no name, stats or recipe. */
-.rcp.mystery { background: #f1ebf3; }
-.rcp.mystery .ico { position: relative; }
-.rcp.mystery .ico img, .rcp.mystery .ico .emo { filter: brightness(0) opacity(0.28); }
-.rcp.mystery .ico::after { content: '?'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 26px; font-weight: 900; color: #fff; text-shadow: 0 1px 3px rgba(74, 42, 90, 0.6); }
-.rcp.mystery .name { color: #8a7a92; letter-spacing: 2px; }
-.rcp.mystery .name .stars { letter-spacing: 0; }
-.rcp.owned { background: #f4fff4; }
 img.icon.lg { width: 56px; height: 56px; }
 img.icon.xl { width: 72px; height: 72px; }
 img.icon.xxl { width: 116px; height: 116px; }
@@ -684,20 +655,6 @@ h3 small { font-size: 11px; opacity: 0.7; font-weight: 700; }
 .chapters li.later { opacity: 0.45; }
 .chapters .mk { width: 22px; text-align: center; }
 .chapters .ch { font-size: 11px; color: #c85a3a; width: 78px; flex: none; }
-.slot small { display: block; opacity: 0.6; font-size: 10px; }
-.slot span { display: block; }
-.ggrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
-.gcard {
-  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 8px 10px;
-  border-radius: 18px; background: var(--card); text-align: center; border: 2px solid var(--card-edge); box-shadow: 0 3px 0 var(--card-edge);
-}
-.gcard.on { border-color: var(--good); box-shadow: 0 3px 0 #3a8a44; background: #f4fff0; }
-.gcard .name { font-weight: 600; font-size: 15px; color: var(--outline); }
-.gcard .stats { font-size: 12px; font-weight: 800; color: #c85a3a; }
-.gcard:disabled { cursor: default; color: inherit; }
-.gcard:not(:disabled):active { transform: scale(0.97); }
-.badge-on { position: absolute; top: 6px; right: 6px; background: var(--good); color: #fff; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 8px; }
-.mat span { display: block; font-size: 12px; font-weight: 800; }
 .bcard .btop { display: flex; gap: 12px; align-items: center; }
 .bcard .ico { width: 66px; }
 .pips i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #eadbe4; margin-left: 3px; vertical-align: 1px; }
@@ -863,3 +820,163 @@ body.kbd .drag-hint .keys { display: flex; }
 /* When the action's low on the screen, the dialogue moves up out of its way. */
 #modal.cine.top { align-items: flex-start; padding-top: calc(10vh + var(--safe-t)); padding-bottom: 0; }
 .zrow.done { opacity: 0.75; }
+
+/* ================= Menus as things from the world =================
+   Each tab is an object: the Journal a notebook, the Bag a stitched leather satchel, the Forge the smithy's workbench,
+   the Village the builder's board with blueprints pinned up. Textures are pure CSS (no images to load). */
+
+.sheet.menu { --leather: #a8683f; --leather-dark: #6e3f22; --stitch: rgba(255, 225, 180, 0.55); --brass: #ffd35a;
+  background: var(--leather-dark); border-color: #3a2012; }
+.sheet.menu .grab { background: rgba(255, 225, 180, 0.45); }
+/* The strap across the top: your name plate. */
+.sheet.menu .mhead { color: #ffe9c4; }
+.sheet.menu .who .name { color: #ffe9c4; text-shadow: 0 2px 0 #3a2012; }
+.sheet.menu .portrait { background: radial-gradient(#ffe6c0, #e8b884); border: 3px solid var(--brass); box-shadow: 0 2px 0 #3a2012; border-radius: 50%; }
+.sheet.menu .statrow span { background: rgba(0, 0, 0, 0.22); border-color: rgba(255, 225, 180, 0.25); color: #ffe9c4; }
+.sheet.menu .mini { border-color: #3a2012; }
+/* The tab bar: a leather strap with stitching; the open tab is a brass plate. */
+.sheet.menu .tabbar { background: #4e2a15; border-top: 2px dashed var(--stitch); }
+.sheet.menu .tabbar button { color: #e8cfa8; }
+.sheet.menu .tabbar button.on { background: linear-gradient(#ffe89a, #e0a83a); color: #4a2a12; box-shadow: 0 3px 0 #8a5a1a, inset 0 2px 0 rgba(255, 255, 255, 0.5); }
+.sheet.menu .tabbar .tab-close { background: #2e170a; }
+/* The page itself. */
+.sheet.menu .body { background: var(--leather); box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.3); }
+
+/* Section headings that sit on dark materials. */
+.satchel h3, .bench h3 { color: #ffe9c4; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35); }
+.satchel .sub, .bench .sub { color: #ffe0b8; opacity: 0.85; }
+
+/* ---------- The satchel (Bag) ---------- */
+.theme-items .body {
+  background-color: var(--leather);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1.5px), radial-gradient(rgba(0, 0, 0, 0.07) 1px, transparent 1.5px);
+  background-size: 7px 7px, 11px 11px;
+}
+.satchel { position: relative; padding: 10px 4px 6px; }
+.satchel::before { content: ''; position: absolute; inset: 2px -4px 0; border: 2px dashed var(--stitch); border-radius: 18px; pointer-events: none; }
+.worn { display: flex; justify-content: center; gap: 10px; margin: 6px 0 22px; }
+.sock { position: relative; width: 66px; height: 66px; border-radius: 16px; padding: 8px; background: var(--leather-dark);
+  box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.5), 0 2px 0 rgba(255, 220, 170, 0.25); }
+.sock img.icon { width: 100%; height: 100%; object-fit: contain; }
+.sock small { position: absolute; bottom: -17px; left: -6px; right: -6px; text-align: center; font: 600 11px var(--display); color: #ffe0b8; }
+.sock.sel { box-shadow: inset 0 3px 7px rgba(0, 0, 0, 0.5), 0 0 0 3px var(--brass), 0 0 12px rgba(255, 211, 90, 0.6); }
+.sock .emo { font-size: 32px; display: block; text-align: center; line-height: 50px; }
+.sock .n { position: absolute; right: 4px; bottom: 2px; font: 600 15px var(--display); color: #fff;
+  text-shadow: 0 1.5px 0 #3a2418, 1.5px 0 0 #3a2418, -1.5px 0 0 #3a2418, 0 -1.5px 0 #3a2418; }
+/* Pockets: tabs stitched onto the bag. */
+.satchel .seg, .bench .seg { background: transparent; padding: 0; gap: 5px; margin: 4px 0 8px; }
+.satchel .seg button { background: #8e532f; color: #ffe0b8; border-radius: 12px 12px 4px 4px; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.22); font-weight: 600; }
+.satchel .seg button.on { background: #f3dfb8; color: #5e3219; box-shadow: inset 0 -3px 0 var(--brass); }
+
+/* ---------- Slot grids (Bag and Forge) ---------- */
+.slotgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 10px; border-radius: 16px;
+  background: rgba(0, 0, 0, 0.22); box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.35); }
+.tile { position: relative; aspect-ratio: 1; padding: 8px; border-radius: 12px; background: #e8cfa2;
+  box-shadow: inset 0 -4px 0 rgba(120, 70, 30, 0.35), 0 2px 0 rgba(0, 0, 0, 0.25); transition: transform 0.1s; }
+.tile img.icon { width: 100%; height: 100%; object-fit: contain; }
+.tile .emo { font-size: 30px; }
+.tile.empty { background: rgba(0, 0, 0, 0.16); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.35); }
+.tile:active { transform: scale(0.94); }
+.tile.sel { background: #fff3d0; box-shadow: 0 0 0 3px var(--brass), 0 0 14px 2px rgba(255, 211, 90, 0.7); animation: bob 1.2s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-2px); } }
+.tile .n { position: absolute; right: 3px; bottom: 0; font: 600 14px var(--display); color: #fff;
+  text-shadow: 0 1.5px 0 #3a2418, 1.5px 0 0 #3a2418, -1.5px 0 0 #3a2418, 0 -1.5px 0 #3a2418; }
+.tile .eq { position: absolute; left: -5px; top: -5px; width: 20px; height: 20px; border-radius: 50%; background: var(--good); border: 2px solid #fff;
+  color: #fff; font: 700 11px var(--display); display: grid; place-items: center; font-style: normal; }
+/* Tier shows as a coloured rim along the bottom of the slot. */
+.tile.tier2 { box-shadow: inset 0 -4px 0 #6ab8f0, 0 2px 0 rgba(0, 0, 0, 0.25); }
+.tile.tier3 { box-shadow: inset 0 -4px 0 #a07af0, 0 2px 0 rgba(0, 0, 0, 0.25); }
+.tile.tier4 { box-shadow: inset 0 -4px 0 #f07ac0, 0 2px 0 rgba(0, 0, 0, 0.25); }
+.tile.tier5 { box-shadow: inset 0 -4px 0 #ffb03a, 0 2px 0 rgba(0, 0, 0, 0.25); }
+.tile.sel[class*='tier'] { box-shadow: 0 0 0 3px var(--brass), 0 0 14px 2px rgba(255, 211, 90, 0.7); }
+/* Recipes you can make right now glow; ones you haven't reached are a silhouette and a "?". */
+.tile.ready::after { content: ''; position: absolute; top: 5px; right: 5px; width: 10px; height: 10px; border-radius: 50%; background: #7ee07a; box-shadow: 0 0 6px #7ee07a; border: 2px solid #fff; }
+.tile.mystery { background: #b8a48a; }
+.tile.mystery img, .mystery-art img { filter: brightness(0) opacity(0.35); }
+.tile.mystery::before { content: '?'; position: absolute; inset: 0; display: grid; place-items: center; font: 700 28px var(--display); color: #fff; text-shadow: 0 2px 3px rgba(0, 0, 0, 0.5); }
+
+/* ---------- The tag for whatever's picked ---------- */
+.tagcard { position: relative; display: flex; gap: 10px; align-items: center; margin: 14px 2px 10px; padding: 10px 12px 10px 22px;
+  background: #fff6e2; color: #4a2a1a; border-radius: 10px 18px 18px 10px; transform: rotate(-1deg); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3); }
+.tagcard::before { content: ''; position: absolute; left: 8px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%;
+  background: #a8683f; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); }
+.tagcard .tart { width: 56px; height: 56px; flex: none; display: grid; place-items: center; }
+.tagcard .tart img.icon { width: 100%; height: 100%; object-fit: contain; }
+.tagcard .big-emo { font-size: 38px; }
+.tagcard .tinfo { flex: 1; min-width: 0; }
+.tagcard .name { font: 600 18px var(--display); color: #3a2418; }
+.tagcard .stats { font-size: 13px; font-weight: 800; color: #b3542a; }
+.tagcard .desc { font-size: 12.5px; font-weight: 700; opacity: 0.75; line-height: 1.35; }
+.tagcard .chips { margin-top: 5px; }
+.tagcard .tact { flex: none; }
+
+/* ---------- The smithy's workbench (Forge) ---------- */
+.theme-forge .body {
+  background-color: #9e6a3c;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 40px, rgba(40, 20, 8, 0.45) 40px 42px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 11px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05), transparent 30%, rgba(0, 0, 0, 0.06) 70%, transparent);
+}
+.bench { padding: 8px 0 6px; }
+.bench .slotgrid { background: #3a3e4a; box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.55), 0 0 0 3px #5f6474; }
+.bench .tile { background: #d8dde8; box-shadow: inset 0 -4px 0 #9aa2b4, 0 2px 0 rgba(0, 0, 0, 0.35); }
+.bench .tile.mystery { background: #8a90a0; }
+.bench .tile.empty { background: rgba(0, 0, 0, 0.25); }
+/* An iron nameplate, riveted on. */
+.plate { position: relative; margin: 4px 2px 12px; padding: 10px 16px; border-radius: 10px; color: #fff; text-align: center;
+  background: linear-gradient(#8a8f9e, #5f6474); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35), 0 4px 0 #3a3e4a; }
+.plate b { display: block; font: 600 20px var(--display); text-shadow: 0 2px 0 #3a3e4a; }
+.plate small { display: block; font-size: 12.5px; font-weight: 700; opacity: 0.9; }
+.plate::before, .plate::after { content: ''; position: absolute; top: 9px; width: 8px; height: 8px; border-radius: 50%; background: radial-gradient(#e8ecf4, #6a7080); }
+.plate::before { left: 9px; } .plate::after { right: 9px; }
+/* Hanging iron tags for the kinds of recipe. */
+.bench .seg button { background: #5f6474; color: #e8ecf4; border-radius: 10px; font-weight: 600; box-shadow: 0 3px 0 #3a3e4a; font-size: 13px; }
+.bench .seg button.on { background: linear-gradient(#ffe89a, #e0a83a); color: #4a2a12; box-shadow: 0 3px 0 #8a5a1a; }
+/* The work order: a sheet of paper nailed to the bench. */
+.bench .tagcard { background: #fbf1dc; border-radius: 4px; transform: rotate(0.8deg); padding-left: 14px; margin: 6px 2px 14px; }
+.bench .tagcard::before { left: 50%; top: -5px; margin: 0 0 0 -5px; width: 10px; height: 10px; background: radial-gradient(#e8ecf4, #5f6474); }
+
+/* ---------- The builder's board (Village) ---------- */
+.theme-village .body {
+  background-color: #b58456;
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0 58px, rgba(40, 20, 8, 0.4) 58px 60px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 13px);
+}
+.board { padding: 8px 0 4px; }
+.blueprints .mcard.bcard {
+  position: relative; color: #f0f6ff; border: 0; border-radius: 4px; margin: 0 4px 16px; transform: rotate(var(--r, -0.6deg));
+  background-color: #2f6fb3;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+  background-size: 16px 16px; box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3), inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+.blueprints .mcard.bcard:nth-child(even) { --r: 0.7deg; }
+.blueprints .mcard.bcard::before { content: ''; position: absolute; left: 50%; top: -6px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ff9a8a, #c83a3a); box-shadow: 0 2px 2px rgba(0, 0, 0, 0.4); }
+.blueprints .bcard .name { color: #fff; font-size: 18px; }
+.blueprints .bcard .desc { color: #d8e8ff; opacity: 1; }
+.blueprints .bcard .desc b { color: #fff; }
+.blueprints .bcard .ico { background: rgba(255, 255, 255, 0.12); border: 2px dashed rgba(255, 255, 255, 0.5); border-radius: 10px; padding: 4px; }
+.blueprints .bcard .next { border-top: 2px dashed rgba(255, 255, 255, 0.45); }
+.blueprints .pips i { background: rgba(255, 255, 255, 0.3); }
+.blueprints .pips i.on { background: var(--brass); }
+.blueprints .chip { background: rgba(255, 255, 255, 0.9); }
+.blueprints .tag { background: rgba(255, 255, 255, 0.9); color: #2f6fb3; }
+.board .note, .bench .note, .satchel .note { background: #fff6e2; border: 0; border-radius: 3px; transform: rotate(-0.8deg); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25); }
+
+/* ---------- The notebook (Journal, More) ---------- */
+.theme-journey .body, .theme-settings .body { background: #5a3a6e; }
+.notebook {
+  position: relative; margin: 8px 0 4px; padding: 10px 12px 14px 30px; border-radius: 6px 14px 14px 6px; color: var(--outline);
+  background-color: #fdf6e3;
+  background-image: linear-gradient(90deg, transparent 22px, rgba(232, 80, 90, 0.35) 22px 24px, transparent 24px),
+    repeating-linear-gradient(0deg, transparent 0 25px, rgba(90, 140, 200, 0.18) 25px 26px);
+  box-shadow: 3px 3px 0 #e8d8b8, 6px 6px 0 #d8c49e, 0 8px 14px rgba(0, 0, 0, 0.3);
+}
+/* Binding rings down the left edge. */
+.notebook::before { content: ''; position: absolute; left: -8px; top: 14px; bottom: 14px; width: 18px;
+  background: radial-gradient(circle at 9px 9px, #3a2448 4px, transparent 5px) 0 0 / 18px 30px repeat-y; }
+.notebook .mcard, .notebook .zrow, .notebook .qcard { background: rgba(255, 255, 255, 0.55); border: 2px solid rgba(58, 36, 72, 0.12); box-shadow: none; }
+.notebook .qcard { background: rgba(255, 246, 220, 0.8); transform: rotate(-0.5deg); }
+.notebook .note { background: #fff1b8; border: 0; transform: rotate(0.6deg); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12); }

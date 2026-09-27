@@ -356,7 +356,7 @@ await scenario('the Forge keeps gear a mystery until you reach its level', (g) =
     await page.waitForTimeout(400);
     await page.click('[data-tab="forge"]');
     await page.waitForTimeout(300);
-    const r = { mysteries: (await page.$$('.rcp.mystery')).length, names: await page.$$eval('.rcp:not(.mystery) .name', (els) => els.map((e) => e.textContent ?? '')) };
+    const r = { mysteries: (await page.$$('.tile.mystery')).length, names: await page.$$eval('.bench .tile:not(.mystery):not(.empty)', (els) => els.map((e) => e.getAttribute('aria-label') ?? '')) };
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     return r;

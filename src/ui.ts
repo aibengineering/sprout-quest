@@ -79,12 +79,27 @@ function lockLabel(l: Lock): string {
   }
 }
 
-/** A Forge item you haven't reached the level for: a silhouette and a "?", and only what level reveals it. */
-function mysteryCard(art: string, tier: string, l: Lock): string {
-  const how = l.kind === 'forge' ? `Upgrade the Forge to the ${lockLabel(l)} to reveal it.` : `Reach ${lockLabel(l)} to reveal it.`;
-  return `<div class="mcard rcp mystery"><div class="ico">${art}</div>
-    <div class="info"><div class="name">??? ${tier}</div><div class="desc">${esc(how)}</div></div>
-    <span class="tag lock">🔒 ${esc(lockLabel(l))}</span></div>`;
+/** How to reveal a Forge item you haven't reached the level for. */
+const lockHow = (l: Lock) => (l.kind === 'forge' ? `Upgrade the Forge to the ${lockLabel(l)} to reveal it.` : `Reach ${lockLabel(l)} to reveal it.`);
+
+/**
+ * An inventory slot: an icon you tap to look at more closely (the details show on a tag under the grid). `key` names
+ * the grid, so each grid remembers what you picked.
+ */
+function slotTile(key: string, id: string, art: string, label: string, o: { sel?: boolean; worn?: boolean; count?: number; cls?: string } = {}): string {
+  return `<button class="tile ${o.cls ?? ''}${o.sel ? ' sel' : ''}" data-pick="${key}:${id}" aria-label="${esc(label)}">${art}${
+    o.worn ? '<i class="eq">✓</i>' : ''}${o.count !== undefined ? `<b class="n">${o.count}</b>` : ''}</button>`;
+}
+
+/** Empty slots to round a grid out to whole rows (and at least two), so it reads as a bag with room to spare. */
+function emptySlots(filled: number, cols = 4): string {
+  const total = Math.max(cols * 2, Math.ceil(filled / cols) * cols);
+  return '<div class="tile empty" aria-hidden="true"></div>'.repeat(total - filled);
+}
+
+/** The label tag for whatever's picked: its picture, a title, a few lines, and what you can do with it. */
+function tagCard(art: string, title: string, lines: string, action = ''): string {
+  return `<div class="tagcard"><div class="tart">${art}</div><div class="tinfo"><div class="name">${title}</div>${lines}</div>${action ? `<div class="tact">${action}</div>` : ''}</div>`;
 }
 
 function costChips(s: SaveState, r: Recipe): string {
@@ -130,7 +145,9 @@ export class UI {
   private toastTimer = 0;
   private bannerTimer = 0;
   private tab: Tab = 'journey';
-  private sub: Record<string, string> = { forge: 'weapon' };
+  private sub: Record<string, string> = { forge: 'weapon', items: 'gear' };
+  /** What's picked in each slot grid (by grid), shown on its tag. */
+  private pick: Record<string, string> = {};
   private unlockQueue: Unlock[] = [];
   private unlockShowing = false;
   private focus: string | undefined;
@@ -501,7 +518,8 @@ export class UI {
     if (seenKey) s.fresh = s.fresh.filter((f) => f !== seenKey);
     const dot = (t: Tab) => ((TAB_UNLOCK[t] && s.fresh.includes(TAB_UNLOCK[t]!)) || (t === 'settings' && hasNews(s)) ? '<i class="dot on"></i>' : '');
     const scroll = fresh ? 0 : this.sheet.querySelector('.body')?.scrollTop ?? 0;
-    this.sheet.className = 'sheet menu';
+    // Each tab is its own thing from the world: a notebook, the satchel, the smithy's bench, the builder's board.
+    this.sheet.className = `sheet menu theme-${this.tab}`;
     const closeBtn = '<button class="tab-close" data-do="close" aria-label="Close menu"><span>✕</span>Close<kbd class="key">Esc</kbd></button>';
     const tabBtns = tabs.map(([id, ico, label], i) =>
       `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}<kbd class="key">${i + 1}</kbd></button>`).join('');
@@ -593,40 +611,59 @@ export class UI {
     }).join('');
     const sides = this.hooks.stories().map((st) => `<div class="zrow ${st.done ? 'done' : ''}"><div class="zart"><span class="emo">${st.icon}</span></div>
       <div class="info"><div class="name">${esc(st.title)}</div><div class="desc">${st.done ? '✓ ' : '▶ '}${esc(st.label)}</div></div></div>`).join('');
-    return `${card}${sides ? `<h3>Side stories</h3><div class="zones">${sides}</div>` : ''}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div>${home}<h3>Story</h3><ol class="chapters">${chapters}</ol>`;
+    return `<div class="notebook">${card}${sides ? `<h3>Side stories</h3><div class="zones">${sides}</div>` : ''}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div>${home}<h3>Story</h3><ol class="chapters">${chapters}</ol></div>`;
   }
 
   private items(s: SaveState): string {
     const st = playerStats(s);
-    const slots: [Slot, string][] = [['weapon', 'Weapon'], ['armor', 'Armor'], ['charm', 'Charm']];
-    const cur = slots.map(([slot, label]) => {
-      const id = s.equip[slot];
-      const g = id ? GEAR[id] : null;
-      return `<div class="slot"><small>${label}</small>${g ? icon(g.id, g.icon) : '<span class="emo">➖</span>'}<span>${g ? esc(g.name) : 'None'}</span></div>`;
+    const pocket = this.sub.items;
+    const pick = this.pick.items;
+    // What you're wearing, in sockets across the top of the bag, and your potions beside them.
+    const sockets = ([['weapon', 'Weapon'], ['armor', 'Armor'], ['charm', 'Charm']] as [Slot, string][]).map(([slot, label]) => {
+      const id = s.equip[slot], g = id ? GEAR[id] : null;
+      return `<button class="sock${pick === id ? ' sel' : ''}" ${g ? `data-pick="items:${g.id}"` : 'disabled'} aria-label="${label}">${g ? icon(g.id, g.icon) : ''}<small>${label}</small></button>`;
     }).join('');
-    const owned = GEAR_ORDER.filter((id) => s.owned.includes(id));
-    const cards = owned.map((id) => {
-      const g = GEAR[id];
-      const on = s.equip[g.slot] === id;
-      return `<button class="gcard ${on ? 'on' : ''}" data-equip="${id}" ${on && g.slot !== 'charm' ? 'disabled' : ''}>
-        ${on ? '<span class="badge-on">Equipped</span>' : ''}${icon(g.id, g.icon, 'icon lg')}
-        <span class="name">${esc(g.name)}</span>${stars(g)}<span class="stats">${gearStats(g)}</span></button>`;
-    }).join('');
-    const gearHint = owned.length <= 2 && s.unlocked.includes('forge')
-      ? `<div class="note">⚒ Craft new gear at the Forge, then equip it here (or right from the Forge).</div>` : '';
-    const mats = MAT_ORDER.filter((m) => s.mats[m] > 0).map((m) => {
-      const n = s.mats[m];
-      return `<div class="mat"><div class="ico">${icon(m, MATS[m].icon)}</div><b>${n}</b><span>${esc(MATS[m].name)}</span><small>${esc(MATS[m].where)}</small></div>`;
-    }).join('');
-    return `
-      <h3>Wearing</h3><div class="slots">${cur}</div>
-      <h3>Gear <small>tap to equip</small></h3>${gearHint}<div class="ggrid">${cards}</div>
-      <h3>Potions</h3>
-      <div class="mcard row"><div class="ico">🧪</div><div class="info"><div class="name">${s.potions}/${MAX_POTIONS} potions</div>
-        <div class="desc">Heals ${Math.round(POTION_HEAL * 100)}% HP. Free refills at the village fountain.</div></div>
-        <button class="go" data-do="drink" ${s.potions > 0 && s.hp < st.maxHp ? '' : 'disabled'}>Drink</button></div>
-      ${this.skills(s)}
-      <h3>Materials</h3>${mats ? `<div class="grid">${mats}</div>` : '<p class="sub">Defeat monsters to collect materials.</p>'}`;
+    const flask = `<button class="sock flask${pick === 'potion' ? ' sel' : ''}" data-pick="items:potion" aria-label="Potions"><span class="emo">🧪</span><b class="n">${s.potions}</b><small>Potions</small></button>`;
+    const pockets = this.seg('items', [['gear', '⚔️ Gear'], ['stuff', '🪵 Stuff'], ['skills', '⭐ Skills']]);
+    let body = '';
+    let detail = '';
+    if (pocket === 'gear') {
+      const owned = GEAR_ORDER.filter((id) => s.owned.includes(id));
+      const chosen = pick && (GEAR[pick] || pick === 'potion') ? pick : s.equip.weapon;
+      body = `<div class="slotgrid">${owned.map((id) => slotTile('items', id, icon(id, GEAR[id].icon), GEAR[id].name, { sel: chosen === id, worn: s.equip[GEAR[id].slot] === id, cls: `tier${GEAR[id].tier ?? 0}` })).join('')}${emptySlots(owned.length)}</div>`;
+      detail = chosen === 'potion' ? this.potionTag(s, st.maxHp) : this.gearTag(s, GEAR[chosen]);
+      if (owned.length <= 2 && s.unlocked.includes('forge')) body += `<div class="note">⚒ Craft new gear at the Forge, then equip it here.</div>`;
+    } else if (pocket === 'stuff') {
+      const mats = MAT_ORDER.filter((m) => s.mats[m] > 0);
+      const chosen = mats.includes(pick as MatId) ? (pick as MatId) : mats[0];
+      body = mats.length
+        ? `<div class="slotgrid">${mats.map((m) => slotTile('items', m, icon(m, MATS[m].icon), MATS[m].name, { sel: chosen === m, count: s.mats[m] })).join('')}${emptySlots(mats.length)}</div>`
+        : '<p class="sub">Defeat monsters and gather to collect materials.</p>';
+      if (chosen) detail = tagCard(icon(chosen, MATS[chosen].icon), `${esc(MATS[chosen].name)} <span class="lvl">×${s.mats[chosen]}</span>`, `<div class="desc">${esc(MATS[chosen].where)}</div>`);
+      if (pick === 'potion') detail = this.potionTag(s, st.maxHp);
+    } else {
+      body = this.skills(s) || '<p class="sub">Craft a tool at the Forge to start woodcutting and mining.</p>';
+      if (pick === 'potion') detail = this.potionTag(s, st.maxHp);
+    }
+    // The tag hangs under the grid; on the skills page (no grid) it sits at the top.
+    const [above, below] = pocket === 'skills' ? [detail, ''] : ['', detail];
+    return `<div class="satchel"><div class="worn">${sockets}${flask}</div>${pockets}${above}${body}${below}</div>`;
+  }
+
+  /** A piece of gear's tag: stats, what it's like, and wearing it. */
+  private gearTag(s: SaveState, g: Gear | undefined): string {
+    if (!g) return '';
+    const on = s.equip[g.slot] === g.id;
+    const action = on
+      ? g.slot === 'charm' ? `<button class="go ghost" data-equip="${g.id}">Take off</button>` : '<span class="tag">✓ Worn</span>'
+      : `<button class="go" data-equip="${g.id}">Wear</button>`;
+    return tagCard(icon(g.id, g.icon), `${esc(g.name)} ${stars(g)}`, `<div class="stats">${gearStats(g)}</div><div class="desc">${esc(g.desc)}</div>`, action);
+  }
+
+  private potionTag(s: SaveState, maxHp: number): string {
+    return tagCard('<span class="emo big-emo">🧪</span>', `Potions <span class="lvl">${s.potions}/${MAX_POTIONS}</span>`,
+      `<div class="desc">Heals ${Math.round(POTION_HEAL * 100)}% HP. Free refills at Veyra's Spring.</div>`,
+      `<button class="go" data-do="drink" ${s.potions > 0 && s.hp < maxHp ? '' : 'disabled'}>Drink</button>`);
   }
 
   private skills(s: SaveState): string {
@@ -663,44 +700,56 @@ export class UI {
     const flv = s.build.forge;
     const at = this.ctx.atForge;
     const level = PROJECTS.forge.levels[flv - 1];
-    const note = at
-      ? `<div class="note">⚒ <b>${esc(level.name)}</b> (Lv ${flv}): ${esc(level.perk)}. Upgrade it in the Village tab.</div>`
-      : `<div class="note">📍 Visit the ⚒ Forge in Sowerby to craft. You can plan here.</div>`;
+    const plate = `<div class="plate"><b>⚒ ${esc(level?.name ?? 'The Forge')}</b><small>${at ? esc(level?.perk ?? '') : '📍 Visit the Forge in Sowerby to craft. You can plan here.'}</small></div>`;
+    const sub = this.sub.forge;
     const seg = this.seg('forge', [['weapon', 'Weapons'], ['armor', 'Armor'], ['charm', 'Charms'], ['tool', 'Tools'], ['potion', 'Potions']]);
-    if (this.sub.forge === 'tool') {
-      const cards = TOOLS.map((t) => {
-        const owned = s.tools[t.skill] >= t.tier;
-        const lock = owned ? null : levelLock(s, t);
-        if (lock) return mysteryCard(icon(t.id, t.icon, 'icon lg'), `<span class="stars">${'★'.repeat(t.tier)}</span>`, lock);
-        const action = owned ? '<span class="tag">✓ Owned</span>' : `<button class="go" data-tool="${t.id}" ${at && hasMats(s, t.recipe) ? '' : 'disabled'}>Craft</button>`;
-        return `<div class="mcard rcp ${owned ? 'owned' : ''}"><div class="ico">${icon(t.id, t.icon, 'icon lg')}</div>
-          <div class="info"><div class="name">${esc(t.name)} <span class="stars">${'★'.repeat(t.tier)}</span></div>
-          <div class="desc">${esc(t.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, t.recipe)}</div>`}</div>${action}</div>`;
-      }).join('');
-      return `${note}${seg}<p class="sub">Tools are used automatically. Walk up to a glowing tree to chop it, or a glowing rock to mine it.</p>${cards}`;
+    const key = `forge-${sub}`;
+    // Every recipe on the bench as a slot: made ones ticked, ones you can make now lit, ones you haven't reached yet a "?".
+    type Row = { id: string; art: string; name: string; tier: number; owned: boolean; lock: Lock | null; can: boolean; tag: () => string };
+    let rows: Row[];
+    if (sub === 'tool') {
+      rows = TOOLS.map((t) => {
+        const owned = s.tools[t.skill] >= t.tier, lock = owned ? null : levelLock(s, t), can = !owned && at && hasMats(s, t.recipe);
+        return {
+          id: t.id, art: icon(t.id, t.icon), name: t.name, tier: t.tier, owned, lock, can,
+          tag: () => tagCard(icon(t.id, t.icon), `${esc(t.name)} <span class="stars">${'★'.repeat(t.tier)}</span>`,
+            `<div class="desc">${esc(t.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, t.recipe)}</div>`}`,
+            owned ? '<span class="tag">✓ Owned</span>' : `<button class="go" data-tool="${t.id}" ${can ? '' : 'disabled'}>Craft</button>`),
+        };
+      });
+    } else if (sub === 'potion') {
+      rows = POTION_RECIPES.map((p) => {
+        const can = at && hasMats(s, p.recipe) && s.potions < MAX_POTIONS;
+        return {
+          id: p.id, art: '<span class="emo">🧪</span>', name: p.name, tier: 0, owned: false, lock: null, can,
+          tag: () => tagCard('<span class="emo big-emo">🧪</span>', esc(p.name), `<div class="desc">You carry ${s.potions}/${MAX_POTIONS}.</div><div class="chips">${costChips(s, p.recipe)}</div>`,
+            `<button class="go" data-potion="${p.id}" ${can ? '' : 'disabled'}>${s.potions >= MAX_POTIONS ? 'Full' : 'Brew'}</button>`),
+        };
+      });
+    } else {
+      rows = GEAR_ORDER.filter((id) => GEAR[id].slot === sub && GEAR[id].recipe).map((id) => {
+        const g = GEAR[id], owned = s.owned.includes(id), lock = owned ? null : levelLock(s, g), can = !owned && at && hasMats(s, g.recipe!);
+        const action = owned
+          ? s.equip[g.slot] === id ? '<span class="tag">✓ Worn</span>' : `<button class="go ghost" data-equip="${id}">Wear</button>`
+          : `<button class="go" data-craft="${id}" ${can ? '' : 'disabled'}>Craft</button>`;
+        return {
+          id, art: icon(g.id, g.icon), name: g.name, tier: g.tier ?? 0, owned, lock, can,
+          tag: () => tagCard(icon(g.id, g.icon), `${esc(g.name)} ${stars(g)}`,
+            `<div class="stats">${gearStats(g)}</div><div class="desc">${esc(g.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, g.recipe!)}</div>`}`, action),
+        };
+      });
     }
-    if (this.sub.forge === 'potion') {
-      const cards = POTION_RECIPES.map((p) => {
-        const ok = at && hasMats(s, p.recipe) && s.potions < MAX_POTIONS;
-        return `<div class="mcard rcp"><div class="ico">🧪</div><div class="info"><div class="name">${esc(p.name)}</div>
-          <div class="chips">${costChips(s, p.recipe)}</div></div>
-          <button class="go" data-potion="${p.id}" ${ok ? '' : 'disabled'}>${s.potions >= MAX_POTIONS ? 'Full' : 'Brew'}</button></div>`;
-      }).join('');
-      return `${note}${seg}<p class="sub">You carry ${s.potions}/${MAX_POTIONS} potions.</p>${cards}`;
-    }
-    const cards = GEAR_ORDER.filter((id) => GEAR[id].slot === this.sub.forge && GEAR[id].recipe).map((id) => {
-      const g = GEAR[id];
-      const owned = s.owned.includes(id);
-      const lock = owned ? null : levelLock(s, g);
-      if (lock) return mysteryCard(icon(g.id, g.icon, 'icon lg'), stars(g), lock);
-      const action = owned
-        ? s.equip[g.slot] === id ? '<span class="tag">✓ Equipped</span>' : `<button class="go ghost" data-equip="${id}">Equip</button>`
-        : `<button class="go" data-craft="${id}" ${at && hasMats(s, g.recipe!) ? '' : 'disabled'}>Craft</button>`;
-      return `<div class="mcard rcp ${owned ? 'owned' : ''}"><div class="ico">${icon(g.id, g.icon, 'icon lg')}</div>
-        <div class="info"><div class="name">${esc(g.name)} ${stars(g)}</div><div class="stats">${gearStats(g)}</div>
-        <div class="desc">${esc(g.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, g.recipe!)}</div>`}</div>${action}</div>`;
-    }).join('');
-    return `${note}${seg}${cards}`;
+    // Default to the first thing you could make next.
+    const chosen = rows.find((r) => r.id === this.pick[key]) ?? rows.find((r) => !r.owned && !r.lock) ?? rows[0];
+    const tiles = rows.map((r) => slotTile(key, r.id, r.art, r.lock ? 'Unknown' : r.name, {
+      sel: r === chosen, worn: r.owned, cls: `tier${r.tier}${r.lock ? ' mystery' : ''}${r.can ? ' ready' : ''}`,
+    })).join('');
+    const tag = !chosen ? '' : chosen.lock
+      ? tagCard(`<span class="mystery-art">${chosen.art}</span>`, `??? <span class="stars">${'★'.repeat(chosen.tier)}</span>`, `<div class="desc">${esc(lockHow(chosen.lock))}</div>`, `<span class="tag lock">🔒 ${esc(lockLabel(chosen.lock))}</span>`)
+      : chosen.tag();
+    const hint = sub === 'tool' ? '<p class="sub">Tools work by themselves: walk up to a glowing tree or rock.</p>' : '';
+    // The work order is nailed above the recipes, so it stays in view however many there are.
+    return `<div class="bench">${plate}${seg}${tag}<div class="slotgrid">${tiles}${emptySlots(rows.length)}</div>${hint}</div>`;
   }
 
   private village(s: SaveState): string {
@@ -725,7 +774,7 @@ export class UI {
       return `<div class="mcard bcard" data-focus="${id}"><div class="btop"><div class="ico">${buildingIcon(id, lv)}</div>
         <div class="info"><div class="name">${esc(p.name)} <span class="pips">${pips}</span></div>${current}</div></div>${next}</div>`;
     }).join('');
-    return `${note}${cards}`;
+    return `<div class="board">${note}<div class="blueprints">${cards}</div></div>`;
   }
 
   /** Dev builds add their own row to the More tab (save slots and presets; see src/dev/devtools.ts). */
@@ -733,7 +782,7 @@ export class UI {
 
   private settings(s: SaveState): string {
     const rep = reportInfo();
-    return `${this.devRow?.html ?? ''}
+    return `<div class="notebook">${this.devRow?.html ?? ''}
       <div class="mcard row news"><div class="ico">📰</div><div class="info"><div class="name">What's new${hasNews(s) ? ' <span class="tag new">New!</span>' : ''}</div>
         <div class="desc">Version ${VERSION}: ${esc(PATCH_NOTES[0].title)}</div></div>
         <button class="go" data-do="notes">Patch notes</button></div>
@@ -754,7 +803,7 @@ export class UI {
         <div class="desc">${rep.fights} fights and ${rep.gathers} gathers recorded, with time, damage, stamina and more. Share the file for balancing, or copy the summary to paste.</div></div>
         <div class="stack"><button class="go" data-do="report">${canShareFiles() ? 'Share file' : 'Download'}</button><button class="go ghost" data-do="report-copy">Copy summary</button></div></div>
       <div class="mcard row"><div class="ico">🗑️</div><div class="info"><div class="name">Reset save</div><div class="desc">Start over from scratch.</div></div>
-        <button class="go alt" data-do="reset">Reset</button></div>`;
+        <button class="go alt" data-do="reset">Reset</button></div></div>`;
   }
 
   private onClick(e: Event) {
@@ -773,6 +822,12 @@ export class UI {
       this.tab = d.tab as Tab;
       this.focus = undefined;
       this.renderMenu(true);
+      return;
+    }
+    if (d.pick) {
+      const k = d.pick.indexOf(':');
+      this.pick[d.pick.slice(0, k)] = d.pick.slice(k + 1);
+      this.renderMenu(false);
       return;
     }
     if (d.sub) {
