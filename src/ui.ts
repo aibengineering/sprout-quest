@@ -5,7 +5,7 @@ import {
   STYLE_NAMES, TOOLS, ZONES, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
 } from './data';
 import { currentQuest, progress, questNeeds } from './quests';
-import { MASTERY_MAX, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, skillXpToNext, xpToNext, type Lock } from './rules';
+import { MASTERY_MAX, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, revealed, skillXpToNext, xpToNext, type Lock } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
 import { usingKeyboard } from './input';
@@ -26,6 +26,8 @@ export interface MenuCtx {
 
 export interface UIHooks {
   save(): SaveState;
+  /** Opens a menu tab from the map (an unlock card's "tap to open"). */
+  openTab(tab: Tab): void;
   craftGear(id: string): void;
   craftTool(id: string): void;
   craftPotion(id: string): void;
@@ -148,8 +150,16 @@ export class UI {
   private sub: Record<string, string> = { forge: 'weapon', items: 'gear' };
   /** What's picked in each slot grid (by grid), shown on its tag. */
   private pick: Record<string, string> = {};
+  /** The Forge shows only what you've discovered, unless you ask to see the undiscovered outlines too. */
+  private showLocked = false;
+  /** Recipes revealed since your last visit to the Forge (they get a "New" badge while you're there). */
+  private forgeNew = new Set<string>();
+  private lastTab: Tab | null = null;
+  /** Where the game is (unlock cards wait until you're back on the map). */
+  private mode: 'title' | 'world' | 'battle' | 'none' = 'title';
   private unlockQueue: Unlock[] = [];
   private unlockShowing = false;
+  private unlockTimer = 0;
   private focus: string | undefined;
   private ctx: MenuCtx = { atForge: false, inVillage: false };
   private menuOpen = false;
@@ -312,24 +322,42 @@ export class UI {
     if (!this.unlockShowing) this.nextUnlock();
   }
 
+  /** The tab each unlock opens when you tap its card (the weapon skill lives in fights, so it has none). */
+  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
+  /** The corner button that leads there, which bounces while its card is up. */
+  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag' };
+
   private nextUnlock() {
-    const u = this.unlockQueue.shift();
     const el = $('unlock-card');
-    if (!u) {
+    document.querySelectorAll('.dock-btn.beckon').forEach((b) => b.classList.remove('beckon'));
+    // Not over a fight or a popup: wait for the map (setMode picks it back up).
+    if (!this.unlockQueue.length || this.mode !== 'world') {
       this.unlockShowing = false;
       el.classList.remove('show');
       window.setTimeout(() => { if (!this.unlockShowing) el.hidden = true; }, 300);
       return;
     }
+    const u = this.unlockQueue.shift()!;
+    const tab = UI.UNLOCK_TAB[u.id];
     this.unlockShowing = true;
     el.hidden = false;
     const key = u.key && usingKeyboard() ? `<p class="u-key">⌨️ Shortcut: <kbd>${u.key}</kbd></p>` : '';
-    el.innerHTML = `<div class="u-ico">${u.icon}</div><div><div class="u-new">✨ New unlocked</div><b>${esc(u.title)}</b><p>${esc(u.text)}</p>${key}</div>`;
+    el.innerHTML = `<div class="u-ico">${u.icon}</div><div><div class="u-new">✨ New unlocked</div><b>${esc(u.title)}</b><p>${esc(u.text)}</p>${key}${
+      tab ? '<p class="u-go">Tap to open ›</p>' : ''}</div>`;
+    el.classList.toggle('tappable', !!tab);
+    el.onclick = tab ? () => {
+      el.onclick = null;
+      window.clearTimeout(this.unlockTimer);
+      this.hooks.openTab(tab);
+      this.nextUnlock();
+    } : null;
+    const btn = UI.UNLOCK_BUTTON[u.id];
+    if (btn) $(btn).classList.add('beckon');
     requestAnimationFrame(() => el.classList.add('show'));
-    window.setTimeout(() => {
+    this.unlockTimer = window.setTimeout(() => {
       el.classList.remove('show');
       window.setTimeout(() => this.nextUnlock(), 350);
-    }, 4800);
+    }, tab ? 7000 : 4800);
   }
 
   /** Tutorial bubble pointing at a button (or centered on screen). */
@@ -368,6 +396,9 @@ export class UI {
   }
 
   setMode(mode: 'title' | 'world' | 'battle' | 'none') {
+    this.mode = mode;
+    // Unlock cards held back during a fight come out once you're back on the map.
+    if (mode === 'world' && this.unlockQueue.length && !this.unlockShowing) window.setTimeout(() => this.nextUnlock(), 600);
     $('title').hidden = mode !== 'title';
     $('hud').hidden = mode === 'title' || mode === 'none';
     $('ctl-world').hidden = mode !== 'world';
@@ -499,6 +530,7 @@ export class UI {
   closeMenu(silent = false) {
     if (!this.menuOpen) return;
     this.menuOpen = false;
+    this.lastTab = null;
     this.modal.hidden = true;
     if (!silent) this.hooks.menuClosed();
   }
@@ -513,6 +545,15 @@ export class UI {
     const tabs = ([
       ['journey', '📜', 'Journal'], ['items', '🎒', 'Bag'], ['forge', '⚒', 'Forge'], ['village', '🏡', 'Village'], ['settings', '⚙️', 'More'],
     ] as [Tab, string, string][]).filter(([t]) => this.tabOpen(t));
+    if (this.tab === 'forge' && this.lastTab !== 'forge') {
+      const now = revealed(s);
+      s.forgeSeen ??= [...now];
+      // What you already own was never a discovery.
+      const owns = (id: string) => s.owned.includes(id) || TOOLS.some((t) => t.id === id && s.tools[t.skill] >= t.tier);
+      this.forgeNew = new Set([...now].filter((id) => !s.forgeSeen!.includes(id) && !owns(id)));
+      s.forgeSeen.push(...this.forgeNew);
+    }
+    this.lastTab = this.tab;
     // Looking at a tab clears its "new" dot.
     const seenKey = TAB_UNLOCK[this.tab];
     if (seenKey) s.fresh = s.fresh.filter((f) => f !== seenKey);
@@ -739,17 +780,25 @@ export class UI {
         };
       });
     }
+    // What you've discovered, newest first, then the strongest you haven't made yet, then what you already own.
+    // Undiscovered recipes stay hidden unless you ask to see their outlines (they go last, weakest first).
+    const rank = (r: Row) => (this.forgeNew.has(r.id) ? 0 : !r.owned ? 1 : 2);
+    const known = rows.filter((r) => !r.lock).sort((a, b) => rank(a) - rank(b) || b.tier - a.tier);
+    const locked = rows.filter((r) => r.lock).sort((a, b) => a.tier - b.tier);
+    const shown = this.showLocked ? [...known, ...locked] : known;
     // Default to the first thing you could make next.
-    const chosen = rows.find((r) => r.id === this.pick[key]) ?? rows.find((r) => !r.owned && !r.lock) ?? rows[0];
-    const tiles = rows.map((r) => slotTile(key, r.id, r.art, r.lock ? 'Unknown' : r.name, {
-      sel: r === chosen, worn: r.owned, cls: `tier${r.tier}${r.lock ? ' mystery' : ''}${r.can ? ' ready' : ''}`,
+    const chosen = shown.find((r) => r.id === this.pick[key]) ?? known.find((r) => !r.owned) ?? shown[0];
+    const tiles = shown.map((r) => slotTile(key, r.id, r.art, r.lock ? 'Unknown' : r.name, {
+      sel: r === chosen, worn: r.owned, cls: `tier${r.tier}${r.lock ? ' mystery' : ''}${r.can ? ' ready' : ''}${this.forgeNew.has(r.id) ? ' new' : ''}`,
     })).join('');
+    const toggle = locked.length
+      ? `<button class="go ghost wide peek" data-do="forge-locked">${this.showLocked ? 'Hide undiscovered' : `🔍 Show undiscovered (${locked.length})`}</button>` : '';
     const tag = !chosen ? '' : chosen.lock
       ? tagCard(`<span class="mystery-art">${chosen.art}</span>`, `??? <span class="stars">${'★'.repeat(chosen.tier)}</span>`, `<div class="desc">${esc(lockHow(chosen.lock))}</div>`, `<span class="tag lock">🔒 ${esc(lockLabel(chosen.lock))}</span>`)
       : chosen.tag();
     const hint = sub === 'tool' ? '<p class="sub">Tools work by themselves: walk up to a glowing tree or rock.</p>' : '';
     // The work order is nailed above the recipes, so it stays in view however many there are.
-    return `<div class="bench">${plate}${seg}${tag}<div class="slotgrid">${tiles}${emptySlots(rows.length)}</div>${hint}</div>`;
+    return `<div class="bench">${plate}${seg}${tag}<div class="slotgrid">${tiles}${emptySlots(shown.length)}</div>${toggle}${hint}</div>`;
   }
 
   private village(s: SaveState): string {
@@ -850,6 +899,10 @@ export class UI {
     else if (d.do === 'report') this.hooks.exportReport('file');
     else if (d.do === 'report-copy') this.hooks.exportReport('copy');
     else if (d.do === 'notes') return this.hooks.patchNotes();
+    else if (d.do === 'forge-locked') {
+      this.showLocked = !this.showLocked;
+      return this.renderMenu(false);
+    }
     else if (d.do === 'dev' && this.devRow) {
       this.closeMenu();
       return this.devRow.open();

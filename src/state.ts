@@ -52,6 +52,8 @@ export interface SaveState {
   stories: Record<string, number>;
   /** Lasting upgrades earned from side stories (e.g. 'trailboots'). */
   perks: string[];
+  /** Recipes you've seen in the Forge; ones revealed since show as new (missing: everything revealed counts as seen). */
+  forgeSeen?: string[];
 }
 
 /** Where the save lives (see slots.ts). */
@@ -96,6 +98,7 @@ export function newState(): SaveState {
     seenVersion: VERSION,
     stories: {},
     perks: [],
+    forgeSeen: [],
   };
 }
 

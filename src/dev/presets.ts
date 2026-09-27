@@ -74,6 +74,8 @@ function standAt(s: SaveState, x: number, y: number) {
 const gate = (id: ZoneId) => ({ x: zoneById(id).x0 - 1.5, y: GATE_Y + 2.4 });
 
 function finish(s: SaveState) {
+  // A preset has seen everything it can make (no wall of "New" badges in the Forge).
+  delete s.forgeSeen;
   s.potions = MAX_POTIONS;
   s.hp = playerStats(s).maxHp;
   return s;

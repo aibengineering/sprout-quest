@@ -36,6 +36,13 @@ async function exportReport(how: 'file' | 'copy') {
 }
 
 export const menuHooks: UIHooks = {
+  /** From an unlock card: open that tab, if you're free on the map. */
+  openTab(tab) {
+    if (G.mode !== 'world' || G.trans) return;
+    G.audio.play('ui');
+    G.mode = 'dialog';
+    G.ui.openMenu(menuCtx(), tab);
+  },
   save: () => G.save,
 
   async craftGear(id) {

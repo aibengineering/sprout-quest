@@ -28,6 +28,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "🌾 The village has a name, Sowerby, and a goddess: Veyra, the Sower. Look for her mossy statue in the glade and her shrine in the village, her Spring, and the little shrine stones by every campfire.",
       '🧙 The village elder has a proper name, Elder Oswin, and is dressed as Veyra\'s priest now; the Warp Stone is her ancient Waystone, and the guardians carry their true titles.',
       '🎒 The menus are things from the world now: your Bag is a stitched satchel with gear in sockets and a slot for everything you carry, the Forge is the smithy\'s workbench with work orders, building plans are blueprints pinned to a board, and the Journal is your notebook. New rounded fonts are built in, so it looks the same on every phone.',
+      '🔍 The Forge only shows what you have discovered, newest and strongest first, with a "New" badge on anything you just unlocked (tap to peek at the undiscovered outlines if you like). Unlock cards wait until you are back from a fight, and take you straight there when you tap them.',
       "👢 A new kind of reward: perks. Finish Poppy's story for one that makes getting around a lot quicker.",
       '📔 The Journal lists your side stories, and the Bag your perks.',
       "🪓 Chopping and mining look and feel new: a detailed tree or rock close up, the axe or pick for your tool's tier, and every blow showing, with chips, sawdust, leaves, sparks and dust flying.",

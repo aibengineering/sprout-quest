@@ -723,6 +723,12 @@ h3 small { font-size: 11px; opacity: 0.7; font-weight: 700; }
   pointer-events: none;
 }
 .unlock-card.show { transform: translate(-50%, 0) scale(1); opacity: 1; }
+/* A card that leads somewhere takes taps, and says so. */
+.unlock-card.tappable.show { pointer-events: auto; cursor: pointer; }
+.unlock-card .u-go { margin-top: 6px; font: 600 14px var(--display); color: #3a8a44; opacity: 1; }
+/* The corner button a new unlock lives behind bounces while its card is up. */
+.dock-btn.beckon { animation: beckon 0.6s ease-in-out infinite alternate; }
+@keyframes beckon { from { transform: translateY(0) scale(1); } to { transform: translateY(-6px) scale(1.08); } }
 .unlock-card .u-ico { font-size: 38px; flex: none; animation: bob 1s infinite ease-in-out; }
 .unlock-card .u-new { font-size: 11px; font-weight: 900; color: #c85a3a; text-transform: uppercase; letter-spacing: 0.5px; }
 .unlock-card b { font-size: 17px; font-weight: 900; }
@@ -893,6 +899,9 @@ body.kbd .drag-hint .keys { display: flex; }
 .tile.ready::after { content: ''; position: absolute; top: 5px; right: 5px; width: 10px; height: 10px; border-radius: 50%; background: #7ee07a; box-shadow: 0 0 6px #7ee07a; border: 2px solid #fff; }
 .tile.mystery { background: #b8a48a; }
 .tile.mystery img, .mystery-art img { filter: brightness(0) opacity(0.35); }
+.tile.new::after { content: 'New'; position: absolute; top: -7px; right: -6px; padding: 1px 6px; border-radius: 8px; background: #ff5a6a;
+  color: #fff; font: 600 11px var(--display); border: 2px solid #fff; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); width: auto; height: auto; }
+.bench .peek { margin-top: 10px; }
 .tile.mystery::before { content: '?'; position: absolute; inset: 0; display: grid; place-items: center; font: 700 28px var(--display); color: #fff; text-shadow: 0 2px 3px rgba(0, 0, 0, 0.5); }
 
 /* ---------- The tag for whatever's picked ---------- */

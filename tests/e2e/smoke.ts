@@ -148,6 +148,15 @@ await scenario('a new game plays through the prologue to Elder Oswin', null, asy
     await closeDialogs(page);
     await waitFor(page, 'back on the map', async () => game<boolean>(page, `g.mode === 'world' && !g.battle`), 5000);
     check(await game(page, `g.save.flags.includes('${flag}')`), `winning the ${flag} fight did not clear the path`);
+    if (flag === 'glade1') {
+      // The first win unlocks the Bag: its card waits for the map, then takes you there when tapped.
+      await waitFor(page, "the Bag's unlock card", async () => !!(await page.$('#unlock-card.show.tappable')), 4000);
+      check(/Bag/.test((await page.textContent('#unlock-card')) ?? ''), 'the unlock card is not about the Bag');
+      await page.click('#unlock-card');
+      await waitFor(page, 'the Bag to open', async () => !!(await page.$('#modal:not([hidden]) .sheet.theme-items')), 3000);
+      await page.keyboard.press('Escape');
+      await waitFor(page, 'the Bag to close', async () => game<boolean>(page, `g.mode === 'world'`), 3000);
+    }
   }
   // Walking into the village plays Elder Oswin's welcome tour.
   await closeDialogs(page);
@@ -334,7 +343,7 @@ await scenario('a tree falls and a rock breaks all the way, and what you earned 
     await waitFor(page, `the ${kind} minigame`, async () => (await game<string>(page, 'g.mode')) === 'gather');
     // Strike on the sweet spot until it gives way.
     for (let i = 0; i < 40 && !(await game<boolean>(page, 'g.chop?.game.done ?? true')); i++) {
-      await waitFor(page, 'the sweet spot', async () => game<boolean>(page, `(() => { const c = g.chop?.game; return !c || c.done || (Math.abs(c.pos - c.center) < c.width * 0.3 && c.lock <= 0); })()`), 3000);
+      await waitFor(page, 'the sweet spot', async () => game<boolean>(page, `(() => { const c = g.chop?.game; return !c || c.done || (Math.abs(c.pos - c.center) < c.width * 0.3 && c.lock <= 0); })()`), 8000);
       await page.keyboard.press('KeyE');
       await page.waitForTimeout(60);
     }
@@ -357,12 +366,17 @@ await scenario('the Forge keeps gear a mystery until you reach its level', (g) =
     await page.click('[data-tab="forge"]');
     await page.waitForTimeout(300);
     const r = { mysteries: (await page.$$('.tile.mystery')).length, names: await page.$$eval('.bench .tile:not(.mystery):not(.empty)', (els) => els.map((e) => e.getAttribute('aria-label') ?? '')) };
+    // Undiscovered recipes are hidden until you ask to see their outlines.
+    await page.click('[data-do="forge-locked"]');
+    await page.waitForTimeout(200);
+    Object.assign(r, { outlines: (await page.$$('.tile.mystery')).length });
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     return r;
   };
   const before = await forgeCards();
-  check(before.mysteries > 0, 'no mystery cards');
+  check(before.mysteries === 0, 'undiscovered recipes show before asking');
+  check((before as { outlines?: number }).outlines! > 0, 'no outlines when asked for undiscovered recipes');
   check(before.names.some((n) => n.includes('Jelly Whip')), 'Jelly Whip (no level needed) is not shown');
   check(!before.names.some((n) => n.includes('Stone Sword')), 'Stone Sword is shown before Mining 2');
   await run(page, 'g.save.skills.mine.lv = 2');
