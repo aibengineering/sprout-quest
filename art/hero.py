@@ -191,7 +191,7 @@ def pose(P, phase, moving):
 
 
 def build_elder():
-    """Elder Bloom, Veyra's priest in Sowerby: a little old man in a green robe, a crown of leaves, a fluffy beard, a golden
+    """Elder Oswin, Veyra's priest in Sowerby: a little old man in a green robe, a crown of leaves, a fluffy beard, a golden
     seed pendant and a staff topped with Veyra's sickle."""
     P = {}
     root = P['root'] = empty('elder')

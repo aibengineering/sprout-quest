@@ -820,7 +820,7 @@ export class Overworld {
     ctx.fillText(text, cx, top - ts * 0.25);
   }
 
-  /** Elder Bloom, with a bouncing "!" when she has something new to say. False if her sprite isn't loaded. */
+  /** Elder Oswin, with a bouncing "!" when she has something new to say. False if her sprite isn't loaded. */
   private drawElder(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): boolean {
     const ax = (o.x + o.w / 2) * ts, ay = (o.y + o.h) * ts;
     shadow(ctx, ax, ay, ts * 0.27);

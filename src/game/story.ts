@@ -1,4 +1,4 @@
-// The story: finishing quests, introducing the next, unlock cards, Elder Bloom and the village cutscene.
+// The story: finishing quests, introducing the next, unlock cards, Elder Oswin and the village cutscene.
 import { currentQuest, advanceQuests } from '../quests';
 import { logEvent } from '../stats';
 import { checkUnlocks } from '../unlocks';
@@ -72,7 +72,7 @@ async function cutscene(shots: { x: number; y: number; text: string; speaker?: '
   });
 }
 
-/** The first time you walk into Sowerby, Elder Bloom shows you around. */
+/** The first time you walk into Sowerby, Elder Oswin shows you around. */
 export async function arriveAtVillage() {
   const w = G.world, s = G.save;
   const elder = w.obj('elder')!, forge = w.obj('forge')!, home = w.obj('plot', 'home')!, sign = w.objs.find((o) => o.kind === 'sign' && o.x > elder.x)!;
@@ -104,7 +104,7 @@ export async function talkToElder() {
 
 let autoTalked = false;
 
-/** Elder Bloom calls you over the first time you walk up to her. */
+/** Elder Oswin calls you over the first time you walk up to her. */
 export function maybeAutoTalk() {
   const q = currentQuest(G.save);
   const elder = G.world.obj('elder');

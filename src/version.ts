@@ -26,7 +26,7 @@ export const PATCH_NOTES: PatchNote[] = [
       '🐰 A new mini-boss with a nasty charge, and its gang guarding the path to it.',
       '📷 The camera can look a little past the edge of the map, so nothing at the edges hides under the buttons.',
       "🌾 The village has a name, Sowerby, and a goddess: Veyra, the Sower. Look for her statues in the glade and the village, her Spring, and the little shrine stones by every campfire. And something older, with no face…",
-      '🧙 Elder Bloom is dressed as Veyra\'s priest now, the Warp Stone is her ancient Waystone, and the guardians carry their true titles.',
+      '🧙 The village elder has a proper name, Elder Oswin, and is dressed as Veyra\'s priest now; the Warp Stone is her ancient Waystone, and the guardians carry their true titles.',
       "👢 A new kind of reward: perks. Finish Poppy's story for one that makes getting around a lot quicker.",
       '📔 The Journal lists your side stories, and the Bag your perks.',
       "🪓 Chopping and mining look and feel new: a detailed tree or rock close up, the axe or pick for your tool's tier, and every blow showing, with chips, sawdust, leaves, sparks and dust flying.",

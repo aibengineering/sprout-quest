@@ -256,7 +256,7 @@ export function drawMonsterAt(ctx: CanvasRenderingContext2D, slot: string, kind:
 export const monsterReady = (kind: string) => hasModel(`mon_${kind}`) || !!frame(`mon/${kind}/0`);
 
 /**
- * Draws a villager standing in place and breathing (Elder Bloom, Granny, Poppy hugging her bunny): a 3D model once it's
+ * Draws a villager standing in place and breathing (Elder Oswin, Granny, Poppy hugging her bunny): a 3D model once it's
  * loaded, else its 4-frame sprite loop. `phase`: 1 = one breath. Returns false if neither is available.
  */
 export function drawIdler(ctx: CanvasRenderingContext2D, slot: string, name: string, phase: number, x: number, y: number, unit: number, o: DrawOpts = {}): boolean {

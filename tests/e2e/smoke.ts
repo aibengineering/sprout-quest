@@ -118,7 +118,7 @@ function check(ok: unknown, msg: string) {
 
 console.log('Sprout Quest smoke test');
 
-await scenario('a new game plays through the prologue to Elder Bloom', null, async (page) => {
+await scenario('a new game plays through the prologue to Elder Oswin', null, async (page) => {
   // Start over from the title (base's save is replaced by New Game).
   await run(page, `localStorage.clear()`);
   await page.reload();
@@ -149,7 +149,7 @@ await scenario('a new game plays through the prologue to Elder Bloom', null, asy
     await waitFor(page, 'back on the map', async () => game<boolean>(page, `g.mode === 'world' && !g.battle`), 5000);
     check(await game(page, `g.save.flags.includes('${flag}')`), `winning the ${flag} fight did not clear the path`);
   }
-  // Walking into the village plays Elder Bloom's welcome tour.
+  // Walking into the village plays Elder Oswin's welcome tour.
   await closeDialogs(page);
   // Stand just outside and walk in (teleporting straight in wouldn't count as arriving).
   await run(page, `const w = g.over.world, p = w.entryPoint('village'); let x = p.x; while (w.zoneAt(x).id === 'village') x -= 0.5; g.over.teleport(x - 0.5, p.y)`);
@@ -165,12 +165,12 @@ await scenario('a new game plays through the prologue to Elder Bloom', null, asy
   await closeDialogs(page);
   await page.waitForTimeout(500);
   check(await game(page, `g.mode`) === 'world', 'not back in control after the welcome');
-  // Talking to Elder Bloom tells you what to do next, then hands you back the controls.
+  // Talking to Elder Oswin tells you what to do next, then hands you back the controls.
   await use(`g.over.world.obj('elder')`);
   const said = await closeDialogs(page);
-  check(said.some((t) => t.includes('Elder Bloom')), 'Elder Bloom did not speak');
+  check(said.some((t) => t.includes('Elder Oswin')), 'Elder Oswin did not speak');
   await page.waitForTimeout(400);
-  check(await game(page, `g.mode`) === 'world', 'not back in control after talking to Elder Bloom');
+  check(await game(page, `g.mode`) === 'world', 'not back in control after talking to Elder Oswin');
 });
 
 await scenario('patch notes: a dot until you read them, from the menu or the title', (g) => {

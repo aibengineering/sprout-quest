@@ -28,7 +28,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
       if (!has(s, 'village')) return G.ui.toast('🏚 The old forge has fallen to pieces. Maybe someone in the village knows how to fix it…');
       return openMenu(menuCtx(), 'village', 'forge');
     }
-    if (!has(s, 'forge')) return G.ui.toast('🔒 The forge is cold. Elder Bloom will light it when you are ready.');
+    if (!has(s, 'forge')) return G.ui.toast('🔒 The forge is cold. Elder Oswin will light it when you are ready.');
     openMenu(menuCtx(true), 'forge');
   },
 

@@ -476,7 +476,7 @@ export interface Quest {
   chapter: string;
   title: string;
   goal: Goal;
-  /** What Elder Bloom says about this step. */
+  /** What Elder Oswin says about this step. */
   text: string;
   hint: string;
   reward?: { mats?: Recipe; potions?: number };

@@ -131,11 +131,11 @@ timeline and the raw events, to tune the balance against real play.
 
 **Prologue.** You wake up in the Quiet Glade west of the village, pick up a Twig Sword, and fight your way down the
 forest path: a slime (attack) and then a Hopbun (its charge teaches dodging), with only ⚔️ and 💨 on screen and coaching
-bubbles. Reaching Sowerby plays a letterboxed camera tour with Elder Bloom, Veyra's priest (the empty plots, the ruined forge, the
+bubbles. Reaching Sowerby plays a letterboxed camera tour with Elder Oswin, Veyra's priest (the empty plots, the ruined forge, the
 guarded roads east). From there systems unlock one at a time with a small card: 🎒 Bag, 📜 Journal, ✨ weapon skill,
 🏡 Village building (starting with repairing the forge), ⚒ crafting, then new building plots as guardians fall.
 
-Smoke from Ember Peak has made the monsters grumpy, and guardians block the roads. Elder Bloom guides you through a
+Smoke from Ember Peak has made the monsters grumpy, and guardians block the roads. Elder Oswin guides you through a
 chain of chapters, and the current goal is always shown in the 📜 tracker at the top of the screen, with a progress bar
 for the materials it needs.
 
@@ -178,7 +178,7 @@ grass, and that every tree, rock, sign and campfire can be reached. Each area is
 | Area | Lv | Monsters | Materials |
 | --- | --- | --- | --- |
 | 🌳 Quiet Glade | – | Prologue only | Where your story begins |
-| 🏡 Sowerby | – | – | Forge, Veyra's Spring and shrine, Elder Bloom, building plots |
+| 🏡 Sowerby | – | – | Forge, Veyra's Spring and shrine, Elder Oswin, building plots |
 | 🌼 Sunny Meadow | 1–3 | Slime, Hopbun | Goo, Fluff, Clover · 🪵 oak, 🪨 stone |
 | 🌲 Whisper Woods | 4–7 | Sporecap, Woolf, Hopbun | Shroom Cap, Fang · 🌲 pine, 🟠 copper |
 | 🪨 Echo Cavern | 8–11 | Flapper, Pebblor, Sporecap | Bat Wing, Golem Core · ⚙️ iron |
@@ -279,7 +279,7 @@ if the atlas can't load either. Dev builds show a performance readout (fps, fram
 - `src/game/`: the game's flows, sharing state through `G` in `context.ts` (save, map, fight, mode, transitions)
   - `fights.ts`: starting and finishing fights, rewards, the swoop in and out, in-battle coaching
   - `gathering.ts`: the chop/mine minigame on the map
-  - `story.ts`: quests, unlock cards, Elder Bloom, the village cutscene
+  - `story.ts`: quests, unlock cards, Elder Oswin, the village cutscene
   - `stories.ts`: side stories as steps (a check, then a scene), and the characters and monster groups each step puts
     on the map; one file per story in `stories/` (`poppy.ts`)
   - `scenes.ts`: writing scenes as plain async code: pan, follow, walk, emoji bubbles, dialogue, narration

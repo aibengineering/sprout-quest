@@ -86,7 +86,7 @@ export function menuCtx(atForge = false) {
 
 export function showZoneBanner(z: Zone) {
   const s = G.save;
-  const sub = z.id === 'village' ? 'Safe · Home of Elder Bloom' : z.id === 'glade' ? 'A peaceful clearing' : `Monsters Lv ${z.lv[0]}–${z.lv[1]}${s.lv < z.rec ? ' · ⚠️ Dangerous!' : ''}`;
+  const sub = z.id === 'village' ? 'Safe · Home of Elder Oswin' : z.id === 'glade' ? 'A peaceful clearing' : `Monsters Lv ${z.lv[0]}–${z.lv[1]}${s.lv < z.rec ? ' · ⚠️ Dangerous!' : ''}`;
   G.ui.banner(z.name, sub);
   if (!s.visited.includes(z.id)) {
     s.visited.push(z.id);

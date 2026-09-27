@@ -205,13 +205,13 @@ export class World {
     add({ kind: 'foe', flag: 'glade2', monster: 'bunny', x: 13, y: gy, w: 1, h: 4, label: 'Fight', text: 'Hopbun' }, false);
     add({ kind: 'forge', x: V + 5, y: 7, w: 4, h: 3, label: 'Forge', text: 'The Forge' });
     add({ kind: 'house', x: V + 13, y: 6.5, w: 3, h: 3, label: '' });
-    add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Bloom' });
+    add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
     add({ kind: 'plot', project: 'home', x: V + 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
     add({ kind: 'plot', project: 'garden', x: V + 7.2, y: 18.4, w: 3, h: 1.6, label: 'Build', text: 'Garden' });
     add({ kind: 'plot', project: 'training', x: V + 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
     add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Waystone' });
     add({ kind: 'fountain', x: V + 12, y: 17, w: 2, h: 2, label: 'Rest', text: "Veyra's Spring" });
-    // Veyra's shrine, where Elder Bloom prays: north of where he stands, between the forge and the blue house.
+    // Veyra's shrine, where Elder Oswin prays: north of where he stands, between the forge and the blue house.
     add({
       kind: 'statue', id: 'veyra', zone: 'village', x: V + 10.1, y: 7.6, w: 0.8, h: 0.6, label: 'Look',
       text: 'Veyra, the Sower. A veiled goddess with a golden seed in one hand and a sickle in the other. Fresh flowers lie at her feet. The words on the plinth read: "All that is planted, I tend."',

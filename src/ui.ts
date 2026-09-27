@@ -742,7 +742,7 @@ export class UI {
       <h3>How to play</h3>
       <div class="note" style="font-weight:600;line-height:1.5">
         • Drag anywhere to move. Walk through <b>tall grass</b> to meet monsters.<br>
-        • Follow the 📜 goal at the top of the screen. Elder Bloom has hints!<br>
+        • Follow the 📜 goal at the top of the screen. Elder Oswin has hints!<br>
         • <b>Guardians</b> block the roads. Beat them to open the way and light a 🔥 campfire checkpoint.<br>
         • In battle: ⚔️ attack the way you last moved (hold to combo), 💨 dodge, ✨ weapon skill, 🧪 potion. Red circles mean danger!<br>
         • Craft gear at the ⚒ Forge and build up the 🏡 Village for permanent boosts.<br>
@@ -836,7 +836,7 @@ export class UI {
 
   elderSays(text: string, hint?: string) {
     return this.dialog(
-      `<div class="speaker">${icon('npc_elder', '🌿', 'icon xl')}<b>Elder Bloom</b></div>
+      `<div class="speaker">${icon('npc_elder', '🌿', 'icon xl')}<b>Elder Oswin</b></div>
        <div class="bubble">${esc(text)}</div>${hint ? `<div class="hint">🎯 ${esc(hint)}</div>` : ''}`,
       [['ok', 'Got it!']],
     );
@@ -862,7 +862,7 @@ export class UI {
       `<div class="qchap">📜 ${esc(q.chapter)} · New goal</div>
        <div class="qart big-art">${goalIcon(q)}</div>
        <div class="big" style="font-size:26px">${esc(q.title)}</div>
-       <div class="speaker small">${icon('npc_elder', '🌿', 'icon sm')}<b>Elder Bloom</b></div>
+       <div class="speaker small">${icon('npc_elder', '🌿', 'icon sm')}<b>Elder Oswin</b></div>
        <div class="bubble">${esc(q.text)}</div>
        <div class="hint">🎯 ${esc(q.hint)}</div>`,
       [['ok', "Let's go!"]],
@@ -890,7 +890,7 @@ export class UI {
   /** A story caption along the bottom of the screen; the world stays visible behind it. */
   async caption(text: string, speaker: 'elder' | 'narrator') {
     this.modal.classList.add('cine');
-    const who = speaker === 'elder' ? `<div class="speaker small">${icon('npc_elder', '🌿', 'icon sm')}<b>Elder Bloom</b></div>` : '';
+    const who = speaker === 'elder' ? `<div class="speaker small">${icon('npc_elder', '🌿', 'icon sm')}<b>Elder Oswin</b></div>` : '';
     const r = await this.dialog(`${who}<div class="caption-text ${speaker}">${esc(text)}</div>`, [['ok', '▶']], 'caption');
     this.modal.classList.remove('cine');
     return r;

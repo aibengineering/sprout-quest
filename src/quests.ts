@@ -11,7 +11,7 @@ export function progress(s: SaveState, q: Quest): { cur: number; max: number; la
   const g = q.goal;
   switch (g.type) {
     case 'talk':
-      return { cur: s.talked ? 1 : 0, max: 1, label: 'Talk to Elder Bloom' };
+      return { cur: s.talked ? 1 : 0, max: 1, label: 'Talk to Elder Oswin' };
     case 'flag':
       return { cur: s.flags.includes(g.flag) ? 1 : 0, max: 1, label: g.label };
     case 'kills': {
