@@ -113,6 +113,8 @@ export interface Swing {
   trail: { ang: number; t: number }[];
   /** The last strike of the combo: earns the rest afterwards. */
   finisher: boolean;
+  /** A lash has cracked at the tip (the snap you hear, hit or miss). */
+  cracked?: boolean;
 }
 
 /** A hammer's traveling shockwave (or the Wyrmbreaker's dragonfire). */

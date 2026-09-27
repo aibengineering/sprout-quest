@@ -5,7 +5,9 @@ export type Sfx =
   | 'craft' | 'heal' | 'dodge' | 'shoot' | 'boom' | 'ui' | 'lose' | 'skill' | 'step' | 'heavy'
   // Gathering: an axe biting wood, a pick on stone, a glancing miss, a tree creaking over and landing, a rock
   // crumbling, and what you earned landing in your bag.
-  | 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup';
+  | 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup'
+  // A whip's tip snapping over.
+  | 'crack';
 
 export class Audio {
   private ctx: AudioContext | null = null;
@@ -89,6 +91,7 @@ export class Audio {
       case 'thud': this.noise(0.32, 0.45, 380); this.tone(95, 0.32, 'sine', 0.38, 42); break;
       case 'crumble': this.noise(0.5, 0.38, 850); this.noise(0.3, 0.2, 2400, 0.06); this.tone(115, 0.26, 'sine', 0.28, 48); break;
       case 'pickup': notes([988, 1319], 0.05, 'square', 0.07); break;
+      case 'crack': this.noise(0.035, 0.55, 7000); this.tone(2400, 0.025, 'square', 0.08, 1200); break;
     }
   }
 }

@@ -11,7 +11,7 @@ import { drawBubble } from '../bubble';
 import { Particles } from '../particles';
 import { BURN_COLOR, ELEMENTS } from './elements';
 import { MONSTER_AI, spriteScale } from './monsters';
-import { pose } from './pose';
+import { lashCrackAt, lashRope, pose } from './pose';
 import { TAU, UNIT, ZOOM, ZOOM_T, clamp01, easeOut, rand, type Enemy, type Spark, type Spike, type Swing } from './types';
 
 type Ctx = CanvasRenderingContext2D;
@@ -648,9 +648,12 @@ function drawHero(b: Battle, ctx: Ctx) {
   const behind = idle ? sinF < -0.5 : Math.sin(ang) < -0.35 && !(sw && sw.s.anim === 'slam' && sw.t > sw.s.windup);
   const wf = frame(`wpn/${b.weapon.id}`);
   const weaponUnit = 34 * b.moves.size * scale;
+  const lashing = style === 'whip' && sw?.s.shape === 'lash';
   const drawW = () => {
     if (style === 'whip') drawLash(b, ctx, handX, handY, ang, sw, idle, side);
-    if (wf) drawFrame(ctx, wf, handX, handY, weaponUnit, { rot: ang, sy: flipY, alpha });
+    // Mid-lash the coils are out as the rope, so only the grip is in your hand.
+    if (lashing) drawGrip(ctx, handX, handY, ang, b.weapon.color ?? '#ccc', alpha);
+    else if (wf) drawFrame(ctx, wf, handX, handY, weaponUnit, { rot: ang, sy: flipY, alpha });
     else drawWeapon(ctx, style === 'whip' ? 'sword' : style, handX, handY, ang, 12 * scale, b.weapon.color ?? '#ccc');
   };
   shadow(ctx, p.x, p.y, 14);
@@ -668,44 +671,113 @@ function drawHero(b: Battle, ctx: Ctx) {
   if (!behind) drawW();
 }
 
+/** A whip's grip on its own (the rope is drawn by drawLash): a short wrapped handle pointing along the lash. */
+function drawGrip(ctx: Ctx, x: number, y: number, ang: number, color: string, alpha: number) {
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.lineCap = 'round';
+  const ex = x + Math.cos(ang) * 11, ey = y + Math.sin(ang) * 11;
+  for (const [w, c] of [[8, '#3a2448'], [5, '#6a3a4a']] as const) {
+    ctx.strokeStyle = c;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(x - Math.cos(ang) * 3, y - Math.sin(ang) * 3);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+  }
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x - Math.cos(ang) * 4, y - Math.sin(ang) * 4, 3, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
 /**
- * A whip's rope: coiled and dangling at rest; during a lash it snaps out to its full reach along the swing, bowed
- * against the direction it's moving so it reads as a crack of the whip.
+ * A whip's rope. At rest it hangs coiled at your hip; in a lash it's the rope from lashRope (the same one the hits use),
+ * thick at the grip and fine at the tip, with a streak where the tip has just been and a flash as it cracks.
  */
 function drawLash(b: Battle, ctx: Ctx, hx: number, hy: number, ang: number, sw: Swing | null, idle: boolean, side: number) {
-  let len = 18, bow = 10;
-  let dir = idle ? (side > 0 ? 1.2 : Math.PI - 1.2) : ang;
-  if (sw) {
-    const q = clamp01((sw.t - sw.s.windup) / sw.s.active);
-    const reach = sw.s.range * b.reach;
-    len = sw.t < sw.s.windup ? 22 : 22 + (reach - 22) * easeOut(Math.min(1, q * 1.3)) * (1 - Math.max(0, q - 1) * 0.6);
-    bow = sw.s.shape === 'arc' ? (sw.s.anim === 'slashL' ? -1 : 1) * len * 0.22 : len * 0.06;
-    dir = ang;
-  } else if (b.p.whirlT > 0) {
-    len = SKILL_DATA.whirl.radius * b.reach;
-    bow = len * 0.3;
-  }
-  const ex = hx + Math.cos(dir) * len, ey = hy + Math.sin(dir) * len;
-  const mx = (hx + ex) / 2 - Math.sin(dir) * bow, my = (hy + ey) / 2 + Math.cos(dir) * bow;
+  const col = b.weapon.color ?? '#ccc', tipCol = b.weapon.trail ?? '#fff';
   ctx.save();
   ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(40,20,50,0.55)';
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(hx, hy);
-  ctx.quadraticCurveTo(mx, my, ex, ey);
-  ctx.stroke();
-  ctx.strokeStyle = b.weapon.color ?? '#ccc';
-  ctx.lineWidth = 3.5;
-  ctx.beginPath();
-  ctx.moveTo(hx, hy);
-  ctx.quadraticCurveTo(mx, my, ex, ey);
-  ctx.stroke();
-  // A bright popper at the tip.
-  ctx.fillStyle = b.weapon.trail ?? '#fff';
-  ctx.beginPath();
-  ctx.arc(ex, ey, sw && sw.t > sw.s.windup ? 4 : 2.5, 0, TAU);
-  ctx.fill();
+  ctx.lineJoin = 'round';
+  if (sw && sw.s.shape === 'lash') {
+    const rope = lashRope(sw, b.reach);
+    // Where the tip was a moment ago: a fading streak behind it.
+    const streak = [0.045, 0.03, 0.015].map((dt) => {
+      const r = lashRope({ ...sw, t: Math.max(0, sw.t - dt) }, b.reach);
+      return r[r.length - 1];
+    });
+    const [tx, ty] = rope[rope.length - 1];
+    ctx.strokeStyle = `${tipCol}`;
+    for (let k = 0; k < streak.length; k++) {
+      const [sx, sy] = streak[k], [nx, ny] = k + 1 < streak.length ? streak[k + 1] : [tx, ty];
+      ctx.globalAlpha = 0.15 + k * 0.15;
+      ctx.lineWidth = 2 + k;
+      ctx.beginPath();
+      ctx.moveTo(hx + sx, hy + sy);
+      ctx.lineTo(hx + nx, hy + ny);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    // The rope, tapering from the grip to the tip: a dark outline under the colour.
+    for (const [w, c] of [[2.6, 'rgba(40,20,50,0.6)'], [0, col]] as const) {
+      ctx.strokeStyle = c;
+      for (let i = 1; i < rope.length; i++) {
+        const f = 1 - i / rope.length;
+        ctx.lineWidth = 1.6 + 3.4 * f + w;
+        ctx.beginPath();
+        ctx.moveTo(hx + rope[i - 1][0], hy + rope[i - 1][1]);
+        ctx.lineTo(hx + rope[i][0], hy + rope[i][1]);
+        ctx.stroke();
+      }
+    }
+    // The popper at the tip, bright as it cracks.
+    const crack = lashCrackAt(sw.s), hot = Math.max(0, 1 - Math.abs(sw.t - crack) / 0.05);
+    if (hot) {
+      ctx.globalAlpha = hot;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(hx + tx, hy + ty, 7, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = tipCol;
+    ctx.beginPath();
+    ctx.arc(hx + tx, hy + ty, 3.2, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  // The skill's twirl: a wide loop around you.
+  if (b.p.whirlT > 0) {
+    const len = SKILL_DATA.whirl.radius * b.reach, bow = len * 0.3;
+    const ex = hx + Math.cos(ang) * len, ey = hy + Math.sin(ang) * len;
+    const mx = (hx + ex) / 2 - Math.sin(ang) * bow, my = (hy + ey) / 2 + Math.cos(ang) * bow;
+    for (const [w, c] of [[6, 'rgba(40,20,50,0.55)'], [3.5, col]] as const) {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      ctx.quadraticCurveTo(mx, my, ex, ey);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
+  // At rest: a couple of loops hanging from the grip at your hip, swaying a little.
+  if (idle) {
+    const sway = Math.sin(b.t * 2.4) * 1.5;
+    for (const [w, c] of [[5.5, 'rgba(40,20,50,0.55)'], [3, col]] as const) {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = w;
+      for (let k = 0; k < 2; k++) {
+        ctx.beginPath();
+        ctx.ellipse(hx + side * (4 + k * 2) + sway, hy + 8 + k * 3, 6 - k, 9 - k * 2, side * 0.3, 0, TAU);
+        ctx.stroke();
+      }
+    }
+  }
   ctx.restore();
 }
 

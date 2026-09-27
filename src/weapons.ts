@@ -2,7 +2,7 @@
 // Tiers (0–5, from data.ts) scale reach, trail size and impact on top of these base numbers.
 import type { Style } from './data';
 
-export type Anim = 'slashR' | 'slashL' | 'thrust' | 'chop' | 'backchop' | 'slam' | 'spin' | 'cast';
+export type Anim = 'slashR' | 'slashL' | 'thrust' | 'chop' | 'backchop' | 'slam' | 'spin' | 'cast' | 'lashR' | 'lashL' | 'crack';
 
 export interface Wave {
   /** How far the shockwave travels forward. */
@@ -14,8 +14,11 @@ export interface Wave {
 
 export interface Strike {
   anim: Anim;
-  /** arc: a sweeping cone · line: a forward thrust box · circle: a ring around an impact point. */
-  shape: 'arc' | 'line' | 'circle' | 'shot';
+  /**
+   * arc: a sweeping cone · line: a forward thrust box · circle: a ring around an impact point · lash: a whip's rope,
+   * which hits hardest at its tip.
+   */
+  shape: 'arc' | 'line' | 'circle' | 'shot' | 'lash';
   windup: number;
   active: number;
   recover: number;
@@ -38,6 +41,9 @@ export interface Strike {
   stun?: number;
   /** Spin strikes: how many full turns. */
   turns?: number;
+  /** Lashes: how much of the rope, from the tip, is the sweet spot (full damage, a "crack"), and what the rest does. */
+  tip?: number;
+  graze?: number;
 }
 
 export type SkillKind = 'spin' | 'whirl' | 'quake' | 'nova';
@@ -95,7 +101,8 @@ export const MOVESETS: Record<Style, Moveset> = {
       },
     ],
   },
-  // Long, narrow lashes that reach further than any blade, finished by a crack at the very tip.
+  // Long lashes that reach further than any blade: the rope trails the handle, unrolls, and cracks at the tip. Only the
+  // tip hits properly (a "crack"); the rest of the rope just grazes, so the whip rewards keeping at its range.
   whip: {
     window: 0.34,
     skill: 'whirl',
@@ -104,9 +111,9 @@ export const MOVESETS: Record<Style, Moveset> = {
     rest: 0.45,
     ammo: { max: 3, regen: 0.4, delay: 0.3 },
     combo: [
-      { anim: 'slashR', shape: 'arc', windup: 0.07, active: 0.1, recover: 0.13, range: 104, size: 0.9, mult: 0.95, kb: 90, shake: 2, hitstop: 0.03, move: 0.7 },
-      { anim: 'slashL', shape: 'arc', windup: 0.07, active: 0.1, recover: 0.13, range: 104, size: 0.9, mult: 0.95, kb: 90, shake: 2, hitstop: 0.03, move: 0.7 },
-      { anim: 'thrust', shape: 'line', windup: 0.14, active: 0.1, recover: 0.2, range: 118, size: 16, mult: 1.6, kb: 200, shake: 4, hitstop: 0.06, move: 0.4 },
+      { anim: 'lashR', shape: 'lash', windup: 0.09, active: 0.08, recover: 0.13, range: 108, size: 16, mult: 0.95, tip: 0.35, graze: 0.5, kb: 90, shake: 2, hitstop: 0.03, move: 0.7 },
+      { anim: 'lashL', shape: 'lash', windup: 0.09, active: 0.08, recover: 0.13, range: 108, size: 16, mult: 0.95, tip: 0.35, graze: 0.5, kb: 90, shake: 2, hitstop: 0.03, move: 0.7 },
+      { anim: 'crack', shape: 'lash', windup: 0.16, active: 0.08, recover: 0.2, range: 118, size: 18, mult: 1.6, tip: 0.3, graze: 0.5, kb: 200, stun: 0.35, shake: 4, hitstop: 0.07, move: 0.4 },
     ],
   },
   // Rapid shots from a small clip that reloads once you stop firing; the third shot is a weaker spread.
@@ -137,6 +144,8 @@ export function strikeShape(s: Strike, reach: number): { reach: number; area: nu
   switch (s.shape) {
     case 'arc': r = { reach: s.range * reach, area: (Math.min(s.size, TAU) / 2) * (s.range * reach) ** 2 }; break;
     case 'line': r = { reach: s.range * reach, area: s.range * reach * s.size * reach }; break;
+    // The rope's length, and the band its tip sweeps through.
+    case 'lash': r = { reach: s.range * reach, area: s.range * reach * s.size * reach * 1.6 }; break;
     case 'circle': r = { reach: (s.reach ?? 0) * reach + s.size * reach, area: Math.PI * (s.size * reach) ** 2 }; break;
     case 'shot': r = { reach: 400 * 1.2, area: (s.shots?.length ?? 1) * Math.PI * s.size ** 2 }; break;
   }

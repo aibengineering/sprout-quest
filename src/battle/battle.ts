@@ -11,7 +11,7 @@ import type { SaveState } from '../state';
 import { MOVESETS, SKILL_DATA, tierScale, type Moveset, type Strike } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
 import { MONSTER_AI, type FoeWorld } from './monsters';
-import { pose } from './pose';
+import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
 import {
   AIM_ASSIST, SKILL_CD, TAU, ZOOM_T, angDiff, clamp01, easeInOut, easeOut, rand,
   type BattleLog, type BattleOutcome, type BattleSetup, type Crack, type Enemy, type Flame, type Foe, type Hazard,
@@ -374,6 +374,8 @@ export class Battle implements FoeWorld, HitWorld {
         this.lineHit(sw, s.range * this.reach * easeOut(q), s.size * this.reach);
       }
     }
+    // A lash keeps going after the hand stops: the tip snaps over last.
+    if (s.shape === 'lash' && sw.t >= s.windup && sw.t - dt < lashEnd(s)) this.lashHit(sw);
     if (s.shape === 'circle' && !sw.impacted && sw.t >= activeEnd) this.impact(sw);
     // Fire weapons leave a longer blazing trail.
     sw.trail = sw.trail.filter((k) => this.t - k.t < (this.el.hot ? 0.26 : 0.14));
@@ -435,6 +437,48 @@ export class Battle implements FoeWorld, HitWorld {
       if (along < -e.r || along > reach + e.r || perp > width / 2 + e.r) continue;
       e.hitId = sw.id;
       this.hitEnemy(e, s.mult, sw.aim, s.kb, s.stun ?? 0, sw.id, s.hitstop);
+    }
+  }
+
+  /**
+   * A whip's rope sweeping through the air: anything it touches is hit once, hardest by the tip (a "crack"), lightly by
+   * the rest. The tip cracks audibly as it snaps over, hit or miss.
+   */
+  private lashHit(sw: Swing) {
+    const p = this.p, s = sw.s;
+    const ang = pose(sw, this.reach).ang;
+    const hx = p.x + Math.cos(ang) * 7, hy = p.y - 10 + Math.sin(ang) * 4;
+    const rope = lashRope(sw, this.reach);
+    // How far along the rope each point is, for telling the tip from the rest.
+    const along = [0];
+    for (let i = 1; i < rope.length; i++) along.push(along[i - 1] + Math.hypot(rope[i][0] - rope[i - 1][0], rope[i][1] - rope[i - 1][1]));
+    const total = along[along.length - 1] || 1;
+    const half = (s.size * this.reach) / 2;
+    const [tx, ty] = rope[rope.length - 1];
+    if (!sw.cracked && sw.t >= lashCrackAt(s)) {
+      sw.cracked = true;
+      this.audio.play('crack');
+      this.rings.push({ x: hx + tx, y: hy + ty, r0: 3, r1: 18, t: 0, dur: 0.18, color: '255,255,255', width: 3 });
+    }
+    for (const e of this.enemies) {
+      if (e.dead || e.hitId === sw.id) continue;
+      const ex = e.x - hx, ey = e.y - e.r * 0.6 - hy;
+      let best = Infinity, at = 0;
+      for (let i = 1; i < rope.length; i++) {
+        const [ax, ay] = rope[i - 1], [bx, by] = rope[i];
+        const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1;
+        const k = clamp01(((ex - ax) * dx + (ey - ay) * dy) / l2);
+        const d = Math.hypot(ex - ax - dx * k, ey - ay - dy * k);
+        if (d < best) { best = d; at = along[i - 1] + Math.sqrt(l2) * k; }
+      }
+      if (best > half + e.r) continue;
+      e.hitId = sw.id;
+      const tip = at >= total * (1 - (s.tip ?? 0.3));
+      this.hitEnemy(e, tip ? s.mult : s.mult * (s.graze ?? 0.5), Math.atan2(ey, ex), tip ? s.kb : s.kb * 0.4, tip ? s.stun ?? 0 : 0, sw.id, tip ? s.hitstop : 0.02);
+      if (tip) {
+        this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Crack!', '#ffe07a', 14);
+        this.fx.burst(hx + tx, hy + ty, '#ffffff', 6, 160, { size: 2.5, star: true, life: 0.3 });
+      }
     }
   }
 
