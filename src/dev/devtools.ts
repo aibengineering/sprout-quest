@@ -121,7 +121,12 @@ function perfMeter() {
       const gl = document.createElement('canvas').getContext('webgl');
       const ext = gl?.getExtension('WEBGL_debug_renderer_info');
       const name = gl && ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : gl ? 'WebGL' : 'no WebGL';
-      return name.replace(/^ANGLE \((.*)\)$/, '$1').slice(0, 42);
+      // Chrome reports the GPU through its ANGLE layer: "ANGLE (Google Inc. (Imagination Technologies), Vulkan 1.3.0
+      // (PowerVR B-Series BXM-8-256 (0x…)), driver …)". Show just the chip, and the API it's driven through.
+      const vulkan = name.match(/Vulkan [\d.]+ \(([^()]+)/);
+      if (vulkan) return `${vulkan[1].trim()} · Vulkan`;
+      const parts = name.replace(/^ANGLE \((.*)\)$/, '$1').split(', ');
+      return (parts.length > 1 ? parts[1] : parts[0]).slice(0, 48);
     } catch {
       return '?';
     }
