@@ -6,7 +6,7 @@ import { zoneById, type MonsterKind } from '../../data';
 import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { bubble, follow, lookAt, narrate, pan, say, scene, walk, wait, type Speaker } from '../scenes';
-import type { Story } from '../stories';
+import { stopWaiting, waitAt, type Story } from '../stories';
 import { GRANNY, GRANNY_ID } from './granny';
 
 const POPPY_TALK: Speaker = { name: 'Poppy', emoji: '👧', portrait: (m) => (m === 'happy' ? 'npc_poppy' : m === 'hug' ? 'npc_poppy_hug' : `npc_poppy_${m}`) };
@@ -100,7 +100,7 @@ export const POPPY: Story = {
     },
     {
       id: 'escort', label: 'Walk Poppy home to Sowerby',
-      target: () => DOOR,
+      target: () => (has('poppy:waiting') ? approach(RESCUE) : DOOR),
       done: () => near(DOOR, 2.6) && !!poppy() && Math.hypot(poppy()!.x - G.over.x, poppy()!.y - G.over.y) < 3,
       async then() {
         G.over.actors.get('poppy:poppy')!.follow = false;
@@ -188,6 +188,15 @@ export const POPPY: Story = {
     const at = (mood: string, talk: () => Promise<void> | void): ActorSpec => ({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...HOME, face: Math.PI / 2, mood, label: 'Talk', talk });
     if (step === 1) {
       cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...COWER, face: 0, mood: '😨', label: 'Talk', talk: () => chat([[POPPY_TALK, 'H-help! Please! The slimes!', 'scared']]) });
+    } else if (step === 2 && has('poppy:waiting')) {
+      // You fainted on the way: she waited by the grove for you.
+      cast.push({
+        id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...approach(RESCUE), face: Math.PI / 2, mood: '😟', label: 'Talk',
+        talk: async () => {
+          await chat([[POPPY_TALK, "You're back! I waited right here, just like you'd want. Let's go home?"]]);
+          stopWaiting('poppy:waiting');
+        },
+      });
     } else if (step === 2) {
       cast.push({
         id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, x: G.over.x - 0.8, y: G.over.y + 0.1, follow: true, label: 'Talk',
@@ -203,6 +212,10 @@ export const POPPY: Story = {
       cast.push({ ...at('', () => chat([[POPPY_TALK, HOME_LINES[line++ % HOME_LINES.length], 'hug']])), look: { kind: 'idle', name: 'poppy_hug' }, mood: undefined });
     }
     return cast;
+  },
+
+  fainted() {
+    if ((G.save.stories.poppy ?? 0) === 2) waitAt('poppy:poppy', 'poppy:waiting');
   },
 
   tick(step) {

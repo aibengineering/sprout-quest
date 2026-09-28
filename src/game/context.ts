@@ -105,6 +105,7 @@ export function syncWorld() {
     if (o.kind === 'plot') {
       o.hidden = !plotOpen(s, o.project!);
       if (o.project === 'home') o.label = has(s, 'village') ? 'Build' : 'Rest';
+      if (o.project === 'sawmill') o.label = s.build.sawmill ? 'Sawmill' : 'Build';
     }
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);

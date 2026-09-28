@@ -10,7 +10,7 @@ import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
 import { MOVESETS, comboTime } from './weapons';
 import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
-import { LOGS_PER_PLANK, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate } from './sawmill';
+import { LOGS_PER_PLANK, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate } from './sawmill';
 import { usingKeyboard } from './input';
 import { canShareFiles } from './share';
 import { reportInfo } from './stats';
@@ -179,6 +179,12 @@ function buildingIcon(id: ProjectId, level: number): string {
   const name = id === 'forge' ? forgeArt(level) : `${id}${level}`;
   return icon(`b_${name}`, PROJECTS[id].icon, 'icon lg');
 }
+
+/** A round saw blade, spun by CSS while the Sawmill is working (tinted copper or iron). */
+const SAW_BLADE = `<svg viewBox="-50 -50 100 100" aria-hidden="true"><path d="${Array.from({ length: 16 }, (_, i) => {
+  const a = (i / 16) * Math.PI * 2, b = a + Math.PI / 16, r = 46, t = 36;
+  return `${i ? 'L' : 'M'}${(Math.cos(a) * t).toFixed(1)},${(Math.sin(a) * t).toFixed(1)}L${(Math.cos(b) * r).toFixed(1)},${(Math.sin(b) * r).toFixed(1)}`;
+}).join('')}Z"/><circle r="11" class="hub"/></svg>`;
 
 export class UI {
   private modal = $('modal');
@@ -1093,38 +1099,56 @@ export class UI {
   }
 
   /**
-   * Bram's Sawmill: what's on the bench, what's ready, and buttons to hand him logs or take your planks.
-   * Resolves 'saw:<n>:<log>', 'collect' or 'close'.
+   * Bram's Sawmill as a workbench: your logs, the saw (spinning while it works, with a bar filling for the plank on the
+   * blade), the planks on the tray, a slot per plank on the bench, and buttons to hand over logs or take the planks.
+   * It keeps itself up to date while open. Resolves 'saw:<n>:<log>', 'collect' or 'close'.
    */
   sawmill(s: SaveState, line: string): Promise<string> {
-    const w = sawUpdate(s), next = nextPlankIn(s), logs = sawLogs(s);
-    const logName = logs.map((l) => MATS[l].name).join(' or ');
-    const bench = w.queued
-      ? `🪚 Sawing <b>${w.queued}</b> plank${w.queued > 1 ? 's' : ''}: the next in ${next}s.`
-      : `The saw is quiet. Bring ${logName} and Bram will get to work.`;
-    // A row per kind of log it takes: what you have, and buttons to hand over enough for 1 or 5 planks.
-    const rows = logs.map((l) => {
-      const room = canOrder(s, l);
-      return `<div class="sawrow">${icon(l, MATS[l].icon, 'icon sm')}<span><b>${s.mats[l]}</b> ${esc(MATS[l].name)}</span>
-        <button class="go ghost" data-dialog="saw:1:${l}" ${room >= 1 ? '' : 'disabled'}>Saw 1</button>
-        <button class="go ghost" data-dialog="saw:5:${l}" ${room >= 5 ? '' : 'disabled'}>Saw 5</button></div>`;
-    }).join('');
-    const btns: [string, string, string?][] = [['close', 'Bye, Bram']];
-    if (w.ready) btns.push(['collect', `Take ${w.ready} plank${w.ready > 1 ? 's' : ''}`]);
-    return this.dialog(
-      `${ribbon("Bram's Sawmill")}
+    const logs = sawLogs(s), iron = s.build.sawmill >= 2;
+    const rows = logs.map((l) => `<div class="sawrow" data-log="${l}">${icon(l, MATS[l].icon, 'icon sm')}
+        <span><span><b class="n">${s.mats[l]}</b> ${esc(MATS[l].name)}s</span><small>${LOGS_PER_PLANK} logs a plank</small></span>
+        <button class="go ghost" data-dialog="saw:1:${l}">+1</button><button class="go ghost" data-dialog="saw:5:${l}">+5</button></div>`).join('');
+    const p = this.dialog(
+      `${ribbon(iron ? 'Iron Sawmill' : "Bram's Sawmill")}
        <div class="speaker small">${icon('npc_bram_happy', '🧔', 'icon sm')}<b>Bram</b></div>
        <div class="bubble">${esc(line)}</div>
-       <div class="sawbench">
-         ${rows}
-         <div class="chips">${icon('plank', MATS.plank.icon, 'icon sm')} You have <b>${s.mats.plank}</b> Planks</div>
-         <p>${bench}</p>
-         ${w.ready ? `<p class="ready">✨ ${w.ready} plank${w.ready > 1 ? 's' : ''} ready to take!</p>` : ''}
-         <p class="small">${LOGS_PER_PLANK} logs make a Plank, one every ${sawSeconds(s)} seconds, even while you're away.${s.build.sawmill < 2 ? ' An iron blade would cut Pine too.' : ''}</p>
-       </div>`,
-      btns,
+       <div class="bench">
+         <div class="stock">${icon('bark', MATS.bark.icon)}<b class="logs">0</b><small>logs in</small></div>
+         <div class="saw"><div class="blade ${iron ? 'iron' : 'copper'}">${SAW_BLADE}</div><div class="sawbar"><i></i></div><small class="next"></small></div>
+         <div class="stock tray">${icon('plank', MATS.plank.icon)}<b class="ready">0</b><small>ready</small></div>
+       </div>
+       <div class="slots">${Array.from({ length: SAW_MAX }, () => '<i></i>').join('')}</div>
+       <div class="sawrows">${rows}</div>
+       <p class="small">Bram saws even while you're away: one plank every ${sawSeconds(s)} seconds.${iron ? '' : ' An iron blade would cut Pine too, and faster.'}</p>`,
+      [['close', 'Bye, Bram'], ['collect', 'Take planks']],
       'celebrate quest sawmill',
     );
+    // Live: the bar, the countdown, the slots, the counts and the Take button follow the saw while this is open.
+    const sheet = this.sheet;
+    const tick = () => {
+      if (!sheet.classList.contains('sawmill') || this.modal.hidden) return window.clearInterval(timer);
+      const w = sawUpdate(s), next = nextPlankIn(s), each = sawSeconds(s);
+      const q = (sel: string) => sheet.querySelector<HTMLElement>(sel);
+      q('.bench .logs')!.textContent = String(w.queued * LOGS_PER_PLANK);
+      q('.bench .ready')!.textContent = String(w.ready);
+      q('.bench')!.classList.toggle('busy', w.queued > 0);
+      q('.sawbar i')!.style.width = `${w.queued ? (100 * (each - next)) / each : 0}%`;
+      q('.next')!.textContent = w.queued ? `Next plank in ${next}s` : 'Idle: hand Bram some logs';
+      sheet.querySelectorAll<HTMLElement>('.slots i').forEach((el, k) => {
+        el.className = k < w.ready ? 'done' : k === w.ready && w.queued ? 'now' : k < w.ready + w.queued ? 'wait' : '';
+      });
+      for (const r of sheet.querySelectorAll<HTMLElement>('.sawrow')) {
+        const l = r.dataset.log as 'bark' | 'pine', room = canOrder(s, l);
+        r.querySelector('.n')!.textContent = String(s.mats[l]);
+        r.querySelectorAll<HTMLButtonElement>('button').forEach((b, k) => (b.disabled = room < (k ? 5 : 1)));
+      }
+      const take = sheet.querySelector<HTMLButtonElement>('[data-dialog="collect"]')!;
+      take.disabled = !w.ready;
+      take.firstChild!.textContent = w.ready ? `Take ${w.ready} plank${w.ready > 1 ? 's' : ''}` : 'Take planks';
+    };
+    const timer = window.setInterval(tick, 250);
+    tick();
+    return p;
   }
 
   elderSays(text: string, hint?: string) {

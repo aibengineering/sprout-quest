@@ -14,7 +14,7 @@ import { G, backToWorld, persist, showZoneBanner, syncWorld, transition } from '
 import { cancelGather } from './gathering';
 import { celebrate, leveledUp, lootLines, markLevels, type LevelMark } from './rewards';
 import { progressQuests } from './story';
-import { storyFightExtras } from './stories';
+import { storyFainted, storyFightExtras } from './stories';
 
 /** HP when the current fight began, for the play report. */
 let fightHp = 0;
@@ -188,6 +188,8 @@ async function onBattleEnd(o: BattleOutcome) {
       G.over.teleport(p.x, p.y);
       backToWorld();
       showZoneBanner(G.over.currentZone);
+      // Anyone you were walking home stays behind, at the last checkpoint you reached.
+      storyFainted();
     });
   }
 }

@@ -669,6 +669,45 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'bramhut').hidden && g.save.flags.includes('bram:stew')`), 'no cabin, or no stew');
 });
 
+scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, and the ambushes still count', (g) => {
+  const s = g.save;
+  s.lv = 6;
+  s.bosses.push('kingslime');
+  s.camps.push('woods');
+  s.visited.push('meadow', 'woods');
+  s.quest = g.quests.findIndex((q: any) => q.id === 'smithy');
+  s.stories.poppy = 6;
+  s.stories.bram = 6;
+  s.flags.push('poppy:returned', 'bram:pie', 'bram:met', 'bram:wave1', 'bram:wave2', 'bram:scar', 'bram:ambush1');
+  s.respawn = 'village';
+  s.pos = { x: 78 + 16.5, y: 12 };
+}, async (page) => {
+  const bram = () => game<{ follow: boolean; x: number; y: number }>(page, `(() => { const a = g.over.actors.get('bram:bram'); return a && { follow: a.follow, x: a.x, y: a.y }; })()`);
+  await waitFor(page, 'Bram at your side', async () => !!(await bram())?.follow);
+  // Lose a fight on the way.
+  await run(page, `g.fight('wolf', 12, 2)`);
+  await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`));
+  await page.waitForTimeout(1500);
+  await run(page, 'g.battle.p.hp = 1; g.battle.p.iframes = 0');
+  await waitFor(page, 'fainting', async () => !!(await page.$('#modal:not([hidden]) [data-dialog]')), 15000);
+  await closeDialogs(page);
+  await waitFor(page, 'waking up in Sowerby', async () => game<boolean>(page, `g.mode === 'world' && !g.battle && g.over.currentZone.id === 'village'`), 8000);
+  const b = await bram();
+  check(b && !b.follow && Math.hypot(b.x - (78 + 16.5), b.y - 11.6) < 1, `Bram should wait past the first ambush, not follow you home (${JSON.stringify(b)})`);
+  check(await game<boolean>(page, `g.save.flags.includes('bram:waiting')`), 'Bram is not waiting');
+  // Walking home without him (or without the second ambush) doesn't finish the escort.
+  await run(page, 'g.over.teleport(31.8, 11.4)');
+  await page.waitForTimeout(1200);
+  check(await game<number>(page, 'g.save.stories.bram') === 6, 'the escort finished without Bram');
+  // Fetch him: he follows again, and the second ambush is still there.
+  await run(page, `g.over.teleport(78 + 16.5, 12.4)`);
+  await page.waitForTimeout(500);
+  await run(page, `void g.over.actors.get('bram:bram').talk()`);
+  await closeDialogs(page);
+  await waitFor(page, 'Bram following again', async () => !!(await bram())?.follow);
+  check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.flag === 'bram:ambush2').hidden`), 'the second ambush vanished');
+});
+
 scenario('dev builds: a preset plays in its own slot, and your real save is untouched', null, async (page) => {
   const url = page.url().split('?')[0];
   await page.goto(`${url}?preset=poppy-chase`);

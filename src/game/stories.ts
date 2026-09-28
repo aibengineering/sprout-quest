@@ -44,6 +44,8 @@ export interface Story {
   tooLoud?: (o: WorldObj) => void;
   /** A tree was felled (or a rock broken). */
   felled?: (o: WorldObj) => void;
+  /** You fainted and woke at your checkpoint (someone you were escorting waits where you left off). */
+  fainted?: () => void;
 }
 
 export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY];
@@ -126,6 +128,23 @@ const live = () => STORIES.filter((st) => st.available() || stepOf(st.id) > 0);
 export const storyNoisy = (o: WorldObj) => live().some((st) => st.noisy?.(o));
 export const storyTooLoud = (o: WorldObj) => live().forEach((st) => st.tooLoud?.(o));
 export const storyFelled = (o: WorldObj) => live().forEach((st) => st.felled?.(o));
+export const storyFainted = () => live().forEach((st) => st.fainted?.());
+
+/** Someone stops following you and waits at `at` (with `flag` set) until you come back and talk to them. */
+export function waitAt(id: string, flag: string) {
+  const a = G.over.actors.get(id);
+  if (a) a.follow = false;
+  if (!G.save.flags.includes(flag)) G.save.flags.push(flag);
+  persist();
+  syncStories();
+}
+
+/** They pick up following you again. */
+export function stopWaiting(flag: string) {
+  G.save.flags = G.save.flags.filter((f) => f !== flag);
+  persist();
+  syncStories();
+}
 
 /** Extra battle setup for a story's monster group. */
 export function storyFightExtras(o: WorldObj): Partial<BattleSetup> | undefined {

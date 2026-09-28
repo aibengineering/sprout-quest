@@ -9,7 +9,7 @@ import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { challengeFoe, startBattle } from '../fights';
 import { bubble, narrate, pan, say, scene, walk, wait, type Speaker } from '../scenes';
-import type { Story } from '../stories';
+import { stopWaiting, waitAt, type Story } from '../stories';
 import { GRANNY, GRANNY_AT, GRANNY_ID } from './granny';
 
 export const BRAM: Speaker = { name: 'Bram', emoji: '🧔', portrait: (m) => (m === 'happy' ? 'npc_bram_happy' : m === 'hurt' ? 'npc_bram_hurt' : 'npc_bram') };
@@ -45,6 +45,8 @@ const SCAR = pack('bram:scar', 5, W + 10.3, 4.5, 1.8, 1.4, [['scarwolf', 6]], { 
 // On the way home: the corridor down from the camp, and the Woods' west gate. Each fills its way from side to side.
 const AMBUSH1 = pack('bram:ambush1', 6, W + 15, 9.4, 4.4, 1, [['wolf', 5], ['shroom', 5]], { facing: 1 });
 const AMBUSH2 = pack('bram:ambush2', 6, W + 3.5, 12, 1, 4, [['wolf', 6], ['wolf', 5]], { facing: 1 });
+/** If you faint on the way home, Bram waits at the last checkpoint: his camp, past the first ambush, or past the second. */
+const checkpoint = () => (has(AMBUSH2.flag!) ? { x: W + 2.2, y: 13.6 } : has(AMBUSH1.flag!) ? { x: W + 16.5, y: 11.6 } : CAMP);
 
 /** Talking to someone outside a scene: a few lines with the world waiting. */
 const chat = (lines: [Speaker, string, string?][]) => paused(async () => {
@@ -202,11 +204,13 @@ export const BRAM_STORY: Story = {
     {
       id: 'escort', label: 'Help Bram home to Sowerby',
       target: () => {
+        if (has('bram:waiting')) return checkpoint();
         if (!has(AMBUSH1.flag!)) return { x: AMBUSH1.x + AMBUSH1.w / 2, y: AMBUSH1.y - 0.6 };
         if (!has(AMBUSH2.flag!)) return { x: AMBUSH2.x + AMBUSH2.w + 0.6, y: AMBUSH2.y + 2 };
         return { x: GRANNY_AT.x, y: GRANNY_AT.y + 1 };
       },
-      done: () => near(GRANNY_AT, 2.8) && !!bram() && Math.hypot(bram()!.x - G.over.x, bram()!.y - G.over.y) < 3,
+      // Home together, and through both ambushes (no skipping them by fainting on the way).
+      done: () => has(AMBUSH1.flag!) && has(AMBUSH2.flag!) && !has('bram:waiting') && near(GRANNY_AT, 2.8) && !!bram() && Math.hypot(bram()!.x - G.over.x, bram()!.y - G.over.y) < 3,
       async then() {
         const b = bram();
         if (b) b.follow = false;
@@ -276,6 +280,12 @@ export const BRAM_STORY: Story = {
     }
     if (step === 3 || step === 4) return [at(CAMP, '😠', () => chat([[BRAM, 'Keep them off the camp!']]))];
     if (step === 5) return [at({ x: CAMP.x + 0.6, y: CAMP.y + 0.2 }, '😖', () => chat([[BRAM, 'Get that brute!', 'hurt']]), true)];
+    if (step === 6 && has('bram:waiting')) {
+      return [at(checkpoint(), '😣', async () => {
+        await chat([[BRAM, "There you are. Thought I'd have to crawl home. Come on, then.", 'hurt']]);
+        stopWaiting('bram:waiting');
+      }, true)];
+    }
     if (step === 6) {
       return [{
         id: ID, look: { kind: 'walker', name: 'bram_hurt' }, x: G.over.x - 0.8, y: G.over.y + 0.1, follow: true, label: 'Talk', mood: '😣',
@@ -295,6 +305,10 @@ export const BRAM_STORY: Story = {
       })];
     }
     return [at(MILL, '😊', () => openSawmill())];
+  },
+
+  fainted() {
+    if ((G.save.stories.bram ?? 0) === 6) waitAt(ID, 'bram:waiting');
   },
 
   noisy: (o) => (G.save.stories.bram ?? 0) === 2 && campPine(o),

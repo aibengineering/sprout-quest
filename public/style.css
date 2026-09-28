@@ -1137,12 +1137,38 @@ body.kbd .drag-hint .keys { display: flex; }
 .sheet.kitchen .note { margin: 8px 0 0; font-weight: 700; }
 
 /* ================= Bram's Sawmill ================= */
-.sheet.sawmill .sawbench { margin: 10px 0 12px; padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.6); }
-.sheet.sawmill .sawbench .chips { justify-content: center; font-weight: 800; }
-.sheet.sawmill .sawbench p { margin: 6px 0; }
-.sheet.sawmill .sawbench .ready { color: #3a8a44; font-weight: 900; }
-.sheet.sawmill .sawbench .small { font-size: 13px; opacity: 0.75; }
-.sheet.sawmill .btns .go { padding: 10px 16px; font-size: 15px; }
-.sheet.sawmill .sawrow { display: flex; align-items: center; gap: 8px; margin: 4px 0; text-align: left; }
-.sheet.sawmill .sawrow span { flex: 1; font-weight: 800; }
-.sheet.sawmill .sawrow .go { padding: 6px 12px; font-size: 14px; }
+/* A workbench: logs in, the saw, planks out; a slot per plank on the bench; a row per kind of log. */
+.sheet.sawmill .bench {
+  display: grid; grid-template-columns: 1fr 1.3fr 1fr; align-items: center; gap: 6px; margin: 12px 0 8px; padding: 12px 10px;
+  border-radius: 16px; background: linear-gradient(#c89a6a, #b0804e); border: 3px solid #7a5232; box-shadow: inset 0 -5px 0 rgba(58, 36, 20, 0.25);
+  color: #fff;
+}
+.sheet.sawmill .stock { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.sheet.sawmill .stock img.icon { width: 46px; height: 46px; filter: drop-shadow(0 3px 0 rgba(58, 36, 20, 0.35)); }
+.sheet.sawmill .stock b { font: 700 22px var(--display); line-height: 1; text-shadow: 0 2px 0 rgba(58, 36, 20, 0.5); }
+.sheet.sawmill .stock small { font-size: 11px; font-weight: 800; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; }
+.sheet.sawmill .tray b { color: #fff2a8; }
+.sheet.sawmill .saw { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.sheet.sawmill .blade { width: 64px; height: 64px; }
+.sheet.sawmill .blade svg { width: 100%; height: 100%; }
+.sheet.sawmill .blade path { stroke: #3a2448; stroke-width: 3; stroke-linejoin: round; }
+.sheet.sawmill .blade .hub { fill: #5a6070; stroke: #3a2448; stroke-width: 3; }
+.sheet.sawmill .blade.copper path { fill: #e8904a; }
+.sheet.sawmill .blade.iron path { fill: #c8d4e8; }
+.sheet.sawmill .bench.busy .blade { animation: sawspin 0.6s linear infinite; }
+@keyframes sawspin { to { transform: rotate(360deg); } }
+.sheet.sawmill .sawbar { width: 100%; height: 10px; border-radius: 99px; background: rgba(58, 36, 20, 0.35); overflow: hidden; }
+.sheet.sawmill .sawbar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(#fff2a8, #ffc23a); transition: width 0.25s linear; }
+.sheet.sawmill .next { font-size: 12px; font-weight: 800; text-shadow: 0 1px 0 rgba(58, 36, 20, 0.5); }
+.sheet.sawmill .slots { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; margin: 0 0 10px; }
+.sheet.sawmill .slots i { aspect-ratio: 1; border-radius: 6px; border: 2px dashed #d8c0a0; }
+.sheet.sawmill .slots i.wait { border: 2px solid #8a5a3a; background: #b98a5a; }
+.sheet.sawmill .slots i.now { border: 2px solid #8a5a3a; background: linear-gradient(90deg, #ffe07a, #b98a5a); animation: pulse 0.6s infinite alternate; }
+.sheet.sawmill .slots i.done { border: 2px solid #3a8a44; background: #fff2a8; box-shadow: inset 0 -3px 0 #e8c060; }
+.sheet.sawmill .sawrow { display: flex; align-items: center; gap: 8px; margin: 6px 0; padding: 6px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.7); text-align: left; }
+.sheet.sawmill .sawrow > span { flex: 1; font-weight: 800; display: flex; flex-direction: column; line-height: 1.15; }
+.sheet.sawmill .sawrow small { font-size: 12px; opacity: 0.65; }
+.sheet.sawmill .sawrow .go { padding: 6px 14px; font-size: 16px; min-width: 52px; }
+.sheet.sawmill .small { font-size: 13px; opacity: 0.75; margin: 6px 0 10px; }
+.sheet.sawmill .btns { flex-wrap: nowrap; }
+.sheet.sawmill .btns .go { padding: 12px 16px; font-size: 16px; flex: 1; }
