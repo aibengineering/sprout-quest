@@ -90,8 +90,8 @@ export interface Zap { x1: number; y1: number; x2: number; y2: number; t: number
 /** What happened in a fight, for the play report. */
 export interface BattleLog {
   time: number; swings: number; hits: number; crits: number; skills: number; dodges: number; potions: number; dealt: number; taken: number;
-  /** Times your stamina ran dry, and seconds you wanted to attack but were out of stamina or resting after a combo. */
-  emptied: number; starved: number; rested: number;
+  /** Seconds you wanted to attack but were waiting between strikes, or resting after a combo. */
+  cooling: number; rested: number;
   /** What last hurt you, as "monster:contact|shot|hazard" (on a loss, what knocked you out). */
   lastHitBy: string;
 }

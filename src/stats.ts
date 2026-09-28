@@ -15,8 +15,8 @@ export type LogEvent =
       kind: 'fight'; zone: string; foes: string[]; boss: boolean; ambush: boolean; result: 'win' | 'lose' | 'run';
       seconds: number; swings: number; hits: number; crits: number; skills: number; dodges: number; potions: number;
       dealt: number; taken: number; hpStart: number; hpEnd: number; maxHp: number; xp: number; weapon: string; armor: string;
-      /** Times stamina ran dry; seconds spent wanting to attack while out of stamina, or resting after a combo. */
-      emptied: number; starved: number; rested: number;
+      /** Seconds spent wanting to attack while waiting between strikes, or resting after a combo; weapon handling level. */
+      cooling: number; rested: number; handling: number;
       /** On a loss: what landed the last hit ("monster:contact|shot|hazard"). */
       killedBy?: string;
     }
@@ -116,8 +116,8 @@ function fightStats(fs: Of<'fight'>[]) {
     avgSwings: avg(fs.map((f) => f.swings)), avgHits: avg(fs.map((f) => f.hits)), avgDealt: avg(fs.map((f) => f.dealt)),
     avgTaken: avg(fs.map((f) => f.taken)), avgHpLostPct: avg(fs.map((f) => (100 * f.taken) / Math.max(1, f.maxHp))),
     avgPotions: avg(fs.map((f) => f.potions)), avgLv: avg(fs.map((f) => f.lv)),
-    // Stamina: how often it ran dry, and how long you were kept waiting per fight.
-    avgEmptied: avg(fs.map((f) => f.emptied ?? 0)), avgStarvedSec: avg(fs.map((f) => f.starved ?? 0)), avgRestedSec: avg(fs.map((f) => f.rested ?? 0)),
+    // Pace: how long you were kept waiting per fight, and at what handling.
+    avgCoolingSec: avg(fs.map((f) => f.cooling ?? 0)), avgRestedSec: avg(fs.map((f) => f.rested ?? 0)), avgHandling: avg(fs.map((f) => f.handling ?? 1)),
   };
 }
 

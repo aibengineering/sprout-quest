@@ -271,6 +271,9 @@ export const LEGENDARY_EDGE = 1.25;
 
 export interface WeaponStats { id: string; name: string; tier: number; style: Style; track: 'hunter' | 'gatherer' | 'both'; dps: number; burst: number; reach: number; area: number; skillArea: number; skillMult: number }
 
+/** The handling you'll typically have when you pick up a weapon of this tier: one past what the tier requires. */
+export const handlingFor = (tier: number) => Math.max(1, (MASTERY_FOR_TIER[tier] ?? 0) + 1);
+
 export function weaponStats(): WeaponStats[] {
   return Object.values(GEAR).filter((g) => g.slot === 'weapon').map((g) => {
     const m = MOVESETS[g.style ?? 'sword'], k = tierScale(g.tier ?? 0);
@@ -278,8 +281,8 @@ export function weaponStats(): WeaponStats[] {
     const sk = skillShape(m.skill, k);
     return {
       id: g.id, name: g.name, tier: g.tier ?? 0, style: g.style ?? 'sword', track: g.recipe ? gearTrack(g) : 'gatherer',
-      dps: comboDps(m) * (g.atk ?? 0),
-      burst: openingBurst(m) * (g.atk ?? 0),
+      dps: comboDps(m, handlingFor(g.tier ?? 0)) * (g.atk ?? 0),
+      burst: openingBurst(m, handlingFor(g.tier ?? 0)) * (g.atk ?? 0),
       reach: Math.max(0, ...shapes.map((s) => s.reach)) / ARENA_RX,
       area: Math.max(0, ...m.combo.map((s) => strikeShape(s, k).area)) / ARENA_AREA,
       skillArea: sk.area / ARENA_AREA,

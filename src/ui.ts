@@ -8,6 +8,7 @@ import { currentQuest, progress, questNeeds } from './quests';
 import { MASTERY_MAX, PLOT_UNLOCK, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, plotOpen, revealed, skillXpToNext, xpToNext, type Lock } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
+import { MOVESETS, comboTime } from './weapons';
 import { usingKeyboard } from './input';
 import { canShareFiles } from './share';
 import { reportInfo } from './stats';
@@ -150,6 +151,17 @@ export function allIconIds(): string[] {
 
 /** The forge's art for a level (the repaired one is plain "forge"). */
 export const forgeArt = (level: number) => (level <= 0 ? 'forge0' : level === 1 ? 'forge' : `forge${level}`);
+
+/** How much quicker (in %) a weapon class attacks at a handling level than at Lv 1: its full combo, rest included. */
+export function paceGain(style: Style, lv: number): number {
+  const m = MOVESETS[style];
+  return Math.round((comboTime(m, 1) / comboTime(m, lv) - 1) * 100);
+}
+
+function handlingPace(style: Style, lv: number): string {
+  const gain = paceGain(style, lv);
+  return gain > 0 ? `⚡ Attacks ${gain}% faster` : '⚡ Steady pace: training makes you faster';
+}
 
 /** What opens a locked building plot. */
 const PLOT_OPENS: Partial<Record<UnlockId, string>> = { plots: 'The plot opens once you beat the Slime King', warpplot: 'The ruins open up once you beat the Alpha Woolf' };
@@ -353,15 +365,9 @@ export class UI {
     });
   }
 
-  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0, clip: { n: number; max: number } | null = null) {
+  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0) {
     const at = attackFrac.toFixed(2);
     this.set('atk', at, () => ($('btn-attack').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', at)));
-    const pips = clip ? `${clip.n}/${clip.max}` : '';
-    this.set('clip', pips, () => {
-      const el = $('clip');
-      el.hidden = !clip;
-      if (clip) el.innerHTML = Array.from({ length: clip.max }, (_, i) => `<i class="${i < clip.n ? 'on' : ''}"></i>`).join('');
-    });
     this.set('pot', String(potions), () => {
       $('potion-n').textContent = String(potions);
       $('btn-potion').style.opacity = potions > 0 ? '1' : '0.5';
@@ -796,7 +802,7 @@ export class UI {
       const emoji = { sword: '🗡️', hammer: '🔨', whip: '〰️', wand: '🪄' }[k];
       return `<div class="mcard row"><div class="ico"><span class="emo">${emoji}</span></div><div class="info">
         <div class="name">${STYLE_NAMES[k]} handling <span class="lvl">Lv ${m.lv}</span></div>
-        <div class="desc">${max ? 'Mastered!' : `${m.xp}/${need} XP · win fights with a ${STYLE_NAMES[k].toLowerCase()} to train`}</div>
+        <div class="desc">${handlingPace(k, m.lv)} · ${max ? 'Mastered!' : `${m.xp}/${need} XP · win fights with a ${STYLE_NAMES[k].toLowerCase()} to train`}</div>
         <div class="pbar"><i style="width:${max ? 100 : (100 * m.xp) / need}%"></i></div></div></div>`;
     }).join('');
     const PERKS: Record<string, [string, string, string]> = { trailboots: ['trailboots', 'Trail Boots', 'From Granny Clover: walk 25% faster outside of fights.'] };

@@ -36,6 +36,8 @@ function rollFoes(z: Zone): Foe[] {
 
 function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Partial<BattleSetup> = {}) {
   G.battle = new Battle({ zone, foes, boss, ambush, ...extra }, G.save, G.input, G.audio, onBattleEnd);
+  // Regular fights: loot, the XP fill and any level-ups come the moment the last foe falls, then the swoop out.
+  if (!boss && !battleFlag) G.battle.onWin = quickWin;
   G.mode = 'battle';
   G.ui.setMode('battle');
   G.input.reset();
@@ -95,7 +97,7 @@ function logFight(o: BattleOutcome, b: Battle) {
     result: o.result, seconds: Math.round(o.log.time * 10) / 10, swings: o.log.swings, hits: o.log.hits, crits: o.log.crits, skills: o.log.skills,
     dodges: o.log.dodges, potions: o.log.potions, dealt: o.log.dealt, taken: o.log.taken, hpStart: fightHp, hpEnd: Math.max(0, Math.round(o.hp)),
     maxHp: b.stats.maxHp, xp: o.xp, weapon: s.equip.weapon, armor: s.equip.armor,
-    emptied: o.log.emptied, starved: Math.round(o.log.starved * 10) / 10, rested: Math.round(o.log.rested * 10) / 10,
+    cooling: Math.round(o.log.cooling * 10) / 10, rested: Math.round(o.log.rested * 10) / 10, handling: b.handling,
     ...(o.result === 'lose' ? { killedBy: o.log.lastHitBy } : {}),
   });
 }
@@ -113,30 +115,36 @@ function grantWin(o: BattleOutcome, b: Battle): LevelMark {
   return mark;
 }
 
+/** A regular win, while "Victory!" is up: loot, the XP bar filling, and any level-up screens. */
+async function quickWin(o: BattleOutcome) {
+  const b = G.battle!, s = G.save;
+  G.mode = 'dialog';
+  logFight(o, b);
+  const mark = grantWin(o, b);
+  G.ui.loot(lootLines(o.drops, [{ n: o.xp, what: STYLE_NAMES[mark.style], emo: '⚔️' }]));
+  persist();
+  await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
+  if (leveledUp(mark)) await celebrate(mark);
+}
+
 async function onBattleEnd(o: BattleOutcome) {
   const b = G.battle!, s = G.save;
   const boss = b.setup.boss;
-  G.mode = 'dialog';
-  logFight(o, b);
   // Regular fights swoop straight back out to the map; guardians, the dragon and the prologue keep their fanfare.
   const quick = !boss && !battleFlag;
+  if (o.result === 'win' && quick) {
+    // quickWin has handed out the rewards already.
+    swoopOut();
+    G.input.reset();
+    void progressQuests();
+    return;
+  }
+  G.mode = 'dialog';
+  logFight(o, b);
   if (o.result === 'run') {
     s.hp = o.hp;
     if (quick) swoopOut();
     else transition(() => backToWorld());
-    return;
-  }
-  if (o.result === 'win' && quick) {
-    const mark = grantWin(o, b);
-    G.ui.loot(lootLines(o.drops, [{ n: o.xp, what: STYLE_NAMES[mark.style], emo: '⚔️' }]));
-    persist();
-    // Still in the arena: the XP bar fills and any level-up shows before you leave, so none of it lands while you're
-    // already walking (or in the next fight).
-    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
-    if (leveledUp(mark)) await celebrate(mark);
-    swoopOut();
-    G.input.reset();
-    void progressQuests();
     return;
   }
   if (o.result === 'win') {

@@ -33,6 +33,8 @@ export const PATCH_NOTES: PatchNote[] = [
       '🗡️ Your weapon is really in your hand now: your arm swings with every attack, and on the map swords and hammers ride across your back, whips coil at your hip and wands sit in your belt.',
       '📐 Building plans show what you have now next to what you will build, what it gives you and exactly what you are still missing; ones you can build right away glow and sit at the top.',
       '⭐ Winning feels like growing stronger: after a fight "+XP" pops up and your XP bar fills with bubbly chirps that climb faster as it nears the top, rings with a bright bell when it tops out, and keeps filling into the next level.',
+      '⚔️ Weapon handling matters: every swing and shot has a moment before the next, and a full combo a short rest. The more you fight with a kind of weapon, the quicker you get with it, up to about 80% faster when mastered (the Skills tab shows how much). This replaces the stamina meter.',
+      '🏁 Fights end smoothly: the moment the last monster falls, your loot and XP come in under "Victory!", then the camera swoops you back to the map.',
       '🎉 Level ups, treasure, new gear, new quests and finished chapters get proper celebrations: a ribbon banner, your prize spinning in on rays of light, your new level ringing in, and each stat ticking up with its own sound.',
       '⚒ The Forge has five levels now, one per star tier: Forge, Smithy, Iron Smithy, Crystal Kiln and Master Forge. Each area\'s materials upgrade it to work them, so every upgrade unlocks gear you can make straight away. Your forge keeps every recipe it had.',
       "👢 A new kind of reward: perks. Finish Poppy's story for one that makes getting around a lot quicker.",

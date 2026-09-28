@@ -1,6 +1,7 @@
 // Weapon movesets: every weapon type has its own combo chain, timing, hitbox shape and animation.
 // Tiers (0–5, from data.ts) scale reach, trail size and impact on top of these base numbers.
 import type { Style } from './data';
+import { MASTERY_MAX } from './rules';
 
 export type Anim = 'slashR' | 'slashL' | 'thrust' | 'chop' | 'backchop' | 'slam' | 'spin' | 'cast' | 'lashR' | 'lashL' | 'crack';
 
@@ -56,13 +57,19 @@ export interface Moveset {
   skillName: string;
   /** Visual scale for the weapon sprite. */
   size: number;
-  /** Cooldown after the last strike of the combo before you can start swinging again. */
+  /** Rest after the last strike of the combo before you can start swinging again (at Lv 1 handling; see pace()). */
   rest: number;
-  /**
-   * Stamina (a clip, for ranged weapons): every swing or shot spends one of `max` pips, and one comes back every
-   * `regen` seconds once you've held off for `delay` seconds. Mashing gets you a combo, then a real pause.
-   */
-  ammo: { max: number; regen: number; delay: number };
+}
+
+/**
+ * Weapon handling sets your pace, and is what stops button-mashing. After each strike there's a moment before the next:
+ * at handling Lv 1 you wait out the whole recovery and 60% again; mastered (Lv 10) you can cut in 45% of the way
+ * through it. The rest after a full combo shrinks the same way, from 1.7× to 0.8× the weapon's `rest`. A sword
+ * attacks about 10% slower at Lv 1 than it did on the old stamina meter, and about 1.8× faster mastered than at Lv 1.
+ */
+export function pace(lv: number) {
+  const q = Math.min(1, Math.max(0, (lv - 1) / (MASTERY_MAX - 1)));
+  return { chain: 1.6 - 1.15 * q, rest: 1.7 - 0.9 * q };
 }
 
 const TAU = Math.PI * 2;
@@ -75,7 +82,6 @@ export const MOVESETS: Record<Style, Moveset> = {
     skillName: 'Spin',
     size: 1,
     rest: 0.4,
-    ammo: { max: 3, regen: 0.35, delay: 0.3 },
     combo: [
       { anim: 'slashR', shape: 'arc', windup: 0.05, active: 0.11, recover: 0.1, range: 60, size: 2.1, mult: 1, kb: 150, shake: 2, hitstop: 0.035, move: 0.65 },
       { anim: 'slashL', shape: 'arc', windup: 0.05, active: 0.11, recover: 0.1, range: 60, size: 2.1, mult: 1, kb: 150, shake: 2, hitstop: 0.035, move: 0.65 },
@@ -88,8 +94,7 @@ export const MOVESETS: Record<Style, Moveset> = {
     skill: 'quake',
     skillName: 'Quake',
     size: 1.1,
-    rest: 0.6,
-    ammo: { max: 2, regen: 0.6, delay: 0.35 },
+    rest: 0.16,
     combo: [
       {
         anim: 'slam', shape: 'circle', windup: 0.28, active: 0.1, recover: 0.3, range: 0, reach: 42, size: 40, mult: 1.5, kb: 300,
@@ -108,8 +113,7 @@ export const MOVESETS: Record<Style, Moveset> = {
     skill: 'whirl',
     skillName: 'Twirl',
     size: 0.9,
-    rest: 0.45,
-    ammo: { max: 3, regen: 0.4, delay: 0.3 },
+    rest: 0.42,
     combo: [
       { anim: 'lashR', shape: 'lash', windup: 0.09, active: 0.08, recover: 0.13, range: 108, size: 16, mult: 0.95, tip: 0.35, graze: 0.5, kb: 90, shake: 2, hitstop: 0.03, move: 0.7 },
       { anim: 'lashL', shape: 'lash', windup: 0.09, active: 0.08, recover: 0.13, range: 108, size: 16, mult: 0.95, tip: 0.35, graze: 0.5, kb: 90, shake: 2, hitstop: 0.03, move: 0.7 },
@@ -122,12 +126,11 @@ export const MOVESETS: Record<Style, Moveset> = {
     skill: 'nova',
     skillName: 'Nova',
     size: 1,
-    rest: 0.5,
-    ammo: { max: 3, regen: 0.4, delay: 0.2 },
+    rest: 0.41,
     combo: [
-      { anim: 'cast', shape: 'shot', windup: 0.04, active: 0.05, recover: 0.2, range: 0, size: 7, mult: 0.8, kb: 70, shots: [0], shake: 1, hitstop: 0.02, move: 0.85 },
-      { anim: 'cast', shape: 'shot', windup: 0.04, active: 0.05, recover: 0.2, range: 0, size: 7, mult: 0.8, kb: 70, shots: [0], shake: 1, hitstop: 0.02, move: 0.85 },
-      { anim: 'cast', shape: 'shot', windup: 0.08, active: 0.06, recover: 0.28, range: 0, size: 8, mult: 0.45, kb: 90, shots: [-0.22, 0, 0.22], shake: 2, hitstop: 0.03, move: 0.7 },
+      { anim: 'cast', shape: 'shot', windup: 0.04, active: 0.05, recover: 0.14, range: 0, size: 7, mult: 0.8, kb: 70, shots: [0], shake: 1, hitstop: 0.02, move: 0.85 },
+      { anim: 'cast', shape: 'shot', windup: 0.04, active: 0.05, recover: 0.14, range: 0, size: 7, mult: 0.8, kb: 70, shots: [0], shake: 1, hitstop: 0.02, move: 0.85 },
+      { anim: 'cast', shape: 'shot', windup: 0.08, active: 0.06, recover: 0.2, range: 0, size: 8, mult: 0.45, kb: 90, shots: [-0.22, 0, 0.22], shake: 2, hitstop: 0.03, move: 0.7 },
     ],
   },
 };
@@ -154,53 +157,39 @@ export function strikeShape(s: Strike, reach: number): { reach: number; area: nu
 
 /** One strike's damage multiplier on a target in front of you: its shockwave hits it too, and every pellet of a spread lands (as it does point-blank). */
 const strikeDamage = (s: Strike) => (s.shape === 'shot' ? s.mult * (s.shots?.length ?? 1) : s.mult) + (s.wave?.mult ?? 0);
-/** Seconds a strike takes when you chain into the next as early as the game allows (35% into its recovery). */
-const strikeTime = (s: Strike) => s.windup + s.active + s.recover * 0.35;
+/** Seconds from starting a strike until the next can start, at a handling level. */
+export const strikeTime = (s: Strike, lv: number) => s.windup + s.active + s.recover * pace(lv).chain;
 /** A strike's time, plus the rest after it if it ends the combo. */
-const stepTime = (m: Moveset, i: number) => strikeTime(m.combo[i]) + (i === m.combo.length - 1 ? m.rest : 0);
+const stepTime = (m: Moveset, i: number, lv: number) => strikeTime(m.combo[i], lv) + (i === m.combo.length - 1 ? m.rest * pace(lv).rest : 0);
 
-/** Seconds per full combo, chaining each strike as early as possible, plus the rest after it. */
-export function comboTime(m: Moveset): number {
-  return m.combo.reduce((a, s) => a + strikeTime(s), 0) + m.rest;
+/** Seconds per full combo, chaining each strike as early as handling allows, plus the rest after it. */
+export function comboTime(m: Moveset, lv: number): number {
+  return m.combo.reduce((a, _, i) => a + stepTime(m, i, lv), 0);
 }
 
 /** How long a typical fight lasts: weapons are judged over this window, opening burst included. */
 export const FIGHT_WINDOW = 5;
 
-/**
- * Damage multiplier per second against one target in front of you, simulated over a typical fight from full stamina,
- * so a big opening burst counts as much as the pause that follows it.
- */
-export function comboDps(m: Moveset): number {
-  const { max, regen, delay } = m.ammo;
-  let t = 0, ammo = max, refill = 0, dmg = 0, i = 0;
+/** Damage multiplier per second against one target in front of you, over a typical fight, at a handling level. */
+export function comboDps(m: Moveset, lv: number): number {
+  let t = 0, dmg = 0, i = 0;
   while (t < FIGHT_WINDOW) {
-    if (ammo < 1) {
-      // Out of stamina: wait for one pip to come back.
-      t += regen - refill;
-      refill = 0;
-      ammo = 1;
-      continue;
-    }
     dmg += strikeDamage(m.combo[i]);
-    ammo--;
-    // Stamina starts refilling once `delay` has passed since this strike.
-    const dt = stepTime(m, i);
-    t += dt;
-    refill = dt - delay;
-    while (refill >= regen && ammo < max) { refill -= regen; ammo++; }
+    t += stepTime(m, i, lv);
     i = (i + 1) % m.combo.length;
   }
   return dmg / t;
 }
 
-/** Damage multiplier landed in the first second of a fight: how hard a weapon opens before stamina runs out. */
-export function openingBurst(m: Moveset): number {
-  let t = 0, dmg = 0, i = 0, ammo = m.ammo.max;
-  while (ammo >= 1 && t + m.combo[i].windup <= 1) {
+/** How long the opening burst is measured over: long enough for a heavy weapon's second blow at low handling. */
+export const BURST_WINDOW = 1.5;
+
+/** Damage multiplier landed in the opening moments of a fight: how hard a weapon opens. */
+export function openingBurst(m: Moveset, lv: number): number {
+  let t = 0, dmg = 0, i = 0;
+  while (t + m.combo[i].windup <= BURST_WINDOW) {
     dmg += strikeDamage(m.combo[i]);
-    ammo--;
-    t += stepTime(m, i);
+    t += stepTime(m, i, lv);
     i = (i + 1) % m.combo.length;
   }
   return dmg;

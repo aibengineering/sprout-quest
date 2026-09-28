@@ -86,7 +86,7 @@ function battleFrame(b: Battle, dt: number) {
   ui.battleButtons(has(s, 'skill'), has(s, 'bag') && s.flags.includes('village'));
   if (G.mode === 'battle') {
     coachBattle(b);
-    ui.battleHud(s.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac, b.clip);
+    ui.battleHud(s.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac);
   }
 }
 

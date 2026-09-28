@@ -546,9 +546,6 @@ img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
 #loot .lrow .emo { font-size: 16px; padding: 0 3px; }
 #loot .lrow.out { opacity: 0; transform: translateX(12px); }
 @keyframes lootin { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
-#clip { position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); display: flex; gap: 3px; }
-#clip i { width: 9px; height: 9px; border-radius: 50%; background: rgba(74, 42, 90, 0.35); border: 2px solid #fff; }
-#clip i.on { background: #ffd35a; }
 .stack { display: flex; flex-direction: column; gap: 6px; }
 .lvsheet { text-align: center; }
 .lvsheet .unlocks { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0; }

@@ -1,5 +1,5 @@
 // End-to-end smoke test: plays the real game in headless Chromium, at phone size, through the flows the unit tests
-// can't reach (fights, level-up screens, stamina, dragon breath, mining, the Forge, the play report).
+// can't reach (fights, level-up screens, attack pacing, dragon breath, mining, the Forge, the play report).
 //
 //   bun run e2e            run every scenario
 //   bun run e2e --shots    also save a screenshot per scenario to tests/e2e/out/
@@ -11,7 +11,8 @@ import { chromium, type Page } from 'playwright-core';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { startServer } from '../../server';
-import { MONSTERS } from '../../src/data';
+import { GEAR, MONSTERS } from '../../src/data';
+import { MOVESETS, comboTime } from '../../src/weapons';
 
 const SHOTS = process.argv.includes('--shots');
 const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].toLowerCase() : null;
@@ -123,7 +124,7 @@ async function winFight(page: Page) {
 /** Scenarios run from a queue, a few at a time (each has its own browser context, so their saves don't mix). */
 const queue: { name: string; run: () => Promise<void> }[] = [];
 /** The long ones start first, so none is left running alone at the end. */
-const SLOW = ['Poppy', 'every monster', 'characters are drawn in 3D', 'prologue', 'stamina', 'play report'];
+const SLOW = ['Poppy', 'every monster', 'characters are drawn in 3D', 'prologue', 'waits between strikes', 'play report'];
 const weight = (name: string) => { const i = SLOW.findIndex((s) => name.includes(s)); return i < 0 ? SLOW.length : i; };
 
 function scenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>) {
@@ -277,26 +278,29 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
   check(await game(page, 'g.save.lv') === 5, 'combat level did not go up');
 });
 
-scenario('every weapon runs out of stamina when mashed', (g) => {
+scenario('every weapon waits between strikes, and handling shortens the wait', (g) => {
   g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellysling');
 }, async (page) => {
   for (const w of ['stonesword', 'stonehammer', 'jellywhip', 'jellysling']) {
-    await run(page, `g.save.equip.weapon = '${w}'; g.encounter()`);
-    await page.waitForTimeout(900);
-    await pinFoes(page);
-    let lowest = 99;
-    const t0 = Date.now();
-    while (Date.now() - t0 < 2000) {
-      await page.keyboard.press('KeyJ');
-      lowest = Math.min(lowest, await game<number>(page, 'g.battle.clip.n'));
-      await page.waitForTimeout(40);
+    const style = GEAR[w].style!;
+    const swings: number[] = [];
+    for (const lv of [1, 10]) {
+      await run(page, `g.save.equip.weapon = '${w}'; g.save.mastery.${style}.lv = ${lv}; g.encounter()`);
+      await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 8000);
+      await pinFoes(page);
+      const t0 = Date.now();
+      while (Date.now() - t0 < 2000) {
+        await page.keyboard.press('KeyJ');
+        await page.waitForTimeout(40);
+      }
+      swings.push(await game<number>(page, 'g.battle.log.swings'));
+      await winFight(page);
     }
-    const { swings, max, regen, delay } = await game<{ swings: number; max: number; regen: number; delay: number }>(page, '({ swings: g.battle.log.swings, ...g.battle.moves.ammo })');
-    check(lowest === 0, `${w}: stamina never ran out`);
-    // A full meter, plus what refills while you pause between swings: well short of one swing per press.
-    const cap = max + Math.ceil(2 / (regen + delay)) + 1;
-    check(swings <= cap, `${w}: ${swings} swings in 2s (stamina allows ≤${cap})`);
-    await winFight(page);
+    // Mashing is capped by the pace (a strike per strikeTime, plus the combo rest), and mastery really is faster.
+    const m = MOVESETS[style], perStrike = comboTime(m, 1) / m.combo.length;
+    const cap = Math.ceil(2 / perStrike) + 1;
+    check(swings[0] <= cap, `${w}: ${swings[0]} swings in 2s at handling Lv 1 (its pace allows ≤${cap})`);
+    check(swings[1] > swings[0], `${w}: mastered handling swung ${swings[1]} times, no more than Lv 1's ${swings[0]}`);
   }
 });
 
@@ -423,11 +427,11 @@ scenario('the Forge keeps gear a mystery until you reach its level', (g) => {
   check(after.names.some((n) => n.includes('Stone Sword')), 'Stone Sword still hidden at Mining 2');
 });
 
-scenario('the play report records fights, stamina, deaths and time, and exports', (g) => {
+scenario('the play report records fights, waits between strikes, deaths and time, and exports', (g) => {
   g.save.owned.push('stonesword');
   g.save.equip.weapon = 'stonesword';
 }, async (page) => {
-  // A win where you mash the attack button (stamina runs dry)…
+  // A win where you mash the attack button (so you wait between strikes)…
   await run(page, 'g.encounter()');
   await page.waitForTimeout(900);
   await pinFoes(page);
@@ -454,14 +458,14 @@ scenario('the play report records fights, stamina, deaths and time, and exports'
   const s = report.summary;
   check(s.fights >= 2 && s.deaths >= 1, `report has ${s.fights} fights, ${s.deaths} deaths`);
   const fight = report.events.fight;
-  check(fight.cols.includes('emptied') && fight.rows.every((r: unknown[]) => r.length === fight.cols.length), 'fight rows do not line up with their columns');
+  check(fight.cols.includes('cooling') && fight.rows.every((r: unknown[]) => r.length === fight.cols.length), 'fight rows do not line up with their columns');
   check(text.split('\n').length > fight.rows.length + 20, 'events are not one per line');
   const win = fight.rows.find((r: unknown[]) => r[fight.cols.indexOf('result')] === 'win');
-  check(win[fight.cols.indexOf('emptied')] > 0, 'mashing never ran stamina dry in the report');
+  check(win[fight.cols.indexOf('cooling')] > 0 && win[fight.cols.indexOf('handling')] >= 1, 'mashing never waited between strikes in the report');
   const loss = s.defeatsAndRuns.find((d: { result: string }) => d.result === 'lose');
   check(/^wolf:(contact|shot)$/.test(loss?.by ?? ''), `the loss does not say what got you (${loss?.by})`);
   check(s.time.totalMinutes.fighting > 0 && s.time.totalMinutes.walking > 0 && s.time.byZone.meadow, 'no time split');
-  check(s.fightsByWeapon.stonesword?.avgEmptied > 0, 'no per-weapon stamina summary');
+  check(s.fightsByWeapon.stonesword?.avgCoolingSec > 0, 'no per-weapon pace summary');
 
   // The summary copies to the clipboard, small enough to paste, both with the clipboard API and without it (http).
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
