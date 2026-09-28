@@ -1,6 +1,7 @@
 // Pure game rules: stats, damage, leveling, drops and crafting. No DOM access, so it's unit-testable.
 import { GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MAX_POTIONS, NODES, POTION_RECIPES, PROJECTS, SKILL_MAX, SLOW_TOOL, TOOLS, forgeLevelFor, type Gear, type Tool, type MatId, type MonsterDef, type NodeKind, type ProjectId, type Recipe, type SkillId, type Style } from './data';
 import type { SaveState } from './state';
+import { has, type UnlockId } from './unlocks';
 
 export type Rng = () => number;
 
@@ -112,16 +113,26 @@ function spend(s: SaveState, recipe: Recipe) {
   for (const [m, n] of Object.entries(recipe)) s.mats[m as MatId] -= n ?? 0;
 }
 
-export type CraftResult = 'ok' | 'owned' | 'missing' | 'full' | 'unknown' | 'forge' | 'maxed' | 'skill' | 'mastery';
+export type CraftResult = 'ok' | 'owned' | 'missing' | 'full' | 'unknown' | 'forge' | 'maxed' | 'skill' | 'mastery' | 'locked';
 
 /** How many potions the fountain tops you up to — grows with the Garden. */
 export function potionRefill(s: SaveState): number {
   return Math.min(MAX_POTIONS, 2 + (s.build?.garden ?? 0));
 }
 
+/** The unlock that opens a project's plot: the Garden and Training Yard after the Slime King, the Waystone after the Alpha Woolf. */
+export const PLOT_UNLOCK: Partial<Record<ProjectId, UnlockId>> = { garden: 'plots', training: 'plots', warp: 'warpplot' };
+
+/** Whether a project's plot is open (on the map and in the building plans). Anything already built stays open. */
+export const plotOpen = (s: SaveState, id: ProjectId) => {
+  const u = PLOT_UNLOCK[id];
+  return !u || has(s, u) || s.build[id] > 0;
+};
+
 export function canBuild(s: SaveState, id: ProjectId): CraftResult {
   const p = PROJECTS[id];
   const lv = s.build[id];
+  if (!plotOpen(s, id)) return 'locked';
   if (lv >= p.levels.length) return 'maxed';
   return hasMats(s, p.levels[lv].cost) ? 'ok' : 'missing';
 }

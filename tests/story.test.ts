@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { GEAR, PROJECTS, QUESTS, ZONES } from '../src/data';
 import { advanceQuests, currentQuest, recordKills } from '../src/quests';
-import { build, canBuild, craftGear, playerStats, potionRefill } from '../src/rules';
+import { checkUnlocks } from '../src/unlocks';
+import { build, canBuild, craftGear, playerStats, plotOpen, potionRefill } from '../src/rules';
 import { newState } from '../src/state';
 import { World } from '../src/world';
 
@@ -53,12 +54,33 @@ describe('village', () => {
     expect(build(s, 'home')).toBe('ok');
     expect(s.build.home).toBe(2);
     expect(playerStats(s).maxHp).toBeGreaterThan(hp);
+    s.unlocked.push('plots');
     expect(build(s, 'training')).toBe('ok');
     expect(build(s, 'training')).toBe('ok');
     expect(playerStats(s).atk).toBeGreaterThan(atk);
     expect(s.mats.royaljelly).toBe(0);
     expect(build(s, 'garden')).toBe('ok');
     expect(potionRefill(s)).toBe(3);
+  });
+
+  test('the Garden and Training Yard open after the Slime King, the Waystone after the Alpha Woolf', () => {
+    const s = newState();
+    for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 99;
+    for (const id of ['garden', 'training', 'warp'] as const) expect(build(s, id)).toBe('locked');
+    expect(s.build.garden + s.build.training + s.build.warp).toBe(0);
+    s.bosses.push('kingslime');
+    checkUnlocks(s);
+    expect(build(s, 'garden')).toBe('ok');
+    expect(build(s, 'training')).toBe('ok');
+    expect(build(s, 'warp')).toBe('locked');
+    s.bosses.push('alphawolf');
+    checkUnlocks(s);
+    expect(build(s, 'warp')).toBe('ok');
+    // Saves that built one before its plot opened keep it (it shows on the map, and can be upgraded).
+    const early = newState();
+    early.build.training = 1;
+    expect(plotOpen(early, 'training')).toBe(true);
+    expect(plotOpen(early, 'garden')).toBe(false);
   });
 
   test('forge level gates higher-tier recipes', () => {

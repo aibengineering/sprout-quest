@@ -988,6 +988,8 @@ body.kbd .drag-hint .keys { display: flex; }
 .blueprints .bcard.ready { box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3), 0 0 0 3px #7ee07a, 0 0 16px rgba(126, 224, 122, 0.5); }
 .blueprints .bcard.done { background-color: #3a7fc4; }
 .bp-done { text-align: center; font: 600 16px var(--display); color: var(--brass); }
+.bp-locked { text-align: center; font: 600 15px var(--display); color: #fff; background: rgba(0, 20, 50, 0.45); border-radius: 10px; padding: 8px 10px; margin: 4px 0 2px; }
+.blueprints .mcard.bcard.locked .bp-art { opacity: 0.55; filter: grayscale(0.5); }
 .board .note, .bench .note, .satchel .note { background: #fff6e2; border: 0; border-radius: 3px; transform: rotate(-0.8deg); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25); }
 
 /* ---------- The notebook (Journal, More) ---------- */

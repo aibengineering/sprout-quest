@@ -5,7 +5,7 @@ import {
   STYLE_NAMES, TOOLS, ZONES, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
 } from './data';
 import { currentQuest, progress, questNeeds } from './quests';
-import { MASTERY_MAX, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, revealed, skillXpToNext, xpToNext, type Lock } from './rules';
+import { MASTERY_MAX, PLOT_UNLOCK, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, plotOpen, revealed, skillXpToNext, xpToNext, type Lock } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
 import { usingKeyboard } from './input';
@@ -150,6 +150,9 @@ export function allIconIds(): string[] {
 
 /** The forge's art for a level (the repaired one is plain "forge"). */
 export const forgeArt = (level: number) => (level <= 0 ? 'forge0' : level === 1 ? 'forge' : `forge${level}`);
+
+/** What opens a locked building plot. */
+const PLOT_OPENS: Partial<Record<UnlockId, string>> = { plots: 'The plot opens once you beat the Slime King', warpplot: 'The ruins open up once you beat the Alpha Woolf' };
 
 function buildingIcon(id: ProjectId, level: number): string {
   // Before it's built: the old forge's ruins, the Waystone's broken stones, or an empty plot.
@@ -873,15 +876,20 @@ export class UI {
     const note = here
       ? `<div class="note">🏗 Build and upgrade to grow stronger. Trophies from guardians unlock the best upgrades!</div>`
       : `<div class="note">📍 You can plan here. Head back to Sowerby to build.</div>`;
-    // Ready to build first, then what's still missing something, then what's finished.
-    const order = (id: ProjectId) => (s.build[id] >= PROJECTS[id].levels.length ? 2 : canBuild(s, id) === 'ok' ? 0 : 1);
+    // Ready to build first, then what's still missing something, then what's finished, then plots not open yet.
+    const order = (id: ProjectId) => (!plotOpen(s, id) ? 3 : s.build[id] >= PROJECTS[id].levels.length ? 2 : canBuild(s, id) === 'ok' ? 0 : 1);
     const cards = [...PROJECT_ORDER].sort((a, b) => order(a) - order(b)).map((id) => {
       const p = PROJECTS[id];
       const lv = s.build[id];
       const max = p.levels.length;
       const pips = Array.from({ length: max }, (_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('');
-      const nowName = lv ? p.levels[lv - 1].name : id === 'forge' ? 'Ruins' : 'Empty plot';
+      const nowName = lv ? p.levels[lv - 1].name : id === 'forge' ? 'Ruins' : id === 'warp' ? 'Old ruins' : 'Empty plot';
       const head = `<div class="bp-head"><div class="name">${esc(p.name)}</div><span class="pips">${pips}</span></div>`;
+      if (!plotOpen(s, id)) {
+        return `<div class="mcard bcard locked" data-focus="${id}">${head}
+          <div class="bp-preview solo"><div class="bp-art">${buildingIcon(id, 0)}<small>${esc(nowName)}</small></div></div>
+          <div class="bp-locked">🔒 ${esc(PLOT_OPENS[PLOT_UNLOCK[id]!] ?? 'Not open yet')}</div></div>`;
+      }
       if (lv >= max) {
         return `<div class="mcard bcard done" data-focus="${id}">${head}
           <div class="bp-preview solo"><div class="bp-art">${buildingIcon(id, lv)}<small>${esc(nowName)}</small></div></div>

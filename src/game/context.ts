@@ -8,6 +8,7 @@ import { Overworld } from '../overworld';
 import { loadState, newState, saveState, type SaveState } from '../state';
 import type { UI } from '../ui';
 import { has } from '../unlocks';
+import { plotOpen } from '../rules';
 import { World } from '../world';
 
 /**
@@ -102,8 +103,7 @@ export function syncWorld() {
     if (o.kind === 'gate' && z?.guardian) o.hidden = s.bosses.includes(z.guardian.kind);
     if (o.kind === 'camp') o.hidden = !s.camps.includes(o.zone!);
     if (o.kind === 'plot') {
-      if (o.project === 'garden' || o.project === 'training') o.hidden = !has(s, 'plots');
-      if (o.project === 'warp') o.hidden = !has(s, 'warpplot');
+      o.hidden = !plotOpen(s, o.project!);
       if (o.project === 'home') o.label = has(s, 'village') ? 'Build' : 'Rest';
     }
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
