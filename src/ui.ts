@@ -28,6 +28,9 @@ export interface UIHooks {
   save(): SaveState;
   /** Opens a menu tab from the map (an unlock card's "tap to open"). */
   openTab(tab: Tab): void;
+  /** Sounds for reward moments: a named effect, or the XP bar's rising tone (seconds, from and to 0–1 up the bar). */
+  sound(s: 'ding' | 'tick' | 'treasure' | 'levelup'): void;
+  sweep(dur: number, from: number, to: number): void;
   craftGear(id: string): void;
   craftTool(id: string): void;
   craftPotion(id: string): void;
@@ -104,6 +107,13 @@ function emptySlots(filled: number, cols = 4): string {
 function tagCard(art: string, title: string, lines: string, action = ''): string {
   return `<div class="tagcard"><div class="tart">${art}</div><div class="tinfo"><div class="name">${title}</div>${lines}</div>${action ? `<div class="tact">${action}</div>` : ''}</div>`;
 }
+
+/**
+ * The pieces of every celebration: a ribbon banner for the heading, and the thing itself popping in over rays of
+ * light that turn slowly behind it.
+ */
+const ribbon = (text: string) => `<div class="ribbon"><span>${esc(text)}</span></div>`;
+const stage = (art: string, cls = '') => `<div class="stage ${cls}"><div class="rays"></div><div class="stage-art">${art}</div><div class="sparkles"><i></i><i></i><i></i><i></i></div></div>`;
 
 function costChips(s: SaveState, r: Recipe): string {
   return Object.entries(r)
@@ -227,18 +237,68 @@ export class UI {
     apply();
   }
 
+  /** While the XP bar is animating a gain, the HUD leaves the level and XP alone. */
+  private xpAnim = false;
+
+  /**
+   * The XP you just earned, the way Pokémon does it: "+N XP" floats up, the bar fills with a rising tone, and if it
+   * tops out it rings, the level number pops, and it carries on filling from empty. Resolves once it has settled.
+   */
+  async xpGain(from: { lv: number; xp: number }, to: { lv: number; xp: number }, gained: number) {
+    const card = $('hud').querySelector('.stat') as HTMLElement | null, bar = $('hud-xp');
+    if (!card || $('hud').hidden || gained <= 0) return;
+    this.xpAnim = true;
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    card.classList.add('gain');
+    const tag = document.createElement('div');
+    tag.className = 'xp-float';
+    tag.textContent = `+${gained} XP`;
+    card.append(tag);
+    await wait(250);
+    let lv = from.lv, frac = Math.min(1, from.xp / xpToNext(lv));
+    const fill = async (target: number) => {
+      const dur = 0.25 + 0.75 * (target - frac);
+      bar.style.transition = `width ${dur}s linear`;
+      bar.style.width = `${target * 100}%`;
+      this.hooks.sweep(dur, frac, target);
+      await wait(dur * 1000);
+      frac = target;
+    };
+    for (; lv < to.lv; lv++) {
+      await fill(1);
+      // Topped out: a bell, the level ticks over, and the bar starts again from empty.
+      this.hooks.sound('ding');
+      card.classList.add('ding');
+      $('hud-lv').textContent = String(lv + 1);
+      await wait(420);
+      card.classList.remove('ding');
+      bar.style.transition = 'none';
+      bar.style.width = '0%';
+      frac = 0;
+      await wait(60);
+    }
+    await fill(Math.min(1, to.xp / xpToNext(to.lv)));
+    await wait(350);
+    tag.remove();
+    card.classList.remove('gain');
+    bar.style.transition = '';
+    this.xpAnim = false;
+    delete this.last.xp;
+    delete this.last.lv;
+  }
+
   hud(hp: number, zoneName: string) {
     const s = this.hooks.save();
     const st = playerStats(s);
     const hpText = `${Math.ceil(hp)}/${st.maxHp}`;
-    this.set('lv', String(s.lv), () => ($('hud-lv').textContent = String(s.lv)));
+    if (!this.xpAnim) this.set('lv', String(s.lv), () => ($('hud-lv').textContent = String(s.lv)));
     this.set('hp', hpText, () => {
       $('hud-hptext').textContent = hpText;
       $('hud-hp').style.width = `${(100 * hp) / st.maxHp}%`;
       $('hud-hp').parentElement!.classList.toggle('low', hp / st.maxHp < 0.3);
     });
     const xpPct = `${Math.min(100, (100 * s.xp) / xpToNext(s.lv))}%`;
-    this.set('xp', xpPct, () => ($('hud-xp').style.width = xpPct));
+    if (!this.xpAnim) this.set('xp', xpPct, () => ($('hud-xp').style.width = xpPct));
     this.set('zone', zoneName, () => ($('hud-zone').textContent = zoneName));
   }
 
@@ -980,9 +1040,9 @@ export class UI {
       ...Object.entries(q.reward?.mats ?? {}).map(([m, n]) => `<span class="chip ok">${icon(m, MATS[m as MatId].icon, 'icon sm')} ${esc(MATS[m as MatId].name)} ×${n}</span>`),
       ...(q.reward?.potions ? [`<span class="chip ok">🧪 Potion ×${q.reward.potions}</span>`] : []),
     ].join('');
+    this.hooks.sound('treasure');
     return this.dialog(
-      `<div class="confetti">${'🎉✨🌟🎊'.repeat(3)}</div>
-       <div class="qchap">${esc(q.chapter)} complete!</div>
+      `${ribbon(`${q.chapter} complete!`)}${stage(goalIcon(q), 'small')}
        <div class="big">${esc(q.title)}</div>
        ${rewards ? `<div class="chips">${rewards}</div>` : '<p>Wonderful work!</p>'}`,
       [['ok', 'Hooray!']],
@@ -992,13 +1052,13 @@ export class UI {
 
   questIntro(q: Quest) {
     return this.dialog(
-      `<div class="qchap">📜 ${esc(q.chapter)} · New goal</div>
-       <div class="qart big-art">${goalIcon(q)}</div>
-       <div class="big" style="font-size:26px">${esc(q.title)}</div>
+      `${ribbon(`📜 ${q.chapter}`)}<div class="stage calm small"><div class="stage-art">${goalIcon(q)}</div></div>
+       <div class="big">${esc(q.title)}</div>
        <div class="speaker small">${icon('npc_elder', '🌿', 'icon sm')}<b>Elder Oswin</b></div>
        <div class="bubble">${esc(q.text)}</div>
        <div class="hint">🎯 ${esc(q.hint)}</div>`,
       [['ok', "Let's go!"]],
+      'celebrate quest',
     );
   }
 
@@ -1030,10 +1090,10 @@ export class UI {
   }
 
   itemFound(id: string, name: string, text: string, emoji = '🗡️', heading = 'You found') {
+    this.hooks.sound('treasure');
     return this.dialog(
-      `<div class="confetti">✨🌟✨</div><div class="qchap">${esc(heading)}</div>
-       <div class="qart big-art">${icon(id, emoji, 'icon xxl')}</div>
-       <div class="big" style="font-size:28px">${esc(name)}!</div><p>${esc(text)}</p>`,
+      `${ribbon(heading)}${stage(icon(id, emoji, 'icon xxl'))}
+       <div class="big">${esc(name)}!</div><p>${esc(text)}</p>`,
       [['ok', 'Take it!']],
       'celebrate',
     );
@@ -1041,32 +1101,41 @@ export class UI {
 
   /**
    * A new level: the game waits behind this while it shows how your stats grew and what you're now ready for
-   * (a guardian at your level, an area that matches it, the dragon).
+   * (a guardian at your level, an area that matches it, the dragon). The level number rings over from the old one,
+   * then each stat ticks up in turn.
    */
   levelUp(lv: number, before: { maxHp: number; atk: number; def: number }, after: { maxHp: number; atk: number; def: number }, ready: string[]) {
-    const row = (emoji: string, label: string, a: number, b: number) =>
-      `<span>${emoji} ${label}</span><span>${a} →</span><span class="up">${b}${b > a ? ` (+${b - a})` : ''}</span>`;
-    return this.dialog(
-      `<div class="lvup"><div class="confetti">✨🌟✨</div><div class="qchap">Level up!</div>
-       <div class="big" style="font-size:40px">Level ${lv}</div>
-       <div class="stats">${row('❤️', 'Max HP', before.maxHp, after.maxHp)}${row('⚔️', 'Attack', before.atk, after.atk)}${row('🛡️', 'Defense', before.def, after.def)}</div>
-       <p class="sub">Fully healed!</p>
-       ${ready.length ? `<div class="ready">${ready.map((r) => `• ${esc(r)}`).join('<br>')}</div>` : ''}</div>`,
+    const rows = [['❤️', 'Max HP', before.maxHp, after.maxHp], ['⚔️', 'Attack', before.atk, after.atk], ['🛡️', 'Defense', before.def, after.def]] as const;
+    const stats = rows.map(([e, label, a, b], i) =>
+      `<div class="srow" style="--d:${0.75 + i * 0.28}s"><span class="sl">${e} ${label}</span><span class="sa">${a}</span><span class="sar">➜</span><b class="sb">${b}</b>${
+        b > a ? `<span class="sd">+${b - a}</span>` : ''}</div>`).join('');
+    const p = this.dialog(
+      `${ribbon('Level up!')}${stage(`<div class="lvbadge"><small>LEVEL</small><b class="old">${lv - 1}</b><b class="new">${lv}</b></div>`)}
+       <div class="lvsheet"><div class="stats2">${stats}</div>
+       <p class="healed">❤️ Fully healed!</p>
+       ${ready.length ? `<div class="ready">${ready.map((r) => `<div>🎯 ${esc(r)}</div>`).join('')}</div>` : ''}</div>`,
       [['ok', 'Onward!']],
-      'celebrate',
+      'celebrate levelup',
     );
+    this.hooks.sound('levelup');
+    window.setTimeout(() => this.hooks.sound('ding'), 450);
+    rows.forEach((_, i) => window.setTimeout(() => this.hooks.sound('tick'), (0.75 + i * 0.28) * 1000));
+    return p;
   }
 
   /** A gathering skill or weapon handling level: what it improves, and what you can craft now. */
   skillUp(title: string, lv: number, emoji: string, note: string, unlocks: { id: string; name: string; emoji: string }[]) {
-    const list = unlocks.map((u) => `<div class="u">${icon(u.id, u.emoji, 'icon lg')}<span>${esc(u.name)}</span></div>`).join('');
-    return this.dialog(
-      `<div class="lvup"><div class="confetti">${emoji}✨${emoji}</div><div class="qchap">${esc(title)}</div>
-       <div class="big" style="font-size:36px">Level ${lv}</div><p>${esc(note)}</p>
-       ${list ? `<div class="qchap">Unlocked in the Forge</div><div class="unlocks">${list}</div>` : ''}</div>`,
+    const list = unlocks.map((u, i) => `<div class="u" style="--d:${0.7 + i * 0.15}s">${icon(u.id, u.emoji, 'icon lg')}<span>${esc(u.name)}</span></div>`).join('');
+    const p = this.dialog(
+      `${ribbon(`${title} up!`)}${stage(`<div class="lvbadge skill"><span class="emo">${emoji}</span><b class="old">${lv - 1}</b><b class="new">${lv}</b></div>`)}
+       <div class="lvsheet"><p>${esc(note)}</p>
+       ${list ? `<div class="unlock-h">✨ New in the Forge</div><div class="unlocks">${list}</div>` : ''}</div>`,
       [['ok', 'Nice!']],
-      'celebrate',
+      'celebrate levelup',
     );
+    this.hooks.sound('levelup');
+    window.setTimeout(() => this.hooks.sound('ding'), 450);
+    return p;
   }
 
   /** Shown right after crafting: celebrate the new item and offer to equip it on the spot. */
@@ -1077,11 +1146,10 @@ export class UI {
       const d = b - a;
       return `<span class="chip ${d >= 0 ? 'ok' : 'miss'}">${k.toUpperCase()} ${a} → <b>${b}</b></span>`;
     };
+    this.hooks.sound('treasure');
     return this.dialog(
-      `<div class="confetti">✨⚒✨</div>
-       <div class="qchap">New ${g.slot}!</div>
-       <div class="qart big-art">${icon(g.id, g.icon, 'icon xxl')}</div>
-       <div class="big" style="font-size:26px">${esc(g.name)}</div>
+      `${ribbon(`New ${g.slot}!`)}${stage(icon(g.id, g.icon, 'icon xxl'))}
+       <div class="big">${esc(g.name)}</div>
        <p>${esc(g.desc)}</p>
        <div class="chips">${cmp('atk')}${cmp('def')}${cmp('hp')}</div><br>`,
       [['later', 'Keep in bag'], ['equip', 'Equip now!']],
@@ -1092,20 +1160,19 @@ export class UI {
   challenge(kind: MonsterKind, name: string, title: string, lv: number, playerLv: number, zoneName: string) {
     const under = playerLv < lv;
     return this.dialog(
-      `<div class="qart big-art">${bossIcon(kind, 'icon xxl')}</div>
-       <div class="big" style="font-size:28px">${esc(name)}</div>
-       <div class="qchap">${esc(title)}</div>
+      `${ribbon(title || 'Guardian')}<div class="stage calm"><div class="stage-art">${bossIcon(kind, 'icon xxl')}</div></div>
+       <div class="big">${esc(name)}</div>
        <p>It blocks the road to <b>${esc(zoneName)}</b>. Defeat it to open the way and light a campfire checkpoint.</p>
        <div class="lvcmp ${under ? 'bad' : 'good'}">Boss Lv ${lv} · You Lv ${playerLv}${under ? ' · ⚠️ Train a bit more!' : ' · 💪 Ready!'}</div>`,
       [['no', 'Not yet'], ['yes', '⚔️ Challenge!', 'alt']],
+      'celebrate guardian',
     );
   }
 
   roadOpened(bossName: string, zoneName: string, kind: MonsterKind) {
+    this.hooks.sound('treasure');
     return this.dialog(
-      `<div class="confetti">${'🎉🔥✨'.repeat(4)}</div>
-       <div class="qart big-art">${bossIcon(kind, 'icon xl')}</div>
-       <div class="big" style="font-size:26px">The road is open!</div>
+      `${ribbon('The road is open!')}${stage(bossIcon(kind, 'icon xl'), 'small')}
        <p>${esc(bossName)} steps aside. <b>${esc(zoneName)}</b> awaits, and a 🔥 campfire checkpoint has been lit just past the gate.</p>`,
       [['ok', 'Onward!']],
       'celebrate',

@@ -16,7 +16,7 @@ export interface PatchNote {
 export const PATCH_NOTES: PatchNote[] = [
   {
     version: '0.3.0',
-    date: '2026-09-27',
+    date: '2026-09-28',
     title: "Poppy's Bunny",
     notes: [
       "🧸 A side story: once you've settled into Sowerby, explore the far corner of the Sunny Meadow. Someone there needs a hero.",
@@ -32,6 +32,8 @@ export const PATCH_NOTES: PatchNote[] = [
       '〰️ Whips feel like whips: the rope trails your hand, unrolls and cracks at the tip. Tip hits crack for full damage (the rest of the rope only grazes), the third lash is an overhead crack that stuns, and the whip hangs coiled at your hip between swings.',
       '🗡️ Your weapon is really in your hand now: your arm swings with every attack, and on the map swords and hammers ride across your back, whips coil at your hip and wands sit in your belt.',
       '📐 Building plans show what you have now next to what you will build, what it gives you and exactly what you are still missing; ones you can build right away glow and sit at the top.',
+      '⭐ Winning feels like growing stronger: after a fight "+XP" pops up and your XP bar fills with a rising tone, rings when it tops out, and keeps filling into the next level.',
+      '🎉 Level ups, treasure, new gear, new quests and finished chapters get proper celebrations: a ribbon banner, your prize spinning in on rays of light, your new level ringing in, and each stat ticking up with its own sound.',
       '⚒ The Forge has five levels now, one per star tier: Forge, Smithy, Iron Smithy, Crystal Kiln and Master Forge. Each area\'s materials upgrade it to work them, so every upgrade unlocks gear you can make straight away. Your forge keeps every recipe it had.',
       "👢 A new kind of reward: perks. Finish Poppy's story for one that makes getting around a lot quicker.",
       '📔 The Journal lists your side stories, and the Bag your perks.',

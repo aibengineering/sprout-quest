@@ -7,7 +7,9 @@ export type Sfx =
   // crumbling, and what you earned landing in your bag.
   | 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup'
   // A whip's tip snapping over.
-  | 'crack';
+  | 'crack'
+  // Rewards: a bell as the XP bar tops out (a level), a tick per stat that grows, and a treasure's little fanfare.
+  | 'ding' | 'tick' | 'treasure';
 
 export class Audio {
   private ctx: AudioContext | null = null;
@@ -61,6 +63,26 @@ export class Audio {
     src.start(t0);
   }
 
+  /**
+   * The XP bar filling: a soft tone rising in pitch for `dur` seconds, from `from` to `to` of the way up the bar (so
+   * a long fill climbs, and one that tops out ends high).
+   */
+  sweep(dur: number, from: number, to: number) {
+    if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(330 + 660 * from, t0);
+    o.frequency.linearRampToValueAtTime(330 + 660 * to, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.045, t0 + 0.03);
+    g.gain.setValueAtTime(0.045, t0 + Math.max(0.03, dur - 0.05));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(this.master!);
+    o.start(t0);
+    o.stop(t0 + dur + 0.02);
+  }
+
   play(s: Sfx) {
     if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
     const notes = (fs: number[], step: number, type: OscillatorType = 'square', vol = 0.12) =>
@@ -92,6 +114,9 @@ export class Audio {
       case 'crumble': this.noise(0.5, 0.38, 850); this.noise(0.3, 0.2, 2400, 0.06); this.tone(115, 0.26, 'sine', 0.28, 48); break;
       case 'pickup': notes([988, 1319], 0.05, 'square', 0.07); break;
       case 'crack': this.noise(0.035, 0.55, 7000); this.tone(2400, 0.025, 'square', 0.08, 1200); break;
+      case 'ding': this.tone(1568, 0.5, 'triangle', 0.22); this.tone(2093, 0.45, 'sine', 0.12, undefined, 0.04); break;
+      case 'tick': this.tone(1320, 0.05, 'square', 0.06); break;
+      case 'treasure': notes([659, 784, 1047, 1319], 0.07, 'triangle', 0.16); this.tone(1568, 0.5, 'sine', 0.1, undefined, 0.3); break;
     }
   }
 }

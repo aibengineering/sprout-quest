@@ -129,10 +129,12 @@ async function onBattleEnd(o: BattleOutcome) {
   if (o.result === 'win' && quick) {
     const mark = grantWin(o, b);
     swoopOut();
-    G.ui.loot(lootLines(o.drops, [{ n: o.xp }, { n: o.xp, what: STYLE_NAMES[mark.style], emo: '⚔️' }]));
+    G.ui.loot(lootLines(o.drops, [{ n: o.xp, what: STYLE_NAMES[mark.style], emo: '⚔️' }]));
     persist();
+    // Back on the map, the XP bar fills (you can walk meanwhile; a level-up holds you for its screen).
+    await new Promise((r) => setTimeout(r, 320));
+    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
     if (leveledUp(mark)) {
-      await new Promise((r) => setTimeout(r, 380));
       G.mode = 'dialog';
       await celebrate(mark);
       G.mode = 'world';
@@ -162,6 +164,7 @@ async function onBattleEnd(o: BattleOutcome) {
     }
     persist();
     await G.ui.result({ win: true, xp: o.xp, levels: s.lv - mark.fromLv, newLv: s.lv, drops: o.drops, boss });
+    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
     await celebrate(mark);
     if (firstClear && gz) await G.ui.roadOpened(MONSTERS[bossKind].name, gz.name, bossKind);
     transition(() => {

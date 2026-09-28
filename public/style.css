@@ -550,12 +550,9 @@ img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
 #clip i { width: 9px; height: 9px; border-radius: 50%; background: rgba(74, 42, 90, 0.35); border: 2px solid #fff; }
 #clip i.on { background: #ffd35a; }
 .stack { display: flex; flex-direction: column; gap: 6px; }
-.lvup { text-align: center; }
-.lvup .stats { display: grid; grid-template-columns: auto auto auto; gap: 4px 10px; justify-content: center; margin: 10px 0; font-weight: 900; }
-.lvup .stats .up { color: #3aa85a; }
-.lvup .ready { text-align: left; background: #fff4e0; border-radius: 14px; padding: 8px 12px; margin: 8px 0; font-weight: 800; line-height: 1.45; }
-.lvup .unlocks { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0; }
-.lvup .unlocks .u { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 88px; font-weight: 800; font-size: 12px; line-height: 1.2; }
+.lvsheet { text-align: center; }
+.lvsheet .unlocks { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0; }
+.lvsheet .unlocks .u { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 88px; font-weight: 800; font-size: 12px; line-height: 1.2; }
 @media (max-width: 440px) {
   .zone { display: none; }
   .quest-pill { top: calc(76px + var(--safe-t)); max-width: calc(64% - 8px); }
@@ -675,9 +672,6 @@ h3 small { font-size: 11px; opacity: 0.7; font-weight: 700; }
 .lvcmp { display: inline-block; font-weight: 900; padding: 6px 12px; border-radius: 12px; margin-bottom: 14px; }
 .lvcmp.good { background: #e8f8e8; }
 .lvcmp.bad { background: #ffe0e4; color: #c83a4a; }
-.sheet.celebrate { background: radial-gradient(circle at 50% 0%, #fff3c0, var(--paper) 65%); }
-.confetti { font-size: 22px; letter-spacing: 4px; animation: confetti 1s ease-out; overflow: hidden; white-space: nowrap; margin-bottom: 6px; }
-@keyframes confetti { from { transform: translateY(-24px) scale(0.6); opacity: 0; } }
 /* Short (landscape phone) screens: compact header and tab bar so the content gets the room. */
 @media (max-height: 520px) {
   #modal { padding-top: calc(4px + var(--safe-t)); }
@@ -1011,3 +1005,122 @@ body.kbd .drag-hint .keys { display: flex; }
 .notebook .mcard, .notebook .zrow, .notebook .qcard { background: rgba(255, 255, 255, 0.55); border: 2px solid rgba(58, 36, 72, 0.12); box-shadow: none; }
 .notebook .qcard { background: rgba(255, 246, 220, 0.8); transform: rotate(-0.5deg); }
 .notebook .note { background: #fff1b8; border: 0; transform: rotate(0.6deg); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12); }
+
+/* ================= XP gain on the HUD ================= */
+.stat { position: relative; transition: transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1); transform-origin: 50% 0; }
+.stat.gain { transform: scale(1.04); box-shadow: 0 3px 0 rgba(74, 42, 90, 0.25), 0 0 0 3px #ffd24a; }
+.stat.gain .bar.xp { height: 10px; transition: height 0.2s; }
+.stat.gain .bar.xp i { background: linear-gradient(#fff2a8, #ffc23a); box-shadow: 0 0 8px #ffd24a; }
+.stat.ding .lv { animation: lvding 0.42s cubic-bezier(0.3, 1.8, 0.5, 1); background: #ffb627; }
+@keyframes lvding { 40% { transform: scale(1.45) rotate(-6deg); } }
+.xp-float {
+  position: absolute; right: 14px; top: 100%; margin-top: 4px; z-index: 1;
+  font: 700 16px var(--display); color: #ffd24a; white-space: nowrap;
+  -webkit-text-stroke: 4px var(--outline); paint-order: stroke fill;
+  animation: xpfloat 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes xpfloat { from { transform: translateY(14px) scale(0.5); opacity: 0; } }
+
+/* ================= Celebrations =================
+   Every reward (level up, item found, new gear, quest done, road open) shares one look: a ribbon banner, the prize
+   popping in over slowly turning rays, a display-font name, then the details. */
+.sheet.celebrate { background: radial-gradient(circle at 50% 22%, #fff4c4 0, #fde6b0 30%, var(--parchment) 62%); overflow: visible; margin-top: 18px; }
+.sheet.celebrate .result { padding-top: 0; }
+.ribbon { position: relative; margin: -20px auto 0; width: max-content; max-width: 92%; z-index: 2; }
+.ribbon span {
+  display: block; position: relative; z-index: 1; padding: 7px 26px 9px;
+  background: linear-gradient(#ff7a5a, #e0503a); color: #fff; border: 3px solid var(--outline); border-radius: 12px;
+  font: 600 clamp(14px, 4.4vw, 20px) var(--display); letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap;
+  text-shadow: 0 2px 0 rgba(58, 36, 72, 0.45); box-shadow: 0 4px 0 rgba(42, 20, 50, 0.45);
+  animation: ribbon 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.ribbon::before, .ribbon::after {
+  content: ''; position: absolute; top: 12px; width: 26px; height: 30px; background: #b83a2a; border: 3px solid var(--outline);
+}
+.ribbon::before { left: -16px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 38% 50%); border-right: 0; }
+.ribbon::after { right: -16px; clip-path: polygon(0 0, 100% 0, 62% 50%, 100% 100%, 0 100%); border-left: 0; }
+@keyframes ribbon { from { transform: scale(0.3, 0.6); opacity: 0; } }
+.stage { position: relative; width: 170px; height: 150px; margin: 2px auto 0; display: grid; place-items: center; }
+.stage.small { height: 120px; }
+.rays {
+  position: absolute; inset: -30px; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 214, 90, 0.55) 0 9deg, rgba(255, 214, 90, 0) 9deg 22.5deg);
+  -webkit-mask: radial-gradient(circle, #000 20%, transparent 68%); mask: radial-gradient(circle, #000 20%, transparent 68%);
+  animation: rays 14s linear infinite, raysin 0.6s ease-out;
+}
+@keyframes rays { to { transform: rotate(360deg); } }
+@keyframes raysin { from { opacity: 0; transform: scale(0.4); } }
+.stage-art { position: relative; animation: prize 0.6s 0.1s cubic-bezier(0.3, 1.7, 0.5, 1) backwards, float 2.4s 0.7s ease-in-out infinite; filter: drop-shadow(0 6px 0 rgba(58, 36, 72, 0.25)); }
+.stage-art img.icon.xxl { width: 120px; height: 120px; }
+.stage.small .stage-art img.icon { width: 88px; height: 88px; }
+@keyframes prize { from { transform: scale(0) rotate(-25deg); } }
+@keyframes float { 50% { transform: translateY(-6px); } }
+.sparkles i { position: absolute; width: 14px; height: 14px; background: #fff; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); animation: twinkle 1.6s infinite ease-in-out; opacity: 0; }
+.sparkles i:nth-child(1) { left: 12%; top: 18%; animation-delay: 0.3s; }
+.sparkles i:nth-child(2) { right: 10%; top: 10%; animation-delay: 0.8s; width: 10px; height: 10px; }
+.sparkles i:nth-child(3) { right: 16%; bottom: 14%; animation-delay: 1.2s; }
+.sparkles i:nth-child(4) { left: 18%; bottom: 8%; animation-delay: 0.55s; width: 9px; height: 9px; }
+@keyframes twinkle { 50% { opacity: 1; transform: scale(1.3) rotate(45deg); } }
+.sheet.celebrate .big { font-size: 26px; font-weight: 600; margin: 2px 0 4px; animation: rise 0.4s 0.25s ease-out backwards; }
+.sheet.celebrate p { animation: rise 0.4s 0.35s ease-out backwards; }
+.sheet.celebrate .chips { justify-content: center; animation: rise 0.4s 0.45s ease-out backwards; }
+@keyframes rise { from { transform: translateY(10px); opacity: 0; } }
+
+/* The level badge: the old number flips away and the new one lands. */
+.lvbadge {
+  position: relative; width: 104px; height: 104px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffd46a, #ff9a2a 70%); border: 4px solid var(--outline);
+  box-shadow: inset 0 -6px 0 rgba(160, 60, 20, 0.35), 0 5px 0 rgba(42, 20, 50, 0.4);
+  display: grid; place-items: center; color: #fff; overflow: hidden;
+}
+.lvbadge small { position: absolute; top: 16px; font: 600 12px var(--display); letter-spacing: 1.5px; opacity: 0.95; text-shadow: 0 1px 0 rgba(58, 36, 72, 0.4); }
+.lvbadge .emo { position: absolute; top: 8px; font-size: 22px; }
+.lvbadge b { grid-area: 1 / 1; margin-top: 12px; font: 700 48px var(--display); -webkit-text-stroke: 5px var(--outline); paint-order: stroke fill; }
+.lvbadge .old { animation: lvold 0.3s 0.3s ease-in forwards; }
+.lvbadge .new { animation: lvnew 0.5s 0.45s cubic-bezier(0.3, 1.8, 0.5, 1) backwards; }
+@keyframes lvold { to { transform: translateY(-60px); opacity: 0; } }
+@keyframes lvnew { from { transform: translateY(60px) scale(0.5); opacity: 0; } }
+.lvbadge.skill { background: radial-gradient(circle at 35% 30%, #a6ec8a, #3aa85a 70%); box-shadow: inset 0 -6px 0 rgba(20, 90, 40, 0.35), 0 5px 0 rgba(42, 20, 50, 0.4); }
+
+.lvsheet .stats2 { display: flex; flex-direction: column; gap: 6px; width: min(300px, 100%); margin: 6px auto 8px; }
+.srow {
+  display: grid; grid-template-columns: 1fr 34px 18px 38px 44px; align-items: center; gap: 4px;
+  padding: 6px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.7); box-shadow: 0 2px 0 rgba(74, 42, 90, 0.15);
+  font-weight: 800; animation: srow 0.35s var(--d) cubic-bezier(0.3, 1.5, 0.5, 1) backwards;
+}
+.srow .sl { text-align: left; }
+.srow .sa { opacity: 0.55; text-align: right; }
+.srow .sar { opacity: 0.45; font-size: 12px; }
+.srow .sb { font: 700 19px var(--display); text-align: left; }
+.srow .sd { background: #3aa85a; color: #fff; border-radius: 99px; padding: 2px 7px; font-size: 13px; animation: chip 0.4s calc(var(--d) + 0.12s) cubic-bezier(0.3, 1.8, 0.5, 1) backwards; }
+@keyframes srow { from { transform: translateX(-24px); opacity: 0; } }
+@keyframes chip { from { transform: scale(0); } }
+.sheet.celebrate .lvsheet .healed { color: #3a8a44; font-weight: 900; margin: 4px 0; animation-delay: 1.6s; }
+.lvsheet .ready {
+  text-align: left; margin: 8px auto; padding: 8px 12px; width: min(320px, 100%);
+  background: #fff4dc; border: 2px dashed #d9b98a; border-radius: 12px; font-weight: 800; line-height: 1.5;
+  animation: rise 0.4s 1.8s ease-out backwards;
+}
+.lvsheet .unlock-h { font: 600 15px var(--display); color: #b3542a; margin-top: 6px; animation: rise 0.4s 0.6s ease-out backwards; }
+.lvsheet .unlocks .u { animation: prize 0.45s var(--d) cubic-bezier(0.3, 1.7, 0.5, 1) backwards; }
+@media (max-height: 560px) {
+  .stage { height: 110px; width: 140px; }
+  .stage.small { height: 90px; }
+  .stage-art img.icon.xxl { width: 84px; height: 84px; }
+  .lvbadge { width: 80px; height: 80px; }
+  .lvbadge b { font-size: 38px; }
+  .lvbadge small { top: 10px; }
+}
+/* Quiet cousins: a new quest (green ribbon) and a guardian's challenge (dark ribbon, dusky glow). */
+.sheet.quest { background: radial-gradient(circle at 50% 18%, #eaf6d4, var(--parchment) 55%); }
+.sheet.quest .ribbon span { background: linear-gradient(#6cc86a, #3a9a4a); }
+.sheet.quest .ribbon::before, .sheet.quest .ribbon::after { background: #2e7a3a; }
+.sheet.guardian { background: radial-gradient(circle at 50% 22%, #f4d6e0, var(--parchment) 58%); }
+.sheet.guardian .ribbon span { background: linear-gradient(#7a4a9a, #4a2a6a); }
+.sheet.guardian .ribbon::before, .sheet.guardian .ribbon::after { background: #3a2050; }
+.stage.calm .stage-art { animation: prize 0.5s 0.1s cubic-bezier(0.3, 1.6, 0.5, 1) backwards; }
+.sheet.quest .big, .sheet.guardian .big { font-size: 26px; }
+.sheet.quest .bubble, .sheet.quest .hint, .sheet.quest .speaker, .sheet.guardian .lvcmp { animation: rise 0.4s 0.4s ease-out backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .rays, .stage-art, .sparkles i { animation: none; }
+}

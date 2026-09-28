@@ -46,7 +46,6 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
   elder: () => talkToElder(),
 
   async pickup() {
-    G.audio.play('levelup');
     await paused(() => G.ui.itemFound('twig', 'Twig Sword', "It's just a stick… but it feels right in your hand."));
     G.save.flags.push('sword');
     syncWorld();

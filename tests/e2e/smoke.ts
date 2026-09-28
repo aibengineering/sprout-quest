@@ -59,9 +59,15 @@ const run = (page: Page, f: string) => page.evaluate(`(() => { const g = window.
 /** Clicks through popups (not the menu) until none are left; returns the text of each one. */
 async function closeDialogs(page: Page, max = 8) {
   const seen: string[] = [];
-  for (let i = 0; i < max; i++) {
+  for (let i = 0, t0 = Date.now(); i < max; i++) {
     const btn = await page.$('#modal:not([hidden]) .sheet:not(.menu) [data-dialog]:last-of-type');
-    if (!btn) break;
+    if (!btn) {
+      // The XP bar fills between the fight's result and a level-up screen: wait for it to settle.
+      if (!(await page.$('#hud .stat.gain')) || Date.now() - t0 > 15000) break;
+      await page.waitForTimeout(150);
+      i--;
+      continue;
+    }
     seen.push((await page.textContent('#modal .sheet')) ?? '');
     await btn.click();
     await page.waitForTimeout(400);
@@ -146,7 +152,11 @@ await scenario('a new game plays through the prologue to Elder Oswin', null, asy
     await endFight(page);
     await waitFor(page, `the ${flag} result`, async () => !!(await page.$('#modal:not([hidden]) [data-dialog]')), 5000);
     await closeDialogs(page);
-    await waitFor(page, 'back on the map', async () => game<boolean>(page, `g.mode === 'world' && !g.battle`), 5000);
+    // Back on the map, the next step's caption may already be up: read it.
+    await waitFor(page, 'back on the map', async () => game<boolean>(page, `!g.battle`), 5000);
+    await page.waitForTimeout(800);
+    await closeDialogs(page);
+    await waitFor(page, 'free to walk', async () => game<boolean>(page, `g.mode === 'world'`), 5000);
     check(await game(page, `g.save.flags.includes('${flag}')`), `winning the ${flag} fight did not clear the path`);
     if (flag === 'glade1') {
       // The first win unlocks the Bag: its card waits for the map, then takes you there when tapped.
@@ -224,7 +234,7 @@ await scenario('winning a fight levels you up and reveals new gear', (g) => {
   await page.waitForTimeout(900);
   await pinFoes(page, 1);
   await page.keyboard.press('KeyJ');
-  await waitFor(page, 'the level-up screen', async () => !!(await page.$('#modal:not([hidden]) .lvup')));
+  await waitFor(page, 'the level-up screen', async () => !!(await page.$('#modal:not([hidden]) .lvsheet')));
   // Loot and XP stack on the right, clear of the quest tracker.
   const pill = await page.locator('#quest-pill').boundingBox(), rows = await page.locator('#loot .lrow').all();
   check(rows.length > 0, 'no loot rows');
@@ -233,7 +243,7 @@ await scenario('winning a fight levels you up and reveals new gear', (g) => {
     check(!pill || b.x >= pill.x + pill.width || b.y >= pill.y + pill.height, 'a loot row overlaps the quest tracker');
   }
   const screens = await closeDialogs(page);
-  check(screens.some((t) => t.includes('Level 5')), 'no combat level-up screen');
+  check(screens.some((t) => t.includes('Level up!') && t.includes('Fully healed')), 'no combat level-up screen');
   check(screens.some((t) => /Whip handling/i.test(t) && t.includes('Spore Whip')), 'whip handling screen did not reveal the Spore Whip');
   check(await game(page, 'g.save.lv') === 5, 'combat level did not go up');
 });

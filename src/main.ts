@@ -235,6 +235,7 @@ requestAnimationFrame(frame);
   get save() { return G.save; },
   get mode() { return G.mode; },
   get battle() { return G.battle; },
+  get ui() { return G.ui; },
   get over() { return G.over; },
   get chop() { return chop; },
   get modelStats() { return modelStats; },
