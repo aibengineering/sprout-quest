@@ -217,6 +217,8 @@ await scenario('winning a fight levels you up and reveals new gear', (g) => {
   g.save.owned.push('jellywhip');
   g.save.equip.weapon = 'jellywhip';
   g.save.mastery.whip.xp = 28;
+  // ★★ gear needs the Smithy.
+  g.save.build.forge = 2;
 }, async (page) => {
   await run(page, 'g.encounter()');
   await page.waitForTimeout(900);
