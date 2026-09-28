@@ -471,7 +471,10 @@ export const PROJECTS: Record<ProjectId, Project> = {
   // Bram's, once he's moved to Sowerby (his story).
   sawmill: {
     name: 'Sawmill', icon: '🪚',
-    levels: [{ name: 'Sawmill', cost: { pine: 6, stone: 6, copper: 3 }, perk: 'Bram saws your Oak Logs into Planks, even while you\'re away' }],
+    levels: [
+      { name: 'Sawmill', cost: { pine: 6, stone: 6, copper: 3 }, perk: 'A copper blade: Bram saws your Oak Logs into Planks, even while you\'re away' },
+      { name: 'Iron Sawmill', cost: { iron: 2, pine: 8, stone: 6 }, perk: 'An iron blade: saws Pine Logs too, and faster' },
+    ],
   },
 };
 

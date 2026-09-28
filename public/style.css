@@ -1143,3 +1143,6 @@ body.kbd .drag-hint .keys { display: flex; }
 .sheet.sawmill .sawbench .ready { color: #3a8a44; font-weight: 900; }
 .sheet.sawmill .sawbench .small { font-size: 13px; opacity: 0.75; }
 .sheet.sawmill .btns .go { padding: 10px 16px; font-size: 15px; }
+.sheet.sawmill .sawrow { display: flex; align-items: center; gap: 8px; margin: 4px 0; text-align: left; }
+.sheet.sawmill .sawrow span { flex: 1; font-weight: 800; }
+.sheet.sawmill .sawrow .go { padding: 6px 12px; font-size: 14px; }

@@ -928,7 +928,7 @@ export class Overworld {
         const p = o.project!, l = lv(p);
         if (p === 'home') return { name: `home${l}`, back: 0.42 };
         if (p === 'warp') return { name: `warp${l}`, back: 0.1 };
-        if (p === 'sawmill') return { name: `sawmill${l ? 1 : 0}`, back: 0.3 };
+        if (p === 'sawmill') return { name: `sawmill${l}`, back: 0.3 };
         return { name: l ? `${p}${l}` : 'plot', back: 0.28 };
       }
       default: return null;

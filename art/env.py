@@ -588,9 +588,9 @@ GRASS = {
 }
 
 # name → (builder, frame w, frame h) in pixels at PPU 64
-def _saw_blade(parent, loc, r, rot=(math.pi / 2, 0, 0), broken=False):
-    """A round saw blade with teeth; `broken` leaves a gap in it."""
-    steel = toon('#c8d0dc', rim=0.35)
+def _saw_blade(parent, loc, r, rot=(math.pi / 2, 0, 0), broken=False, metal='#c8d0dc'):
+    """A round saw blade with teeth; `broken` leaves a gap in it. `metal`: copper, iron or old steel."""
+    steel = toon(metal, rim=0.35)
     cylinder(loc, r, 0.05, steel, parent, seg=28, rot=rot, line=0.012)
     cylinder(loc, r * 0.22, 0.08, toon('#6a7080'), parent, seg=12, rot=rot, line=0.01)
     n = 14
@@ -608,15 +608,15 @@ def _log(parent, loc, length, r, rot, bark='#8a5a3a', end='#e8c890'):
     return parent
 
 
-def log_pile(root=None, n=3):
-    """Logs stacked in a little pyramid, ends facing you."""
+def log_pile(root=None, n=3, bark='#8a5a3a', end='#e8c890'):
+    """Logs stacked in a little pyramid, ends facing you (oak by default; pass pine's colours for pine)."""
     root = root or empty('logs')
     for row, count in enumerate(range(n, 0, -1)):
         for i in range(count):
             x = (i - (count - 1) / 2) * 0.42
             z = 0.2 + row * 0.36
-            cylinder((x, 0, z), 0.2, 1.3, toon('#8a5a3a'), root, seg=12, rot=(math.pi / 2, 0, 0))
-            cylinder((x, -0.66, z), 0.17, 0.02, toon('#e8c890'), root, seg=12, rot=(math.pi / 2, 0, 0), line=0.01)
+            cylinder((x, 0, z), 0.2, 1.3, toon(bark), root, seg=12, rot=(math.pi / 2, 0, 0))
+            cylinder((x, -0.66, z), 0.17, 0.02, toon(end), root, seg=12, rot=(math.pi / 2, 0, 0), line=0.01)
     return root
 
 
@@ -652,7 +652,14 @@ def sawmill(level):
         box((x, -0.35, 0.4), (0.15, 0.7, 0.7), dark, root, bevel=0.02)
     cylinder((-0.3, -0.35, 1.02), 0.24, 1.6, toon('#8a5a3a'), root, seg=12, rot=(0, math.pi / 2, 0))
     cylinder((-1.1, -0.35, 1.02), 0.21, 0.02, plank, root, seg=12, rot=(0, math.pi / 2, 0), line=0.01)
-    _saw_blade(root, (0.95, -0.35, 1.25), 0.75, rot=(math.pi / 2, 0, 0))
+    # The blade is what you paid for: copper at first, iron once upgraded (with iron bands on the posts).
+    _saw_blade(root, (0.95, -0.35, 1.25), 0.75, rot=(math.pi / 2, 0, 0), metal='#e8904a' if level == 1 else '#c8d4e8')
+    if level >= 2:
+        for x in (-w / 2 + 0.2, w / 2 - 0.2):
+            for z in (0.5, 1.6):
+                box((x, -0.1, z), (0.28, 0.28, 0.08), toon('#8a92a8'), root, bevel=0.01, line=0.008)
+        # Pine waiting its turn, beside the oak.
+        log_pile(empty('pines', root, (w / 2 + 0.7, 0.9, 0)), 2, '#7a5238', '#f0dca0')
     # Planks stacked by the front corner, and logs waiting at the side.
     for i in range(4):
         box((w / 2 - 0.4, -d / 2 + 0.1, 0.26 + i * 0.1), (0.5, 1.2, 0.08), plank, root, bevel=0.02, rot=(0, 0, 0.05 * (i % 2)))
@@ -762,6 +769,7 @@ SCENERY['sign'] = (sign, 90, 90)
 SCENERY['lair'] = (lair, 400, 300)
 SCENERY['sawmill0'] = (lambda: sawmill(0), 320, 220)
 SCENERY['sawmill1'] = (lambda: sawmill(1), 360, 340)
+SCENERY['sawmill2'] = (lambda: sawmill(2), 380, 340)
 SCENERY['bramhut'] = (bramhut, 230, 260)
 SCENERY['prop_campstump'] = (camp_stump, 170, 150)
 SCENERY['prop_campmill'] = (camp_mill, 330, 230)

@@ -10,7 +10,7 @@ import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
 import { MOVESETS, comboTime } from './weapons';
 import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
-import { LOGS_PER_PLANK, SAW_SECONDS, canOrder, nextPlankIn, sawUpdate } from './sawmill';
+import { LOGS_PER_PLANK, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate } from './sawmill';
 import { usingKeyboard } from './input';
 import { canShareFiles } from './share';
 import { reportInfo } from './stats';
@@ -1094,26 +1094,33 @@ export class UI {
 
   /**
    * Bram's Sawmill: what's on the bench, what's ready, and buttons to hand him logs or take your planks.
-   * Resolves 'saw:<n>', 'collect' or 'close'.
+   * Resolves 'saw:<n>:<log>', 'collect' or 'close'.
    */
   sawmill(s: SaveState, line: string): Promise<string> {
-    const w = sawUpdate(s), room = canOrder(s), next = nextPlankIn(s);
+    const w = sawUpdate(s), next = nextPlankIn(s), logs = sawLogs(s);
+    const logName = logs.map((l) => MATS[l].name).join(' or ');
     const bench = w.queued
       ? `🪚 Sawing <b>${w.queued}</b> plank${w.queued > 1 ? 's' : ''}: the next in ${next}s.`
-      : 'The saw is quiet. Bring Oak Logs and Bram will get to work.';
+      : `The saw is quiet. Bring ${logName} and Bram will get to work.`;
+    // A row per kind of log it takes: what you have, and buttons to hand over enough for 1 or 5 planks.
+    const rows = logs.map((l) => {
+      const room = canOrder(s, l);
+      return `<div class="sawrow">${icon(l, MATS[l].icon, 'icon sm')}<span><b>${s.mats[l]}</b> ${esc(MATS[l].name)}</span>
+        <button class="go ghost" data-dialog="saw:1:${l}" ${room >= 1 ? '' : 'disabled'}>Saw 1</button>
+        <button class="go ghost" data-dialog="saw:5:${l}" ${room >= 5 ? '' : 'disabled'}>Saw 5</button></div>`;
+    }).join('');
     const btns: [string, string, string?][] = [['close', 'Bye, Bram']];
-    if (room >= 5) btns.unshift(['saw:5', `Saw 5 (${5 * LOGS_PER_PLANK} logs)`, 'ghost']);
-    if (room >= 1) btns.unshift(['saw:1', `Saw 1 (${LOGS_PER_PLANK} logs)`, 'ghost']);
     if (w.ready) btns.push(['collect', `Take ${w.ready} plank${w.ready > 1 ? 's' : ''}`]);
     return this.dialog(
       `${ribbon("Bram's Sawmill")}
        <div class="speaker small">${icon('npc_bram_happy', '🧔', 'icon sm')}<b>Bram</b></div>
        <div class="bubble">${esc(line)}</div>
        <div class="sawbench">
-         <div class="chips">${icon('bark', MATS.bark.icon, 'icon sm')} <b>${s.mats.bark}</b> Oak Logs · ${icon('plank', MATS.plank.icon, 'icon sm')} <b>${s.mats.plank}</b> Planks</div>
+         ${rows}
+         <div class="chips">${icon('plank', MATS.plank.icon, 'icon sm')} You have <b>${s.mats.plank}</b> Planks</div>
          <p>${bench}</p>
          ${w.ready ? `<p class="ready">✨ ${w.ready} plank${w.ready > 1 ? 's' : ''} ready to take!</p>` : ''}
-         <p class="small">${LOGS_PER_PLANK} Oak Logs make a Plank, one every ${SAW_SECONDS} seconds, even while you're away.</p>
+         <p class="small">${LOGS_PER_PLANK} logs make a Plank, one every ${sawSeconds(s)} seconds, even while you're away.${s.build.sawmill < 2 ? ' An iron blade would cut Pine too.' : ''}</p>
        </div>`,
       btns,
       'celebrate quest sawmill',

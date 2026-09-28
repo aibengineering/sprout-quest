@@ -644,10 +644,10 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   await playUntil('the Sawmill', async () => (await step()) === 8 && (await game<string>(page, 'g.mode')) === 'world');
   // Saw six planks (the clock wound on, rather than waiting three minutes), take them, and bring them to Bram.
   await talk('bram:bram');
-  await waitFor(page, 'the bench', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:5"]')));
-  await page.click('[data-dialog="saw:5"]');
-  await waitFor(page, 'saw one more', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:1"]')));
-  await page.click('[data-dialog="saw:1"]');
+  await waitFor(page, 'the bench', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:5:bark"]')));
+  await page.click('[data-dialog="saw:5:bark"]');
+  await waitFor(page, 'saw one more', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:1:bark"]')));
+  await page.click('[data-dialog="saw:1:bark"]');
   await page.waitForTimeout(300);
   await page.click('[data-dialog="close"]');
   await page.waitForTimeout(300);

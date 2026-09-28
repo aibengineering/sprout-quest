@@ -61,7 +61,8 @@ export function openSawmill(greeting = MILL_LINES[line++ % MILL_LINES.length]) {
     for (;;) {
       const r = await G.ui.sawmill(G.save, greeting);
       if (r.startsWith('saw:')) {
-        const n = sawOrder(G.save, Number(r.slice(4)));
+        const [, count, log] = r.split(':');
+        const n = sawOrder(G.save, Number(count), log === 'pine' ? 'pine' : 'bark');
         if (n) G.audio.play('chop');
         greeting = n ? `Right. ${n} plank${n > 1 ? 's' : ''} coming up.` : "You'll need more logs than that.";
       } else if (r === 'collect') {
