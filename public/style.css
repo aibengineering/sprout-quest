@@ -1094,7 +1094,6 @@ body.kbd .drag-hint .keys { display: flex; }
 .srow .sd { background: #3aa85a; color: #fff; border-radius: 99px; padding: 2px 7px; font-size: 13px; animation: chip 0.4s calc(var(--d) + 0.12s) cubic-bezier(0.3, 1.8, 0.5, 1) backwards; }
 @keyframes srow { from { transform: translateX(-24px); opacity: 0; } }
 @keyframes chip { from { transform: scale(0); } }
-.sheet.celebrate .lvsheet .healed { color: #3a8a44; font-weight: 900; margin: 4px 0; animation-delay: 1.6s; }
 .lvsheet .ready {
   text-align: left; margin: 8px auto; padding: 8px 12px; width: min(320px, 100%);
   background: #fff4dc; border: 2px dashed #d9b98a; border-radius: 12px; font-weight: 800; line-height: 1.5;

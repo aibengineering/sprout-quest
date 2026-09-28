@@ -274,7 +274,7 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
     check(!pill || b.x >= pill.x + pill.width || b.y >= pill.y + pill.height, 'a loot row overlaps the quest tracker');
   }
   const screens = await closeDialogs(page);
-  check(screens.some((t) => t.includes('Level up!') && t.includes('Fully healed')), 'no combat level-up screen');
+  check(screens.some((t) => t.includes('Level up!') && t.includes('Max HP')), 'no combat level-up screen');
   check(screens.some((t) => /Whip handling/i.test(t) && t.includes('Spore Whip')), 'whip handling screen did not reveal the Spore Whip');
   check(await game(page, 'g.save.lv') === 5, 'combat level did not go up');
 });

@@ -92,8 +92,12 @@ export function mergeDrops(into: Partial<Record<MatId, number>>, add: Partial<Re
   return into;
 }
 
-/** Adds XP, applying level ups. Returns how many levels were gained. Level ups fully heal. */
+/**
+ * Adds XP, applying level ups. Returns how many levels were gained. A level up raises max HP and adds the same to your
+ * HP, but doesn't heal what you'd already lost (rest at the Spring or a campfire for that).
+ */
 export function gainXp(s: SaveState, amount: number): number {
+  const before = playerStats(s).maxHp;
   s.xp += amount;
   let gained = 0;
   while (s.xp >= xpToNext(s.lv)) {
@@ -101,7 +105,10 @@ export function gainXp(s: SaveState, amount: number): number {
     s.lv++;
     gained++;
   }
-  if (gained) s.hp = playerStats(s).maxHp;
+  if (gained) {
+    const after = playerStats(s).maxHp;
+    s.hp = Math.min(after, s.hp + (after - before));
+  }
   return gained;
 }
 

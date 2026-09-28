@@ -1205,7 +1205,6 @@ export class UI {
     const p = this.dialog(
       `${ribbon('Level up!')}${stage(`<div class="lvbadge"><small>LEVEL</small><b class="old">${lv - 1}</b><b class="new">${lv}</b></div>`)}
        <div class="lvsheet"><div class="stats2">${stats}</div>
-       <p class="healed">❤️ Fully healed!</p>
        ${ready.length ? `<div class="ready">${ready.map((r) => `<div>🎯 ${esc(r)}</div>`).join('')}</div>` : ''}</div>`,
       [['ok', 'Onward!']],
       'celebrate levelup',

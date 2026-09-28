@@ -5,14 +5,15 @@ import { newState } from '../src/state';
 import { T, World } from '../src/world';
 
 describe('rules', () => {
-  test('leveling carries over extra XP and heals', () => {
+  test('leveling carries over extra XP, and adds the max HP it gains without healing what you lost', () => {
     const s = newState();
     s.hp = 1;
+    const before = playerStats(s).maxHp;
     const levels = gainXp(s, xpToNext(1) + xpToNext(2) + 3);
     expect(levels).toBe(2);
     expect(s.lv).toBe(3);
     expect(s.xp).toBe(3);
-    expect(s.hp).toBe(playerStats(s).maxHp);
+    expect(s.hp).toBe(1 + playerStats(s).maxHp - before);
   });
 
   test('damage is at least 1 and crits hit harder', () => {
