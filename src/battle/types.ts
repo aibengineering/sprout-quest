@@ -27,7 +27,7 @@ export const angDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Mat
 /** Every state a monster's behaviour can be in (each monster uses a few). */
 export type EState =
   | 'idle' | 'hop' | 'windup' | 'charge' | 'move' | 'puff' | 'circle' | 'dash' | 'recover' | 'flutter' | 'swoop' | 'retreat'
-  | 'walk' | 'slam' | 'float' | 'cast' | 'ring' | 'triple' | 'stomp' | 'howl' | 'spikes' | 'shards';
+  | 'walk' | 'slam' | 'float' | 'cast' | 'ring' | 'triple' | 'stomp' | 'howl' | 'spikes' | 'shards' | 'screech' | 'dive' | 'bolts';
 
 export interface Enemy {
   kind: MonsterKind;

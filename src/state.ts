@@ -60,6 +60,8 @@ export interface SaveState {
   sawmill?: SawState;
   /** Set once the Forge has its five levels (older saves had three: Smithy was ★★★–★★★★, Master Forge the third). */
   forgeLevels?: 5;
+  /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */
+  echoQueen?: true;
   /** Recipes you've seen in the Forge; ones revealed since show as new (missing: everything revealed counts as seen). */
   forgeSeen?: string[];
 }
@@ -104,6 +106,7 @@ export function newState(): SaveState {
     flags: [],
     // A new adventure has nothing to catch up on.
     seenVersion: VERSION,
+    echoQueen: true,
     stories: {},
     perks: [],
     meal: null,
@@ -160,6 +163,18 @@ export function loadState(): SaveState | null {
     }
     // Elder Oswin hands over his old axe and pick on arrival (older saves reached Sowerby before he did).
     if (merged.flags.includes('village') && !merged.flags.includes('oldtools')) merged.flags.push('oldtools');
+    // The Echo Queen now guards Glimmer Hollow, with her own quest before it. Saves already past that point skip her
+    // (she's counted as beaten, her campfire lit) and keep their place in the story; others meet her on the way.
+    if (data.echoQueen === undefined) {
+      const at = QUESTS.findIndex((q) => q.id === 'echoqueen');
+      const beyond = merged.visited.includes('hollow') || merged.quest > at;
+      if (merged.quest >= at && beyond) merged.quest++;
+      if (beyond && !merged.bosses.includes('echoqueen')) {
+        merged.bosses.push('echoqueen');
+        if (!merged.camps.includes('hollow')) merged.camps.push('hollow');
+      }
+      merged.echoQueen = true;
+    }
     // Saves from before patch notes existed were made on 0.1.0.
     if (data.seenVersion === undefined) merged.seenVersion = '0.1.0';
     return merged;

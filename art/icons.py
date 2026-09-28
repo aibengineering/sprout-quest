@@ -163,6 +163,15 @@ def wing():
     return r
 
 
+def echowing():
+    """The Echo Queen's trophy: a dusky wing that shimmers lilac, with a little crystal at its joint."""
+    r = empty('i')
+    pts = [(-0.45, 0.2), (-0.1, 0.4), (0.4, 0.3), (0.45, -0.05), (0.3, -0.25), (0.15, -0.05), (0.0, -0.3), (-0.15, -0.05), (-0.35, -0.2)]
+    profile(pts, 0.06, toon('#6a4ab8', rim=0.5), r, bevel=0.02)
+    crystal((-0.2, -0.05, 0.05), 0.08, 0.22, toon('#e0d0ff', rim=0.5), r, rot=(0.3, 0, 0.4))
+    return r
+
+
 def crystal_mat():
     r = empty('i')
     for x, h, tilt, c in ((0, 0.8, 0, '#b8a0ff'), (-0.22, 0.5, -0.4, '#8ae8ff'), (0.22, 0.55, 0.4, '#8ae8ff')):
@@ -307,7 +316,7 @@ MATERIALS = {
     'stone': lambda: ore('#9aa0b0', None),
     'glimmer': glimmer_jelly, 'copper': lambda: ore('#8a7a6a', '#ff9a4a'), 'iron': lambda: ore('#5e6272', '#c8dcf8'),
     'crystal': crystal_mat, 'core': core, 'ember': ember, 'horn': horn, 'scale': scale,
-    'royaljelly': royaljelly, 'alphapelt': alphapelt, 'kingcrystal': kingcrystal, 'plank': plank,
+    'royaljelly': royaljelly, 'alphapelt': alphapelt, 'echowing': echowing, 'kingcrystal': kingcrystal, 'plank': plank,
 }
 TOOLS = {
     'axe1': lambda: axe('#9aa0b0', [(0.32, 0.03), (0.46, 0.03), (0.56, 0.3), (0.48, 0.37), (0.4, 0.38), (0.32, 0.37), (0.24, 0.3)]),

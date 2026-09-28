@@ -169,7 +169,7 @@ elif GROUP == 'npc':
 
 elif GROUP == 'icons2':
     # Auto-framed icons for guardians and village buildings.
-    for kind in ('kingslime', 'alphawolf', 'crystalking', 'dragon', 'bigbun', 'scarwolf'):
+    for kind in ('kingslime', 'alphawolf', 'echoqueen', 'crystalking', 'dragon', 'bigbun', 'scarwolf'):
         if not wanted(kind):
             continue
         lib.clear_objects()

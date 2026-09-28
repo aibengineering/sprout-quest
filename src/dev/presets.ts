@@ -177,6 +177,10 @@ export const PRESETS: Preset[] = [
     make: () => base('alphawolf', 'cave', gate('cave').x, gate('cave').y, (s) => tools(s, 2, 2)),
   },
   {
+    id: 'echoqueen', name: 'Echo Queen', desc: 'Lv 11 in iron gear, at the far end of Echo Cavern, before the Glimmer Hollow gate.',
+    make: () => base('echoqueen', 'hollow', gate('hollow').x, gate('hollow').y, (s) => tools(s, 2, 3)),
+  },
+  {
     id: 'hollow', name: 'Glimmer Hollow', desc: 'Lv 11 in iron gear with an Iron Pick, arriving in the Hollow.',
     make: () => base('hollow', 'hollow', map().entryPoint('hollow').x, map().entryPoint('hollow').y, (s) => tools(s, 2, 3)),
   },

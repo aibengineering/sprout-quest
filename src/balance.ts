@@ -52,7 +52,10 @@ export const CHECKPOINTS: Checkpoint[] = [
     id: 'cave', label: 'Echo Cavern', lv: 8, weapon: 'coppersword', armor: 'coppermail', charm: 'toothcharm', training: 1, zone: 'cave', hitsToKill: [2, 5], hitsToDie: [4, 12],
     boss: { kind: 'alphawolf', lv: 9, hitsToKill: [18, 50], hitsToDie: [4, 12] },
   },
-  { id: 'hollow', label: 'Glimmer Hollow', lv: 11, weapon: 'ironsword', armor: 'ironplate', charm: 'toothcharm', training: 2, zone: 'hollow', hitsToKill: [2, 5], hitsToDie: [4, 12] },
+  {
+    id: 'hollow', label: 'Glimmer Hollow', lv: 11, weapon: 'ironsword', armor: 'ironplate', charm: 'toothcharm', training: 2, zone: 'hollow', hitsToKill: [2, 5], hitsToDie: [4, 12],
+    boss: { kind: 'echoqueen', lv: 12, hitsToKill: [18, 50], hitsToDie: [4, 12] },
+  },
   {
     id: 'peak', label: 'Ember Peak', lv: 13, weapon: 'crystalsword', armor: 'crystalmail', charm: 'toothcharm', training: 2, home: 2, zone: 'peak', hitsToKill: [2, 5], hitsToDie: [4, 12],
     boss: { kind: 'crystalking', lv: 14, hitsToKill: [18, 50], hitsToDie: [4, 12] },

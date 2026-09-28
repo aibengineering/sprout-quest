@@ -6,7 +6,7 @@ export type MatId =
   | 'stone' | 'copper' | 'iron'
   | 'wing' | 'crystal' | 'core' | 'glimmer'
   | 'ember' | 'horn' | 'scale'
-  | 'royaljelly' | 'alphapelt' | 'kingcrystal'
+  | 'royaljelly' | 'alphapelt' | 'echowing' | 'kingcrystal'
   /** Sawn at Bram's Sawmill from Oak Logs. */
   | 'plank';
 
@@ -32,6 +32,7 @@ export const MATS: Record<MatId, { name: string; icon: string; where: string }> 
   scale: { name: 'Dragon Scale', icon: '🐉', where: 'Emberwyrm' },
   royaljelly: { name: 'Royal Jelly', icon: '👑', where: 'Trophy · Slime King' },
   alphapelt: { name: 'Alpha Pelt', icon: '🐺', where: 'Trophy · Alpha Woolf' },
+  echowing: { name: 'Echo Wing', icon: '🦇', where: 'Trophy · Echo Queen' },
   kingcrystal: { name: 'King Crystal', icon: '💠', where: 'Trophy · Crystal King' },
   plank: { name: 'Plank', icon: '🪵', where: "Bram's Sawmill · Sowerby" },
 };
@@ -41,7 +42,7 @@ export const MAT_ORDER = Object.keys(MATS) as MatId[];
 export type MonsterKind =
   | 'slime' | 'bunny' | 'shroom' | 'wolf' | 'bat'
   | 'golem' | 'glimmer' | 'imp' | 'magma' | 'dragon'
-  | 'kingslime' | 'alphawolf' | 'crystalking'
+  | 'kingslime' | 'alphawolf' | 'echoqueen' | 'crystalking'
   /** Poppy's story: the bully who stole Mr. Floppers. */
   | 'bigbun'
   /** Bram's story: the scarred Woolf leading the pack at his camp. */
@@ -121,6 +122,10 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
   alphawolf: {
     name: 'Alpha Woolf', lv: 9, hp: 560, atk: 17, def: 6, spd: 110, r: 26, xp: 260, boss: true, title: 'Warden of the Stone Line',
     drops: [{ mat: 'alphapelt', chance: 1, min: 2, max: 2 }, { mat: 'fang', chance: 1, min: 3, max: 5 }],
+  },
+  echoqueen: {
+    name: 'Echo Queen', lv: 12, hp: 860, atk: 25, def: 8, spd: 120, r: 30, xp: 400, boss: true, title: 'Warden of the Echo Line',
+    drops: [{ mat: 'echowing', chance: 1, min: 2, max: 2 }, { mat: 'wing', chance: 1, min: 3, max: 5 }],
   },
   crystalking: {
     name: 'Crystal King', lv: 14, hp: 1000, atk: 31, def: 14, spd: 45, r: 38, xp: 520, boss: true, title: 'Warden of the Crystal Line',
@@ -283,7 +288,7 @@ export const ZONES: Zone[] = [
     theme: { ground: '#8c90a0', ground2: '#858a9a', grass: '#4f8a6a', grassTip: '#7ac89a', path: '#b4b8c4', obstacle: 'boulder', pool: 'water', decor: 'pebble', outside: '#3e4250' },
   },
   {
-    id: 'hollow', name: 'Glimmer Hollow', x0: 158, w: 40, rec: 11, lv: [11, 13], maxEnemies: 3,
+    id: 'hollow', name: 'Glimmer Hollow', guardian: { kind: 'echoqueen', lv: 12, gate: 'rock' }, x0: 158, w: 40, rec: 11, lv: [11, 13], maxEnemies: 3,
     monsters: [{ kind: 'glimmer', w: 3 }, { kind: 'bat', w: 1.5 }, { kind: 'golem', w: 1 }],
     theme: { ground: '#8e89ad', ground2: '#8581a4', grass: '#6a5fb0', grassTip: '#a898f0', path: '#b8b2cc', obstacle: 'crystal', pool: null, decor: 'gem', outside: '#4a4566' },
   },
@@ -444,7 +449,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
       { name: 'Forge', cost: { stone: 4, bark: 3, goo: 2 }, perk: 'Repaired! Craft ★ gear' },
       { name: 'Smithy', cost: { royaljelly: 1, bark: 4, copper: 4 }, perk: 'Craft ★★ gear from copper and woods finds' },
       { name: 'Iron Smithy', cost: { iron: 6, core: 2, pine: 4 }, perk: 'Craft ★★★ gear from iron and cavern finds' },
-      { name: 'Crystal Kiln', cost: { crystal: 6, glimmer: 4, pine: 3 }, perk: 'Craft ★★★★ gear from crystal and glimmer' },
+      { name: 'Crystal Kiln', cost: { crystal: 6, glimmer: 4, echowing: 1 }, perk: 'Craft ★★★★ gear from crystal and glimmer' },
       { name: 'Master Forge', cost: { kingcrystal: 1, pine: 6, crystal: 6 }, perk: 'Craft legendary ★★★★★ gear' },
     ],
   },
@@ -570,8 +575,12 @@ export const QUESTS: Quest[] = [
     reward: { potions: 1 },
   },
   {
+    id: 'echoqueen', chapter: 'Chapter 4', title: 'The Echo Queen', goal: { type: 'boss', kind: 'echoqueen' }, hint: 'Defeat the Echo Queen at the Glimmer Hollow gate',
+    text: "At the far end of Echo Cavern, the Echo Queen guards the way to Glimmer Hollow. When she shrieks the whole cave rings: watch the red rings and slip through the gaps! Her Flappers come when she's hurt. Level 12 would be wise.",
+  },
+  {
     id: 'hollow', chapter: 'Chapter 4', title: 'Glimmer Hollow', goal: { type: 'mats', zone: 'hollow', need: { crystal: 4 } }, hint: 'Mine 4 Crystal in Glimmer Hollow',
-    text: "Past the cavern lies Glimmer Hollow, where the crystals grow. An Iron Pick can chip them, slowly; a Crystal Pick is the real thing. Bring back some crystal, and mind the Glimmer Slimes! Crystal and glimmer will fire up a Crystal Kiln at the Forge, too.",
+    text: "Past the Queen's cavern lies Glimmer Hollow, where the crystals grow. An Iron Pick can chip them, slowly; a Crystal Pick is the real thing. Bring back some crystal, and mind the Glimmer Slimes! Crystal and glimmer will fire up a Crystal Kiln at the Forge, too.",
     reward: { potions: 1 },
   },
   {
