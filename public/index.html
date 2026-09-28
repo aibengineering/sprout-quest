@@ -80,6 +80,25 @@
       <p class="hint"><span class="touch-only">Drag anywhere to move · Tap buttons to fight</span><span class="kbd-only">WASD to move · J attack · K dodge · L skill · E interact · B bag · Q journal</span><br /><span class="touch-only">Best in portrait · Add to home screen for fullscreen</span></p>
     </div>
 
+    <script>
+      // Until the game's code is running, the loading screen can't show progress: if it fails or is slow, say so.
+      (function () {
+        var say = function (msg) {
+          var l = document.getElementById('loading');
+          if (l && !l.hidden) document.getElementById('load-text').textContent = msg;
+        };
+        addEventListener('error', function (e) {
+          var what = e.message || ((e.target && (e.target.src || e.target.href)) || 'a file') + ' failed to load';
+          say("Couldn't start the game: " + what + '. Try reloading.');
+        }, true);
+        addEventListener('unhandledrejection', function (e) {
+          say("Couldn't start the game: " + ((e.reason && e.reason.message) || e.reason) + '. Try reloading.');
+        });
+        setTimeout(function () {
+          if (document.querySelector('.lbar.waiting')) say('Still downloading the game… (slow connection?)');
+        }, 8000);
+      })();
+    </script>
     <script type="module" src="main.js"></script>
   </body>
 </html>
