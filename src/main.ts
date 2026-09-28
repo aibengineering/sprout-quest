@@ -203,8 +203,8 @@ function frame(now: number) {
   updateTransitions(dt);
   if (G.mode !== 'title') {
     G.save.playtime += dt;
-    // Minute meals (Goo Jelly) count down while you're out on the map.
-    if (G.mode === 'world') mealTick(G.save, dt);
+    // Granny's meals count down while you play (on the map, fighting, chopping), not while you're in a menu.
+    if (G.mode === 'world' || G.mode === 'battle' || G.mode === 'gather') mealTick(G.save, dt);
     trackTime(G.battle?.setup.zone.id ?? G.over.currentZone.id, ACTIVITY[G.mode], dt);
   }
   // A fight on the map can end inside update() and hand straight back to the overworld, so hold on to it for this frame.

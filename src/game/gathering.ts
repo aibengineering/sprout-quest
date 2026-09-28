@@ -10,7 +10,7 @@ import { G, persist } from './context';
 import { celebrateSkill, lootLines } from './rewards';
 import { progressQuests } from './story';
 import { storyFelled, storyNoisy, storyTooLoud } from './stories';
-import { afterChop, sweetBoost } from '../kitchen';
+import { sweetBoost } from '../kitchen';
 
 /** The minigame in progress, if any, and what it paid out once the node gave way. */
 export let chop: { game: Chop; obj: WorldObj; view: GatherView; reward?: GatherReward; fromLv?: number; shown?: ReturnType<typeof revealed>; noise?: number } | null = null;
@@ -98,7 +98,6 @@ export function updateGather(dt: number) {
     if (r) {
       G.audio.play('swing');
       G.over.chopHit(r === 'perfect' ? 2 : r === 'hit' ? 1 : 0.3);
-      if (NODES[c.obj.node!].skill === 'wood') afterChop(G.save);
       if (c.noise !== undefined) {
         c.noise += NOISE[r];
         if (c.noise >= 1) {

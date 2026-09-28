@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { afterChop, afterWin, cook, kitchenOpen, knownMeals, mealLeft, mealTick, repelBelow, sweetBoost, xpBoost } from '../src/kitchen';
+import { afterWin, cook, kitchenOpen, knownMeals, mealLeft, mealTick, repelBelow, sweetBoost, xpBoost } from '../src/kitchen';
 import { newState } from '../src/state';
 
 /** A save that's finished Poppy's story, with plenty of everything. */
@@ -38,13 +38,15 @@ describe("Granny's Kitchen", () => {
     expect(xpBoost(s)).toBe(1);
   });
 
-  test('Fluff Pancakes: more XP for five fights, then gone', () => {
+  test('Fluff Pancakes: more XP for five minutes of play, however many fights, then gone', () => {
     const s = fed();
     cook(s, 'pancakes');
-    for (let i = 0; i < 5; i++) {
-      expect(xpBoost(s)).toBeGreaterThan(1);
-      afterWin(s, 100);
-    }
+    expect(mealLeft(s)?.left).toBe('5m');
+    for (let i = 0; i < 20; i++) afterWin(s, 100);
+    expect(xpBoost(s)).toBeGreaterThan(1);
+    mealTick(s, 299);
+    expect(mealLeft(s)?.left).toBe('1s');
+    mealTick(s, 2);
     expect(xpBoost(s)).toBe(1);
     expect(mealLeft(s)).toBeNull();
   });
@@ -59,14 +61,14 @@ describe("Granny's Kitchen", () => {
     expect(s.hp).toBe(100);
   });
 
-  test('Goo Jelly keeps monsters two levels below you away for three minutes of walking', () => {
+  test('Goo Jelly keeps monsters two levels below you away for three minutes', () => {
     const s = fed();
     s.lv = 8;
     expect(repelBelow(s)).toBeNull();
     cook(s, 'goojelly');
     expect(repelBelow(s)).toBe(6);
     expect(mealLeft(s)?.left).toBe('3m');
-    // Fights don't use it up; time on the map does.
+    // Fights don't use it up; time does.
     afterWin(s, 100);
     expect(repelBelow(s)).toBe(6);
     mealTick(s, 179);
@@ -75,14 +77,12 @@ describe("Granny's Kitchen", () => {
     expect(repelBelow(s)).toBeNull();
   });
 
-  test("Woodcutter's Stew widens the sweet spot for ten chops", () => {
+  test("Woodcutter's Stew widens the sweet spot for four minutes", () => {
     const s = fed();
     s.flags.push('bram:stew');
     cook(s, 'stew');
-    for (let i = 0; i < 10; i++) {
-      expect(sweetBoost(s)).toBeGreaterThan(1);
-      afterChop(s);
-    }
+    expect(sweetBoost(s)).toBeGreaterThan(1);
+    mealTick(s, 241);
     expect(sweetBoost(s)).toBe(1);
   });
 });

@@ -1,5 +1,6 @@
-// Granny's Kitchen: meals you eat for a short boost. One at a time; each lasts a number of fights, minutes on the map,
-// or chops. They're the repeatable way to spend the materials you pile up (see the story bible, Side quests).
+// Granny's Kitchen: meals you eat for a short boost. One at a time; each lasts a few minutes of play (on the map, in
+// fights, chopping; not in menus). They're a quick, repeatable way to spend the materials you pile up, not something
+// to make last (see the story bible, Side quests).
 import type { Recipe } from './data';
 import { hasMats, spend } from './rules';
 import type { SaveState } from './state';
@@ -13,8 +14,8 @@ export interface Meal {
   recipe: Recipe;
   /** What it does, for the menu. */
   desc: string;
-  /** What it counts down in, and how many. */
-  lasts: { per: 'fights' | 'seconds' | 'chops'; n: number };
+  /** Seconds of play it lasts. */
+  seconds: number;
   /** Who taught Granny this one (missing: she knew it all along). */
   from?: string;
 }
@@ -22,19 +23,19 @@ export interface Meal {
 export const MEALS: Record<MealId, Meal> = {
   pancakes: {
     id: 'pancakes', name: 'Fluff Pancakes', icon: '🥞', recipe: { fluff: 5, goo: 3 },
-    desc: '+15% XP from your next 5 fights.', lasts: { per: 'fights', n: 5 },
+    desc: '+15% XP from fights for 5 minutes.', seconds: 300,
   },
   tea: {
     id: 'tea', name: 'Clover Tea', icon: '🍵', recipe: { clover: 2 },
-    desc: 'After each of your next 5 wins, heal a little.', lasts: { per: 'fights', n: 5 },
+    desc: 'Heal a little after every win, for 5 minutes.', seconds: 300,
   },
   goojelly: {
     id: 'goojelly', name: 'Goo Jelly', icon: '🍮', recipe: { goo: 8 },
-    desc: 'For 3 minutes, monsters well below your level keep away.', lasts: { per: 'seconds', n: 180 },
+    desc: 'Monsters well below your level keep away, for 3 minutes.', seconds: 180,
   },
   stew: {
     id: 'stew', name: "Woodcutter's Stew", icon: '🍲', recipe: { pine: 3, cap: 2 },
-    desc: 'A wider sweet spot for your next 10 chops.', lasts: { per: 'chops', n: 10 }, from: 'Bram',
+    desc: 'A wider sweet spot when chopping, for 4 minutes.', seconds: 240, from: 'Bram',
   },
 };
 
@@ -55,48 +56,42 @@ export function cook(s: SaveState, id: MealId): 'ok' | 'missing' | 'unknown' {
   if (!m || !kitchenOpen(s) || !knownMeals(s).includes(id)) return 'unknown';
   if (!hasMats(s, m.recipe)) return 'missing';
   spend(s, m.recipe);
-  s.meal = { id, left: m.lasts.n };
+  s.meal = { id, left: m.seconds };
   return 'ok';
 }
 
 /** The meal you're on, if it's this one. */
 export const eating = (s: SaveState, id: MealId) => s.meal?.id === id && s.meal.left > 0;
 
-/** Counts a meal down; it's gone when it runs out. */
-function use(s: SaveState, per: Meal['lasts']['per'], n = 1) {
-  if (!s.meal || MEALS[s.meal.id].lasts.per !== per) return;
-  s.meal.left -= n;
-  if (s.meal.left <= 0) s.meal = null;
-}
 
 /** XP multiplier for a win. */
 export const xpBoost = (s: SaveState) => (eating(s, 'pancakes') ? 1.15 : 1);
 
-/** After a win: Clover Tea heals a little (returns how much), and fight meals count down. */
+/** After a win, Clover Tea heals a little; returns how much. */
 export function afterWin(s: SaveState, maxHp: number): number {
-  let healed = 0;
-  if (eating(s, 'tea')) {
-    healed = Math.min(maxHp - s.hp, Math.round(maxHp * 0.15));
-    s.hp += healed;
-  }
-  use(s, 'fights');
+  if (!eating(s, 'tea')) return 0;
+  const healed = Math.min(maxHp - s.hp, Math.round(maxHp * 0.15));
+  s.hp += healed;
   return healed;
 }
 
 /** Goo Jelly: roaming monsters at or below this level keep away (null when it's not on). */
 export const repelBelow = (s: SaveState) => (eating(s, 'goojelly') ? s.lv - 2 : null);
 
-/** Time on the map counts down minute meals. */
-export const mealTick = (s: SaveState, dt: number) => use(s, 'seconds', dt);
+/** Playing (not sitting in a menu) counts your meal down; it's gone when it runs out. */
+export function mealTick(s: SaveState, dt: number) {
+  if (!s.meal) return;
+  s.meal.left -= dt;
+  if (s.meal.left <= 0) s.meal = null;
+}
 
-/** Woodcutter's Stew widens the sweet spot for the chops it has left; a chop counts it down. */
+/** Woodcutter's Stew widens the sweet spot on trees. */
 export const sweetBoost = (s: SaveState) => (eating(s, 'stew') ? 1.3 : 1);
-export const afterChop = (s: SaveState) => use(s, 'chops');
 
 /** What's left of your meal, for the HUD ("🥞 3"). */
 export function mealLeft(s: SaveState): { icon: string; name: string; left: string } | null {
   if (!s.meal || s.meal.left <= 0) return null;
-  const m = MEALS[s.meal.id];
-  const left = m.lasts.per === 'seconds' ? `${Math.ceil(s.meal.left / 60)}m` : String(Math.ceil(s.meal.left));
+  const m = MEALS[s.meal.id], secs = Math.ceil(s.meal.left);
+  const left = secs >= 60 ? `${Math.ceil(secs / 60)}m` : `${secs}s`;
   return { icon: m.icon, name: m.name, left };
 }

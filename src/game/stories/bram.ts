@@ -264,7 +264,7 @@ export const BRAM_STORY: Story = {
         });
         G.save.flags.push('bram:stew');
         persist();
-        await paused(() => G.ui.itemFound('meal_stew', "Woodcutter's Stew", "Granny can cook it now: a wider sweet spot for your next 10 chops. Pine Logs and Shroom Caps.", '🍲', 'New recipe'));
+        await paused(() => G.ui.itemFound('meal_stew', "Woodcutter's Stew", "Granny can cook it now: a wider sweet spot when chopping, for 4 minutes. Pine Logs and Shroom Caps.", '🍲', 'New recipe'));
       },
     },
   ],
