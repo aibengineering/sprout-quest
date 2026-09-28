@@ -29,7 +29,8 @@ export interface LoadProgress { stage: 'sprites' | 'icons'; done: number; total:
 async function fetchWithProgress(url: string, onBytes: (got: number, total: number) => void): Promise<Blob> {
   const res = await fetch(url);
   if (!res.ok || !res.body) throw new Error(`${url}: ${res.status}`);
-  const total = Number(res.headers.get('content-length') ?? 0);
+  // Bytes arrive uncompressed, so a gzipped download's length doesn't count them: use the size the dev server gives.
+  const total = Number(res.headers.get('x-size') ?? (res.headers.get('content-encoding') ? 0 : res.headers.get('content-length')) ?? 0);
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
   let got = 0;

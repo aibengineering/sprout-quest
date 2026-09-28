@@ -81,11 +81,13 @@
     </div>
 
     <script>
-      // Until the game's code is running, the loading screen can't show progress: if it fails or is slow, say so.
+      // The game's code is the first big download, and until it runs nothing else can show progress: fetch it here,
+      // counting the bytes on the bar, then start it (the browser takes it from its cache). If anything fails, say so.
       (function () {
+        var fill = document.getElementById('load-fill'), text = document.getElementById('load-text'), got = 0;
         var say = function (msg) {
           var l = document.getElementById('loading');
-          if (l && !l.hidden) document.getElementById('load-text').textContent = msg;
+          if (l && !l.hidden) text.textContent = msg;
         };
         addEventListener('error', function (e) {
           var what = e.message || ((e.target && (e.target.src || e.target.href)) || 'a file') + ' failed to load';
@@ -95,10 +97,38 @@
           say("Couldn't start the game: " + ((e.reason && e.reason.message) || e.reason) + '. Try reloading.');
         });
         setTimeout(function () {
-          if (document.querySelector('.lbar.waiting')) say('Still downloading the game… (slow connection?)');
+          if (!got && document.querySelector('.lbar.waiting')) say('Still connecting… (slow connection?)');
         }, 8000);
+        var started = false;
+        var start = function () {
+          if (started) return;
+          started = true;
+          var s = document.createElement('script');
+          s.type = 'module';
+          s.src = 'main.js';
+          document.body.appendChild(s);
+        };
+        if (!window.fetch || !window.ReadableStream) return start();
+        var kb = function (n) { return Math.round(n / 1024) + ' KB'; };
+        fetch('main.js').then(function (r) {
+          if (!r.ok || !r.body) return start();
+          // The size before compression (the dev server says; otherwise the download's own length, if known).
+          var total = +(r.headers.get('x-size') || (r.headers.get('content-encoding') ? 0 : r.headers.get('content-length')) || 0);
+          var reader = r.body.getReader();
+          fill.parentElement.classList.remove('waiting');
+          fill.style.width = '0%';
+          var pump = function () {
+            return reader.read().then(function (c) {
+              if (c.done) return start();
+              got += c.value.length;
+              if (total) fill.style.width = Math.min(20, (20 * got) / total) + '%';
+              text.textContent = 'Downloading the game… ' + kb(got) + (total ? ' / ' + kb(total) : '');
+              return pump();
+            });
+          };
+          return pump();
+        }).catch(start);
       })();
     </script>
-    <script type="module" src="main.js"></script>
   </body>
 </html>

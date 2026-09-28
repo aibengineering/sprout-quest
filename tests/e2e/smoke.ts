@@ -78,7 +78,8 @@ async function closeDialogs(page: Page, max = 8) {
 async function waitFor(page: Page, what: string, cond: () => Promise<boolean>, ms = 6000) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
-    if (await cond()) return true;
+    // Not there yet (the game object is created once its code has downloaded and started) counts as not yet.
+    if (await cond().catch(() => false)) return true;
     await page.waitForTimeout(100);
   }
   throw new Error(`timed out waiting for ${what}`);

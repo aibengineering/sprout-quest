@@ -25,9 +25,10 @@ export async function boot() {
     text.textContent = msg;
   };
   fill.parentElement!.classList.remove('waiting');
-  show(0.03, 'Fetching monsters and scenery…');
+  // The page's own loader filled the first fifth downloading this code.
+  show(0.2, 'Fetching monsters and scenery…');
   const mb = (n: number) => (n / 1048576).toFixed(1);
-  const ok = await loadAssets((p) => show(0.05 + 0.6 * (p.total ? p.done / p.total : 0), `Fetching scenery… ${mb(p.done)} / ${mb(p.total)} MB`));
+  const ok = await loadAssets((p) => show(0.2 + 0.45 * (p.total ? p.done / p.total : 0), `Fetching scenery… ${mb(p.done)} / ${mb(p.total)} MB`));
   if (!ok) show(0.65, 'Sprites unavailable: using simple drawings');
   // Characters are 3D models: the hero in their armor, the villagers and every monster. The other armors follow later.
   const armor = loadState()?.equip.armor ?? 'tunic';
