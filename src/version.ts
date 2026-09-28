@@ -32,6 +32,7 @@ export const PATCH_NOTES: PatchNote[] = [
       '〰️ Whips feel like whips: the rope trails your hand, unrolls and cracks at the tip. Tip hits crack for full damage (the rest of the rope only grazes), the third lash is an overhead crack that stuns, and the whip hangs coiled at your hip between swings.',
       '🗡️ Your weapon is really in your hand now: your arm swings with every attack, and on the map swords and hammers ride across your back, whips coil at your hip and wands sit in your belt.',
       '📐 Building plans show what you have now next to what you will build, what it gives you and exactly what you are still missing; ones you can build right away glow and sit at the top.',
+      '⚒ The Forge has five levels now, one per star tier: Forge, Smithy, Iron Smithy, Crystal Kiln and Master Forge. Each area\'s materials upgrade it to work them, so every upgrade unlocks gear you can make straight away. Your forge keeps every recipe it had.',
       "👢 A new kind of reward: perks. Finish Poppy's story for one that makes getting around a lot quicker.",
       '📔 The Journal lists your side stories, and the Bag your perks.',
       "🪓 Chopping and mining look and feel new: a detailed tree or rock close up, the axe or pick for your tool's tier, and every blow showing, with chips, sawdust, leaves, sparks and dust flying.",

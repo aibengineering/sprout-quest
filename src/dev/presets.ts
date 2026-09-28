@@ -2,7 +2,7 @@
 // levels and progress a player would have there. Gear follows the balance checkpoints (src/balance.ts), so a preset
 // plays the way the balance model expects.
 import { CHECKPOINTS } from '../balance';
-import { GEAR, MAX_POTIONS, MAT_ORDER, PROJECTS, QUESTS, TOOLS, ZONES, zoneById, zoneAtX, type MatId, type ZoneId } from '../data';
+import { GEAR, MAX_POTIONS, forgeLevelFor, MAT_ORDER, PROJECTS, QUESTS, TOOLS, ZONES, zoneById, zoneAtX, type MatId, type ZoneId } from '../data';
 import { playerStats } from '../rules';
 import { newState, type SaveState } from '../state';
 import { GATE_Y, World } from '../world';
@@ -52,6 +52,8 @@ function kit(s: SaveState, checkpoint: string) {
   for (const id of s.owned) for (const [k, n] of Object.entries(GEAR[id]?.needs ?? {})) s.skills[k as 'wood' | 'mine'].lv = Math.max(s.skills[k as 'wood' | 'mine'].lv, n);
   const w = GEAR[c.weapon];
   if (w.style) s.mastery[w.style].lv = Math.max(s.mastery[w.style].lv, 1 + (w.tier ?? 0) * 2);
+  // A Forge good enough to have made what you're wearing.
+  s.build.forge = Math.max(s.build.forge, ...[c.weapon, c.armor, c.charm].filter((id): id is string => !!id).map((id) => forgeLevelFor(GEAR[id])));
 }
 
 /** Tool tiers for chopping and mining. */

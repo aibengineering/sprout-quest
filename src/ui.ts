@@ -119,7 +119,7 @@ const bossIcon = (k: MonsterKind, cls = 'icon') => icon(`boss_${k}`, MONSTERS[k]
 function goalIcon(q: Quest): string {
   const g = q.goal;
   if (g.type === 'boss') return bossIcon(g.kind, 'icon xl');
-  if (g.type === 'build') return icon(`b_${g.project === 'forge' ? ['forge', 'forge2', 'forge3'][g.level - 1] : g.project + g.level}`, PROJECTS[g.project].icon, 'icon xl');
+  if (g.type === 'build') return icon(`b_${g.project === 'forge' ? forgeArt(g.level) : g.project + g.level}`, PROJECTS[g.project].icon, 'icon xl');
   if (g.type === 'kills') return icon('goo', '⚔️', 'icon xl');
   if (g.type === 'craft') return icon('jelly', '⚒', 'icon xl');
   return icon('npc_elder', '🌿', 'icon xl');
@@ -127,7 +127,7 @@ function goalIcon(q: Quest): string {
 
 /** Every icon the menus can show (materials, gear, tools, guardians, buildings, the Elder), for preloading. */
 export function allIconIds(): string[] {
-  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'campfire',
+  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire',
     ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`))];
   return [
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
@@ -138,10 +138,13 @@ export function allIconIds(): string[] {
   ];
 }
 
+/** The forge's art for a level (the repaired one is plain "forge"). */
+export const forgeArt = (level: number) => (level <= 0 ? 'forge0' : level === 1 ? 'forge' : `forge${level}`);
+
 function buildingIcon(id: ProjectId, level: number): string {
   // Before it's built: the old forge's ruins, the Waystone's broken stones, or an empty plot.
   if (level === 0) return icon(id === 'warp' ? 'b_warp0' : id === 'forge' ? 'b_forge0' : 'b_plot', PROJECTS[id].icon, 'icon lg');
-  const name = id === 'forge' ? ['forge', 'forge2', 'forge3'][level - 1] : `${id}${level}`;
+  const name = id === 'forge' ? forgeArt(level) : `${id}${level}`;
   return icon(`b_${name}`, PROJECTS[id].icon, 'icon lg');
 }
 

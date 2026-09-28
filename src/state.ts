@@ -52,6 +52,8 @@ export interface SaveState {
   stories: Record<string, number>;
   /** Lasting upgrades earned from side stories (e.g. 'trailboots'). */
   perks: string[];
+  /** Set once the Forge has its five levels (older saves had three: Smithy was ★★★–★★★★, Master Forge the third). */
+  forgeLevels?: 5;
   /** Recipes you've seen in the Forge; ones revealed since show as new (missing: everything revealed counts as seen). */
   forgeSeen?: string[];
 }
@@ -99,6 +101,7 @@ export function newState(): SaveState {
     stories: {},
     perks: [],
     forgeSeen: [],
+    forgeLevels: 5,
   };
 }
 
@@ -142,6 +145,11 @@ export function loadState(): SaveState | null {
     if (data.quest === undefined) {
       merged.crafted = Math.max(0, merged.owned.length - 2);
       if ((data.bossWins ?? 0) > 0) merged.bosses = ['dragon'];
+    }
+    // The Forge went from three levels to five (one per tier): nobody loses recipes they could make.
+    if (data.forgeLevels === undefined) {
+      merged.build.forge = [0, 1, 4, 5][merged.build.forge] ?? merged.build.forge;
+      merged.forgeLevels = 5;
     }
     // Saves from before patch notes existed were made on 0.1.0.
     if (data.seenVersion === undefined) merged.seenVersion = '0.1.0';

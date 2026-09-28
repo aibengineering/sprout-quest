@@ -67,13 +67,14 @@ describe('village', () => {
     for (const k in s.mastery) s.mastery[k as keyof typeof s.mastery].lv = 10;
     for (const k in s.skills) s.skills[k as keyof typeof s.skills].lv = 10;
     expect(craftGear(s, 'jellywhip')).toBe('forge');
-    s.build.forge = 1;
-    expect(craftGear(s, 'batwhip')).toBe('forge');
-    expect(craftGear(s, 'jellywhip')).toBe('ok');
-    s.build.forge = 2;
-    expect(craftGear(s, 'batwhip')).toBe('ok');
-    expect(craftGear(s, 'crystalsword')).toBe('ok');
-    expect(craftGear(s, 'emberblade')).toBe('forge');
+    // One Forge level per tier.
+    const steps: [number, string, string][] = [[1, 'jellywhip', 'sporewhip'], [2, 'sporewhip', 'batwhip'], [3, 'batwhip', 'glimmerwhip'], [4, 'glimmerwhip', 'dragontail']];
+    for (const [lv, ok, locked] of steps) {
+      s.build.forge = lv;
+      expect({ lv, ok: craftGear(s, ok), locked: craftGear(s, locked) }).toEqual({ lv, ok: 'ok', locked: 'forge' });
+    }
+    s.build.forge = 5;
+    expect(craftGear(s, 'emberblade')).toBe('ok');
   });
 
   test('every construction cost is obtainable', () => {

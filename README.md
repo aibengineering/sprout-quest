@@ -152,8 +152,8 @@ for the materials it needs.
 - **Guardian gates**: each road is physically blocked until you beat its guardian, like gyms. Guardians have their
   own attack patterns and summon helpers. Beating one opens the road, lights a 🔥 **campfire checkpoint** (heal, respawn,
   warp point) and drops a **trophy** needed for the next village upgrade.
-- **Village construction**: Home (Tent → Cottage → Manor, +max HP), Forge (Forge → Smithy → Master Forge, gating
-  ★★★ and ★★★★★ recipes), Garden (more free potions), Training Yard (+attack) and Waystone (fast travel). Buildings
+- **Village construction**: Home (Tent → Cottage → Manor, +max HP), Forge (Forge → Smithy → Iron Smithy → Crystal Kiln → Master
+  Forge, one level per star tier of gear), Garden (more free potions), Training Yard (+attack) and Waystone (fast travel). Buildings
   visibly change in the village.
 - **Levels you can feel**: a combat level-up pauses the game on its own screen with your stat changes and what you're
   now ready for (a guardian, a new area). Woodcutting, Mining and weapon handling levels get a screen too, listing what

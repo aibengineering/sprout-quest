@@ -33,4 +33,19 @@ describe('version and patch notes', () => {
     saveState(old as ReturnType<typeof newState>);
     expect(loadState()!.seenVersion).toBe('0.1.0');
   });
+
+  test('saves from the three-level Forge keep every recipe they had (Smithy → Crystal Kiln, Master → Master)', async () => {
+    const { loadState, newState, saveState } = await import('../src/state');
+    for (const [was, now] of [[1, 1], [2, 4], [3, 5]]) {
+      const old = newState() as Partial<ReturnType<typeof newState>>;
+      delete old.forgeLevels;
+      old.build!.forge = was;
+      saveState(old as ReturnType<typeof newState>);
+      expect({ was, now: loadState()!.build.forge }).toEqual({ was, now });
+    }
+    const fresh = newState();
+    fresh.build.forge = 2;
+    saveState(fresh);
+    expect(loadState()!.build.forge).toBe(2);
+  });
 });

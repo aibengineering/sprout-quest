@@ -196,6 +196,26 @@ def forge(level=1):
         profile([(0, 0), (0.55, 0), (0.55, -0.9), (0.27, -0.7), (0, -0.9)], 0.04, toon('#6a9ae0'), root, loc=(-2.6, -d / 2 - 0.1, 1.9), bevel=0.01)
         sphere((-2.35, -d / 2 - 0.9, 0.35), (0.3, 0.22, 0.2), toon('#8a5a3a'), root)
     if level >= 3:
+        # Iron Smithy: iron bands across the walls, an iron ridge on the roof and a quench barrel by the door.
+        for z in (0.5, 1.45):
+            box((0, -d / 2 - 0.03, z), (w + 0.04, 0.05, 0.1), toon('#5e6272'), root, bevel=0.02, line=0.01)
+        box((0, 0, 3.32), (0.34, d + 0.62, 0.16), toon('#5e6272'), root, bevel=0.04, line=0.012)
+        for x in (-w / 2 - 0.2, w / 2 + 0.2):
+            box((x, -d / 2 - 0.28, 1.83), (0.22, 0.12, 0.14), toon('#5e6272'), root, bevel=0.03, line=0.01)
+        barrel = empty('barrel', root, (-2.3, -d / 2 - 0.5, 0))
+        cylinder((0, 0, 0.3), 0.3, 0.6, toon('#7a5238'), barrel, seg=16)
+        for z in (0.12, 0.48):
+            torus((0, 0, z), 0.31, 0.025, toon('#4a4d5c'), barrel, seg=20, line=0)
+        cylinder((0, 0, 0.6), 0.26, 0.02, toon('#6ac8f0', rim=0.5), barrel, seg=16, line=0)
+    if level >= 4:
+        # Crystal Kiln: a domed kiln on the right, crystals growing from it and its mouth glowing blue.
+        kiln = empty('kiln', root, (w / 2 + 0.75, -0.3, 0))
+        kiln.scale = (1.35, 1.35, 1.35)
+        lathe([(0.0001, 0.0), (0.75, 0.0), (0.72, 0.6), (0.45, 1.15), (0.2, 1.3), (0.0001, 1.32)], toon('#8a8090'), kiln, seg=20)
+        box((0, -0.68, 0.4), (0.45, 0.1, 0.45), toon('#9ae6ff', emit=0.9), kiln, bevel=0.15, line=0.01)
+        for x, y, h, tilt, col in ((-0.2, 0, 0.55, -0.4, '#9ae6ff'), (0.1, 0.1, 0.7, 0.2, '#c8b0ff'), (0.3, -0.1, 0.45, 0.5, '#9ae6ff')):
+            crystal((x, y, 1.05), 0.09, h, toon(col, rim=0.5, emit=0.2), kiln, rot=(0, tilt, 0), sides=6)
+    if level >= 5:
         # Master forge: golden anvil, glowing crucible and a crown banner.
         box((1.9, -d / 2 - 0.55, 0.5), (0.62, 0.3, 0.18), toon('#ffd35a', rim=0.4), root, bevel=0.05)
         lathe([(0.0001, 0.0), (0.35, 0.0), (0.4, 0.45), (0.3, 0.45), (0.0001, 0.3)], toon('#5a5a6a'), root, loc=(0.4, -d / 2 - 0.6, 0), seg=16)
@@ -589,6 +609,8 @@ SCENERY['forge0'] = (forge_ruins, 480, 380)
 SCENERY['forge'] = (forge, 480, 420)
 SCENERY['forge2'] = (lambda: forge(2), 520, 420)
 SCENERY['forge3'] = (lambda: forge(3), 520, 420)
+SCENERY['forge4'] = (lambda: forge(4), 600, 420)
+SCENERY['forge5'] = (lambda: forge(5), 600, 420)
 SCENERY['home1'] = (tent, 300, 260)
 SCENERY['home2'] = (lambda: house('#6ac86a'), 380, 360)
 SCENERY['home3'] = (manor, 420, 480)

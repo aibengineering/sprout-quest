@@ -300,9 +300,9 @@ export function zoneAtX(x: number): Zone {
 // ----------------------------------------------------------------------------- forge gating
 
 /** Forge level needed to craft each recipe: ★–★★ at the Forge, ★★★–★★★★ at the Smithy, ★★★★★ at the Master Forge. */
+/** The Forge level that works a piece of gear: one per tier (★ needs the repaired Forge, ★★★★★ the Master Forge). */
 export function forgeLevelFor(g: Gear): number {
-  const t = g.tier ?? 0;
-  return t >= 5 ? 3 : t >= 3 ? 2 : 1;
+  return Math.min(5, Math.max(1, g.tier ?? 0));
 }
 
 /** Weapon handling needed to forge a weapon of each tier: stick with a class and it lets you forge its better weapons. */
@@ -427,9 +427,12 @@ export const PROJECTS: Record<ProjectId, Project> = {
   },
   forge: {
     name: 'Forge', icon: '⚒',
+    // One level per tier of gear: each area's materials upgrade the Forge to work them.
     levels: [
-      { name: 'Forge', cost: { goo: 4, fluff: 3 }, perk: 'Repaired! Craft ★ and ★★ gear' },
-      { name: 'Smithy', cost: { royaljelly: 1, bark: 4, copper: 4 }, perk: 'Craft ★★★ and ★★★★ gear' },
+      { name: 'Forge', cost: { goo: 4, fluff: 3 }, perk: 'Repaired! Craft ★ gear' },
+      { name: 'Smithy', cost: { royaljelly: 1, bark: 4, copper: 4 }, perk: 'Craft ★★ gear from copper and woods finds' },
+      { name: 'Iron Smithy', cost: { iron: 6, core: 2, pine: 4 }, perk: 'Craft ★★★ gear from iron and cavern finds' },
+      { name: 'Crystal Kiln', cost: { crystal: 6, glimmer: 4, pine: 3 }, perk: 'Craft ★★★★ gear from crystal and glimmer' },
       { name: 'Master Forge', cost: { kingcrystal: 1, pine: 6, crystal: 6 }, perk: 'Craft legendary ★★★★★ gear' },
     ],
   },
@@ -525,12 +528,12 @@ export const QUESTS: Quest[] = [
   },
   {
     id: 'smithy', chapter: 'Chapter 2', title: 'A Hotter Forge', goal: { type: 'build', project: 'forge', level: 2 }, hint: 'Mine Copper, upgrade the Forge to a Smithy',
-    text: "That Royal Jelly is just what the forge needs, with some copper for the anvil! There are copper veins in Whisper Woods. A Stone Pick can chip at them, slowly; a Copper Pick made from that copper is much quicker. Then upgrade the forge to craft ★★★ and ★★★★ gear.",
+    text: "That Royal Jelly is just what the forge needs, with some copper for the anvil! There are copper veins in Whisper Woods. A Stone Pick can chip at them, slowly; a Copper Pick made from that copper is much quicker. Then upgrade the forge to a Smithy to craft ★★ gear.",
     reward: { mats: { bark: 2 } },
   },
   {
     id: 'alphawolf', chapter: 'Chapter 3', title: 'Howl in the Woods', goal: { type: 'boss', kind: 'alphawolf' }, hint: 'Defeat the Alpha Woolf at the Echo Cavern gate',
-    text: "Deep in Whisper Woods, the Alpha Woolf guards the road to Echo Cavern, where the iron is. It's fast, and its pack comes when it howls. Level 9 or so, please!",
+    text: "Deep in Whisper Woods, the Alpha Woolf guards the road to Echo Cavern, where the iron is. It's fast, and its pack comes when it howls. Level 9 or so, please! Bring back iron and a Pebblor core and the Forge can become an Iron Smithy.",
   },
   {
     id: 'warp', chapter: 'Chapter 3', title: 'The Waystone', goal: { type: 'build', project: 'warp', level: 1 }, hint: 'Build the Waystone in the village',
@@ -539,7 +542,7 @@ export const QUESTS: Quest[] = [
   },
   {
     id: 'hollow', chapter: 'Chapter 4', title: 'Glimmer Hollow', goal: { type: 'mats', zone: 'hollow', need: { crystal: 4 } }, hint: 'Mine 4 Crystal in Glimmer Hollow',
-    text: "Past the cavern lies Glimmer Hollow, where the crystals grow. An Iron Pick can chip them, slowly; a Crystal Pick is the real thing. Bring back some crystal, and mind the Glimmer Slimes!",
+    text: "Past the cavern lies Glimmer Hollow, where the crystals grow. An Iron Pick can chip them, slowly; a Crystal Pick is the real thing. Bring back some crystal, and mind the Glimmer Slimes! Crystal and glimmer will fire up a Crystal Kiln at the Forge, too.",
     reward: { potions: 1 },
   },
   {
@@ -547,7 +550,7 @@ export const QUESTS: Quest[] = [
     text: 'The Crystal King sits at the end of Glimmer Hollow, on the road to Ember Peak. Its crystals burst out of the ground, so watch for the red marks! Level 14 would be wise.',
   },
   {
-    id: 'master', chapter: 'Chapter 5', title: 'Master Forge', goal: { type: 'build', project: 'forge', level: 3 }, hint: 'Upgrade the Forge to a Master Forge',
+    id: 'master', chapter: 'Chapter 5', title: 'Master Forge', goal: { type: 'build', project: 'forge', level: 5 }, hint: 'Upgrade the Forge to a Master Forge',
     text: 'A King Crystal! Now the forge can work ember and dragon steel into legendary gear. Upgrade it and gear up for the peak.',
     reward: { mats: { ember: 3 } },
   },

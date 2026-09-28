@@ -3,6 +3,7 @@ import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './
 import { currentQuest } from './quests';
 import { Actors, type Actor } from './actors';
 import { hasModel, type Held } from './models';
+import { forgeArt } from './ui';
 import { drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from './assets';
 import { drawBubble } from './bubble';
 import { spriteScale } from './battle/monsters';
@@ -912,7 +913,7 @@ export class Overworld {
   private buildingSprite(o: WorldObj): { name: string; back: number } | null {
     const lv = (id: keyof SaveState['build']) => this.save.build[id];
     switch (o.kind) {
-      case 'forge': return { name: ['forge0', 'forge', 'forge2', 'forge3'][lv('forge')] ?? 'forge', back: 0.42 };
+      case 'forge': return { name: forgeArt(lv('forge')), back: 0.42 };
       case 'house': return { name: 'house_blue', back: 0.42 };
       case 'fountain': return { name: 'fountain', back: 0.45 };
       case 'sign': return { name: 'sign', back: 0.05 };
