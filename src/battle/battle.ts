@@ -805,7 +805,8 @@ export class Battle implements FoeWorld, HitWorld {
       this.audio.play('lose');
       this.finish({ result: 'lose', hp: 0, xp: 0, drops: {}, defeated: this.defeated, log: this.log }, 1.4);
     } else if (this.enemies.every((e) => e.dead)) {
-      this.audio.play('victory');
+      // Regular wins get a quick bell so the XP fill that follows is heard; guardians and story fights the full jingle.
+      this.audio.play(this.onWin ? 'win' : 'victory');
       this.finish({ result: 'win', hp: this.p.hp, xp: this.xp, drops: this.drops, defeated: this.defeated, log: this.log }, 1.1);
       if (this.onWin && this.outcome) {
         // Just the swoop in is left once the rewards are shown.

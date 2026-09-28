@@ -98,6 +98,7 @@ export function showZoneBanner(z: Zone) {
 /** Opens gates whose guardians are beaten, lights campfires and reveals building plots as they unlock. */
 export function syncWorld() {
   const s = G.save;
+  G.world.setBridge(s.flags.includes('bridge:woods'));
   for (const o of G.world.objs) {
     const z = o.zone ? zoneById(o.zone) : null;
     if (o.kind === 'gate' && z?.guardian) o.hidden = s.bosses.includes(z.guardian.kind);
@@ -109,6 +110,7 @@ export function syncWorld() {
     }
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);
+    if (o.kind === 'bridge') o.hidden = s.flags.includes('bridge:woods');
     // Bram's cabin goes up at the end of his story.
     if (o.kind === 'prop' && o.id === 'bramhut') o.hidden = !s.flags.includes('bram:hut');
     // A story's monsters are only there at their step.

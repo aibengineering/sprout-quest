@@ -3,7 +3,7 @@
 // that comes anyway, and after he's hurt charging in to help, you walk him home. He stays, builds the Sawmill, and
 // teaches Granny his stew. See the story bible (Side quests).
 import type { ActorSpec } from '../../actors';
-import { ZONES, zoneById, type MonsterKind } from '../../data';
+import { BRAM_CABIN_PLANKS, ZONES, zoneById, type MonsterKind } from '../../data';
 import { sawCollect, sawOrder } from '../../sawmill';
 import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
@@ -295,8 +295,8 @@ export const BRAM_STORY: Story = {
     if (step === 7) return [at(MILL, '🙂', () => chat([[BRAM, 'Pine, stone and copper. You\'ll find the plans for the mill with the others: the village board.']]), true)];
     if (step === 8) {
       return [at(MILL, '🙂', () => {
-        if (G.save.mats.plank >= 6) {
-          G.save.mats.plank -= 6;
+        if (G.save.mats.plank >= BRAM_CABIN_PLANKS) {
+          G.save.mats.plank -= BRAM_CABIN_PLANKS;
           G.save.flags.push('bram:hut');
           persist();
           return;

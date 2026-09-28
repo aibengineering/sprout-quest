@@ -285,6 +285,10 @@ export class Overworld {
         ctx.fillRect(px, py, ts + 1, ts + 1);
         if (t === T.PATH) this.drawPath(ctx, x, y, px, py, ts, th);
         else if (t === T.POOL) this.drawPool(ctx, x, y, px, py, ts, th);
+        else if (t === T.BRIDGE) {
+          this.drawPool(ctx, x, y, px, py, ts, th);
+          this.drawBridge(ctx, x, y, px, py, ts);
+        }
         else if (t === T.GRASS) this.drawGrass(ctx, x, y, px, py, ts, th);
         else if (t === T.DECOR) this.drawDecor(ctx, x, y, px, py, ts, th);
       }
@@ -567,11 +571,30 @@ export class Overworld {
     }
   }
 
+  /** Bram's Bridge: planks laid across the water, with a rail along whichever sides are open water. */
+  private drawBridge(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number) {
+    const W = this.world, bridge = (dx: number) => W.tile(x + dx, y) === T.BRIDGE;
+    const boards = 4, bh = ts / boards;
+    for (let i = 0; i < boards; i++) {
+      ctx.fillStyle = (i + y) % 2 ? '#d8a868' : '#c8965a';
+      ctx.fillRect(px - 1, py + i * bh + 1, ts + 2, bh - 2);
+      ctx.fillStyle = 'rgba(90, 58, 34, 0.45)';
+      ctx.fillRect(px + ts * (0.3 + hash2(x, y + i, 7) * 0.4), py + i * bh + bh * 0.35, ts * 0.05, bh * 0.3);
+    }
+    ctx.fillStyle = '#7a5232';
+    for (const side of [-1, 1]) {
+      if (bridge(side)) continue;
+      const rx = side < 0 ? px - ts * 0.04 : px + ts * 0.92;
+      ctx.fillRect(rx, py, ts * 0.12, ts);
+      ctx.fillRect(rx - ts * 0.02, py + ts * 0.08, ts * 0.16, ts * 0.14);
+    }
+  }
+
   private drawPool(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
     const lava = th.pool === 'lava';
     const W = this.world;
     const inset = ts * 0.14;
-    const pool = (dx: number, dy: number) => W.tile(x + dx, y + dy) === T.POOL;
+    const pool = (dx: number, dy: number) => W.tile(x + dx, y + dy) === T.POOL || W.tile(x + dx, y + dy) === T.BRIDGE;
     const l = pool(-1, 0) ? 0 : inset, r = pool(1, 0) ? 0 : inset;
     const u = pool(0, -1) ? 0 : inset, d = pool(0, 1) ? 0 : inset;
     // Only round the corners that sit on the pool's outer edge so neighbouring tiles merge seamlessly.
@@ -924,6 +947,7 @@ export class Overworld {
       case 'camp': return { name: 'campfire', back: 0.05 };
       case 'statue': return { name: `statue_${o.id}`, back: 0.1 };
       case 'prop': return { name: o.id!, back: 0.2 };
+      case 'bridge': return { name: 'sign', back: 0.05 };
       case 'plot': {
         const p = o.project!, l = lv(p);
         if (p === 'home') return { name: `home${l}`, back: 0.42 };

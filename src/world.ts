@@ -9,7 +9,12 @@ export const T = {
   POOL: 3,
   PATH: 4,
   DECOR: 5,
+  /** Planks over water (Bram's Bridge, once built): drawn over the pool, and walkable. */
+  BRIDGE: 6,
 } as const;
+
+/** Bram's Bridge: the creek tiles it spans (the Woods' west way up to the old camp), as offsets from the Woods' left edge. */
+const BRIDGE_TILES = [[6, 9], [7, 9], [6, 10], [7, 10]];
 
 /** Routes connect through rows GATE_Y..GATE_Y+3 on their west and east edges. */
 export const GATE_Y = 12;
@@ -29,7 +34,7 @@ const NODE_MARKS: [string, NodeKind, boolean][] = [
 ];
 
 /** 'prop': scenery drawn from its `id`'s sprite (Bram's camp, his hut). */
-export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop';
+export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop' | 'bridge';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -217,6 +222,8 @@ export class World {
     add({ kind: 'prop', id: 'prop_campmill', zone: 'woods', x: W + 3.8, y: 3.2, w: 2.6, h: 1, label: '' }, false);
     add({ kind: 'prop', id: 'prop_campstump', zone: 'woods', x: W + 8.6, y: 5.1, w: 1.2, h: 0.7, label: '' }, false);
     add({ kind: 'prop', id: 'prop_logs', zone: 'woods', x: W + 11, y: 4.1, w: 1, h: 0.6, label: '' }, false);
+    // Where Bram's Bridge goes: a stake by the creek, on the south bank of the narrow way up to the camp.
+    add({ kind: 'bridge', zone: 'woods', x: W + 8.1, y: 11.1, w: 0.6, h: 0.5, label: 'Build', text: "Bram's Bridge" }, false);
     add({ kind: 'fountain', x: V + 12, y: 17, w: 2, h: 2, label: 'Rest', text: "Veyra's Spring" });
     // Veyra's shrine, where Elder Oswin prays: north of where he stands, between the forge and the blue house.
     add({
@@ -267,6 +274,12 @@ export class World {
       }
     }
     return seen;
+  }
+
+  /** Lays Bram's Bridge over the creek (or takes it away). */
+  setBridge(built: boolean) {
+    const W = ZONES.find((z) => z.id === 'woods')!.x0;
+    for (const [dx, y] of BRIDGE_TILES) this.set(W + dx, y, built ? T.BRIDGE : T.POOL);
   }
 
   solidAt(x: number, y: number): boolean {

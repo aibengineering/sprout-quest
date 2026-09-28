@@ -9,7 +9,9 @@ export type Sfx =
   // A whip's tip snapping over.
   | 'crack'
   // Rewards: a bell as the XP bar tops out (a level), a tick per stat that grows, and a treasure's little fanfare.
-  | 'ding' | 'tick' | 'treasure';
+  | 'ding' | 'tick' | 'treasure'
+  // A regular win: a quick bright bell, leaving room for the XP fill right after it (guardians keep the full jingle).
+  | 'win';
 
 export class Audio {
   private ctx: AudioContext | null = null;
@@ -143,6 +145,7 @@ export class Audio {
       case 'crack': this.noise(0.035, 0.55, 7000); this.tone(2400, 0.025, 'square', 0.08, 1200); break;
       case 'ding': this.bell(); break;
       case 'tick': this.tone(1320, 0.05, 'square', 0.06); break;
+      case 'win': this.tone(1319, 0.14, 'triangle', 0.2); this.tone(1976, 0.3, 'triangle', 0.18, undefined, 0.08); this.tone(3951, 0.2, 'sine', 0.03, undefined, 0.1); break;
       case 'treasure': notes([659, 784, 1047, 1319], 0.07, 'triangle', 0.16); this.tone(1568, 0.5, 'sine', 0.1, undefined, 0.3); break;
     }
   }

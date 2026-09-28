@@ -434,7 +434,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
     levels: [
       { name: 'Tent', cost: {}, perk: 'A cozy tent to call your own.' },
       { name: 'Cottage', cost: { bark: 8, stone: 4, clover: 1 }, perk: '+10% max HP' },
-      { name: 'Manor', cost: { pine: 10, iron: 6, crystal: 6, ember: 6 }, perk: '+20% max HP' },
+      { name: 'Manor', cost: { plank: 5, pine: 4, iron: 6, crystal: 6, ember: 6 }, perk: '+20% max HP' },
     ],
   },
   forge: {
@@ -452,8 +452,8 @@ export const PROJECTS: Record<ProjectId, Project> = {
     name: 'Garden', icon: '🌱',
     levels: [
       { name: 'Sprout Patch', cost: { bark: 4, clover: 1 }, perk: 'Fountain refills potions to 3' },
-      { name: 'Berry Garden', cost: { cap: 4, pine: 4, stone: 4 }, perk: 'Fountain refills potions to 4' },
-      { name: 'Bloom Garden', cost: { pine: 6, ember: 4 }, perk: 'Fountain refills potions to 5' },
+      { name: 'Berry Garden', cost: { cap: 4, plank: 3, stone: 4 }, perk: 'Fountain refills potions to 4' },
+      { name: 'Bloom Garden', cost: { plank: 3, ember: 4 }, perk: 'Fountain refills potions to 5' },
     ],
   },
   training: {
@@ -461,7 +461,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
     levels: [
       { name: 'Straw Dummy', cost: { bark: 5, fluff: 3 }, perk: '+5% attack' },
       { name: 'Training Yard', cost: { fang: 6, royaljelly: 1, copper: 3 }, perk: '+10% attack' },
-      { name: 'Dojo', cost: { pine: 6, horn: 4, iron: 4 }, perk: '+15% attack' },
+      { name: 'Dojo', cost: { plank: 3, horn: 4, iron: 4 }, perk: '+15% attack' },
     ],
   },
   warp: {
@@ -477,6 +477,13 @@ export const PROJECTS: Record<ProjectId, Project> = {
     ],
   },
 };
+
+/**
+ * Planks spent outside the village plans: Bram's cabin (his story) and Bram's Bridge over the Woods creek. Counted in the
+ * farming budget with everything else.
+ */
+export const BRAM_CABIN_PLANKS = 6;
+export const BRIDGE_COST: Recipe = { plank: 8 };
 
 export const PROJECT_ORDER: ProjectId[] = ['home', 'forge', 'garden', 'training', 'warp', 'sawmill'];
 

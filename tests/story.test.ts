@@ -110,6 +110,8 @@ describe('village', () => {
     const droppable = new Set([
       ...Object.values(MONSTERS as Record<string, { drops: { mat: string }[] }>).flatMap((m) => m.drops.map((d) => d.mat)),
       ...Object.values(NODES as Record<string, { mat: string }>).map((n) => n.mat),
+      // Sawn from logs at Bram's Sawmill.
+      'plank',
     ]);
     for (const p of Object.values(PROJECTS)) for (const l of p.levels) for (const m of Object.keys(l.cost)) expect(droppable.has(m)).toBe(true);
     void GEAR;

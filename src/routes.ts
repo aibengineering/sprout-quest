@@ -48,6 +48,7 @@ export const ROUTES: Partial<Record<ZoneId, string[]>> = {
   ],
   // Whisper Woods: down, east, a long climb north through the grass past the pond, then down and out east. Off the
   // top of the first climb, west through the trees, Bram's old logging camp: a clearing with a few pines (his story).
+  // A narrow way runs straight up to it from the west gate, but a creek cuts it (rows 9-10) until you build Bram's Bridge.
   woods: [
     '########################################',
     '########################################',
@@ -57,10 +58,10 @@ export const ROUTES: Partial<Record<ZoneId, string[]>> = {
     '##p.............============.,,,,,,,P,##',
     '###...p.....###.==........==.,,,,,,,,,.#',
     '####.....p.####.==......#.==.#,P,,,U,###',
-    '###############,,,,*.*..#,,,,#.,,,,,####',
-    '###############,,,,.~~~.#,,,,.##.#######',
-    '##############.,,,,~~~~~*,R,,###..######',
-    '##S####.######.,,U,~~~~~.,,,,#######...#',
+    '######..#######,,,,*.*..#,,,,#.,,,,,####',
+    '#####~~~~######,,,,.~~~.#,,,,.##.#######',
+    '#####~~~~#####.,,,,~~~~~*,R,,###..######',
+    '##S###..######.,,U,~~~~~.,,,,#######...#',
     '....*....#####.,,,,~~~~~#,,,,.##........',
     '========.######,,,,~~~~~#.==...#*=======',
     '=E======.#####..==.~~~~~#.==.#...=======',

@@ -1,11 +1,12 @@
 // Balance model: where we expect the player to be at each point in the story, and how fights should feel there.
 // tests/balance.test.ts enforces the targets; `bun run balance` prints the full table while tuning.
 import { ARENA_RX, ARENA_RY } from './arena';
-import { GEAR, MASTERY_FOR_TIER, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
+import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
 import { MOVESETS, comboDps, openingBurst, skillShape, strikeShape, tierScale } from './weapons';
 import { GENTLE_ATK, calcDamage, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
+import { LOGS_PER_PLANK } from './sawmill';
 
 export type Range = [min: number, max: number];
 
@@ -138,12 +139,19 @@ export interface Farm {
 
 export function totalDemand(): Partial<Record<MatId, number>> {
   const out: Partial<Record<MatId, number>> = {};
-  const add = (r: Recipe) => {
-    for (const [m, n] of Object.entries(r)) out[m as MatId] = (out[m as MatId] ?? 0) + (n ?? 0);
+  // Planks are sawn from logs at Bram's Sawmill (the sawing itself happens while you're away): Oak at first, and Pine once
+  // it's the Iron Sawmill, which is how the third-level buildings (Bloom Garden, Dojo, Manor) are paid for.
+  const add = (r: Recipe, log: 'bark' | 'pine' = 'bark') => {
+    for (const [m, n] of Object.entries(r)) {
+      if (m === 'plank') out[log] = (out[log] ?? 0) + (n ?? 0) * LOGS_PER_PLANK;
+      else out[m as MatId] = (out[m as MatId] ?? 0) + (n ?? 0);
+    }
   };
-  for (const p of Object.values(PROJECTS)) p.levels.forEach((l) => add(l.cost));
+  for (const p of Object.values(PROJECTS)) p.levels.forEach((l, i) => add(l.cost, i >= 2 ? 'pine' : 'bark'));
   for (const g of Object.values(GEAR)) if (g.recipe) add(g.recipe);
   for (const t of TOOLS) add(t.recipe);
+  add({ plank: BRAM_CABIN_PLANKS });
+  add(BRIDGE_COST);
   return out;
 }
 

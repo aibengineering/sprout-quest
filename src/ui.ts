@@ -118,7 +118,7 @@ function tagCard(art: string, title: string, lines: string, action = ''): string
 const ribbon = (text: string) => `<div class="ribbon"><span>${esc(text)}</span></div>`;
 const stage = (art: string, cls = '') => `<div class="stage ${cls}"><div class="rays"></div><div class="stage-art">${art}</div><div class="sparkles"><i></i><i></i><i></i><i></i></div></div>`;
 
-function costChips(s: SaveState, r: Recipe): string {
+export function costChips(s: SaveState, r: Recipe): string {
   return Object.entries(r)
     .map(([m, n]) => {
       const have = s.mats[m as MatId];
@@ -282,7 +282,8 @@ export class UI {
     tag.className = 'xp-float';
     tag.textContent = `+${gained} XP`;
     card.append(tag);
-    await wait(250);
+    // Let the win's bell ring out first, so the fill's chirps are heard on their own.
+    await wait(380);
     let lv = from.lv, frac = Math.min(1, from.xp / xpToNext(lv));
     const fill = async (target: number) => {
       const dur = 0.25 + 0.75 * (target - frac);
