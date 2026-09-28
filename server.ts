@@ -53,17 +53,24 @@ export function startServer(port: number, log = false) {
       const file = Bun.file(name);
       if (!(await file.exists())) return new Response('Not found', { status: 404 });
       const stamp = `${file.size}-${file.lastModified}`;
-      const body = new Uint8Array(await file.arrayBuffer());
+      let body = new Uint8Array(await file.arrayBuffer());
+      // The page links its stylesheet by version, so a phone can never pair new code with a stale cached style.css.
+      if (name.endsWith('index.html')) {
+        const css = Bun.file('./public/style.css');
+        const v = `${css.size}-${css.lastModified}`;
+        body = new TextEncoder().encode(new TextDecoder().decode(body).replace('href="style.css"', `href="style.css?v=${v}"`));
+      }
       const ext = name.split('.').pop() ?? '';
+      const tag = name.endsWith('index.html') ? `${stamp}-${Bun.hash(body).toString(36)}` : stamp;
       const gz = () => {
         const hit = zipped.get(name);
-        if (hit?.stamp === stamp) return hit.z;
+        if (hit?.stamp === tag) return hit.z;
         const z = Bun.gzipSync(body);
-        zipped.set(name, { stamp, z });
+        zipped.set(name, { stamp: tag, z });
         return z;
       };
       // Images go uncompressed (gzip can't shrink them), but still get the ETag.
-      return send(req, body, `"${stamp}"`, TYPES[ext] ?? file.type, COMPRESSIBLE.test(name) ? gz : null).res;
+      return send(req, body, `"${tag}"`, TYPES[ext] ?? file.type, COMPRESSIBLE.test(name) ? gz : null).res;
     },
   });
 }
