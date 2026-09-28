@@ -14,6 +14,9 @@ import { PRESETS } from './presets';
 
 /** Set across the reload so the game continues without a stop at the title screen. */
 const AUTOPLAY = 'sprout-quest-autoplay';
+/** Whether the performance readout is showing, per device (off unless you turn it on in the panel). */
+const PERF = 'sprout-quest-dev-perf';
+const perfOn = () => localStorage.getItem(PERF) === '1';
 const MAIN = 'main';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`);
@@ -123,6 +126,7 @@ function startPreset(id: string) {
 function perfMeter() {
   const el = document.createElement('div');
   el.id = 'dev-perf';
+  el.hidden = !perfOn();
   document.body.append(el);
   const gpu = (() => {
     try {
@@ -146,7 +150,10 @@ function perfMeter() {
   const tick = (now: number) => {
     times.push(now - last);
     last = now;
-    if (now - windowStart >= 1000) {
+    if (now - windowStart >= 1000 && el.hidden) {
+      times.length = 0;
+      windowStart = now;
+    } else if (now - windowStart >= 1000) {
       const s = stats();
       const dr = (s?.renders ?? 0) - renders, dm = (s?.ms ?? 0) - renderMs;
       renders = s?.renders ?? 0;
@@ -204,6 +211,9 @@ async function panel() {
      <p class="dev-note">Dev builds only. Each slot keeps its own save and play report; <b>main</b> is your real playthrough.</p>
      <div class="dev-list">${slotRows}</div>
      <button class="go ghost dev-copy" data-dialog="copy">Copy <b>${esc(active)}</b> to a new slot</button>
+     <div class="dev-h">Display</div>
+     <div class="dev-row"><div class="dev-info"><b>Performance readout</b><small>FPS, frame times and the GPU, at the left edge</small></div>
+       <button class="go${perfOn() ? '' : ' ghost'}" data-dialog="perf">${perfOn() ? 'Shown' : 'Hidden'}</button></div>
      <div class="dev-h">Start from a preset</div>
      <div class="dev-list">${presetRows}</div>`,
     [['close', 'Close']],
@@ -212,6 +222,11 @@ async function panel() {
   const [act, arg] = r.split(/:(.*)/s);
   if (act === 'play') switchTo(slotOf(arg));
   else if (act === 'preset') startPreset(arg);
+  else if (act === 'perf') {
+    localStorage.setItem(PERF, perfOn() ? '0' : '1');
+    document.getElementById('dev-perf')!.hidden = !perfOn();
+    return panel();
+  }
   else if (act === 'del') {
     deleteSlot(arg);
     void panel();
