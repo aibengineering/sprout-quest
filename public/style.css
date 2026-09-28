@@ -963,15 +963,37 @@ body.kbd .drag-hint .keys { display: flex; }
 .blueprints .mcard.bcard:nth-child(even) { --r: 0.7deg; }
 .blueprints .mcard.bcard::before { content: ''; position: absolute; left: 50%; top: -6px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #ff9a8a, #c83a3a); box-shadow: 0 2px 2px rgba(0, 0, 0, 0.4); }
-.blueprints .bcard .name { color: #fff; font-size: 18px; }
-.blueprints .bcard .desc { color: #d8e8ff; opacity: 1; }
-.blueprints .bcard .desc b { color: #fff; }
-.blueprints .bcard .ico { background: rgba(255, 255, 255, 0.12); border: 2px dashed rgba(255, 255, 255, 0.5); border-radius: 10px; padding: 4px; }
-.blueprints .bcard .next { border-top: 2px dashed rgba(255, 255, 255, 0.45); }
-.blueprints .pips i { background: rgba(255, 255, 255, 0.3); }
-.blueprints .pips i.on { background: var(--brass); }
-.blueprints .chip { background: rgba(255, 255, 255, 0.9); }
-.blueprints .tag { background: rgba(255, 255, 255, 0.9); color: #2f6fb3; }
+/* Each plan: a name and progress pips, what's there now beside what you'd build (the next one glowing in a plan
+   frame), what it gives you, its costs, and a button that says what's missing. */
+.bp-head { display: flex; align-items: center; justify-content: space-between; }
+.blueprints .bcard .name { color: #fff; font-size: 20px; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.2); }
+.blueprints .pips i { width: 12px; height: 12px; background: rgba(255, 255, 255, 0.3); border: 2px solid rgba(255, 255, 255, 0.6); }
+.blueprints .pips i.on { background: var(--brass); border-color: #fff3c0; }
+.bp-preview { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 10px 0 6px; }
+.bp-art { flex: 1; max-width: 132px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px 6px;
+  border-radius: 10px; background: rgba(255, 255, 255, 0.1); border: 2px dashed rgba(255, 255, 255, 0.45); }
+.bp-art img.icon { width: 76px; height: 76px; object-fit: contain; }
+.bp-art small { font: 600 13px var(--display); color: #e6f0ff; }
+.bp-art.now { opacity: 0.8; }
+.bp-art.next { background: rgba(255, 255, 255, 0.2); border: 2px solid #fff3c0; box-shadow: 0 0 14px rgba(255, 243, 192, 0.45); }
+.bp-art.next small { color: #fff; }
+.bp-preview.solo .bp-art { max-width: 170px; border-style: solid; }
+.bp-arrow { font: 700 24px var(--display); color: #fff3c0; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
+.bp-perk { text-align: center; font: 600 15px var(--display); color: #fff; background: rgba(0, 40, 90, 0.35); border-radius: 10px; padding: 5px 10px; margin: 4px 0 8px; }
+.bp-costs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 4px; }
+/* Costs sit on white paper tags: dark text, red while short, a green tick once you have enough. */
+.bp-cost { display: inline-flex; align-items: center; gap: 3px; padding: 3px 9px 3px 5px; border-radius: 12px; background: #fff; color: #3a2448;
+  font: 700 14px var(--display); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2); }
+.bp-cost b { font-weight: 700; }
+.bp-cost.miss { color: #c8323f; background: #ffe8ea; }
+.bp-cost.ok { color: #2f7a3a; background: #eaffe8; }
+.bp-cost i { font-style: normal; font-size: 12px; margin-left: 1px; }
+.bp-cost img.icon.sm { width: 22px; height: 22px; }
+/* Can't build yet: a readable plan-coloured button that says what's missing. */
+.blueprints .bp-go:disabled { background: rgba(0, 30, 70, 0.35); border-color: rgba(255, 255, 255, 0.35); box-shadow: none; color: #e6f0ff; font-size: 14px; }
+.blueprints .bcard.ready { box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3), 0 0 0 3px #7ee07a, 0 0 16px rgba(126, 224, 122, 0.5); }
+.blueprints .bcard.done { background-color: #3a7fc4; }
+.bp-done { text-align: center; font: 600 16px var(--display); color: var(--brass); }
 .board .note, .bench .note, .satchel .note { background: #fff6e2; border: 0; border-radius: 3px; transform: rotate(-0.8deg); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25); }
 
 /* ---------- The notebook (Journal, More) ---------- */

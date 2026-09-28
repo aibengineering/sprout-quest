@@ -136,7 +136,8 @@ export function allIconIds(): string[] {
 }
 
 function buildingIcon(id: ProjectId, level: number): string {
-  if (level === 0) return icon(id === 'warp' ? 'b_warp0' : 'b_plot', PROJECTS[id].icon, 'icon lg');
+  // Before it's built: the old forge's ruins, the Waystone's broken stones, or an empty plot.
+  if (level === 0) return icon(id === 'warp' ? 'b_warp0' : id === 'forge' ? 'b_forge0' : 'b_plot', PROJECTS[id].icon, 'icon lg');
   const name = id === 'forge' ? ['forge', 'forge2', 'forge3'][level - 1] : `${id}${level}`;
   return icon(`b_${name}`, PROJECTS[id].icon, 'icon lg');
 }
@@ -805,23 +806,41 @@ export class UI {
     const here = this.ctx.inVillage;
     const note = here
       ? `<div class="note">🏗 Build and upgrade to grow stronger. Trophies from guardians unlock the best upgrades!</div>`
-      : `<div class="note">📍 Return to Sowerby to build. You can plan here.</div>`;
-    const cards = PROJECT_ORDER.map((id) => {
+      : `<div class="note">📍 You can plan here. Head back to Sowerby to build.</div>`;
+    // Ready to build first, then what's still missing something, then what's finished.
+    const order = (id: ProjectId) => (s.build[id] >= PROJECTS[id].levels.length ? 2 : canBuild(s, id) === 'ok' ? 0 : 1);
+    const cards = [...PROJECT_ORDER].sort((a, b) => order(a) - order(b)).map((id) => {
       const p = PROJECTS[id];
       const lv = s.build[id];
       const max = p.levels.length;
       const pips = Array.from({ length: max }, (_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('');
-      const current = lv ? `<div class="desc">Now: <b>${esc(p.levels[lv - 1].name)}</b> · ${esc(p.levels[lv - 1].perk)}</div>` : '<div class="desc">Not built yet</div>';
-      let next = '<div class="tag">✨ Fully built</div>';
-      if (lv < max) {
-        const nl = p.levels[lv];
-        const ok = here && canBuild(s, id) === 'ok';
-        next = `<div class="next"><div class="desc">Next: <b>${esc(nl.name)}</b> · ${esc(nl.perk)}</div>
-          <div class="chips">${costChips(s, nl.cost)}</div>
-          <button class="go wide" data-build="${id}" ${ok ? '' : 'disabled'}>${lv ? 'Upgrade' : 'Build'} ${esc(nl.name)}</button></div>`;
+      const nowName = lv ? p.levels[lv - 1].name : id === 'forge' ? 'Ruins' : 'Empty plot';
+      const head = `<div class="bp-head"><div class="name">${esc(p.name)}</div><span class="pips">${pips}</span></div>`;
+      if (lv >= max) {
+        return `<div class="mcard bcard done" data-focus="${id}">${head}
+          <div class="bp-preview solo"><div class="bp-art">${buildingIcon(id, lv)}<small>${esc(nowName)}</small></div></div>
+          <div class="bp-perk">${esc(p.levels[lv - 1].perk)}</div><div class="bp-done">✨ Fully built</div></div>`;
       }
-      return `<div class="mcard bcard" data-focus="${id}"><div class="btop"><div class="ico">${buildingIcon(id, lv)}</div>
-        <div class="info"><div class="name">${esc(p.name)} <span class="pips">${pips}</span></div>${current}</div></div>${next}</div>`;
+      const nl = p.levels[lv];
+      const ok = canBuild(s, id) === 'ok';
+      const missing = Object.entries(nl.cost).filter(([m, n]) => s.mats[m as MatId] < (n ?? 0));
+      const costs = Object.entries(nl.cost).map(([m, n]) => {
+        const have = s.mats[m as MatId], enough = have >= (n ?? 0);
+        return `<span class="bp-cost ${enough ? 'ok' : 'miss'}">${icon(m, MATS[m as MatId].icon, 'icon sm')}<b>${Math.min(have, n ?? 0)}</b>/${n}${enough ? '<i>✓</i>' : ''}</span>`;
+      }).join('');
+      // A disabled button says why.
+      const label = ok
+        ? here ? `${lv ? 'Upgrade to' : 'Build'} ${esc(nl.name)}` : '📍 Build it in Sowerby'
+        : `Still need ${missing.map(([m, n]) => `${esc(MATS[m as MatId].name)} ×${(n ?? 0) - s.mats[m as MatId]}`).join(' · ')}`;
+      return `<div class="mcard bcard${ok ? ' ready' : ''}" data-focus="${id}">${head}
+        <div class="bp-preview">
+          <div class="bp-art now">${buildingIcon(id, lv)}<small>${esc(nowName)}</small></div>
+          <div class="bp-arrow">➜</div>
+          <div class="bp-art next">${buildingIcon(id, lv + 1)}<small>${esc(nl.name)}</small></div>
+        </div>
+        <div class="bp-perk">⬆ ${esc(nl.perk)}</div>
+        ${costs ? `<div class="bp-costs">${costs}</div>` : ''}
+        <button class="go wide bp-go" data-build="${id}" ${ok && here ? '' : 'disabled'}>${label}</button></div>`;
     }).join('');
     return `<div class="board">${note}<div class="blueprints">${cards}</div></div>`;
   }
