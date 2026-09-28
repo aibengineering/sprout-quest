@@ -64,36 +64,27 @@ export class Audio {
   }
 
   /**
-   * The XP bar filling, built the way Pokémon's is (Gold/Silver's EXP sound, read from the disassembly): not one long
-   * slide but a string of re-struck square-wave notes, each chirping up into where the next one starts, so it bubbles
-   * as it climbs. The pitch follows the bar (slow at the bottom, racing near the top, which builds anticipation), and
-   * it gets louder as the bar fills. A bright blip starts it, and each note snaps up into its pitch for the bubbly
-   * pop, all in one voice (a separate bubble layer on top was heard as a second sound).
+   * The XP bar filling: a stream of bubbles. Built the way Pokémon's is (Gold/Silver's EXP sound, read from the
+   * disassembly), as re-struck notes rather than one long slide, but each one a soft sine "bloop" that leaps up in
+   * pitch, with no buzzy square tone under it. The pitch follows the bar (slow at the bottom, racing near the top,
+   * which builds anticipation), and it gets louder as the bar fills.
    */
   sweep(dur: number, from: number, to: number) {
     if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
     const t0 = this.ctx.currentTime + 0.01;
-    this.chirp(xpPitch(from) * 1.5, xpPitch(from) * 2, 0.07, 'square', 0.07, t0);
     const n = Math.max(2, Math.round(dur / 0.075)), step = dur / n;
     for (let i = 0; i < n; i++) {
-      const a = from + ((to - from) * i) / n, b = from + ((to - from) * (i + 1)) / n, t = t0 + 0.04 + i * step;
-      const vol = 0.06 + 0.07 * b;
-      this.chirp(xpPitch(a), xpPitch(b) * 1.02, step, 'square', vol, t, 0.45, 0.8);
+      const a = from + ((to - from) * i) / n, b = from + ((to - from) * (i + 1)) / n;
+      this.chirp(xpPitch(a) * 1.5, xpPitch(b) * 2, 0.05, 'sine', 0.07 + 0.07 * b, t0 + i * step);
     }
   }
 
-  /**
-   * One short note whose pitch climbs from `f0` to `f1`; it falls to `tail` of its volume by the end. With `pop`, it
-   * starts that much lower and snaps up into `f0` over the first 20 ms, which makes it bloop like a bubble.
-   */
-  private chirp(f0: number, f1: number, dur: number, type: OscillatorType, vol: number, t0: number, tail = 0.01, pop = 0) {
+  /** One short note whose pitch climbs from `f0` to `f1`; it falls to `tail` of its volume by the end. */
+  private chirp(f0: number, f1: number, dur: number, type: OscillatorType, vol: number, t0: number, tail = 0.01) {
     const ctx = this.ctx!;
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = type;
-    if (pop) {
-      o.frequency.setValueAtTime(f0 * pop, t0);
-      o.frequency.exponentialRampToValueAtTime(f0, t0 + 0.02);
-    } else o.frequency.setValueAtTime(f0, t0);
+    o.frequency.setValueAtTime(f0, t0);
     o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + 0.004);
