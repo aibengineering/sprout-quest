@@ -4,15 +4,20 @@
 //   bun run e2e            run every scenario
 //   bun run e2e --shots    also save a screenshot per scenario to tests/e2e/out/
 //   bun run e2e --only X   just the scenarios whose name contains X
+//   bun run e2e -j N       N scenarios at a time (default: cores − 2; -j 1 runs them one by one)
 //
 // Needs Playwright's Chromium once: `bunx playwright-core install chromium-headless-shell`.
 import { chromium, type Page } from 'playwright-core';
 import { mkdirSync, readFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { startServer } from '../../server';
 import { MONSTERS } from '../../src/data';
 
 const SHOTS = process.argv.includes('--shots');
 const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].toLowerCase() : null;
+// Two cores left for the server and the timing-sensitive checks: 4 at a time on this 6-core box, 2 on CI's 4 cores.
+const JOBS = process.argv.includes('-j') ? Math.max(1, Number(process.argv[process.argv.indexOf('-j') + 1]) || 1) : Math.max(1, Math.min(6, availableParallelism() - 2));
+const START = Date.now();
 const OUT = new URL('./out/', import.meta.url).pathname;
 if (SHOTS) mkdirSync(OUT, { recursive: true });
 
@@ -57,10 +62,10 @@ const game = <T>(page: Page, f: string): Promise<T> => page.evaluate(`(() => { c
 const run = (page: Page, f: string) => page.evaluate(`(() => { const g = window.game; ${f}; })()`);
 
 /** Clicks through popups (not the menu) until none are left; returns the text of each one. */
-async function closeDialogs(page: Page, max = 8) {
+async function closeDialogs(page: Page, max = 8, sheet = '.sheet:not(.menu)') {
   const seen: string[] = [];
   for (let i = 0, t0 = Date.now(); i < max; i++) {
-    const btn = await page.$('#modal:not([hidden]) .sheet:not(.menu) [data-dialog]:last-of-type');
+    const btn = await page.$(`#modal:not([hidden]) ${sheet} [data-dialog]:last-of-type`);
     if (!btn) {
       // The XP bar fills between the fight's result and a level-up screen: wait for it to settle.
       if (!(await page.$('#hud .stat.gain')) || Date.now() - t0 > 15000) break;
@@ -101,14 +106,39 @@ async function openMore(page: Page) {
 const pinFoes = (page: Page, hp = 1e6) => run(page, `const b = g.battle; for (const e of b.enemies) { e.hp = e.maxHp = ${hp}; e.stun = 99; e.x = b.p.x; e.y = b.p.y - 60; } b.p.face = -Math.PI / 2`);
 const endFight = (page: Page) => run(page, `const b = g.battle; for (const e of b.enemies) if (!e.dead) { e.hp = 0; b.kill(e); }`);
 
-async function scenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>) {
+/**
+ * Wins the fight and waits it out: the result screen (guardians, story fights) or the swoop back to the map, the XP
+ * bar filling, and any level-up screens, until you're walking again.
+ */
+async function winFight(page: Page) {
+  await endFight(page);
+  await waitFor(page, 'the fight to end', async () => !!(await page.$('#modal:not([hidden]) [data-dialog]')) || (await game<boolean>(page, `g.mode === 'world' && !g.battle`)), 8000);
+  await closeDialogs(page);
+  await waitFor(page, 'back on the map', async () => {
+    await closeDialogs(page);
+    return game<boolean>(page, `g.mode === 'world' && !g.battle`);
+  }, 10000);
+}
+
+/** Scenarios run from a queue, a few at a time (each has its own browser context, so their saves don't mix). */
+const queue: { name: string; run: () => Promise<void> }[] = [];
+/** The long ones start first, so none is left running alone at the end. */
+const SLOW = ['Poppy', 'every monster', 'characters are drawn in 3D', 'prologue', 'stamina', 'play report'];
+const weight = (name: string) => { const i = SLOW.findIndex((s) => name.includes(s)); return i < 0 ? SLOW.length : i; };
+
+function scenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>) {
   if (ONLY && !name.toLowerCase().includes(ONLY)) return;
+  queue.push({ name, run: () => runScenario(name, seed, body) });
+}
+
+async function runScenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>) {
+  const b0 = Date.now();
   const { page, errors, close } = await boot(seed ?? (() => {}));
-  const t0 = Date.now();
+  const t0 = Date.now(), setup = ((t0 - b0) / 1000).toFixed(1);
   try {
     await body(page);
     if (errors.length) throw new Error(`page errors: ${errors.join(' | ')}`);
-    console.log(`  ✓ ${name} (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+    console.log(`  ✓ ${name} (${((Date.now() - t0) / 1000).toFixed(1)}s + ${setup}s setup)`);
   } catch (e) {
     failures.push(`${name}: ${(e as Error).message}`);
     if (errors.length) console.log(`    page errors: ${errors.join(' | ')}`);
@@ -125,7 +155,7 @@ function check(ok: unknown, msg: string) {
 
 console.log('Sprout Quest smoke test');
 
-await scenario('a new game plays through the prologue to Elder Oswin', null, async (page) => {
+scenario('a new game plays through the prologue to Elder Oswin', null, async (page) => {
   // Start over from the title (base's save is replaced by New Game).
   await run(page, `localStorage.clear()`);
   await page.reload();
@@ -193,7 +223,7 @@ await scenario('a new game plays through the prologue to Elder Oswin', null, asy
   check(await game(page, `g.mode`) === 'world', 'not back in control after talking to Elder Oswin');
 });
 
-await scenario('patch notes: a dot until you read them, from the menu or the title', (g) => {
+scenario('patch notes: a dot until you read them, from the menu or the title', (g) => {
   // A save from 0.1.0 has the newest notes to read.
   g.save.seenVersion = '0.1.0';
 }, async (page) => {
@@ -218,12 +248,7 @@ await scenario('patch notes: a dot until you read them, from the menu or the tit
   await closeDialogs(page);
 });
 
-await scenario('quest tracker shows material progress', null, async (page) => {
-  check(await page.$('#quest-pill:not([hidden]) .qbar'), 'no progress bar on the quest tracker');
-  check((await page.$$('#quest-pill .qm')).length > 0, 'no material counts on the quest tracker');
-});
-
-await scenario('winning a fight levels you up and reveals new gear', (g) => {
+scenario('winning a fight levels you up and reveals new gear (and the quest tracker counts materials)', (g) => {
   Object.assign(g.save, { lv: 4, xp: 108 });
   g.save.owned.push('jellywhip');
   g.save.equip.weapon = 'jellywhip';
@@ -231,6 +256,9 @@ await scenario('winning a fight levels you up and reveals new gear', (g) => {
   // ★★ gear needs the Smithy.
   g.save.build.forge = 2;
 }, async (page) => {
+  // The quest tracker shows the goal's material progress.
+  check(await page.$('#quest-pill:not([hidden]) .qbar'), 'no progress bar on the quest tracker');
+  check((await page.$$('#quest-pill .qm')).length > 0, 'no material counts on the quest tracker');
   await run(page, 'g.encounter()');
   await page.waitForTimeout(900);
   await pinFoes(page, 1);
@@ -249,7 +277,7 @@ await scenario('winning a fight levels you up and reveals new gear', (g) => {
   check(await game(page, 'g.save.lv') === 5, 'combat level did not go up');
 });
 
-await scenario('every weapon runs out of stamina when mashed', (g) => {
+scenario('every weapon runs out of stamina when mashed', (g) => {
   g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellysling');
 }, async (page) => {
   for (const w of ['stonesword', 'stonehammer', 'jellywhip', 'jellysling']) {
@@ -268,36 +296,34 @@ await scenario('every weapon runs out of stamina when mashed', (g) => {
     // A full meter, plus what refills while you pause between swings: well short of one swing per press.
     const cap = max + Math.ceil(2 / (regen + delay)) + 1;
     check(swings <= cap, `${w}: ${swings} swings in 2s (stamina allows ≤${cap})`);
-    await endFight(page);
-    await page.waitForTimeout(2600);
-    await closeDialogs(page);
+    await winFight(page);
   }
 });
 
-await scenario('every monster fights (and is drawn) without errors', (g) => {
+// Every monster, in two halves that run side by side.
+const KINDS = Object.keys(MONSTERS);
+for (const [half, kinds] of [['1/2', KINDS.slice(0, KINDS.length / 2)], ['2/2', KINDS.slice(KINDS.length / 2)]] as const) scenario(`every monster fights (and is drawn) without errors, ${half}`, (g) => {
   g.save.lv = 20;
   g.save.owned.push('wyrmbreaker');
   g.save.equip.weapon = 'wyrmbreaker';
 }, async (page) => {
-  for (const kind of Object.keys(MONSTERS)) {
+  for (const kind of kinds) {
     await run(page, `g.fight('${kind}', ${MONSTERS[kind as keyof typeof MONSTERS].boss ? 20 : 10}, 2)`);
     await waitFor(page, `a fight with ${kind}`, async () => (await game<boolean>(page, 'g.mode === "battle" && !!g.battle')));
     // Let it run through a few of its moves, with you too tough to fall, swinging now and then.
     const t0 = Date.now();
-    while (Date.now() - t0 < 2500) {
+    while (Date.now() - t0 < 1800) {
       await run(page, 'if (g.battle) { g.battle.p.hp = 9999; g.battle.p.iframes = 1; }');
       await page.keyboard.press('KeyJ');
       await page.waitForTimeout(250);
     }
     const states = await game<string[]>(page, 'g.battle.enemies.map((e) => e.state)');
     check(states.length > 0, `${kind}: no enemies spawned`);
-    await endFight(page);
-    await page.waitForTimeout(2600);
-    await closeDialogs(page);
+    await winFight(page);
   }
 });
 
-await scenario('the Wyrmbreaker breathes fire that burns the ground', (g) => {
+scenario('the Wyrmbreaker breathes fire that burns the ground', (g) => {
   g.save.lv = 18;
   g.save.owned.push('wyrmbreaker');
   g.save.equip.weapon = 'wyrmbreaker';
@@ -309,7 +335,7 @@ await scenario('the Wyrmbreaker breathes fire that burns the ground', (g) => {
   await waitFor(page, 'burning ground', async () => (await game<number>(page, 'g.battle.flames.length')) > 0, 3000);
 });
 
-await scenario('an iron pick mines Glimmer Hollow crystal, slowly', (g) => {
+scenario('an iron pick mines Glimmer Hollow crystal, slowly', (g) => {
   g.save.lv = 14;
   g.save.tools.mine = 3;
 }, async (page) => {
@@ -332,7 +358,7 @@ await scenario('an iron pick mines Glimmer Hollow crystal, slowly', (g) => {
   await page.waitForTimeout(600); // a few frames of the minigame drawing
 });
 
-await scenario('a tree falls and a rock breaks all the way, and what you earned lands in your bag', (g) => {
+scenario('a tree falls and a rock breaks all the way, and what you earned lands in your bag', (g) => {
   g.save.tools.wood = 1;
   g.save.tools.mine = 1;
 }, async (page) => {
@@ -369,7 +395,7 @@ await scenario('a tree falls and a rock breaks all the way, and what you earned 
   }
 });
 
-await scenario('the Forge keeps gear a mystery until you reach its level', (g) => {
+scenario('the Forge keeps gear a mystery until you reach its level', (g) => {
   g.save.tools.mine = 1;
   g.save.skills.mine = { lv: 1, xp: 0 };
 }, async (page) => {
@@ -397,7 +423,7 @@ await scenario('the Forge keeps gear a mystery until you reach its level', (g) =
   check(after.names.some((n) => n.includes('Stone Sword')), 'Stone Sword still hidden at Mining 2');
 });
 
-await scenario('the play report records fights, stamina, deaths and time, and exports', (g) => {
+scenario('the play report records fights, stamina, deaths and time, and exports', (g) => {
   g.save.owned.push('stonesword');
   g.save.equip.weapon = 'stonesword';
 }, async (page) => {
@@ -407,9 +433,9 @@ await scenario('the play report records fights, stamina, deaths and time, and ex
   await pinFoes(page);
   const t0 = Date.now();
   while (Date.now() - t0 < 1500) { await page.keyboard.press('KeyJ'); await page.waitForTimeout(40); }
-  await endFight(page);
-  await page.waitForTimeout(2600);
-  await closeDialogs(page);
+  await winFight(page);
+  // Some time on the map (the time split counts in tenths of a minute).
+  await page.waitForTimeout(3500);
   // …and a loss, so the report says what got you.
   await run(page, `g.fight('wolf', 12, 2)`);
   await waitFor(page, 'the wolf fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`));
@@ -456,7 +482,7 @@ await scenario('the play report records fights, stamina, deaths and time, and ex
   check((await copied()).summary?.fights === s.fights, 'copying without the clipboard API failed');
 });
 
-await scenario("Poppy's story plays from the rescue to the reunion", (g) => {
+scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   g.save.lv = 5;
   g.save.pos = { x: 58, y: 15 };
 }, async (page) => {
@@ -467,7 +493,12 @@ await scenario("Poppy's story plays from the rescue to the reunion", (g) => {
     const said: string[] = [];
     for (let i = 0; i < max; i++) {
       let b = null;
-      for (let t = 0; t < 5000 && !b; t += 150) if (!(b = await page.$('#modal:not([hidden]) .sheet.caption [data-dialog]'))) await page.waitForTimeout(150);
+      for (let t = 0; t < 5000 && !b; t += 150) {
+        if ((b = await page.$('#modal:not([hidden]) .sheet.caption [data-dialog]'))) break;
+        // Once it has said something, the scene is over when you're back in control.
+        if (said.length && (await game<string>(page, 'g.mode')) === 'world') break;
+        await page.waitForTimeout(150);
+      }
       if (!b) break;
       said.push((await page.textContent('#modal .sheet')) ?? '');
       await b.dispatchEvent('pointerdown');
@@ -481,8 +512,11 @@ await scenario("Poppy's story plays from the rescue to the reunion", (g) => {
     await waitFor(page, what, async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`), 8000);
     await page.waitForTimeout(1200);
     await endFight(page);
-    await page.waitForTimeout(2400);
-    await closeDialogs(page);
+    // Story fights end in scenes, read by lines(): click through the result and level-up screens, not those.
+    await waitFor(page, 'the fight to end', async () => {
+      await closeDialogs(page, 8, '.sheet:not(.menu):not(.caption)');
+      return !(await game<boolean>(page, '!!g.battle'));
+    }, 10000);
   };
 
   // Only the meadow's south-east pocket starts it: not the south edge of any other area.
@@ -538,7 +572,7 @@ await scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   check(await game<boolean>(page, `g.save.perks.includes('trailboots') && g.over.actors.get('poppy:poppy').look.name === 'poppy_hug'`), 'no hug, or no boots');
 });
 
-await scenario('dev builds: a preset plays in its own slot, and your real save is untouched', null, async (page) => {
+scenario('dev builds: a preset plays in its own slot, and your real save is untouched', null, async (page) => {
   const url = page.url().split('?')[0];
   await page.goto(`${url}?preset=poppy-chase`);
   await waitFor(page, 'the preset to start', async () => game<boolean>(page, `g.mode === 'world' && g.save.stories.poppy === 4`), 20000);
@@ -557,8 +591,9 @@ await scenario('dev builds: a preset plays in its own slot, and your real save i
 
 // The 3D characters: every model loads, and the hero, villagers and monsters render (in software WebGL here) without
 // errors, on the map and in a fight.
-{
-  const name = 'characters are drawn in 3D: every model loads and renders on the map and in a fight';
+const GL_NAME = 'characters are drawn in 3D: every model loads and renders on the map and in a fight';
+if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, run: async () => {
+  const name = GL_NAME;
   const gl = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await (await gl.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   const errors: string[] = [];
@@ -583,8 +618,14 @@ await scenario('dev builds: a preset plays in its own slot, and your real save i
     console.log(`  ✗ ${name}: ${(e as Error).message}`);
   }
   await gl.close();
-}
+} });
 
+queue.sort((a, b) => weight(a.name) - weight(b.name));
+let next = 0;
+await Promise.all(Array.from({ length: Math.min(JOBS, queue.length) }, async () => {
+  while (next < queue.length) await queue[next++].run();
+}));
+console.log(`\n${queue.length} scenarios, ${JOBS} at a time: ${((Date.now() - START) / 1000).toFixed(0)}s`);
 await browser.close();
 server.stop(true);
 if (failures.length) {
