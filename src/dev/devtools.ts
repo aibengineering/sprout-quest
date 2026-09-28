@@ -43,14 +43,15 @@ export function install() {
     open: () => void inGamePanel(),
   };
   perfMeter();
-  if (sessionStorage.getItem(AUTOPLAY)) {
+  const auto = sessionStorage.getItem(AUTOPLAY);
+  if (auto) {
     sessionStorage.removeItem(AUTOPLAY);
-    // Continue as soon as the title's buttons are up (once everything's loaded).
+    // Continue (or, for a fresh story, start a new game) as soon as the title's buttons are up (once everything's loaded).
     const t = setInterval(() => {
-      const btns = document.querySelector<HTMLElement>('.title-btns'), cont = document.getElementById('btn-continue');
-      if (btns?.hidden || !cont || cont.hidden) return;
+      const btns = document.querySelector<HTMLElement>('.title-btns'), btn = document.getElementById(auto === 'new' ? 'btn-new' : 'btn-continue');
+      if (btns?.hidden || !btn || btn.hidden) return;
       clearInterval(t);
-      cont.click();
+      btn.click();
     }, 100);
   }
 }
@@ -93,14 +94,23 @@ function deleteSlot(slot: string) {
   for (const k of KEYS) localStorage.removeItem(slotKey(k, slot));
 }
 
-/** Reloads into a slot, straight into the game if it has a save. */
-function switchTo(slot: string | null) {
+/** Reloads into a slot, straight into the game if it has a save (or into a new game, with `fresh`). */
+function switchTo(slot: string | null, fresh = false) {
   // Save where you are first, then nothing more: the page saves on its way out, which would land in the new slot.
   if (G.mode !== 'title') persist();
   freezeStorage();
   setActiveSlot(slot);
-  if (localStorage.getItem(slotKey(SAVE_KEY, slot))) sessionStorage.setItem(AUTOPLAY, '1');
+  if (fresh) sessionStorage.setItem(AUTOPLAY, 'new');
+  else if (localStorage.getItem(slotKey(SAVE_KEY, slot))) sessionStorage.setItem(AUTOPLAY, '1');
   location.reload();
+}
+
+/** The story from the very start (waking in the Quiet Glade), in a slot of its own: your other saves stay as they are. */
+function newStory() {
+  let n = 1;
+  while (localStorage.getItem(slotKey(SAVE_KEY, `story-${n}`))) n++;
+  deleteSlot(`story-${n}`);
+  switchTo(`story-${n}`, true);
 }
 
 /** A preset gets its own slot, reset to the preset (with an empty play report) every time you start it. */
@@ -210,6 +220,7 @@ async function panel() {
     `<div class="big" style="font-size:22px">🛠 Save slots</div>
      <p class="dev-note">Dev builds only. Each slot keeps its own save and play report; <b>main</b> is your real playthrough.</p>
      <div class="dev-list">${slotRows}</div>
+     <button class="go dev-copy" data-dialog="fresh">🌱 New story in a fresh slot</button>
      <button class="go ghost dev-copy" data-dialog="copy">Copy <b>${esc(active)}</b> to a new slot</button>
      <div class="dev-h">Display</div>
      <div class="dev-row"><div class="dev-info"><b>Performance readout</b><small>FPS, frame times and the GPU, at the left edge</small></div>
@@ -222,6 +233,7 @@ async function panel() {
   const [act, arg] = r.split(/:(.*)/s);
   if (act === 'play') switchTo(slotOf(arg));
   else if (act === 'preset') startPreset(arg);
+  else if (act === 'fresh') newStory();
   else if (act === 'perf') {
     localStorage.setItem(PERF, perfOn() ? '0' : '1');
     document.getElementById('dev-perf')!.hidden = !perfOn();
