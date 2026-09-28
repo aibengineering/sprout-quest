@@ -314,6 +314,8 @@ def build_poppy(mood='happy', hug=False):
     sphere((0, 0, 0), (0.35, 0.32, 0.31), skin, head, seg=32)
     _face(head, mood, '#9a4a2a')
     sphere((0, 0.05, 0.07), (0.37, 0.33, 0.3), hair, head, seg=32)
+    # Hair falling over the back of her neck, so no skin shows under it from behind.
+    sphere((0, 0.14, -0.12), (0.33, 0.22, 0.22), hair, head, seg=24)
     for x, z, s in ((-0.19, 0.16, 0.11), (-0.06, 0.2, 0.12), (0.07, 0.2, 0.12), (0.19, 0.15, 0.1)):
         sphere((x, -0.2, z), (s, 0.08, s * 0.8), hair, head)
     bow = toon('#ff8ab0')
