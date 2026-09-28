@@ -56,7 +56,8 @@ const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', mea
 
 /** Blender-rendered icon with the emoji as a fallback if the image is missing. */
 export function icon(id: string, emoji: string, cls = 'icon') {
-  return `<img class="${cls}" src="${iconUrl(id)}" alt="" onerror="this.outerHTML='${emoji}'">`;
+  // decoding="sync": paint the (already downloaded and decoded) icon with the menu, not a moment after.
+  return `<img class="${cls}" src="${iconUrl(id)}" alt="" decoding="sync" onerror="this.outerHTML='${emoji}'">`;
 }
 
 export function gearStats(g: Gear): string {
@@ -132,6 +133,8 @@ export function allIconIds(): string[] {
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
     ...buildings.map((b) => `b_${b}`), 'npc_elder',
+    // Story portraits and keepsakes.
+    'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots',
   ];
 }
 

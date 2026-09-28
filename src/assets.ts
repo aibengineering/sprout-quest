@@ -78,17 +78,33 @@ export async function loadAssets(onProgress?: (p: LoadProgress) => void, base = 
 }
 
 /** Warms the browser cache with the menu icons so bags and forges open with every picture already there. */
+/**
+ * Icons downloaded once and kept in memory, as blob URLs to their bytes (with the decoded image held, so the browser
+ * keeps it decoded). Menus rebuild their HTML every time they open; pointing at these means the icons paint in the
+ * first frame instead of each one being fetched (or re-fetched, on a server that says not to cache) and popping in.
+ */
+const iconBlobs = new Map<string, string>();
+const decodedIcons: HTMLImageElement[] = [];
+
 export async function preloadIcons(ids: string[], onProgress?: (p: LoadProgress) => void): Promise<void> {
   let done = 0;
-  await Promise.all(ids.map((id) => new Promise<void>((ok) => {
-    const img = new Image();
-    img.onload = img.onerror = () => {
-      done++;
-      onProgress?.({ stage: 'icons', done, total: ids.length });
-      ok();
-    };
-    img.src = iconUrl(id);
-  })));
+  await Promise.all(ids.map(async (id) => {
+    try {
+      const res = await fetch(`assets/icons/${id}.webp`);
+      if (res.ok) {
+        const url = URL.createObjectURL(await res.blob());
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        iconBlobs.set(id, url);
+        decodedIcons.push(img);
+      }
+    } catch {
+      // Missing or broken: that icon falls back to its emoji.
+    }
+    done++;
+    onProgress?.({ stage: 'icons', done, total: ids.length });
+  }));
 }
 
 export function frame(name: string): Frame | undefined {
@@ -273,5 +289,5 @@ export function drawIdler(ctx: CanvasRenderingContext2D, slot: string, name: str
 }
 
 export function iconUrl(id: string) {
-  return `assets/icons/${id}.webp`;
+  return iconBlobs.get(id) ?? `assets/icons/${id}.webp`;
 }
