@@ -227,7 +227,7 @@ export function coachBattle(b: Battle) {
     }
     return ui.coach(null);
   }
-  if (has(s, 'skill') && !s.tips.includes('coach-skill')) {
+  if (b.skillNow && !s.tips.includes('coach-skill')) {
     if (b.skillFrac > 0.5) s.tips.push('coach-skill');
     return ui.coach(`New! ${press('L', '✨')} for your weapon skill.`, 'btn-skill');
   }

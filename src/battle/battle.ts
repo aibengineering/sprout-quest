@@ -8,7 +8,7 @@ import { Fx } from '../fx';
 import type { Input } from '../input';
 import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
-import { MOVESETS, SKILL_DATA, pace, strikeTime, tierScale, type Moveset, type Strike } from '../weapons';
+import { MOVESETS, SKILL_DATA, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
 import { MONSTER_AI, type FoeWorld } from './monsters';
 import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
@@ -44,6 +44,8 @@ export class Battle implements FoeWorld, HitWorld {
   /** Your handling level with this weapon's class, and the pace it gives you (see weapons.ts pace()). */
   readonly handling: number;
   private readonly pace: { chain: number; rest: number };
+  /** Your weapon's skill at your handling level (null until handling Lv 2). */
+  readonly skillNow: SkillRank | null;
   readonly p = {
     x: 0, y: 120, vx: 0, vy: 0, kx: 0, ky: 0, r: 12,
     hp: 0, face: -Math.PI / 2, moving: false,
@@ -104,6 +106,7 @@ export class Battle implements FoeWorld, HitWorld {
     this.el = ELEMENTS[this.element];
     this.handling = save.mastery[this.weapon.style ?? 'sword']?.lv ?? 1;
     this.pace = pace(this.handling);
+    this.skillNow = skillAt(this.moves.skill, this.handling);
     // Regular fights swoop in and get going at once; bosses keep their dramatic "Boss battle!" beat.
     this.intro = this.dramatic ? 1.2 : ZOOM_T + 0.1;
     const n = setup.foes.length;
@@ -139,7 +142,9 @@ export class Battle implements FoeWorld, HitWorld {
     return e;
   }
 
-  get skillFrac() { return Math.max(0, this.p.skillCd) / SKILL_CD; }
+  get skillFrac() { return Math.max(0, this.p.skillCd) / (this.skillNow?.cd ?? SKILL_CD); }
+  /** How far the whip's whirl reaches at your rank. */
+  get whirlRange() { return SKILL_DATA.whirl.radius * (this.skillNow?.size ?? 1) * this.reach; }
   get dodgeFrac() { return Math.max(0, this.p.dodgeCd) / 0.7; }
   /** How much of the attack cooldown is left, once the swing itself is over: the gap before the next, or the rest after a combo. */
   get attackFrac() {
@@ -313,7 +318,7 @@ export class Battle implements FoeWorld, HitWorld {
       this.startSwing(combo[idx], false, idx === combo.length - 1);
     }
     // Skills cancel whatever swing is in progress, so they always come out when pressed.
-    if (inp.consume('skill') && p.skillCd <= 0 && p.dodgeT <= 0 && p.whirlT <= 0) this.skill();
+    if (inp.consume('skill') && this.skillNow && p.skillCd <= 0 && p.dodgeT <= 0 && p.whirlT <= 0) this.skill(this.skillNow);
     if (inp.consume('potion')) this.drinkPotion();
     if (inp.consume('run')) this.tryRun();
   }
@@ -508,10 +513,10 @@ export class Battle implements FoeWorld, HitWorld {
     }
     if (sw.skill) {
       // Quake: shockwaves burst out in every direction.
-      const q = SKILL_DATA.quake.waves;
-      for (let i = 0; i < q.count; i++) {
-        const dir = sw.aim + (i / q.count) * TAU;
-        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: q.mult, id: ++this.hitCounter, spikeAt: 0 });
+      const q = SKILL_DATA.quake.waves, n = this.skillNow?.count ?? q.count;
+      for (let i = 0; i < n; i++) {
+        const dir = sw.aim + (i / n) * TAU;
+        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: this.skillNow?.sub ?? q.mult, id: ++this.hitCounter, spikeAt: 0 });
       }
     }
   }
@@ -580,9 +585,9 @@ export class Battle implements FoeWorld, HitWorld {
     this.zaps = this.zaps.filter((z) => z.t < 0.18);
   }
 
-  private skill() {
+  private skill(r: SkillRank) {
     const p = this.p;
-    p.skillCd = SKILL_CD;
+    p.skillCd = r.cd;
     this.log.skills++;
     p.swing = null;
     this.audio.play('skill');
@@ -590,8 +595,8 @@ export class Battle implements FoeWorld, HitWorld {
     const col = this.el.colors;
     switch (this.moves.skill) {
       case 'spin':
-        this.startSwing(SKILL_DATA.spin, true, true);
-        this.rings.push({ x: p.x, y: p.y - 10, r0: 20, r1: SKILL_DATA.spin.range * this.reach, t: 0, dur: 0.35, color: '255,255,200' });
+        this.startSwing({ ...SKILL_DATA.spin, mult: r.mult, range: SKILL_DATA.spin.range * r.size, stun: r.stun }, true, true);
+        this.rings.push({ x: p.x, y: p.y - 10, r0: 20, r1: SKILL_DATA.spin.range * r.size * this.reach, t: 0, dur: 0.35, color: '255,255,200' });
         if (this.el.hot) {
           for (let i = 0; i < 16; i++) {
             const a = (i / 16) * TAU;
@@ -605,10 +610,10 @@ export class Battle implements FoeWorld, HitWorld {
         p.whirlAng = ang;
         break;
       case 'quake':
-        this.startSwing(SKILL_DATA.quake.strike, true, true);
+        this.startSwing({ ...SKILL_DATA.quake.strike, mult: r.mult, stun: r.stun }, true, true);
         break;
       case 'nova':
-        for (let i = 0; i < SKILL_DATA.nova.shots; i++) this.shoot(ang + (i / SKILL_DATA.nova.shots) * TAU, SKILL_DATA.nova.mult, SKILL_DATA.nova.size);
+        for (let i = 0; i < r.count; i++) this.shoot(ang + (i / r.count) * TAU, r.sub, SKILL_DATA.nova.size);
         this.rings.push({ x: p.x, y: p.y - 10, r0: 10, r1: 70, t: 0, dur: 0.3, color: '160,230,255' });
         break;
     }
@@ -623,11 +628,11 @@ export class Battle implements FoeWorld, HitWorld {
     if (p.whirlTick <= 0) {
       p.whirlTick = SKILL_DATA.whirl.tick;
       const id = ++this.hitCounter;
-      const range = SKILL_DATA.whirl.radius * this.reach;
+      const range = this.whirlRange;
       for (const e of this.enemies) {
         if (e.dead) continue;
         if (Math.hypot(e.x - p.x, e.y - e.r * 0.6 - (p.y - 10)) - e.r > range) continue;
-        this.hitEnemy(e, SKILL_DATA.whirl.mult, Math.atan2(e.y - p.y, e.x - p.x), 160, 0.1, id, 0.02);
+        this.hitEnemy(e, this.skillNow?.sub ?? 0, Math.atan2(e.y - p.y, e.x - p.x), 160, 0.1, id, 0.02);
       }
       this.audio.play('swing');
     }

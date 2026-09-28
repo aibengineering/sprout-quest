@@ -35,8 +35,8 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'skill', icon: '✨', title: 'Weapon Skill', key: 'L',
-    text: 'Tap ✨ in battle for your weapon’s special move. It recharges after each use.',
-    when: (s) => s.wins > 2,
+    text: 'Your weapon handling unlocked its special move: tap ✨ in battle. It grows stronger as your handling improves.',
+    when: (s) => Object.values(s.mastery).some((m) => m.lv >= 2),
   },
   {
     id: 'forge', icon: '⚒', title: 'The Forge',

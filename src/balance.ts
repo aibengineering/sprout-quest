@@ -2,7 +2,7 @@
 // tests/balance.test.ts enforces the targets; `bun run balance` prints the full table while tuning.
 import { ARENA_RX, ARENA_RY } from './arena';
 import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
-import { MOVESETS, comboDps, openingBurst, skillShape, strikeShape, tierScale } from './weapons';
+import { MOVESETS, comboDps, openingBurst, skillRank, skillShape, strikeShape, tierScale } from './weapons';
 import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
@@ -266,6 +266,8 @@ export const MAX_STRIKE_REACH = 0.7;
 export const MAX_STRIKE_AREA = 0.1;
 /** A skill can clear a crowd, but not the whole arena. */
 export const MAX_SKILL_AREA = 0.3;
+/** A mastered skill (handling Lv 10) can be much bigger, but still never fills the arena. */
+export const MAX_MASTERED_SKILL_AREA = 0.5;
 /** Hunter weapons hit for this share of their tier's gatherer damage: less raw power, but they carry monster effects. */
 export const HUNTER_DPS: Range = [0.75, 0.95];
 /**
@@ -290,7 +292,8 @@ export function weaponStats(): WeaponStats[] {
   return Object.values(GEAR).filter((g) => g.slot === 'weapon').map((g) => {
     const m = MOVESETS[g.style ?? 'sword'], k = tierScale(g.tier ?? 0);
     const shapes = m.combo.map((s) => strikeShape(s, k)).filter((_, i) => m.combo[i].shape !== 'shot');
-    const sk = skillShape(m.skill, k);
+    // The skill as you'd typically have it with this tier of weapon (by handling level), at least its first rank.
+    const sk = skillShape(m.skill, k, Math.max(1, skillRank(handlingFor(g.tier ?? 0))));
     return {
       id: g.id, name: g.name, tier: g.tier ?? 0, style: g.style ?? 'sword', track: g.recipe ? gearTrack(g) : 'gatherer',
       dps: comboDps(m, handlingFor(g.tier ?? 0)) * (g.atk ?? 0),

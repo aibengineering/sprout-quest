@@ -8,7 +8,7 @@ import { currentQuest, progress, questNeeds } from './quests';
 import { MASTERY_MAX, PLOT_UNLOCK, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, plotOpen, revealed, skillXpToNext, xpToNext, type Lock } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
-import { MOVESETS, comboTime } from './weapons';
+import { MOVESETS, SKILL_LEVELS, comboTime, handlingStep, skillAt } from './weapons';
 import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
 import { LOGS_PER_PLANK, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate } from './sawmill';
 import { usingKeyboard } from './input';
@@ -160,6 +160,30 @@ export const forgeArt = (level: number) => (level <= 0 ? 'forge0' : level === 1 
 export function paceGain(style: Style, lv: number): number {
   const m = MOVESETS[style];
   return Math.round((comboTime(m, 1) / comboTime(m, lv) - 1) * 100);
+}
+
+/** The ten-level handling path as pips: ✨ for a skill rank, ⚡ for a speed step, the ones you've reached lit. */
+function handlingPath(lv: number): string {
+  const pips = Array.from({ length: MASTERY_MAX }, (_, i) => {
+    const at = i + 1, step = handlingStep(at);
+    return `<i class="${at <= lv ? 'on' : ''} ${step ?? 'start'}" title="Lv ${at}">${step === 'skill' ? '✨' : step === 'speed' ? '⚡' : '•'}</i>`;
+  }).join('');
+  return `<div class="hpath">${pips}</div>`;
+}
+
+/** What the next handling level brings, in words. */
+export function handlingNext(style: Style, lv: number): string | null {
+  if (lv >= MASTERY_MAX) return null;
+  return handlingGain(style, lv + 1);
+}
+
+/** What reaching a handling level gives you, in words ("Spin II: wider, and harder", "attacks 12% faster"). */
+export function handlingGain(style: Style, lv: number): string {
+  if (handlingStep(lv) === 'skill') {
+    const sk = skillAt(MOVESETS[style].skill, lv)!;
+    return `Lv ${lv}: ${sk.name} (${sk.note.charAt(0).toLowerCase()}${sk.note.slice(1)})`;
+  }
+  return `Lv ${lv}: attacks ${paceGain(style, lv) - paceGain(style, lv - 1)}% faster`;
 }
 
 function handlingPace(style: Style, lv: number): string {
@@ -834,9 +858,12 @@ export class UI {
     const handling = (Object.keys(STYLE_NAMES) as Style[]).filter((k) => k === style || s.mastery[k].lv > 1 || s.mastery[k].xp > 0).map((k) => {
       const m = s.mastery[k], max = m.lv >= MASTERY_MAX, need = masteryXpToNext(m.lv);
       const emoji = { sword: '🗡️', hammer: '🔨', whip: '〰️', wand: '🪄' }[k];
-      return `<div class="mcard row"><div class="ico"><span class="emo">${emoji}</span></div><div class="info">
+      const sk = skillAt(MOVESETS[k].skill, m.lv), next = handlingNext(k, m.lv);
+      return `<div class="mcard row handling"><div class="ico"><span class="emo">${emoji}</span></div><div class="info">
         <div class="name">${STYLE_NAMES[k]} handling <span class="lvl">Lv ${m.lv}</span></div>
-        <div class="desc">${handlingPace(k, m.lv)} · ${max ? 'Mastered!' : `${m.xp}/${need} XP · win fights with a ${STYLE_NAMES[k].toLowerCase()} to train`}</div>
+        <div class="desc">${sk ? `✨ <b>${esc(sk.name)}</b>: ${esc(sk.note)}` : `✨ Skill unlocks at Lv ${SKILL_LEVELS[0]}`} · ${handlingPace(k, m.lv)}</div>
+        ${handlingPath(m.lv)}
+        <div class="desc">${max ? 'Mastered!' : `${m.xp}/${need} XP${next ? ` · <b>Next:</b> ${esc(next)}` : ''}`}</div>
         <div class="pbar"><i style="width:${max ? 100 : (100 * m.xp) / need}%"></i></div></div></div>`;
     }).join('');
     const PERKS: Record<string, [string, string, string]> = { trailboots: ['trailboots', 'Trail Boots', 'From Granny Clover: walk 25% faster outside of fights.'] };

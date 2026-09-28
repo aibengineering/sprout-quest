@@ -68,9 +68,58 @@ export interface Moveset {
  * attacks about 10% slower at Lv 1 than it did on the old stamina meter, and about 1.8× faster mastered than at Lv 1.
  */
 export function pace(lv: number) {
-  const q = Math.min(1, Math.max(0, (lv - 1) / (MASTERY_MAX - 1)));
+  const q = SPEED_LEVELS.filter((l) => lv >= l).length / SPEED_LEVELS.length;
   return { chain: 1.6 - 1.15 * q, rest: 1.7 - 0.9 * q };
 }
+
+/**
+ * The handling path, the same for every class of weapon: its skill unlocks at Lv 2 and grows a rank at 5, 8 and 10
+ * (Mastery); every level in between is a step up in attack speed. So each level gives something you can feel, and the
+ * skill levels are the big ones.
+ */
+export const SKILL_LEVELS = [2, 5, 8, 10];
+export const SPEED_LEVELS = [3, 4, 6, 7, 9];
+/** Your skill's rank at a handling level: 0 (locked) to 4 (Mastery). */
+export const skillRank = (lv: number) => SKILL_LEVELS.filter((l) => lv >= l).length;
+/** What a handling level gives: its skill rank if it's a skill level, else an attack speed step (none at Lv 1). */
+export const handlingStep = (lv: number): 'skill' | 'speed' | null => (SKILL_LEVELS.includes(lv) ? 'skill' : SPEED_LEVELS.includes(lv) ? 'speed' : null);
+
+/**
+ * Each skill at each rank (I–IV). `mult` is the main hit, `size` scales its reach, `count` is how many waves or bolts,
+ * `sub` the damage of each wave, whirl tick or bolt, `stun` how long it stuns, and `cd` its recharge. Kept so that one
+ * target in front of you takes about the same from every class's skill at a rank (tests/balance.test.ts), rising
+ * rank by rank; each class spends it differently (a stunning cut, shockwaves, a flurry, a ring of bolts).
+ */
+export interface SkillRank { name: string; note: string; mult: number; size: number; count: number; sub: number; stun: number; cd: number }
+const rank = (name: string, note: string, r: Partial<SkillRank>): SkillRank => ({ name, note, mult: 1, size: 1, count: 0, sub: 0, stun: 0, cd: 4.5, ...r });
+export const SKILL_RANKS: Record<SkillKind, SkillRank[]> = {
+  spin: [
+    rank('Spin', 'A cut all the way round you', { mult: 1.6, size: 1, stun: 0.3 }),
+    rank('Spin II', 'Wider, and harder', { mult: 2.0, size: 1.1, stun: 0.4 }),
+    rank('Spin III', 'Harder still, and stuns longer', { mult: 2.4, size: 1.18, stun: 0.6 }),
+    rank('Cyclone', 'A huge, stunning spin that recharges faster', { mult: 2.9, size: 1.35, stun: 0.8, cd: 3.5 }),
+  ],
+  quake: [
+    rank('Quake', 'Slam the ground: 4 shockwaves', { mult: 1.5, count: 4, sub: 0.35, stun: 0.8 }),
+    rank('Quake II', '6 stronger shockwaves', { mult: 1.8, count: 6, sub: 0.45, stun: 0.8 }),
+    rank('Quake III', '6 heavier shockwaves, and a harder slam', { mult: 2.2, count: 6, sub: 0.6, stun: 0.9 }),
+    rank('Earthshaker', '10 shockwaves, and it recharges faster', { mult: 2.4, count: 10, sub: 0.65, stun: 1.0, cd: 3.5 }),
+  ],
+  whirl: [
+    rank('Whirl', 'Lash everything around you', { sub: 0.24, size: 1 }),
+    rank('Whirl II', 'Harder lashes', { sub: 0.29, size: 1.1 }),
+    rank('Whirl III', 'Harder, and further out', { sub: 0.34, size: 1.2 }),
+    rank('Tempest', 'A wide, fierce whirl that recharges faster', { sub: 0.4, size: 1.35, cd: 3.5 }),
+  ],
+  nova: [
+    rank('Nova', 'A ring of 8 bolts', { count: 8, sub: 1.4 }),
+    rank('Nova II', '10 stronger bolts', { count: 10, sub: 1.7 }),
+    rank('Nova III', '12 bolts, stronger still', { count: 12, sub: 2.0 }),
+    rank('Starburst', '16 bolts, and it recharges faster', { count: 16, sub: 2.3, cd: 3.5 }),
+  ],
+};
+/** The skill as you have it at a handling level (null while it's locked). */
+export const skillAt = (kind: SkillKind, lv: number): SkillRank | null => SKILL_RANKS[kind][skillRank(lv) - 1] ?? null;
 
 const TAU = Math.PI * 2;
 
@@ -203,21 +252,27 @@ export const SKILL_DATA = {
     /** Shockwaves bursting out in every direction. */
     waves: { count: 6, range: 100, width: 32, speed: 520, mult: 0.5 },
   },
-  whirl: { dur: 1.2, tick: 0.16, radius: 80, mult: 0.45 },
-  nova: { shots: 12, mult: 1.0, size: 8 },
+  whirl: { dur: 1.2, tick: 0.16, radius: 80 },
+  nova: { size: 8 },
 };
 
-/** A skill's reach, ground covered, and total damage multiplier on one target caught in it. */
-export function skillShape(kind: SkillKind, reach: number): { reach: number; area: number; mult: number } {
-  const d = SKILL_DATA;
+/** Whirl's lashes land this many times over its spin. */
+export const WHIRL_TICKS = Math.floor(SKILL_DATA.whirl.dur / SKILL_DATA.whirl.tick);
+
+/**
+ * A skill's reach, ground covered, and total damage multiplier on one target caught in it, at a rank (1–4; Mastery by
+ * default, its biggest).
+ */
+export function skillShape(kind: SkillKind, reach: number, rk = SKILL_LEVELS.length): { reach: number; area: number; mult: number } {
+  const d = SKILL_DATA, r = SKILL_RANKS[kind][rk - 1];
   switch (kind) {
-    case 'spin': return { ...strikeShape(d.spin, reach), mult: d.spin.mult };
+    case 'spin': return { ...strikeShape({ ...d.spin, range: d.spin.range * r.size }, reach), mult: r.mult };
     case 'quake': {
       const s = strikeShape(d.quake.strike, reach), w = d.quake.waves;
-      return { reach: Math.max(s.reach, w.range * reach), area: s.area + w.count * w.range * reach * w.width, mult: d.quake.strike.mult + w.mult };
+      return { reach: Math.max(s.reach, w.range * reach), area: s.area + r.count * w.range * reach * w.width, mult: r.mult + r.sub };
     }
-    case 'whirl': return { reach: d.whirl.radius * reach, area: Math.PI * (d.whirl.radius * reach) ** 2, mult: d.whirl.mult * Math.floor(d.whirl.dur / d.whirl.tick) };
-    case 'nova': return { reach: 400 * 1.2, area: d.nova.shots * Math.PI * d.nova.size ** 2, mult: d.nova.mult };
+    case 'whirl': return { reach: d.whirl.radius * r.size * reach, area: Math.PI * (d.whirl.radius * r.size * reach) ** 2, mult: r.sub * WHIRL_TICKS };
+    case 'nova': return { reach: 400 * 1.2, area: r.count * Math.PI * d.nova.size ** 2, mult: r.sub };
   }
 }
 

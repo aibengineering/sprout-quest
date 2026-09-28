@@ -2,7 +2,8 @@
 import { GEAR, GEAR_ORDER, MATS, MONSTERS, SKILL_NAMES, STYLE_NAMES, TOOLS, ZONES, type MatId, type SkillId, type Style } from '../data';
 import { playerStats, revealed, type PlayerStats } from '../rules';
 import { logEvent } from '../stats';
-import { icon, paceGain } from '../ui';
+import { handlingGain, icon } from '../ui';
+import { handlingStep } from '../weapons';
 import { G, paused } from './context';
 
 /** Loot rows; `what` (a skill or weapon class) names whose XP it is, and is dropped on phones where the icon says it. */
@@ -47,7 +48,10 @@ export async function celebrate(m: LevelMark) {
   const lv = s.mastery[m.style].lv;
   if (lv > m.fromHandling) {
     logEvent(s, { kind: 'level', track: `handling:${m.style}`, lv });
-    await G.ui.skillUp(`${STYLE_NAMES[m.style]} handling`, lv, '⚔️', `Your ${STYLE_NAMES[m.style].toLowerCase()} attacks come quicker: ${paceGain(m.style, lv)}% faster than when you started.`, newlyRevealed(m.shown));
+    // What each level gained gives: a skill rank (the big ones) or a step in attack speed.
+    const gains = Array.from({ length: lv - m.fromHandling }, (_, i) => m.fromHandling + 1 + i).map((l) => handlingGain(m.style, l).replace(/^Lv \d+: /, ''));
+    const skill = handlingStep(lv) === 'skill';
+    await G.ui.skillUp(`${STYLE_NAMES[m.style]} handling`, lv, skill ? '✨' : '⚡', `${skill ? '✨ ' : '⚡ '}${gains.join(' · ')}`, newlyRevealed(m.shown));
   }
 }
 

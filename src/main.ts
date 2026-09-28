@@ -84,7 +84,8 @@ function battleFrame(b: Battle, dt: number) {
   ui.questPill(false);
   ui.dock(false);
   ui.dragHint(false);
-  ui.battleButtons(has(s, 'skill'), has(s, 'bag') && s.flags.includes('village'));
+  // The skill button only once your handling with this weapon's class has unlocked its skill (Lv 2).
+  ui.battleButtons(!!b.skillNow, has(s, 'bag') && s.flags.includes('village'));
   if (G.mode === 'battle') {
     coachBattle(b);
     ui.battleHud(s.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac);

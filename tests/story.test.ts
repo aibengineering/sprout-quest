@@ -157,7 +157,9 @@ describe('onboarding unlocks', () => {
     expect(ids()).toEqual(['journal']); // arriving in the village
     Object.assign(s.mats, { goo: 4, fluff: 3 });
     s.wins = 3;
-    expect(ids()).toEqual(['mend', 'skill']); // enough to mend a tool
+    expect(ids()).toEqual(['mend']); // enough to mend a tool
+    s.mastery.sword.lv = 2;
+    expect(ids()).toEqual(['skill']); // sword handling Lv 2 unlocks its skill
     craftTool(s, 'axe1');
     craftTool(s, 'pick1');
     advanceQuests(s);

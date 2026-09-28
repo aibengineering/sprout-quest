@@ -635,7 +635,7 @@ function drawHero(b: Battle, ctx: Ctx) {
     ctx.globalAlpha = 0.35;
     ctx.strokeStyle = b.weapon.trail ?? '#fff';
     ctx.lineWidth = 16;
-    const R = SKILL_DATA.whirl.radius * b.reach;
+    const R = b.whirlRange;
     for (let k = 0; k < 3; k++) {
       ctx.beginPath();
       ctx.ellipse(p.x, p.y - 10, R, R * 0.8, 0, ang - 1.4 + (k * TAU) / 3, ang + (k * TAU) / 3);
@@ -795,7 +795,7 @@ function drawLash(b: Battle, ctx: Ctx, hx: number, hy: number, ang: number, sw: 
   }
   // The skill's twirl: a wide loop around you.
   if (b.p.whirlT > 0) {
-    const len = SKILL_DATA.whirl.radius * b.reach, bow = len * 0.3;
+    const len = b.whirlRange, bow = len * 0.3;
     const ex = hx + Math.cos(ang) * len, ey = hy + Math.sin(ang) * len;
     const mx = (hx + ex) / 2 - Math.sin(ang) * bow, my = (hy + ey) / 2 + Math.cos(ang) * bow;
     for (const [w, c] of [[6, 'rgba(40,20,50,0.55)'], [3.5, col]] as const) {
