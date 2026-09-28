@@ -52,8 +52,10 @@ function kit(s: SaveState, checkpoint: string) {
   for (const id of s.owned) for (const [k, n] of Object.entries(GEAR[id]?.needs ?? {})) s.skills[k as 'wood' | 'mine'].lv = Math.max(s.skills[k as 'wood' | 'mine'].lv, n);
   const w = GEAR[c.weapon];
   if (w.style) s.mastery[w.style].lv = Math.max(s.mastery[w.style].lv, 1 + (w.tier ?? 0) * 2);
-  // A Forge good enough to have made what you're wearing.
-  s.build.forge = Math.max(s.build.forge, ...[c.weapon, c.armor, c.charm].filter((id): id is string => !!id).map((id) => forgeLevelFor(GEAR[id])));
+  // A Forge good enough to have made what you're wearing (starter gear like the Twig Sword wasn't forged, so the
+  // Forge stays in ruins until the story repairs it).
+  const forged = [c.weapon, c.armor, c.charm].filter((id): id is string => !!id && (GEAR[id]?.tier ?? 0) > 0);
+  s.build.forge = Math.max(s.build.forge, ...forged.map((id) => forgeLevelFor(GEAR[id])));
 }
 
 /** Tool tiers for chopping and mining. */
