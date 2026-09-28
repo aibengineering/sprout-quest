@@ -128,18 +128,14 @@ async function onBattleEnd(o: BattleOutcome) {
   }
   if (o.result === 'win' && quick) {
     const mark = grantWin(o, b);
-    swoopOut();
     G.ui.loot(lootLines(o.drops, [{ n: o.xp, what: STYLE_NAMES[mark.style], emo: '⚔️' }]));
     persist();
-    // Back on the map, the XP bar fills (you can walk meanwhile; a level-up holds you for its screen).
-    await new Promise((r) => setTimeout(r, 320));
+    // Still in the arena: the XP bar fills and any level-up shows before you leave, so none of it lands while you're
+    // already walking (or in the next fight).
     await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
-    if (leveledUp(mark)) {
-      G.mode = 'dialog';
-      await celebrate(mark);
-      G.mode = 'world';
-      G.input.reset();
-    }
+    if (leveledUp(mark)) await celebrate(mark);
+    swoopOut();
+    G.input.reset();
     void progressQuests();
     return;
   }

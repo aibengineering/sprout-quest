@@ -1014,7 +1014,7 @@ body.kbd .drag-hint .keys { display: flex; }
 .stat.ding .lv { animation: lvding 0.42s cubic-bezier(0.3, 1.8, 0.5, 1); background: #ffb627; }
 @keyframes lvding { 40% { transform: scale(1.45) rotate(-6deg); } }
 .xp-float {
-  position: absolute; right: 14px; top: 100%; margin-top: 4px; z-index: 1;
+  position: absolute; left: 14px; top: 100%; margin-top: 6px; z-index: 1;
   font: 700 16px var(--display); color: #ffd24a; white-space: nowrap;
   -webkit-text-stroke: 4px var(--outline); paint-order: stroke fill;
   animation: xpfloat 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
