@@ -64,23 +64,53 @@ export class Audio {
   }
 
   /**
-   * The XP bar filling: a soft tone rising in pitch for `dur` seconds, from `from` to `to` of the way up the bar (so
-   * a long fill climbs, and one that tops out ends high).
+   * The XP bar filling, built the way Pokémon's is (Gold/Silver's EXP sound, read from the disassembly): not one long
+   * slide but a string of re-struck square-wave notes, each chirping up into where the next one starts, so it bubbles
+   * as it climbs. The pitch follows the bar (slow at the bottom, racing near the top, which builds anticipation), and
+   * it gets louder as the bar fills. A bright blip starts it; a soft bubble under each note gives it the pop.
    */
   sweep(dur: number, from: number, to: number) {
     if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
-    const ctx = this.ctx, t0 = ctx.currentTime;
+    const t0 = this.ctx.currentTime + 0.01;
+    this.chirp(xpPitch(from) * 1.5, xpPitch(from) * 2, 0.07, 'square', 0.07, t0);
+    const n = Math.max(2, Math.round(dur / 0.075)), step = dur / n;
+    for (let i = 0; i < n; i++) {
+      const a = from + ((to - from) * i) / n, b = from + ((to - from) * (i + 1)) / n, t = t0 + 0.04 + i * step;
+      const vol = 0.045 + 0.055 * b;
+      this.chirp(xpPitch(a), xpPitch(b) * 1.02, step, 'square', vol, t, 0.45);
+      this.chirp(xpPitch(a) * 1.5, xpPitch(b) * 2, 0.045, 'sine', vol * 0.8, t);
+    }
+  }
+
+  /** One short note whose pitch climbs from `f0` to `f1`; it falls to `tail` of its volume by the end. */
+  private chirp(f0: number, f1: number, dur: number, type: OscillatorType, vol: number, t0: number, tail = 0.01) {
+    const ctx = this.ctx!;
     const o = ctx.createOscillator(), g = ctx.createGain();
-    o.type = 'square';
-    o.frequency.setValueAtTime(330 + 660 * from, t0);
-    o.frequency.linearRampToValueAtTime(330 + 660 * to, t0 + dur);
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t0);
+    o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.045, t0 + 0.03);
-    g.gain.setValueAtTime(0.045, t0 + Math.max(0.03, dur - 0.05));
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.004);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol * tail), t0 + dur);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.012);
     o.connect(g).connect(this.master!);
     o.start(t0);
-    o.stop(t0 + dur + 0.02);
+    o.stop(t0 + dur + 0.03);
+  }
+
+  /**
+   * The bar topping out: Pokémon's bell is two voices a fourth apart, each flicking up through two grace notes
+   * (a frame each) before it rings. Here in C: C-E-G under E-G-C, ringing on G and C, with a shimmer on top.
+   */
+  private bell() {
+    const t0 = this.ctx!.currentTime + 0.005, f = 1 / 60;
+    [[1047, 1319, 1568], [1319, 1568, 2093]].forEach((voice, v) =>
+      voice.forEach((hz, k) => {
+        const last = k === voice.length - 1;
+        this.chirp(hz, hz, last ? 0.34 : f, 'square', v ? 0.07 : 0.09, t0 + k * f, last ? 0.02 : 1);
+        if (last) this.chirp(hz, hz, 0.6, 'triangle', 0.12, t0 + k * f);
+      }));
+    this.chirp(4186, 4186, 0.25, 'sine', 0.025, t0 + 0.06);
   }
 
   play(s: Sfx) {
@@ -114,7 +144,7 @@ export class Audio {
       case 'crumble': this.noise(0.5, 0.38, 850); this.noise(0.3, 0.2, 2400, 0.06); this.tone(115, 0.26, 'sine', 0.28, 48); break;
       case 'pickup': notes([988, 1319], 0.05, 'square', 0.07); break;
       case 'crack': this.noise(0.035, 0.55, 7000); this.tone(2400, 0.025, 'square', 0.08, 1200); break;
-      case 'ding': this.tone(1568, 0.5, 'triangle', 0.22); this.tone(2093, 0.45, 'sine', 0.12, undefined, 0.04); break;
+      case 'ding': this.bell(); break;
       case 'tick': this.tone(1320, 0.05, 'square', 0.06); break;
       case 'treasure': notes([659, 784, 1047, 1319], 0.07, 'triangle', 0.16); this.tone(1568, 0.5, 'sine', 0.1, undefined, 0.3); break;
     }
@@ -128,3 +158,6 @@ export function vibrate(ms: number) {
     // Not supported (iOS) — fine.
   }
 }
+
+/** Where a point on the XP bar sits in pitch: even steps in period, as on the Game Boy, so it rises faster near the top. */
+const xpPitch = (p: number) => 440 / (1 - 0.55 * p);
