@@ -4,6 +4,13 @@ import math
 from lib import box, cone, crystal, cylinder, empty, profile, sphere, toon, torus
 
 SKIN = '#ffe2c8'
+
+
+def face_skin(color=SKIN):
+    """Skin that the light ramp leaves alone: a round chibi head lit from above puts the bottom half of the face in
+    shadow, which reads as a beard. A whisper of glow (too little to see) skips the shadow in both the Blender renders
+    and the game's shader, the usual cel-shading choice for faces."""
+    return toon(color, emit=0.02)
 HAIR = '#8a5a3a'
 
 ARMORS = {
@@ -31,7 +38,7 @@ def build(armor):
     P = {}
     root = P['root'] = empty('hero')
     bodyp = P['body'] = empty('bodyPivot', root)
-    skin, hair = toon(SKIN), toon(HAIR)
+    skin, hair = face_skin(), toon(HAIR)
     body_m, trim_m = toon(a['body']), toon(a['trim'])
     boot = toon('#6b4a3a')
 
@@ -196,7 +203,7 @@ def build_elder():
     P = {}
     root = P['root'] = empty('elder')
     bodyp = P['body'] = empty('bodyPivot', root)
-    skin, robe = toon(SKIN), toon('#6ab86a')
+    skin, robe = face_skin(), toon('#6ab86a')
     for side in (-1, 1):
         sphere((0.12 * side, -0.03, 0.05), (0.09, 0.12, 0.06), toon('#6b4a3a'), root)
     sphere((0, 0, 0.3), (0.3, 0.26, 0.3), robe, bodyp)
@@ -292,7 +299,7 @@ def build_poppy(mood='happy', hug=False):
     P = {}
     root = P['root'] = empty('poppy')
     bodyp = P['body'] = empty('bodyPivot', root)
-    skin, hair = toon(SKIN), toon('#c8643a')
+    skin, hair = face_skin(), toon('#c8643a')
     dress, trim = toon('#ffd35a'), toon('#ffffff')
     for side in (-1, 1):
         f = P[f'foot{side}'] = empty(f'foot{side}', root, (0.11 * side, 0, 0))
@@ -343,7 +350,7 @@ def build_bram(mood='grumpy', hurt=False):
     P = {}
     root = P['root'] = empty('bram')
     bodyp = P['body'] = empty('bodyPivot', root)
-    skin, beard = toon('#f0c8a8'), toon('#b0643a')
+    skin, beard = face_skin('#f0c8a8'), toon('#b0643a')
     red, black = toon('#d8483a'), toon('#3a2a2a')
     for side in (-1, 1):
         f = P[f'foot{side}'] = empty(f'foot{side}', root, (0.14 * side, 0, 0))
@@ -403,7 +410,7 @@ def build_granny(mood='happy'):
     P = {}
     root = P['root'] = empty('granny')
     bodyp = P['body'] = empty('bodyPivot', root)
-    skin, hair = toon(SKIN), toon('#e8e4f0')
+    skin, hair = face_skin(), toon('#e8e4f0')
     for side in (-1, 1):
         sphere((0.12 * side, -0.03, 0.05), (0.09, 0.12, 0.06), toon('#6b4a3a'), root)
     cone((0, 0, 0.22), 0.32, 0.36, toon('#8a6ab8'), bodyp, r2=0.22)
