@@ -1,12 +1,16 @@
 // Gathering minigame: a marker sweeps along a bar; strike while it's inside the sweet spot (the green zone for trees,
 // the glowing seam for rocks). Clean hits build a streak that speeds the marker up and hits harder. A miss never fails
 // the node; it resets the streak and speed, so sloppy chopping or mining is just slower.
-// GatherView draws it: the tree or rock above the bar takes a cut or a crack sized to each strike, the tool swings,
-// chips fly, and when it's done the tree topples or the rock splits.
+// GatherView draws it: the tree or rock above the bar (nodeart.ts) takes a notch or a crack sized to each strike, the
+// axe or pick for your tool's tier swings at it, chips and dust fly, and when it's done the tree topples or the rock
+// breaks apart and what you earned pops out.
+import { drawFrame, frame } from './assets';
+import { RockArt, TreeArt, type Blow, type NodeArt, type RockColors, type RockKind, type Strike, type TreeKind } from './nodeart';
+import { Particles } from './particles';
 import type { Rng } from './rules';
 import { rrect } from './sprites';
 
-export type Strike = 'perfect' | 'hit' | 'miss';
+export type { Strike };
 
 /** Bar sweeps per second at the start of a chop (and after every miss). */
 export const BASE_SPEED = 0.85;
@@ -110,36 +114,50 @@ const FONT = 'ui-rounded, "Nunito", system-ui, sans-serif';
 const easeOutQ = (q: number) => 1 - (1 - q) * (1 - q);
 const easeInQ = (q: number) => q * q * q;
 const TAU = Math.PI * 2;
-/** Seconds for the tool's swing, and for the tree to topple or the rock to split once it's done. */
+/** Seconds for the tool's swing. */
 const SWING_T = 0.34;
 /** How far through the swing the tool connects: the chips, notch or crack and shake wait for this moment. */
 const IMPACT = 0.3;
-/** Tool handle length, in the illustration's units. */
-const HANDLE = 70;
-export const OUTRO_T = 0.9;
+/** Once the materials come free, how long they take to pop out and fly to your bag before the minigame closes. */
+const LOOT_T = 1.05;
 
-/** How a node's minigame looks: a tree over a timing bar, or a rock over a rock face with a seam to line your pick up with. */
-export type Look = { kind: 'wood'; pine: boolean } | { kind: 'mine'; rock: string; dark: string; fleck: string };
+/** How a node's minigame looks: which tree or rock, the tool you swing (its tier), and for rocks the bar's colors. */
+export type Look = { kind: 'wood'; tree: TreeKind; tool: number } | ({ kind: 'mine'; rock: RockKind; tool: number } & RockColors);
+
+/** Sounds the minigame asks for as things happen (the game plays them). */
+export type GatherSound = 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup';
 
 const WORDS: Record<Look['kind'], Record<Strike, string>> = {
   wood: { perfect: 'Perfect!', hit: 'Nice!', miss: 'Miss' },
   mine: { perfect: 'Crack!', hit: 'Chip!', miss: 'Clang!' },
 };
 
-/** One strike's mark on the tree or rock: where it landed along the bar, how much it did, and a seed for its shape. */
-interface Mark { at: number; amount: number; kind: Strike; seed: number }
-interface Bit { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string; star: boolean }
+/**
+ * The tools as swung: their angle at rest and when they connect (radians, 0 = handle straight up, negative leans the
+ * head left toward the target), and where the axe's edge or the pick's point is from the grip (handle up). The axe
+ * chops down and in at the notch; the pick comes down point-first on the rock.
+ */
+const SWINGS = {
+  wood: { ready: 0.35, strike: -0.75, tip: { x: -29, y: -65 }, sprite: 'axe', tiers: 2 },
+  mine: { ready: 0.3, strike: -0.85, tip: { x: -40, y: -57 }, sprite: 'pick', tiers: 4 },
+} as const;
+/** Illustration pixels per Blender unit for the tool sprites (see art/gather.py), and the illustration's scale. */
+const TOOL_UNIT = 100;
+const SCALE = 0.82;
+/** Card height from its top down to the ground the tree or rock stands on. */
+const STAGE = { wood: 204, mine: 160 };
 
-/** Small deterministic noise in [-1, 1] for crack and bark shapes. */
-const jit = (seed: number, i: number) => Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453 % 1;
+const turn = (p: { x: number; y: number }, a: number) => ({ x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) });
 
 export class GatherView {
-  private marks: Mark[] = [];
-  private bits: Bit[] = [];
+  private readonly art: NodeArt;
+  private readonly fx = new Particles(0);
+  /** Blows that have landed. */
+  private blows: Blow[] = [];
   /** 0 → 1 over a swing (1 = at rest). */
   private swing = 1;
   /** A strike waiting for the tool to connect before it shows on the tree or rock. */
-  private pending: Mark | null = null;
+  private pending: Blow | null = null;
   /** Where the latest blow lands (illustration coordinates), fixed at the strike so the tool swings to it. */
   private target = { x: 0, y: 0 };
   private wobble = 0;
@@ -147,93 +165,91 @@ export class GatherView {
   /** Seconds left on the white impact star where the tool just connected. */
   private flash = 0;
   private prevT = Infinity;
-  /** Seconds since the node gave way. */
-  outro = 0;
+  private gaveWay = false;
+  /** What you earned, waiting to pop out; and seconds since it came free (-1: not yet). */
+  private drops: [string, number][] = [];
+  private freed = -1;
+  /** Sounds as things happen: set by the game. */
+  onSound: (s: GatherSound) => void = () => {};
 
-  constructor(readonly look: Look) {}
+  constructor(readonly look: Look) {
+    this.art = look.kind === 'wood' ? new TreeArt(look.tree) : new RockArt(look.rock, look);
+  }
+
+  /** What you earned (known once the node gives way): it pops out as the tree lands or the rock breaks. */
+  reward(drops: Partial<Record<string, number>>) {
+    this.drops = Object.entries(drops).filter(([, n]) => (n ?? 0) > 0).map(([id, n]) => [id, n!]);
+    if (this.freed >= 0) this.popLoot();
+  }
+
+  private popLoot() {
+    const p = this.art.lootFrom;
+    for (const [id, n] of this.drops) this.fx.loot(p.x, p.y, id, Math.min(n, 4));
+    this.drops = [];
+  }
+
+  /** How far through the node the blows that have landed are, 0–1. */
+  private get progress() {
+    return Math.min(1, this.blows.reduce((a, b) => a + b.share, 0));
+  }
 
   update(dt: number, c: Chop) {
     if (c.last && c.lastT < this.prevT) this.onStrike(c);
     this.prevT = c.lastT;
     const before = this.swing;
     this.swing = Math.min(1, this.swing + dt / SWING_T);
-    if (this.pending && before < IMPACT && this.swing >= IMPACT) this.connect(c);
+    if (this.pending && before < IMPACT && this.swing >= IMPACT) this.connect();
     this.wobble *= Math.exp(-9 * dt);
     this.shake = Math.max(0, this.shake - dt * 40);
     this.flash = Math.max(0, this.flash - dt);
-    for (const b of this.bits) {
-      b.life -= dt;
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
-      b.vy += 420 * dt;
+    if (c.done && !this.pending && !this.gaveWay) {
+      this.gaveWay = true;
+      this.art.giveWay(this.fx);
+      if (this.look.kind === 'wood') this.onSound('creak');
     }
-    this.bits = this.bits.filter((b) => b.life > 0);
-    if (c.done && !this.pending) {
-      if (this.outro === 0) this.burst(this.look.kind === 'wood' ? 26 : 30, true);
-      this.outro += dt;
+    if (this.art.update(dt, this.fx)) {
+      this.freed = 0;
+      this.shake = this.look.kind === 'wood' ? 9 : 7;
+      this.onSound(this.look.kind === 'wood' ? 'thud' : 'crumble');
+      this.popLoot();
+    } else if (this.freed >= 0) {
+      const was = this.freed;
+      this.freed += dt;
+      if (was < 0.7 && this.freed >= 0.7) this.onSound('pickup');
     }
+    this.fx.update(dt);
   }
 
+  /** Done once the tree has fallen or the rock has broken, and your materials are on their way to the bag. */
   get finished() {
-    return this.outro >= OUTRO_T;
+    return this.art.finished && this.freed >= LOOT_T;
   }
 
   /** A strike: the tool starts its swing now, and the blow shows when it connects (see connect). */
   private onStrike(c: Chop) {
-    if (this.pending) this.connect(c);
-    this.pending = { at: c.hitPos, amount: c.lastAmount, kind: c.last!, seed: Math.random() * 100 };
-    this.target = this.aimAt(c, c.hitPos, this.pending.amount);
+    if (this.pending) this.connect();
+    this.pending = { at: c.hitPos, share: c.lastAmount / c.hp, kind: c.last!, seed: Math.random() * 100 };
+    this.target = this.art.target(c.hitPos, this.progress + this.pending.share);
     this.swing = 0;
   }
 
-  /** The tool connects: the cut or crack, chips, the tree's wobble and the shake. */
-  private connect(c: Chop) {
-    const m = this.pending!;
+  /** The tool connects: the notch or crack, chips and dust, the wobble, the shake and the sound. */
+  private connect() {
+    const b = this.pending!;
     this.pending = null;
-    this.marks.push(m);
-    this.wobble = m.kind === 'perfect' ? 1 : m.kind === 'hit' ? 0.6 : 0.2;
-    this.shake = m.kind === 'perfect' ? 7 : m.kind === 'hit' ? 3 : 1;
-    this.flash = m.kind === 'miss' ? 0 : 0.12;
-    this.burst(m.kind === 'perfect' ? 14 : m.kind === 'hit' ? 9 : 4, false, c);
-  }
-
-  /** Where a blow at bar position `at` lands on the illustration (the axe's notch, or the rock's top above the aim). */
-  private aimAt(c: Chop | undefined, at: number, extra = 0): { x: number; y: number } {
-    if (this.look.kind === 'wood') {
-      const done = this.marks.reduce((a, m) => a + m.amount, 0) + extra;
-      return { x: 15 - Math.min(1, done / Math.max(0.001, c?.hp ?? done)) * 28, y: -22 };
-    }
-    return { x: -52 + at * 104, y: -70 };
-  }
-
-  /** Where the latest blow landed on the illustration (local coordinates, base of the tree/rock at 0,0). */
-  private impact(c?: Chop) {
-    return this.aimAt(c, this.marks[this.marks.length - 1]?.at ?? 0.5);
-  }
-
-  private burst(n: number, big: boolean, c?: Chop) {
-    const at = this.impact(c), wood = this.look.kind === 'wood';
-    const miss = !big && this.marks[this.marks.length - 1]?.kind === 'miss';
-    for (let i = 0; i < n; i++) {
-      const a = wood ? -0.3 + (Math.random() - 0.5) * 1.8 : -Math.PI / 2 + (Math.random() - 0.5) * 2.4;
-      const sp = (big ? 90 : 60) + Math.random() * (big ? 160 : 120);
-      const spark = !wood && !miss && Math.random() < 0.35;
-      const color = miss ? 'rgba(220,220,220,0.8)' : wood ? (Math.random() < 0.5 ? '#f3dcaa' : '#9a6a44') : spark ? '#fff2a8' : Math.random() < 0.5 ? (this.look as { rock: string }).rock : (this.look as { dark: string }).dark;
-      this.bits.push({ x: at.x, y: at.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (big ? 60 : 30), life: 0.35 + Math.random() * 0.35, max: 0.7, size: spark ? 2 : 2.5 + Math.random() * (big ? 4 : 2.5), color, star: spark });
-    }
-  }
-
-  /** How deep the cut is, 0–1 of the trunk (wood). */
-  private cut(c?: Chop) {
-    const done = this.marks.reduce((a, m) => a + m.amount, 0);
-    return Math.min(1, done / Math.max(0.001, c?.hp ?? done));
+    this.blows.push(b);
+    this.wobble = b.kind === 'perfect' ? 1 : b.kind === 'hit' ? 0.6 : 0.2;
+    this.shake = b.kind === 'perfect' ? 6 : b.kind === 'hit' ? 3 : 1;
+    this.flash = b.kind === 'miss' ? 0 : 0.1;
+    this.art.hit(b, this.progress, this.fx);
+    this.onSound(b.kind === 'miss' ? 'glance' : this.look.kind === 'wood' ? 'chop' : 'clink');
   }
 
   draw(ctx: CanvasRenderingContext2D, c: Chop, vw: number, vh: number, title: string, hint: string) {
-    const mine = this.look.kind === 'mine';
+    const kind = this.look.kind, mine = kind === 'mine';
     const w = Math.min(vw - 48, 360), barH = mine ? 40 : 28;
-    const top = Math.max(96, vh * 0.12);
-    const x = (vw - w) / 2, barY = top + 172, hintY = barY + barH + 22;
+    const top = Math.max(96, vh * 0.12), groundY = top + STAGE[kind];
+    const x = (vw - w) / 2, barY = groundY + 18, hintY = barY + barH + 22;
     const sx = (Math.random() - 0.5) * this.shake, sy = (Math.random() - 0.5) * this.shake;
     ctx.save();
     ctx.translate(sx, sy);
@@ -252,32 +268,29 @@ export class GatherView {
       ctx.fillText(`🔥 ×${c.streak}`, x + w, top + 22);
       ctx.textAlign = 'center';
     }
-    // The tree or rock, with every strike showing on it.
+    // The stage: a soft light behind, the ground, the tree or rock, the tool, and everything flying about.
     ctx.save();
-    ctx.translate(vw / 2, top + 156);
-    ctx.scale(0.82, 0.82);
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.translate(vw / 2, groundY);
+    ctx.scale(SCALE, SCALE);
+    this.fx.lootTo = { x: (w / 2 - 4) / SCALE, y: (top + 24 - groundY) / SCALE };
+    const light = ctx.createRadialGradient(0, -80, 10, 0, -70, 170);
+    light.addColorStop(0, 'rgba(255,238,200,0.16)');
+    light.addColorStop(1, 'rgba(255,238,200,0)');
+    ctx.fillStyle = light;
+    ctx.fillRect(-w / SCALE / 2 - 20, (top + 36 - groundY) / SCALE, w / SCALE + 40, (groundY - top - 36) / SCALE + 10);
+    ctx.fillStyle = 'rgba(12,6,16,0.35)';
     ctx.beginPath();
-    ctx.ellipse(0, 0, mine ? 70 : 44, 9, 0, 0, TAU);
+    ctx.ellipse(0, 0, 118, 12, 0, 0, TAU);
     ctx.fill();
-    if (this.look.kind === 'wood') this.drawTree(ctx, c, this.look.pine);
-    else this.drawRock(ctx, c, this.look);
+    ctx.fillStyle = 'rgba(12,6,16,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, mine ? 76 : 42, 8, 0, 0, TAU);
+    ctx.fill();
+    this.art.draw(ctx, this.progress, this.wobble * Math.sin(performance.now() / 30));
     // The tool swings at the tree or rock itself (it's put away once the node gives way).
-    if (!c.done || this.pending || this.outro < 0.25) this.drawTool(ctx, c);
-    if (this.flash > 0) this.drawImpactStar(ctx, this.flash / 0.12);
-    for (const b of this.bits) {
-      ctx.globalAlpha = Math.min(1, b.life / 0.25);
-      ctx.fillStyle = b.color;
-      if (b.star) {
-        ctx.fillRect(b.x - b.size * 1.5, b.y - 0.5, b.size * 3, 1);
-        ctx.fillRect(b.x - 0.5, b.y - b.size * 1.5, 1, b.size * 3);
-      } else {
-        ctx.beginPath();
-        ctx.rect(b.x - b.size / 2, b.y - b.size / 2, b.size, b.size * 0.7);
-        ctx.fill();
-      }
-    }
-    ctx.globalAlpha = 1;
+    if (!c.done || this.pending || (!this.art.finished && this.freed < 0 && !this.gaveWay)) this.drawTool(ctx, c);
+    if (this.flash > 0) this.drawImpactStar(ctx, this.flash / 0.1);
+    this.fx.draw(ctx);
     ctx.restore();
     // The bar
     const mx = x + c.pos * w;
@@ -323,7 +336,7 @@ export class GatherView {
       ctx.lineWidth = 4;
       ctx.strokeStyle = 'rgba(42,26,48,0.9)';
       // Beside the tree or rock (on the side you struck), so it never hides the cut you just made.
-      const tx = vw / 2 + (c.hitPos < 0.5 ? -1 : 1) * Math.min(w / 2 - 44, 110), ty = top + 104 - k * 16;
+      const tx = vw / 2 + (c.hitPos < 0.5 ? -1 : 1) * Math.min(w / 2 - 44, 110), ty = groundY - (mine ? 84 : 118) - k * 16;
       ctx.strokeText(WORDS[this.look.kind][c.last], tx, ty);
       ctx.fillText(WORDS[this.look.kind][c.last], tx, ty);
     }
@@ -332,7 +345,7 @@ export class GatherView {
 
   /** A quick white star where the tool connects (`k` fades 1 → 0). */
   private drawImpactStar(ctx: CanvasRenderingContext2D, k: number) {
-    const { x, y } = this.target, r = 10 + (1 - k) * 22;
+    const { x, y } = this.target, r = 8 + (1 - k) * 18;
     ctx.save();
     ctx.translate(x, y);
     ctx.globalAlpha = k;
@@ -347,8 +360,8 @@ export class GatherView {
   }
 
   /**
-   * The tool's angle (0 = handle straight up from the grip, negative swings the head left toward the target) over a
-   * swing: a quick wind-up, a fast accelerating chop that connects at IMPACT, a recoil bounce, then back to ready.
+   * The tool's angle over a swing: a quick wind-up, a fast accelerating chop that connects at IMPACT, a recoil bounce,
+   * then back to ready.
    */
   private toolAngle(ready: number, strike: number): number {
     const q = this.swing;
@@ -361,307 +374,81 @@ export class GatherView {
   }
 
   /**
-   * An axe chopping into the trunk at the notch, or a pick coming down on the rock above your aim. The tool pivots at
-   * the grip, placed so the head lands exactly on the target when the swing connects.
+   * The axe or pick for your tool's tier, pivoting at the grip, which is placed so the edge or point lands exactly on
+   * the target as the swing connects.
    */
   private drawTool(ctx: CanvasRenderingContext2D, c: Chop) {
-    const wood = this.look.kind === 'wood';
-    const ready = wood ? 0.75 : 0.45, strike = wood ? -1.35 : -1.2;
-    // Between strikes the pick follows your aim; during a swing it heads for where you struck.
-    const target = this.swing < 1 || this.pending ? this.target : this.aimAt(c, c.pos);
-    const hx = target.x - HANDLE * Math.sin(strike), hy = target.y + HANDLE * Math.cos(strike);
-    const ang = this.toolAngle(ready, strike);
+    const kind = this.look.kind, S = SWINGS[kind];
+    // Between strikes the tool follows your aim; during a swing it heads for where you struck.
+    const target = this.swing < 1 || this.pending ? this.target : this.art.target(c.pos, this.progress);
+    const tip = turn(S.tip, S.strike);
+    const ang = this.toolAngle(S.ready, S.strike);
     ctx.save();
-    ctx.translate(hx, hy);
+    ctx.translate(target.x - tip.x, target.y - tip.y);
     // A motion smear behind the head on the fast part of the swing.
     const q = this.swing;
     if (q > 0.1 && q < IMPACT + 0.05) {
-      const from = this.toolAngle(ready, strike) + 0.9;
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      const at = (a: number) => Math.atan2(turn(S.tip, a).y, turn(S.tip, a).x);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
       ctx.lineWidth = 16;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.arc(0, 0, HANDLE - 4, from - Math.PI / 2, ang - Math.PI / 2, true);
+      ctx.arc(0, 0, Math.hypot(S.tip.x, S.tip.y) - 4, at(ang + 0.9), at(ang), true);
       ctx.stroke();
     }
-    ctx.rotate(ang);
-    const ink = '#3a2448';
-    // Handle, grip end at the origin, pointing up.
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = 12;
-    ctx.beginPath();
-    ctx.moveTo(0, 4);
-    ctx.lineTo(0, -HANDLE);
-    ctx.stroke();
-    ctx.strokeStyle = '#b07a4a';
-    ctx.lineWidth = 7;
-    ctx.stroke();
-    ctx.strokeStyle = '#6b4a3a';
-    ctx.beginPath();
-    ctx.moveTo(0, 4);
-    ctx.lineTo(0, -12);
-    ctx.stroke();
-    ctx.lineWidth = 3.5;
-    ctx.strokeStyle = ink;
-    ctx.lineJoin = 'round';
-    // Heads are drawn a little larger than life so they read at a glance.
-    ctx.translate(0, -HANDLE);
-    ctx.scale(1.2, 1.2);
-    ctx.translate(0, HANDLE);
-    const metal = (draw: () => void) => {
-      ctx.beginPath();
-      draw();
-      ctx.closePath();
-      ctx.fillStyle = '#d8dde8';
-      ctx.fill();
-      ctx.stroke();
-    };
-    const L = HANDLE;
-    if (wood) {
-      // Axe: a broad wedge blade on the striking (left) side, with a bright edge.
-      metal(() => {
-        ctx.moveTo(3, -L + 2);
-        ctx.lineTo(3, -L + 16);
-        ctx.lineTo(-12, -L + 22);
-        ctx.quadraticCurveTo(-26, -L + 9, -22, -L - 12);
-        ctx.lineTo(-10, -L - 4);
-        ctx.lineTo(3, -L - 4);
-      });
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(-15, -L + 17);
-      ctx.quadraticCurveTo(-24, -L + 8, -21, -L - 8);
-      ctx.stroke();
-    } else {
-      // Pickaxe: a curved head with a sharp point on the striking (left) side.
-      metal(() => {
-        ctx.moveTo(-30, -L + 10);
-        ctx.quadraticCurveTo(-14, -L - 8, 0, -L - 8);
-        ctx.quadraticCurveTo(14, -L - 8, 26, -L + 6);
-        ctx.quadraticCurveTo(12, -L - 1, 0, -L + 1);
-        ctx.quadraticCurveTo(-14, -L + 1, -30, -L + 10);
-      });
-      ctx.fillStyle = ink;
-      ctx.fillRect(-5, -L - 9, 10, 11);
+    const f = frame(`gather/${S.sprite}${Math.max(1, Math.min(S.tiers, this.look.tool))}`);
+    if (f) drawFrame(ctx, f, 0, 0, TOOL_UNIT, { rot: ang });
+    else {
+      ctx.rotate(ang);
+      drawToolShape(ctx, kind === 'wood');
     }
     ctx.restore();
-  }
-
-  /** A little tree with a notch cut into its trunk; the notch deepens with every strike, misses just nick the bark. */
-  private drawTree(ctx: CanvasRenderingContext2D, c: Chop, pine: boolean) {
-    const d = this.cut(c) * 28, cutY = -22, hh = 3 + d * 0.3;
-    const fall = c.done ? Math.min(1, this.outro / (OUTRO_T * 0.7)) : 0;
-    const bark = '#9a6a44', inner = '#f3dcaa', line = '#5a3a2a';
-    const wob = this.wobble * Math.sin(performance.now() / 30) * 0.05;
-    ctx.save();
-    ctx.rotate(wob);
-    // Stump (below the cut) stays put.
-    ctx.fillStyle = bark;
-    ctx.strokeStyle = line;
-    ctx.lineWidth = 2;
-    rrect(ctx, -16, cutY, 32, -cutY, 4);
-    ctx.fill();
-    ctx.stroke();
-    // Everything above the cut: topples to the right about the hinge once it's through.
-    ctx.save();
-    ctx.globalAlpha = 1 - Math.max(0, this.outro / OUTRO_T - 0.75) / 0.25;
-    ctx.translate(-16, cutY);
-    ctx.rotate(fall * fall * 1.5);
-    ctx.translate(16, -cutY);
-    ctx.fillStyle = bark;
-    rrect(ctx, -16, -70, 32, 70 + cutY, 4);
-    ctx.fill();
-    ctx.stroke();
-    // Bark texture
-    ctx.strokeStyle = 'rgba(60,35,25,0.35)';
-    ctx.lineWidth = 1.5;
-    for (const bx of [-9, -2, 6]) {
-      ctx.beginPath();
-      ctx.moveTo(bx, -66);
-      ctx.quadraticCurveTo(bx + 3, -45, bx - 1, cutY - 6);
-      ctx.stroke();
-    }
-    // Canopy
-    if (pine) {
-      for (let i = 0; i < 3; i++) {
-        ctx.fillStyle = i % 2 ? '#347f4a' : '#2a7040';
-        ctx.strokeStyle = '#1e4a30';
-        ctx.lineWidth = 2;
-        const by = -62 - i * 20, bw = 40 - i * 9;
-        ctx.beginPath();
-        ctx.moveTo(-bw, by);
-        ctx.lineTo(0, by - 34);
-        ctx.lineTo(bw, by);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      }
-    } else {
-      ctx.strokeStyle = '#2e6a34';
-      ctx.lineWidth = 2;
-      for (const [cx, cy, r, col] of [[-20, -84, 24, '#4fae4f'], [20, -84, 24, '#4fae4f'], [0, -104, 28, '#62c060']] as const) {
-        ctx.fillStyle = col;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, TAU);
-        ctx.fill();
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-    // The notch: a wedge biting in from the right, pale wood inside.
-    if (d > 0.5 && fall < 1) {
-      ctx.fillStyle = inner;
-      ctx.strokeStyle = line;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(16.5, cutY - hh);
-      ctx.lineTo(16 - d, cutY);
-      ctx.lineTo(16.5, cutY + hh);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      // Growth rings showing in the cut.
-      ctx.strokeStyle = 'rgba(160,110,60,0.5)';
-      ctx.lineWidth = 1;
-      for (let r = 6; r < d; r += 6) {
-        ctx.beginPath();
-        ctx.moveTo(16 - r, cutY - hh * (1 - r / d) * 0.9);
-        ctx.lineTo(16 - r, cutY + hh * (1 - r / d) * 0.9);
-        ctx.stroke();
-      }
-    }
-    // Misses glance off: small scuffs on the bark.
-    ctx.strokeStyle = 'rgba(255,240,220,0.8)';
-    ctx.lineWidth = 1.5;
-    for (const m of this.marks) {
-      if (m.kind !== 'miss' || fall > 0) continue;
-      const y = cutY - 8 - Math.abs(jit(m.seed, 1)) * 30, xx = 4 + jit(m.seed, 2) * 8;
-      ctx.beginPath();
-      ctx.moveTo(xx - 4, y - 2);
-      ctx.lineTo(xx + 4, y + 2);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  /**
-   * A boulder that cracks where you strike (the crack starts above the spot you hit on the bar) and as far as the
-   * blow was strong; perfect blows fork. Misses only scuff it. Once it gives way it splits into chunks.
-   */
-  private drawRock(ctx: CanvasRenderingContext2D, c: Chop, look: Extract<Look, { kind: 'mine' }>) {
-    const pts: [number, number][] = [];
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * TAU, k = 1 + jit(3.1, i) * 0.12;
-      pts.push([Math.cos(a) * 60 * k, -38 + Math.sin(a) * 36 * k]);
-    }
-    const shape = () => {
-      ctx.beginPath();
-      pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
-      ctx.closePath();
-    };
-    const split = c.done ? Math.min(1, this.outro / (OUTRO_T * 0.7)) : 0;
-    const wob = this.wobble * Math.sin(performance.now() / 25) * 2;
-    // Split into three chunks that tumble apart, or draw it whole.
-    const pieces = split > 0 ? [[-1, -0.6], [1, -0.4], [0, 1]] : [[0, 0]];
-    for (const [dx, dy] of pieces) {
-      ctx.save();
-      if (split > 0) {
-        ctx.globalAlpha = 1 - Math.max(0, this.outro / OUTRO_T - 0.7) / 0.3;
-        ctx.translate(dx * split * 40, dy * split * 18 + split * split * 30);
-        ctx.rotate(dx * split * 0.5);
-        ctx.beginPath();
-        const a0 = dx < 0 ? Math.PI * 0.5 : dx > 0 ? -Math.PI * 0.5 : Math.PI * 0.1, span = Math.PI * 1.05;
-        ctx.moveTo(0, -38);
-        ctx.arc(0, -38, 90, dy > 0 ? Math.PI * 0.2 : a0, dy > 0 ? Math.PI * 0.8 : a0 + span);
-        ctx.closePath();
-        ctx.clip();
-      }
-      ctx.translate(wob, 0);
-      shape();
-      ctx.fillStyle = look.rock;
-      ctx.fill();
-      ctx.save();
-      shape();
-      ctx.clip();
-      ctx.fillStyle = look.dark;
-      ctx.beginPath();
-      ctx.ellipse(8, 0, 70, 22, 0, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.18)';
-      ctx.beginPath();
-      ctx.ellipse(-18, -60, 30, 10, -0.2, 0, TAU);
-      ctx.fill();
-      // Ore glints
-      ctx.fillStyle = look.fleck;
-      for (let i = 0; i < 9; i++) {
-        const fx = jit(7.7, i) * 44, fy = -38 + jit(9.1, i) * 22, s = 2.5 + Math.abs(jit(5.3, i)) * 2.5;
-        ctx.beginPath();
-        ctx.moveTo(fx, fy - s);
-        ctx.lineTo(fx + s * 0.7, fy);
-        ctx.lineTo(fx, fy + s);
-        ctx.lineTo(fx - s * 0.7, fy);
-        ctx.closePath();
-        ctx.fill();
-      }
-      // Cracks: each strong blow opens one from the top edge down; perfect blows fork.
-      for (const m of this.marks) {
-        if (m.kind === 'miss') {
-          ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-          ctx.lineWidth = 1.5;
-          const sx = -52 + m.at * 104;
-          ctx.beginPath();
-          ctx.moveTo(sx - 4, -66);
-          ctx.lineTo(sx + 3, -62);
-          ctx.stroke();
-          continue;
-        }
-        const len = 26 + (m.amount / c.hp) * 150;
-        const path: [number, number][] = [[-52 + m.at * 104, -76]];
-        for (let i = 1, y = -76; y < -76 + len && i < 40; i++) {
-          y += 7;
-          const [px] = path[path.length - 1];
-          path.push([px + jit(m.seed, i) * 7, y]);
-        }
-        const stroke = (p: [number, number][]) => {
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.strokeStyle = 'rgba(30,20,30,0.75)';
-          ctx.lineWidth = 2.6;
-          ctx.beginPath();
-          p.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
-          ctx.stroke();
-          ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          p.forEach(([px, py], i) => (i ? ctx.lineTo(px + 1.5, py + 1) : ctx.moveTo(px + 1.5, py + 1)));
-          ctx.stroke();
-        };
-        stroke(path);
-        if (m.kind === 'perfect' && path.length > 3) {
-          const from = path[Math.floor(path.length / 2)], dir = jit(m.seed, 99) > 0 ? 1 : -1;
-          const branch: [number, number][] = [from];
-          for (let i = 1; i < path.length / 2; i++) branch.push([from[0] + dir * i * 6 + jit(m.seed, i + 50) * 3, from[1] + i * 4]);
-          stroke(branch);
-        }
-      }
-      ctx.restore();
-      shape();
-      ctx.strokeStyle = 'rgba(30,20,30,0.8)';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-      ctx.restore();
-    }
   }
 }
 
+/** A drawn axe or pick (handle up, grip at the origin), for when the tool sprites aren't loaded. */
+function drawToolShape(ctx: CanvasRenderingContext2D, axe: boolean) {
+  const ink = '#3a2448', L = 70;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.moveTo(0, 4);
+  ctx.lineTo(0, -L);
+  ctx.stroke();
+  ctx.strokeStyle = '#b07a4a';
+  ctx.lineWidth = 7;
+  ctx.stroke();
+  ctx.lineWidth = 3.5;
+  ctx.strokeStyle = ink;
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = '#d8dde8';
+  ctx.beginPath();
+  if (axe) {
+    ctx.moveTo(3, -L + 2);
+    ctx.lineTo(3, -L + 16);
+    ctx.lineTo(-12, -L + 22);
+    ctx.quadraticCurveTo(-30, -L + 9, -26, -L - 14);
+    ctx.lineTo(-10, -L - 4);
+    ctx.lineTo(3, -L - 4);
+  } else {
+    ctx.moveTo(-40, -L + 12);
+    ctx.quadraticCurveTo(-18, -L - 10, 0, -L - 10);
+    ctx.quadraticCurveTo(18, -L - 10, 32, -L + 8);
+    ctx.quadraticCurveTo(14, -L - 1, 0, -L + 1);
+    ctx.quadraticCurveTo(-18, -L + 1, -40, -L + 12);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
 /** Mining's bar: a slab of the rock with a glowing seam running through it (the sweet spot, brightest down its core). */
-function drawRockFace(ctx: CanvasRenderingContext2D, c: Chop, x: number, y: number, w: number, h: number, look: Extract<Look, { kind: 'mine' }>) {
+function drawRockFace(ctx: CanvasRenderingContext2D, c: Chop, x: number, y: number, w: number, h: number, look: RockColors) {
   ctx.fillStyle = look.dark;
   rrect(ctx, x, y, w, h, 12);
   ctx.fill();
-  ctx.fillStyle = look.rock;
+  ctx.fillStyle = look.body;
   rrect(ctx, x, y, w, h - 5, 12);
   ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,0.14)';

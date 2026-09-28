@@ -1,7 +1,12 @@
 // Overworld: walking around, tall-grass encounters and drawing the tile map.
 import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { currentQuest } from './quests';
-import { drawFrame, drawHero, frame } from './assets';
+import { repelBelow } from './kitchen';
+import { Actors, type Actor } from './actors';
+import { hasModel, type Held } from './models';
+import { forgeArt } from './ui';
+import { drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from './assets';
+import { drawBubble } from './bubble';
 import { spriteScale } from './battle/monsters';
 import { Roamers, type Roamer } from './roamers';
 import { MOVESETS } from './weapons';
@@ -21,6 +26,9 @@ const TILE_BU = 1.6;
 
 /** `roamer` is the monster that caught you, or null for an ambush from the grass. */
 export type WorldEvent = { type: 'encounter'; roamer: Roamer | null } | { type: 'zone'; zone: Zone } | null;
+
+/** How far (in tiles) the camera may look past the map's top and bottom: about the HUD's and the buttons' height. */
+const OVERSCROLL = { top: 1.5, bottom: 3 };
 
 export class Overworld {
   x: number;
@@ -43,7 +51,13 @@ export class Overworld {
   /** Camera position in tiles. It follows the hero, or glides to `camTarget` during cutscenes. */
   camX = 0;
   camY = 0;
-  camTarget: { x: number; y: number } | null = null;
+  camTarget: { x: number; y: number } | (() => { x: number; y: number }) | null = null;
+  /** During scenes: no action prompt or waypoint arrow. */
+  quiet = false;
+  /** The last frame's view (camera top in pixels, tile size, height), to tell where things are on screen. */
+  private view = { top: 0, ts: 1, vh: 1 };
+  /** Story characters on the map. */
+  readonly actors = new Actors();
   /** Tree being chopped, and how long it keeps shaking from the last strike. */
   chopping: WorldObj | null = null;
   private shakeT = 0;
@@ -75,6 +89,7 @@ export class Overworld {
     this.camY = y;
     this.roamers.calm = 3;
     this.zone = this.world.zoneAt(x);
+    this.actors.regroup(x, y);
   }
 
   /** A few seconds where no monster notices you, so you aren't jumped the moment a fight ends. */
@@ -117,7 +132,17 @@ export class Overworld {
     this.chopping = null;
   }
 
+  /**
+   * What the action button would use: a character you're facing (so someone following you, or standing beside a tree,
+   * doesn't get in the way of chopping), or the nearest object.
+   */
   nearbyObject(): WorldObj | null {
+    const facing = (a: { x: number; y: number }) => {
+      const turn = Math.abs(((Math.atan2(a.y - this.y, a.x - this.x) - this.face + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+      return turn < Math.PI / 3;
+    };
+    const talk = this.actors.list.find((a) => a.label && Math.hypot(a.x - this.x, a.y - (this.y - 0.2)) < 1.4 && facing(a));
+    if (talk) return { kind: 'npc', id: talk.id, x: talk.x - 0.35, y: talk.y - 0.45, w: 0.7, h: 0.45, label: talk.label! };
     return this.world.nearestObj(this.x, this.y - 0.2, 1.4);
   }
 
@@ -125,7 +150,7 @@ export class Overworld {
   update(dt: number, input: Input, frozen: boolean, roam = !frozen): WorldEvent {
     this.t += dt;
     if (roam && this.alert <= 0) {
-      const caught = this.roamers.update(dt, this.x, this.y, this.save.wins === 0);
+      const caught = this.roamers.update(dt, this.x, this.y, this.save.wins === 0, repelBelow(this.save));
       if (caught) {
         this.alert = 0.3;
         this.moving = false;
@@ -134,7 +159,8 @@ export class Overworld {
     }
     this.shakeT = Math.max(0, this.shakeT - dt);
     this.fx.update(dt);
-    const target = this.camTarget ?? { x: this.x, y: this.y };
+    this.actors.update(dt, this);
+    const target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? { x: this.x, y: this.y };
     const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : 12));
     this.camX += (target.x - this.camX) * k;
     this.camY += (target.y - this.camY) * k;
@@ -153,7 +179,7 @@ export class Overworld {
     if (!this.moving) return null;
     this.face = Math.atan2(a.y, a.x);
     const spdBonus = (GEAR[this.save.equip.armor]?.spd ?? 0) + (this.save.equip.charm ? GEAR[this.save.equip.charm]?.spd ?? 0 : 0);
-    const speed = 5 * (1 + spdBonus / 100);
+    const speed = 5 * (1 + spdBonus / 100) * (this.save.perks.includes('trailboots') ? 1.25 : 1);
     const dx = a.x * speed * dt, dy = a.y * speed * dt;
     const r = 0.28;
     const ox = this.x, oy = this.y;
@@ -175,7 +201,9 @@ export class Overworld {
       this.stepAcc += moved;
       while (this.stepAcc >= 1) {
         this.stepAcc -= 1;
-        if (this.roamers.calm <= 0 && this.zone.monsters.length && Math.random() < ENCOUNTER_CHANCE) {
+        // Goo Jelly: grass whose monsters are all well below you stays quiet.
+        const rep = repelBelow(this.save), quiet = rep !== null && this.zone.lv[1] <= rep;
+        if (this.roamers.calm <= 0 && this.zone.monsters.length && !quiet && Math.random() < ENCOUNTER_CHANCE) {
           this.alert = 0.4;
           this.moving = false;
           this.stepAcc = 0;
@@ -184,6 +212,11 @@ export class Overworld {
       }
     }
     return ev;
+  }
+
+  /** How far down the screen a map row is (0 top, 1 bottom), as of the last frame. */
+  screenY(y: number) {
+    return (y * this.view.ts - this.view.top) / this.view.vh;
   }
 
   /** Tile size in pixels for this screen (fights on the map zoom in from this). */
@@ -198,17 +231,21 @@ export class Overworld {
     let camX = this.camX * ts - vw / 2;
     let camY = (this.camY - 0.5) * ts - vh / 2;
     camX = mapW <= vw ? (mapW - vw) / 2 : Math.max(0, Math.min(mapW - vw, camX));
-    camY = mapH <= vh ? (mapH - vh) / 2 : Math.max(0, Math.min(mapH - vh, camY));
+    // The camera can look a little past the top and bottom of the map (the forest carries on out there), so nothing
+    // on the edge rows hides under the HUD or the buttons.
+    const overTop = ts * OVERSCROLL.top, overBottom = ts * OVERSCROLL.bottom;
+    camY = mapH + overTop + overBottom <= vh ? (mapH - vh) / 2 : Math.max(-overTop, Math.min(mapH - vh + overBottom, camY));
     camX = Math.round(camX);
     camY = Math.round(camY);
+    this.view = { top: camY, ts, vh };
     this.drawScene(ctx, camX / ts, camY / ts, ts, vw, vh);
 
     ctx.save();
     ctx.translate(-camX, -camY);
-    if (this.objective) this.drawObjective(ctx, camX, camY, vw, vh, ts);
+    if (this.objective && !this.quiet) this.drawObjective(ctx, camX, camY, vw, vh, ts);
 
-    // Interaction hint bubble
-    const near = this.nearbyObject();
+    // Interaction hint bubble (not while chopping or mining: the minigame's card is up)
+    const near = this.quiet || this.chopping ? null : this.nearbyObject();
     if (near && this.alert <= 0) {
       const bx = (near.x + near.w / 2) * ts, by = near.y * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
       ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
@@ -235,7 +272,8 @@ export class Overworld {
     ctx.translate(-camX, -camY);
 
     const x0 = Math.max(0, Math.floor(camX / ts) - 1), x1 = Math.min(W.w - 1, Math.ceil((camX + vw) / ts) + 1);
-    const y0 = Math.max(0, Math.floor(camY / ts) - 1), y1 = Math.min(W.h - 1, Math.ceil((camY + vh) / ts) + 2);
+    // Rows past the map's edges are forest (World.tile calls them obstacles).
+    const y0 = Math.max(-Math.ceil(OVERSCROLL.top) - 1, Math.floor(camY / ts) - 1), y1 = Math.min(W.h + Math.ceil(OVERSCROLL.bottom), Math.ceil((camY + vh) / ts) + 2);
 
     // Ground layer
     for (let y = y0; y <= y1; y++) {
@@ -247,6 +285,10 @@ export class Overworld {
         ctx.fillRect(px, py, ts + 1, ts + 1);
         if (t === T.PATH) this.drawPath(ctx, x, y, px, py, ts, th);
         else if (t === T.POOL) this.drawPool(ctx, x, y, px, py, ts, th);
+        else if (t === T.BRIDGE) {
+          this.drawPool(ctx, x, y, px, py, ts, th);
+          this.drawBridge(ctx, x, y, px, py, ts);
+        }
         else if (t === T.GRASS) this.drawGrass(ctx, x, y, px, py, ts, th);
         else if (t === T.DECOR) this.drawDecor(ctx, x, y, px, py, ts, th);
       }
@@ -268,10 +310,24 @@ export class Overworld {
       if (r.x < x0 - 2 || r.x > x1 + 2) continue;
       items.push({ y: r.y, draw: () => this.drawRoamer(ctx, r, ts) });
     }
+    for (const a of this.actors.list) {
+      if (a.x < x0 - 2 || a.x > x1 + 2) continue;
+      items.push({ y: a.y, draw: () => this.drawActor(ctx, a, ts) });
+    }
     items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
     this.fx.draw(ctx);
+    // Feelings float above everything, so you can read them from across the screen.
+    for (const a of this.actors.list) {
+      const emoji = a.bubble?.emoji ?? a.mood;
+      if (!emoji || a.x < x0 - 2 || a.x > x1 + 2) continue;
+      drawBubble(ctx, a.x * ts, (a.y - this.actorHeight(a)) * ts, emoji, ts * 0.62, a.bubble ? a.bubble.t : 1 + this.t, a.bubble?.hold ?? Infinity);
+    }
+    for (const o of W.objs) {
+      if (o.hidden || !o.foes || o.x + o.w < x0 - 2 || o.x > x1 + 2) continue;
+      drawBubble(ctx, (o.x + o.w / 2) * ts, (o.y + o.h / 2 - (o.boss ? 1.9 : 1.2)) * ts, o.boss ? '😠' : '❗', ts * 0.55, 1 + this.t);
+    }
     ctx.restore();
   }
 
@@ -281,12 +337,11 @@ export class Overworld {
     const hop = r.moving || r.state === 'notice' ? Math.abs(Math.sin(this.t * (r.state === 'chase' ? 12 : 7) + r.seed)) * ts * 0.14 : 0;
     const flying = r.kind === 'bat' || r.kind === 'imp';
     const lift = flying ? ts * (0.35 + Math.sin(this.t * 3 + r.seed) * 0.06) : hop;
-    const f = frame(`mon/${r.kind}${r.golden ? '_gold' : ''}/${Math.floor(this.t * 7 + r.seed) % 6}`);
-    // Nothing at all until its sprite is in (no lone shadow or badge floating in the grass).
-    if (!f) return;
+    // Nothing at all until it can be drawn (no lone shadow or badge floating in the grass).
+    if (!monsterReady(r.kind)) return;
     shadow(ctx, px, py, ts * 0.28 * (flying ? 0.7 : 1));
     // Same size relative to the hero as in battle.
-    drawFrame(ctx, f, px, py - lift, ts * 0.74 * spriteScale(r.kind), { flip: r.face < 0 });
+    drawMonsterAt(ctx, slotOf(r, 'roamer'), r.kind, r.golden, (this.t * 7 + r.seed) / 6, r.face < 0, px, py - lift, ts * 0.74 * spriteScale(r.kind));
     if (r.golden && Math.random() < 0.1) this.fx.burst(px + (Math.random() - 0.5) * ts * 0.6, py - Math.random() * ts * 0.8, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.6 });
     // Tall grass hides their feet, like yours.
     if (this.world.tile(Math.floor(r.x), Math.floor(r.y - 0.1)) === T.GRASS && !flying) {
@@ -382,16 +437,21 @@ export class Overworld {
   private drawHero(ctx: CanvasRenderingContext2D, ts: number) {
     const px = this.x * ts, py = this.y * ts;
     shadow(ctx, px, py, ts * 0.27);
-    // Your weapon rides on your back: peeking over a shoulder from the front, strapped on when you walk away.
+    // Your weapon rides on you: swords and hammers strapped across your back, whips and wands at your hip. In 3D it's
+    // part of the model (it turns with you); with sprites it's drawn peeking over a shoulder.
     const wpn = GEAR[this.save.equip.weapon];
-    const wf = wpn && frame(`wpn/${wpn.id}`);
+    const style = wpn?.style ?? 'sword';
+    const size = MOVESETS[style]?.size ?? 1;
+    const held: Held | undefined = wpn && { id: `wpn_${wpn.id}`, at: style === 'whip' || style === 'wand' ? 'hip' : 'back', scale: (style === 'wand' ? 0.5 : style === 'hammer' ? 0.7 : 0.75) * size, hipDown: style === 'wand', headUp: style === 'hammer' };
+    const in3d = !!wpn && hasModel(`wpn_${wpn.id}`) && hasModel(`hero_${this.save.equip.armor}`);
+    const wf = !in3d && wpn && frame(`wpn/${wpn.id}`);
     const away = Math.sin(this.face) < -0.5;
     const bob = this.moving ? Math.abs(Math.sin(this.t * 9)) * ts * 0.03 : 0;
     const back = () => {
-      if (wf) drawFrame(ctx, wf, px - ts * 0.15, py - ts * 0.36 - bob, ts * 0.47 * (MOVESETS[wpn.style ?? 'sword']?.size ?? 1), { rot: -1.05 });
+      if (wf) drawFrame(ctx, wf, px - ts * 0.15, py - ts * 0.36 - bob, ts * 0.47 * size, { rot: -1.05 });
     };
     if (!away) back();
-    if (!drawHero(ctx, this.save.equip.armor, px, py, ts / 1.2, this.face, this.moving, this.t)) {
+    if (!drawHero(ctx, this.save.equip.armor, px, py, ts / 1.2, this.face, this.moving, this.t, {}, 'hero', in3d ? held : undefined)) {
       drawPlayer(ctx, px, py, ts * 0.3, {
         t: this.t, moving: this.moving, face: this.face,
         armor: GEAR[this.save.equip.armor]?.color ?? '#6fa8ff',
@@ -478,11 +538,10 @@ export class Overworld {
       shadow(ctx, bx, by, ts * 0.45, 0.2);
       drawFrame(ctx, barrier, bx, by, unit, { flip: i % 2 === 1 });
     }
-    const mf = frame(`mon/${g.kind}/${Math.floor(this.t * 5) % 6}`);
     const gx = (o.x - 0.8) * ts, gy = (o.y + 2.6) * ts;
-    if (mf) {
+    if (monsterReady(g.kind)) {
       shadow(ctx, gx, gy, ts * 0.6, 0.25);
-      drawFrame(ctx, mf, gx, gy, unit * 0.8, { flip: true });
+      drawMonsterAt(ctx, `guardian:${g.kind}`, g.kind, false, (this.t * 5) / 6, true, gx, gy, unit * 0.8);
     }
     const m = MONSTERS[g.kind];
     const text = `👑 ${m.name} · Lv ${g.lv}`;
@@ -512,11 +571,30 @@ export class Overworld {
     }
   }
 
+  /** Bram's Bridge: planks laid across the water, with a rail along whichever sides are open water. */
+  private drawBridge(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number) {
+    const W = this.world, bridge = (dx: number) => W.tile(x + dx, y) === T.BRIDGE;
+    const boards = 4, bh = ts / boards;
+    for (let i = 0; i < boards; i++) {
+      ctx.fillStyle = (i + y) % 2 ? '#d8a868' : '#c8965a';
+      ctx.fillRect(px - 1, py + i * bh + 1, ts + 2, bh - 2);
+      ctx.fillStyle = 'rgba(90, 58, 34, 0.45)';
+      ctx.fillRect(px + ts * (0.3 + hash2(x, y + i, 7) * 0.4), py + i * bh + bh * 0.35, ts * 0.05, bh * 0.3);
+    }
+    ctx.fillStyle = '#7a5232';
+    for (const side of [-1, 1]) {
+      if (bridge(side)) continue;
+      const rx = side < 0 ? px - ts * 0.04 : px + ts * 0.92;
+      ctx.fillRect(rx, py, ts * 0.12, ts);
+      ctx.fillRect(rx - ts * 0.02, py + ts * 0.08, ts * 0.16, ts * 0.14);
+    }
+  }
+
   private drawPool(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
     const lava = th.pool === 'lava';
     const W = this.world;
     const inset = ts * 0.14;
-    const pool = (dx: number, dy: number) => W.tile(x + dx, y + dy) === T.POOL;
+    const pool = (dx: number, dy: number) => W.tile(x + dx, y + dy) === T.POOL || W.tile(x + dx, y + dy) === T.BRIDGE;
     const l = pool(-1, 0) ? 0 : inset, r = pool(1, 0) ? 0 : inset;
     const u = pool(0, -1) ? 0 : inset, d = pool(0, 1) ? 0 : inset;
     // Only round the corners that sit on the pool's outer edge so neighbouring tiles merge seamlessly.
@@ -775,15 +853,14 @@ export class Overworld {
     ctx.fillText(text, cx, top - ts * 0.25);
   }
 
-  /** Elder Bloom, with a bouncing "!" when she has something new to say. False if her sprite isn't loaded. */
+  /** Elder Oswin, with a bouncing "!" when she has something new to say. False if her sprite isn't loaded. */
   private drawElder(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): boolean {
-    const f = frame(`npc/elder/${Math.floor(this.t * 3) % 4}`);
-    if (!f) return false;
     const ax = (o.x + o.w / 2) * ts, ay = (o.y + o.h) * ts;
     shadow(ctx, ax, ay, ts * 0.27);
-    drawFrame(ctx, f, ax, ay, ts / 1.35);
+    if (!drawIdler(ctx, 'elder', 'elder', (this.t * 3) / 4, ax, ay, ts / 1.35)) return false;
     const q = currentQuest(this.save);
-    const top = ay - f.ay * (ts / 1.35 / f.ppu);
+    // The top of his hat.
+    const top = ay - ts * 1.25;
     if (q?.goal.type === 'talk' || (q && !this.save.tips.includes(`elder:${q.id}`))) {
       const by = top - ts * 0.35 + Math.abs(Math.sin(this.t * 4)) * -ts * 0.12;
       ctx.fillStyle = '#ffd35a';
@@ -813,28 +890,69 @@ export class Overworld {
     if (Math.random() < 0.12) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.5, ay - Math.random() * ts, '#fff6a0', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.6, life: 0.8 });
   }
 
-  /** A prologue monster standing in the path. */
+  /** How tall an actor stands, in tiles (where their bubble goes). */
+  private actorHeight(a: Actor) {
+    const k = a.scale ?? 1;
+    return a.look.kind === 'monster' ? 0.95 * spriteScale(a.look.name) * k : 1.15 * k;
+  }
+
+  /** A story character: walking like the hero, idling in place, or a scripted monster hopping along. */
+  private drawActor(ctx: CanvasRenderingContext2D, a: Actor, ts: number) {
+    const px = a.x * ts, py = a.y * ts, k = a.scale ?? 1;
+    const L = a.look;
+    if (L.kind === 'monster') {
+      if (!monsterReady(L.name)) return;
+      const hop = a.moving ? Math.abs(Math.sin(this.t * 12)) * ts * 0.16 : 0;
+      shadow(ctx, px, py, ts * 0.28 * k);
+      drawMonsterAt(ctx, a.id, L.name, false, (this.t * 7) / 6, Math.cos(a.face) < 0, px, py - hop, ts * 0.74 * spriteScale(L.name) * k);
+      return;
+    }
+    shadow(ctx, px, py, ts * 0.24 * k);
+    if (L.kind === 'walker') drawWalker(ctx, `npc/${L.name}`, px, py, (ts / 1.2) * k, a.face, a.moving, this.t, {}, a.id);
+    else drawIdler(ctx, a.id, L.name, (this.t * 3) / 4, px, py, (ts / 1.2) * k);
+  }
+
+  /** A prologue monster standing in the path (or a story's group). */
   private drawFoe(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
-    const f = frame(`mon/${o.monster}/${Math.floor(this.t * 6) % 6}`);
+    if (o.foes) return this.drawFoePack(ctx, o, ts);
     const ax = (o.x + o.w / 2) * ts, ay = o.y * ts + ts * 2.7;
     shadow(ctx, ax, ay, ts * 0.45, 0.25);
-    if (f) drawFrame(ctx, f, ax, ay, (ts / TILE_BU) * 1.5, { flip: true });
+    drawMonsterAt(ctx, slotOf(o, 'foe'), o.monster!, false, this.t, true, ax, ay, (ts / TILE_BU) * 1.5);
+  }
+
+  /** A story's monster group, in a huddle filling its box (two ranks if it's tall), all looking one way if it says. */
+  private drawFoePack(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+    const n = o.foes!.length, rise = Math.max(0.25, o.h - 1);
+    const spots = o.foes!.map((m, i) => ({
+      m, i,
+      x: o.x + o.w / 2 + (n === 1 ? 0 : (i / (n - 1) - 0.5) * Math.min(o.w, 1.6)),
+      y: o.y + o.h - 0.1 - (i % 2) * rise,
+    }));
+    for (const { m, i, x, y } of spots.sort((a, b) => a.y - b.y)) {
+      if (!monsterReady(m.kind)) continue;
+      shadow(ctx, x * ts, y * ts, ts * 0.28 * spriteScale(m.kind));
+      drawMonsterAt(ctx, `${slotOf(o, 'pack')}:${i}`, m.kind, false, this.t + i / 3, o.facing ? o.facing < 0 : i % 2 === 0, x * ts, y * ts, ts * 0.74 * spriteScale(m.kind));
+    }
   }
 
   /** A building's sprite (by its upgrade level) and how far to push it back so its front meets the collision box. */
   private buildingSprite(o: WorldObj): { name: string; back: number } | null {
     const lv = (id: keyof SaveState['build']) => this.save.build[id];
     switch (o.kind) {
-      case 'forge': return { name: ['forge0', 'forge', 'forge2', 'forge3'][lv('forge')] ?? 'forge', back: 0.42 };
+      case 'forge': return { name: forgeArt(lv('forge')), back: 0.42 };
       case 'house': return { name: 'house_blue', back: 0.42 };
       case 'fountain': return { name: 'fountain', back: 0.45 };
       case 'sign': return { name: 'sign', back: 0.05 };
       case 'lair': return { name: 'lair', back: 0.4 };
       case 'camp': return { name: 'campfire', back: 0.05 };
+      case 'statue': return { name: `statue_${o.id}`, back: 0.1 };
+      case 'prop': return { name: o.id!, back: 0.2 };
+      case 'bridge': return { name: 'sign', back: 0.05 };
       case 'plot': {
         const p = o.project!, l = lv(p);
         if (p === 'home') return { name: `home${l}`, back: 0.42 };
         if (p === 'warp') return { name: `warp${l}`, back: 0.1 };
+        if (p === 'sawmill') return { name: `sawmill${l}`, back: 0.3 };
         return { name: l ? `${p}${l}` : 'plot', back: 0.28 };
       }
       default: return null;
@@ -849,7 +967,7 @@ export class Overworld {
     const w = o.w * ts, unit = ts / TILE_BU;
     // Model origins sit in the middle of their footprint; push them back so their fronts line up with the collision box.
     const ax = o.x * ts + w / 2, ay = (o.y + o.h) * ts - spec.back * ts;
-    if (o.kind !== 'sign' && o.kind !== 'camp') shadow(ctx, ax, ay, w * 0.52, 0.2);
+    if (o.kind !== 'sign' && o.kind !== 'camp') shadow(ctx, ax, ay, w * (o.kind === 'statue' ? 0.6 : 0.52), 0.2);
     if (o.kind === 'camp') {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -859,6 +977,9 @@ export class Overworld {
       ctx.fill();
       ctx.restore();
     }
+    // Each campfire has one of Veyra's little shrine stones beside it (the Waystone answers them).
+    const stone = o.kind === 'camp' && frame('env/waystone');
+    if (stone) drawFrame(ctx, stone, ax + ts * 0.75, ay - ts * 0.25, unit);
     drawFrame(ctx, sprite, ax, ay, unit);
     const top = ay - sprite.ay * (unit / sprite.ppu);
     switch (o.kind) {
@@ -876,7 +997,7 @@ export class Overworld {
           ctx.arc(ax + (i - 1) * q * ts * 0.5, top + ts * 0.15 - Math.sin(q * Math.PI) * ts * 0.4 + q * ts * 0.5, ts * 0.07, 0, TAU);
           ctx.fill();
         }
-        this.nameTag(ctx, '💧 Fountain', ax, top, ts);
+        this.nameTag(ctx, "💧 Veyra's Spring", ax, top, ts);
         break;
       case 'camp':
         if (Math.random() < 0.3) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.3, ay - ts * 0.35, Math.random() < 0.5 ? '#ffb03a' : '#ff7a2a', 1, ts * 0.4, { size: ts * 0.06, grav: -ts * 1.5, life: 0.7 });
@@ -884,8 +1005,8 @@ export class Overworld {
       case 'plot': {
         // Empty plots (and your home, always) say what goes there.
         const p = o.project!;
-        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Warp Stone' } as Record<string, string>)[p] ?? '';
-        if (!this.save.build[p] || p === 'home') this.nameTag(ctx, name, ax, top, ts);
+        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Waystone', sawmill: '🪚 Sawmill' } as Record<string, string>)[p] ?? '';
+        if (!this.save.build[p] || p === 'home' || p === 'sawmill') this.nameTag(ctx, name, ax, top, ts);
         break;
       }
       case 'lair':

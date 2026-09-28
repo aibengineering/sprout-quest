@@ -76,6 +76,56 @@ function hopper(color: string, dust: string, leap: number, land?: (e: Enemy, w: 
   };
 }
 
+/** The Alpha Woolf: circles you, lunges, and howls for its pack once it's hurt (the scarred Woolf fights the same way). */
+const ALPHA: Behaviour = {
+  start: 'circle', color: '#5a6488',
+  think(e, w, dt, _dist, toP, rage) {
+    const p = w.p;
+    if (!e.flag && e.hp < e.maxHp * 0.6 && e.state !== 'dash') {
+      e.flag = true;
+      e.state = 'howl';
+      e.t = 1.0;
+      e.vx = e.vy = 0;
+    }
+    switch (e.state) {
+      case 'howl':
+        e.windup = 1;
+        if (Math.random() < 0.3) w.ring({ x: e.x, y: e.y - 20, r0: 10, r1: 90, dur: 0.4, color: '220,230,255' });
+        if (e.t <= 0) {
+          e.windup = 0;
+          w.summon('wolf', Math.max(4, e.lv - 3), e, 2);
+          e.state = 'circle';
+          e.t = 1;
+        }
+        break;
+      case 'circle': {
+        e.orb += dt * 1.3;
+        const tx = p.x + Math.cos(e.orb) * 150, ty = p.y + Math.sin(e.orb) * 150;
+        moveToward(e, Math.atan2(ty - e.y, tx - e.x), e.spd * 1.2 * Math.min(1, Math.hypot(tx - e.x, ty - e.y) / 30));
+        if (e.t <= 0) { e.state = 'windup'; e.t = 0.45 * rage; e.sub = 0; }
+        break;
+      }
+      case 'windup':
+        e.vx = e.vy = 0;
+        e.windup = 1 - e.t / (0.45 * rage);
+        if (e.t > 0.1) e.dir = toP;
+        if (e.t <= 0) { e.state = 'dash'; e.t = 0.34; e.windup = 0; moveToward(e, e.dir, e.spd * 4.6); }
+        break;
+      case 'dash':
+        if (Math.random() < 0.5) w.fx.burst(e.x, e.y, '#dfe6f0', 1, 30, { size: 4, grav: 0, life: 0.3 });
+        if (e.t <= 0) {
+          e.sub++;
+          if (e.sub < (rage < 1 ? 3 : 2)) { e.state = 'windup'; e.t = 0.28; e.vx = e.vy = 0; }
+          else { e.state = 'recover'; e.t = 0.7; e.vx = e.vy = 0; }
+        }
+        break;
+      default:
+        e.vx = e.vy = 0;
+        if (e.t <= 0) { e.state = 'circle'; e.t = rand(1.1, 1.8) * rage; e.orb = Math.atan2(e.y - p.y, e.x - p.x); }
+    }
+  },
+};
+
 export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
   slime: hopper('#6fdc7a', '#a8f0a8', 1.9),
   // Magma slimes leap further and sometimes spit four embers as they land.
@@ -311,6 +361,43 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
     },
   },
 
+  // Big Bun: charges like a Hopbun but chains them when angry, stomps the ground after a charge, and yells for its
+  // friends once it's hurt.
+  bigbun: {
+    start: 'idle', color: '#ffffff', scale: 1.25,
+    think(e, w, _dt, _dist, toP, rage) {
+      if (!e.flag && e.hp < e.maxHp * 0.5) {
+        e.flag = true;
+        w.summon('bunny', Math.max(1, e.lv - 1), e, 2);
+        w.ring({ x: e.x, y: e.y - 20, r0: 10, r1: 80, dur: 0.4, color: '255,230,240' });
+      }
+      if (e.state === 'idle') {
+        e.vx = e.vy = 0;
+        e.windup = e.t < 0.3 ? 1 - e.t / 0.3 : 0;
+        if (e.t <= 0) { e.state = 'windup'; e.t = 0.6 * rage; e.dir = toP; e.sub = 0; }
+      } else if (e.state === 'windup') {
+        e.windup = 1 - e.t / (0.6 * rage);
+        if (e.t > 0.15) e.dir = toP;
+        if (e.t <= 0) { e.state = 'charge'; e.t = 0.5; e.windup = 0; moveToward(e, e.dir, e.spd * 3.6); }
+      } else if (e.state === 'charge') {
+        if (Math.random() < 0.4) w.fx.burst(e.x, e.y, '#ffffff', 1, 40, { size: 5, grav: 0, life: 0.3 });
+        if (e.t <= 0) {
+          e.vx = e.vy = 0;
+          e.sub++;
+          if (rage < 1 && e.sub < 2) { e.state = 'windup'; e.t = 0.3; e.dir = toP; }
+          else if (Math.random() < 0.5) {
+            e.state = 'stomp';
+            e.t = 0.7;
+            w.hazard({ x: e.x, y: e.y, r: 70, delay: 0.6, atk: e.atk, from: e.kind, mult: 1.1 });
+          } else { e.state = 'idle'; e.t = rand(0.8, 1.4) * rage; }
+        }
+      } else if (e.state === 'stomp') {
+        e.windup = 1 - e.t / 0.7;
+        if (e.t <= 0) { e.state = 'idle'; e.t = rand(0.7, 1.2) * rage; e.windup = 0; e.squash = 0.25; }
+      } else e.state = 'idle';
+    },
+  },
+
   // Slime King: huge telegraphed belly-flops that splash goo, and he calls little slimes every few landings.
   kingslime: {
     start: 'idle', color: '#8ac8ff', hops: true,
@@ -354,56 +441,94 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
   },
 
   // Alpha Woolf: circles, then chains dashes (three when angry) and howls for its pack once.
-  alphawolf: {
-    start: 'circle', color: '#5a6488',
-    think(e, w, dt, _dist, toP, rage) {
-      const p = w.p;
-      if (!e.flag && e.hp < e.maxHp * 0.6 && e.state !== 'dash') {
+  alphawolf: ALPHA,
+  // The scarred Woolf fights like the Alpha: circling, lunging, and howling for its pack once it's hurt.
+  scarwolf: { ...ALPHA, color: '#7a6450' },
+
+  // Crystal King: ground slams, lines of erupting crystal spikes, and crystal shard rings.
+  // The Echo Queen: hovers out of reach, then screeches (rings of sound burst out in waves, each with a gap to slip
+  // through), dives at you (bursting where she lands), or looses a fan of echo bolts. Hurt, she calls her Flappers.
+  echoqueen: {
+    start: 'flutter', color: '#9a7ad8', scale: 1.1, flies: true,
+    think(e, w, _dt, dist, toP, rage) {
+      e.z = e.state === 'dive' ? 6 : 26 + Math.sin(w.t * 3 + e.seed) * 6;
+      if (!e.flag && e.hp < e.maxHp * 0.5) {
         e.flag = true;
-        e.state = 'howl';
-        e.t = 1.0;
-        e.vx = e.vy = 0;
+        w.summon('bat', Math.max(8, e.lv - 3), e, 2);
+        w.ring({ x: e.x, y: e.y - 30, r0: 10, r1: 110, dur: 0.5, color: '220,200,255' });
+        w.play('encounter');
       }
       switch (e.state) {
-        case 'howl':
-          e.windup = 1;
-          if (Math.random() < 0.3) w.ring({ x: e.x, y: e.y - 20, r0: 10, r1: 90, dur: 0.4, color: '220,230,255' });
+        case 'flutter': {
+          // Keep a wary distance, drifting round you.
+          const wob = Math.sin(w.t * 1.7 + e.seed) * 0.9;
+          moveToward(e, dist < 150 ? toP + Math.PI + wob : dist > 210 ? toP + wob : toP + Math.PI / 2 + wob, e.spd * 0.8);
           if (e.t <= 0) {
-            e.windup = 0;
-            w.summon('wolf', Math.max(4, e.lv - 3), e, 2);
-            e.state = 'circle';
-            e.t = 1;
+            const opts = (['screech', 'dive', 'bolts'] as EState[]).filter((s) => s !== e.last);
+            e.state = opts[Math.floor(Math.random() * opts.length)];
+            e.last = e.state;
+            e.vx = e.vy = 0;
+            e.sub = 0;
+            e.dir = toP;
+            e.t = e.state === 'screech' ? 0.7 * rage : e.state === 'dive' ? 0.55 * rage : 0.5;
           }
           break;
-        case 'circle': {
-          e.orb += dt * 1.3;
-          const tx = p.x + Math.cos(e.orb) * 150, ty = p.y + Math.sin(e.orb) * 150;
-          moveToward(e, Math.atan2(ty - e.y, tx - e.x), e.spd * 1.2 * Math.min(1, Math.hypot(tx - e.x, ty - e.y) / 30));
-          if (e.t <= 0) { e.state = 'windup'; e.t = 0.45 * rage; e.sub = 0; }
-          break;
         }
-        case 'windup':
-          e.vx = e.vy = 0;
-          e.windup = 1 - e.t / (0.45 * rage);
-          if (e.t > 0.1) e.dir = toP;
-          if (e.t <= 0) { e.state = 'dash'; e.t = 0.34; e.windup = 0; moveToward(e, e.dir, e.spd * 4.6); }
-          break;
-        case 'dash':
-          if (Math.random() < 0.5) w.fx.burst(e.x, e.y, '#dfe6f0', 1, 30, { size: 4, grav: 0, life: 0.3 });
+        case 'screech':
+          // A windup, then three waves of sound: each a ring of marks around her with a gap to slip through.
+          e.windup = e.sub === 0 ? 1 - e.t / (0.7 * rage) : 0.4;
           if (e.t <= 0) {
+            if (e.sub === 0) w.shakeAtLeast(4);
+            const r = 80 + e.sub * 70, gap = e.dir + (e.sub % 2 ? 0.9 : -0.9) + rand(-0.3, 0.3), n = Math.round((TAU * r) / 42);
+            for (let i = 0; i < n; i++) {
+              const a = (i / n) * TAU;
+              if (Math.abs(Math.atan2(Math.sin(a - gap), Math.cos(a - gap))) < 0.5) continue;
+              const x = e.x + Math.cos(a) * r, y = e.y + Math.sin(a) * r;
+              if (w.arena.inside(x, y)) w.hazard({ x, y, r: 24, delay: 0.55, atk: e.atk, from: e.kind, mult: 1.0 });
+            }
+            w.ring({ x: e.x, y: e.y - 30, r0: r * 0.5, r1: r, dur: 0.5, color: '220,200,255' });
             e.sub++;
-            if (e.sub < (rage < 1 ? 3 : 2)) { e.state = 'windup'; e.t = 0.28; e.vx = e.vy = 0; }
-            else { e.state = 'recover'; e.t = 0.7; e.vx = e.vy = 0; }
+            e.t = 0.45 * rage;
+            if (e.sub >= 3) { e.state = 'flutter'; e.t = 1.5 * rage; e.windup = 0; }
+          }
+          break;
+        case 'dive':
+          if (e.sub === 0) {
+            // Rears up, marks where she'll land, then drops on it.
+            e.windup = 1 - e.t / (0.55 * rage);
+            if (e.t <= 0) {
+              const d = Math.min(dist, 240), tx = e.x + Math.cos(toP) * d, ty = e.y + Math.sin(toP) * d;
+              w.hazard({ x: tx, y: ty, r: 58, delay: 0.5, atk: e.atk, from: e.kind, mult: 1.35 });
+              moveToward(e, toP, d / 0.5);
+              e.sub = 1;
+              e.t = 0.5;
+              e.windup = 0;
+            }
+          } else if (e.t <= 0) {
+            e.vx = e.vy = 0;
+            w.shakeAtLeast(6);
+            w.fx.burst(e.x, e.y, '#c8b8f0', 10, 120, { size: 4 });
+            e.state = 'flutter';
+            e.t = 1.4 * rage;
+          }
+          break;
+        case 'bolts':
+          e.windup = 1 - e.t / 0.5;
+          if (e.t <= 0) {
+            const shots = rage < 1 ? 7 : 5;
+            for (let i = 0; i < shots; i++) w.enemyShoot(e, toP + (i - (shots - 1) / 2) * 0.22, 190, 9, '#d8c8ff');
+            w.play('shoot');
+            e.state = 'flutter';
+            e.t = 1.3 * rage;
+            e.windup = 0;
           }
           break;
         default:
-          e.vx = e.vy = 0;
-          if (e.t <= 0) { e.state = 'circle'; e.t = rand(1.1, 1.8) * rage; e.orb = Math.atan2(e.y - p.y, e.x - p.x); }
+          e.state = 'flutter';
       }
     },
   },
 
-  // Crystal King: ground slams, lines of erupting crystal spikes, and crystal shard rings.
   crystalking: {
     start: 'walk', color: '#b8a0ff',
     think(e, w, _dt, dist, toP, rage) {

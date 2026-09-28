@@ -110,8 +110,11 @@ export class Roamers {
     return best;
   }
 
-  /** Moves everyone; returns the monster that caught you, if any. */
-  update(dt: number, px: number, py: number, firstFight: boolean): Roamer | null {
+  /**
+   * Moves everyone; returns the monster that caught you, if any. `repel` (Goo Jelly): monsters at or below that level
+   * keep away from you.
+   */
+  update(dt: number, px: number, py: number, firstFight: boolean, repel: number | null = null): Roamer | null {
     this.calm = Math.max(0, this.calm - dt);
     this.respawn -= dt;
     if (this.respawn <= 0) {
@@ -125,7 +128,9 @@ export class Roamers {
       r.t -= dt;
       const d = Math.hypot(px - r.x, py - r.y);
       const home = Math.hypot(r.x - r.hx, r.y - r.hy);
-      if (this.calm <= 0 && d < NOTICE_DIST && (r.state === 'idle' || r.state === 'wander')) {
+      const repelled = repel !== null && r.lv <= repel;
+      if (repelled && (r.state === 'notice' || r.state === 'chase')) r.state = 'return';
+      if (!repelled && this.calm <= 0 && d < NOTICE_DIST && (r.state === 'idle' || r.state === 'wander')) {
         r.state = 'notice';
         r.t = 0.45;
       }
@@ -164,7 +169,7 @@ export class Roamers {
           }
           break;
       }
-      if (!caught && this.calm <= 0 && d < CATCH_DIST) caught = r;
+      if (!caught && !repelled && this.calm <= 0 && d < CATCH_DIST) caught = r;
     }
     return caught;
   }

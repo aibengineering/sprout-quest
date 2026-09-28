@@ -5,9 +5,12 @@ import {
   STYLE_NAMES, TOOLS, ZONES, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
 } from './data';
 import { currentQuest, progress, questNeeds } from './quests';
-import { MASTERY_MAX, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, skillXpToNext, xpToNext, type Lock } from './rules';
+import { MASTERY_MAX, PLOT_UNLOCK, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, plotOpen, revealed, skillXpToNext, xpToNext, type Lock } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
+import { MOVESETS, SKILL_LEVELS, comboTime, handlingStep, skillAt } from './weapons';
+import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
+import { LOGS_PER_PLANK, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate } from './sawmill';
 import { usingKeyboard } from './input';
 import { canShareFiles } from './share';
 import { reportInfo } from './stats';
@@ -26,6 +29,11 @@ export interface MenuCtx {
 
 export interface UIHooks {
   save(): SaveState;
+  /** Opens a menu tab from the map (an unlock card's "tap to open"). */
+  openTab(tab: Tab): void;
+  /** Sounds for reward moments: a named effect, or the XP bar's rising tone (seconds, from and to 0–1 up the bar). */
+  sound(s: 'ding' | 'tick' | 'treasure' | 'levelup'): void;
+  sweep(dur: number, from: number, to: number): void;
   craftGear(id: string): void;
   craftTool(id: string): void;
   craftPotion(id: string): void;
@@ -40,6 +48,9 @@ export interface UIHooks {
   exportReport(how: 'file' | 'copy'): void;
   /** Shows the patch notes (and marks them read). */
   patchNotes(): void;
+  /** The side story you're in the middle of (the tracker shows it over the main quest), and every one you've started. */
+  story(): { icon: string; title: string; label: string } | null;
+  stories(): { icon: string; title: string; label: string; done: boolean }[];
   menuClosed(): void;
 }
 
@@ -51,7 +62,8 @@ const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', mea
 
 /** Blender-rendered icon with the emoji as a fallback if the image is missing. */
 export function icon(id: string, emoji: string, cls = 'icon') {
-  return `<img class="${cls}" src="${iconUrl(id)}" alt="" onerror="this.outerHTML='${emoji}'">`;
+  // decoding="sync": paint the (already downloaded and decoded) icon with the menu, not a moment after.
+  return `<img class="${cls}" src="${iconUrl(id)}" alt="" decoding="sync" onerror="this.outerHTML='${emoji}'">`;
 }
 
 export function gearStats(g: Gear): string {
@@ -76,15 +88,37 @@ function lockLabel(l: Lock): string {
   }
 }
 
-/** A Forge item you haven't reached the level for: a silhouette and a "?", and only what level reveals it. */
-function mysteryCard(art: string, tier: string, l: Lock): string {
-  const how = l.kind === 'forge' ? `Upgrade the Forge to the ${lockLabel(l)} to reveal it.` : `Reach ${lockLabel(l)} to reveal it.`;
-  return `<div class="mcard rcp mystery"><div class="ico">${art}</div>
-    <div class="info"><div class="name">??? ${tier}</div><div class="desc">${esc(how)}</div></div>
-    <span class="tag lock">🔒 ${esc(lockLabel(l))}</span></div>`;
+/** How to reveal a Forge item you haven't reached the level for. */
+const lockHow = (l: Lock) => (l.kind === 'forge' ? `Upgrade the Forge to the ${lockLabel(l)} to reveal it.` : `Reach ${lockLabel(l)} to reveal it.`);
+
+/**
+ * An inventory slot: an icon you tap to look at more closely (the details show on a tag under the grid). `key` names
+ * the grid, so each grid remembers what you picked.
+ */
+function slotTile(key: string, id: string, art: string, label: string, o: { sel?: boolean; worn?: boolean; count?: number; cls?: string } = {}): string {
+  return `<button class="tile ${o.cls ?? ''}${o.sel ? ' sel' : ''}" data-pick="${key}:${id}" aria-label="${esc(label)}">${art}${
+    o.worn ? '<i class="eq">✓</i>' : ''}${o.count !== undefined ? `<b class="n">${o.count}</b>` : ''}</button>`;
 }
 
-function costChips(s: SaveState, r: Recipe): string {
+/** Empty slots to round a grid out to whole rows (and at least two), so it reads as a bag with room to spare. */
+function emptySlots(filled: number, cols = 4): string {
+  const total = Math.max(cols * 2, Math.ceil(filled / cols) * cols);
+  return '<div class="tile empty" aria-hidden="true"></div>'.repeat(total - filled);
+}
+
+/** The label tag for whatever's picked: its picture, a title, a few lines, and what you can do with it. */
+function tagCard(art: string, title: string, lines: string, action = ''): string {
+  return `<div class="tagcard"><div class="tart">${art}</div><div class="tinfo"><div class="name">${title}</div>${lines}</div>${action ? `<div class="tact">${action}</div>` : ''}</div>`;
+}
+
+/**
+ * The pieces of every celebration: a ribbon banner for the heading, and the thing itself popping in over rays of
+ * light that turn slowly behind it.
+ */
+const ribbon = (text: string) => `<div class="ribbon"><span>${esc(text)}</span></div>`;
+const stage = (art: string, cls = '') => `<div class="stage ${cls}"><div class="rays"></div><div class="stage-art">${art}</div><div class="sparkles"><i></i><i></i><i></i><i></i></div></div>`;
+
+export function costChips(s: SaveState, r: Recipe): string {
   return Object.entries(r)
     .map(([m, n]) => {
       const have = s.mats[m as MatId];
@@ -98,28 +132,83 @@ const bossIcon = (k: MonsterKind, cls = 'icon') => icon(`boss_${k}`, MONSTERS[k]
 function goalIcon(q: Quest): string {
   const g = q.goal;
   if (g.type === 'boss') return bossIcon(g.kind, 'icon xl');
-  if (g.type === 'build') return icon(`b_${g.project === 'forge' ? ['forge', 'forge2', 'forge3'][g.level - 1] : g.project + g.level}`, PROJECTS[g.project].icon, 'icon xl');
+  if (g.type === 'build') return icon(`b_${g.project === 'forge' ? forgeArt(g.level) : g.project + g.level}`, PROJECTS[g.project].icon, 'icon xl');
   if (g.type === 'kills') return icon('goo', '⚔️', 'icon xl');
   if (g.type === 'craft') return icon('jelly', '⚒', 'icon xl');
+  if (g.type === 'mend') return icon('axe1', '🪓', 'icon xl');
   return icon('npc_elder', '🌿', 'icon xl');
 }
 
 /** Every icon the menus can show (materials, gear, tools, guardians, buildings, the Elder), for preloading. */
 export function allIconIds(): string[] {
-  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'campfire',
+  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'sawmill0', 'sawmill1', 'bramhut',
     ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`))];
   return [
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
     ...buildings.map((b) => `b_${b}`), 'npc_elder',
+    // Story portraits and keepsakes.
+    'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots',
+    'npc_bram', 'npc_bram_happy', 'npc_bram_hurt', 'pie', ...Object.keys(MEALS).map((m) => `meal_${m}`),
   ];
 }
 
+/** The forge's art for a level (the repaired one is plain "forge"). */
+export const forgeArt = (level: number) => (level <= 0 ? 'forge0' : level === 1 ? 'forge' : `forge${level}`);
+
+/** How much quicker (in %) a weapon class attacks at a handling level than at Lv 1: its full combo, rest included. */
+export function paceGain(style: Style, lv: number): number {
+  const m = MOVESETS[style];
+  return Math.round((comboTime(m, 1) / comboTime(m, lv) - 1) * 100);
+}
+
+/** The ten-level handling path as pips: ✨ for a skill rank, ⚡ for a speed step, the ones you've reached lit. */
+function handlingPath(lv: number): string {
+  const pips = Array.from({ length: MASTERY_MAX }, (_, i) => {
+    const at = i + 1, step = handlingStep(at);
+    return `<i class="${at <= lv ? 'on' : ''} ${step ?? 'start'}" title="Lv ${at}">${step === 'skill' ? '✨' : step === 'speed' ? '⚡' : '•'}</i>`;
+  }).join('');
+  return `<div class="hpath">${pips}</div>`;
+}
+
+/** What the next handling level brings, in words. */
+export function handlingNext(style: Style, lv: number): string | null {
+  if (lv >= MASTERY_MAX) return null;
+  return handlingGain(style, lv + 1);
+}
+
+/** What reaching a handling level gives you, in words ("Spin II: wider, and harder", "attacks 12% faster"). */
+export function handlingGain(style: Style, lv: number): string {
+  if (handlingStep(lv) === 'skill') {
+    const sk = skillAt(MOVESETS[style].skill, lv)!;
+    return `Lv ${lv}: ${sk.name} (${sk.note.charAt(0).toLowerCase()}${sk.note.slice(1)})`;
+  }
+  return `Lv ${lv}: attacks ${paceGain(style, lv) - paceGain(style, lv - 1)}% faster`;
+}
+
+function handlingPace(style: Style, lv: number): string {
+  const gain = paceGain(style, lv);
+  return gain > 0 ? `⚡ Attacks ${gain}% faster` : '⚡ Steady pace: training makes you faster';
+}
+
+/** What opens a locked building plot. */
+const PLOT_OPENS: Partial<Record<UnlockId, string>> = {
+  plots: 'The plot opens once you beat the Slime King', warpplot: 'The ruins open up once you beat the Alpha Woolf',
+  sawmill: 'Someone who knows timber could build one. Granny might know who.',
+};
+
 function buildingIcon(id: ProjectId, level: number): string {
-  if (level === 0) return icon(id === 'warp' ? 'b_warp0' : 'b_plot', PROJECTS[id].icon, 'icon lg');
-  const name = id === 'forge' ? ['forge', 'forge2', 'forge3'][level - 1] : `${id}${level}`;
+  // Before it's built: the old forge's ruins, the Waystone's broken stones, or an empty plot.
+  if (level === 0) return icon(id === 'warp' ? 'b_warp0' : id === 'forge' ? 'b_forge0' : id === 'sawmill' ? 'b_sawmill0' : 'b_plot', PROJECTS[id].icon, 'icon lg');
+  const name = id === 'forge' ? forgeArt(level) : `${id}${level}`;
   return icon(`b_${name}`, PROJECTS[id].icon, 'icon lg');
 }
+
+/** A round saw blade, spun by CSS while the Sawmill is working (tinted copper or iron). */
+const SAW_BLADE = `<svg viewBox="-50 -50 100 100" aria-hidden="true"><path d="${Array.from({ length: 16 }, (_, i) => {
+  const a = (i / 16) * Math.PI * 2, b = a + Math.PI / 16, r = 46, t = 36;
+  return `${i ? 'L' : 'M'}${(Math.cos(a) * t).toFixed(1)},${(Math.sin(a) * t).toFixed(1)}L${(Math.cos(b) * r).toFixed(1)},${(Math.sin(b) * r).toFixed(1)}`;
+}).join('')}Z"/><circle r="11" class="hub"/></svg>`;
 
 export class UI {
   private modal = $('modal');
@@ -127,9 +216,19 @@ export class UI {
   private toastTimer = 0;
   private bannerTimer = 0;
   private tab: Tab = 'journey';
-  private sub: Record<string, string> = { forge: 'weapon' };
+  private sub: Record<string, string> = { forge: 'weapon', items: 'gear' };
+  /** What's picked in each slot grid (by grid), shown on its tag. */
+  private pick: Record<string, string> = {};
+  /** The Forge shows only what you've discovered, unless you ask to see the undiscovered outlines too. */
+  private showLocked = false;
+  /** Recipes revealed since your last visit to the Forge (they get a "New" badge while you're there). */
+  private forgeNew = new Set<string>();
+  private lastTab: Tab | null = null;
+  /** Where the game is (unlock cards wait until you're back on the map). */
+  private mode: 'title' | 'world' | 'battle' | 'none' = 'title';
   private unlockQueue: Unlock[] = [];
   private unlockShowing = false;
+  private unlockTimer = 0;
   private focus: string | undefined;
   private ctx: MenuCtx = { atForge: false, inVillage: false };
   private menuOpen = false;
@@ -190,25 +289,100 @@ export class UI {
     apply();
   }
 
+  /** While the XP bar is animating a gain, the HUD leaves the level and XP alone. */
+  private xpAnim = false;
+
+  /**
+   * The XP you just earned, the way Pokémon does it: "+N XP" floats up, the bar fills with a rising tone, and if it
+   * tops out it rings, the level number pops, and it carries on filling from empty. Resolves once it has settled.
+   */
+  async xpGain(from: { lv: number; xp: number }, to: { lv: number; xp: number }, gained: number) {
+    const card = $('hud').querySelector('.stat') as HTMLElement | null, bar = $('hud-xp');
+    if (!card || $('hud').hidden || gained <= 0) return;
+    this.xpAnim = true;
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    card.classList.add('gain');
+    const tag = document.createElement('div');
+    tag.className = 'xp-float';
+    tag.textContent = `+${gained} XP`;
+    card.append(tag);
+    // Let the win's bell ring out first, so the fill's chirps are heard on their own.
+    await wait(380);
+    let lv = from.lv, frac = Math.min(1, from.xp / xpToNext(lv));
+    const fill = async (target: number) => {
+      const dur = 0.25 + 0.75 * (target - frac);
+      bar.style.transition = `width ${dur}s linear`;
+      bar.style.width = `${target * 100}%`;
+      this.hooks.sweep(dur, frac, target);
+      await wait(dur * 1000);
+      frac = target;
+    };
+    for (; lv < to.lv; lv++) {
+      await fill(1);
+      // Topped out: a bell, the level ticks over, and the bar starts again from empty.
+      this.hooks.sound('ding');
+      card.classList.add('ding');
+      $('hud-lv').textContent = String(lv + 1);
+      await wait(420);
+      card.classList.remove('ding');
+      bar.style.transition = 'none';
+      bar.style.width = '0%';
+      frac = 0;
+      await wait(60);
+    }
+    await fill(Math.min(1, to.xp / xpToNext(to.lv)));
+    await wait(350);
+    tag.remove();
+    card.classList.remove('gain');
+    bar.style.transition = '';
+    this.xpAnim = false;
+    delete this.last.xp;
+    delete this.last.lv;
+  }
+
   hud(hp: number, zoneName: string) {
     const s = this.hooks.save();
     const st = playerStats(s);
     const hpText = `${Math.ceil(hp)}/${st.maxHp}`;
-    this.set('lv', String(s.lv), () => ($('hud-lv').textContent = String(s.lv)));
+    if (!this.xpAnim) this.set('lv', String(s.lv), () => ($('hud-lv').textContent = String(s.lv)));
     this.set('hp', hpText, () => {
       $('hud-hptext').textContent = hpText;
       $('hud-hp').style.width = `${(100 * hp) / st.maxHp}%`;
       $('hud-hp').parentElement!.classList.toggle('low', hp / st.maxHp < 0.3);
     });
     const xpPct = `${Math.min(100, (100 * s.xp) / xpToNext(s.lv))}%`;
-    this.set('xp', xpPct, () => ($('hud-xp').style.width = xpPct));
+    if (!this.xpAnim) this.set('xp', xpPct, () => ($('hud-xp').style.width = xpPct));
     this.set('zone', zoneName, () => ($('hud-zone').textContent = zoneName));
+    // Whatever you last ate at Granny's, and how much is left.
+    const meal = mealLeft(s), mealKey = meal ? `${meal.icon}${meal.left}` : '';
+    this.set('meal', mealKey, () => {
+      const el = $('hud-meal');
+      el.hidden = !meal;
+      if (meal) {
+        el.textContent = `${meal.icon} ${meal.left}`;
+        el.title = `${meal.name}: ${meal.left} left`;
+      }
+    });
   }
 
   /** The little "current goal" tracker under the HUD. */
   questPill(show: boolean) {
     const s = this.hooks.save();
-    const q = currentQuest(s);
+    const q = currentQuest(s), side = this.hooks.story();
+    if (show && side) {
+      // A side story you're in the middle of takes the tracker until it's done.
+      this.set('pill', `side|${side.title}|${side.label}`, () => {
+        const el = $('quest-pill');
+        el.hidden = false;
+        el.innerHTML = `<span class="qi">${side.icon}</span><span class="qt"><b>${esc(side.title)}</b><small>${esc(side.label)}</small></span>`;
+        el.classList.add('side');
+        el.classList.remove('bump');
+        void el.offsetWidth;
+        el.classList.add('bump');
+      });
+      return;
+    }
+    $('quest-pill').classList.remove('side');
     if (!show || !q) {
       this.set('pill', 'hidden', () => ($('quest-pill').hidden = true));
       return;
@@ -239,15 +413,9 @@ export class UI {
     });
   }
 
-  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0, clip: { n: number; max: number } | null = null) {
+  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0) {
     const at = attackFrac.toFixed(2);
     this.set('atk', at, () => ($('btn-attack').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', at)));
-    const pips = clip ? `${clip.n}/${clip.max}` : '';
-    this.set('clip', pips, () => {
-      const el = $('clip');
-      el.hidden = !clip;
-      if (clip) el.innerHTML = Array.from({ length: clip.max }, (_, i) => `<i class="${i < clip.n ? 'on' : ''}"></i>`).join('');
-    });
     this.set('pot', String(potions), () => {
       $('potion-n').textContent = String(potions);
       $('btn-potion').style.opacity = potions > 0 ? '1' : '0.5';
@@ -278,24 +446,44 @@ export class UI {
     if (!this.unlockShowing) this.nextUnlock();
   }
 
+  /** The tab each unlock opens when you tap its card (the weapon skill lives in fights, so it has none). */
+  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', sawmill: 'village', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
+  /** The corner button that leads there, which bounces while its card is up. */
+  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag' };
+
   private nextUnlock() {
-    const u = this.unlockQueue.shift();
     const el = $('unlock-card');
-    if (!u) {
+    document.querySelectorAll('.dock-btn.beckon').forEach((b) => b.classList.remove('beckon'));
+    // Not over a fight or a popup: wait for the map (setMode picks it back up).
+    if (!this.unlockQueue.length || this.mode !== 'world') {
       this.unlockShowing = false;
       el.classList.remove('show');
       window.setTimeout(() => { if (!this.unlockShowing) el.hidden = true; }, 300);
       return;
     }
+    const u = this.unlockQueue.shift()!;
+    const tab = UI.UNLOCK_TAB[u.id];
     this.unlockShowing = true;
     el.hidden = false;
     const key = u.key && usingKeyboard() ? `<p class="u-key">⌨️ Shortcut: <kbd>${u.key}</kbd></p>` : '';
-    el.innerHTML = `<div class="u-ico">${u.icon}</div><div><div class="u-new">✨ New unlocked</div><b>${esc(u.title)}</b><p>${esc(u.text)}</p>${key}</div>`;
+    el.innerHTML = `<div class="u-ico">${u.icon}</div><div><div class="u-new">✨ New unlocked</div><b>${esc(u.title)}</b><p>${esc(u.text)}</p>${key}${
+      tab ? '<p class="u-go">Tap to open ›</p>' : ''}</div>`;
+    el.classList.toggle('tappable', !!tab);
+    el.onclick = tab ? () => {
+      el.onclick = null;
+      window.clearTimeout(this.unlockTimer);
+      // Mending happens on the Bag's Skills page.
+      if (u.id === 'mend') this.sub.items = 'skills';
+      this.hooks.openTab(tab);
+      this.nextUnlock();
+    } : null;
+    const btn = UI.UNLOCK_BUTTON[u.id];
+    if (btn) $(btn).classList.add('beckon');
     requestAnimationFrame(() => el.classList.add('show'));
-    window.setTimeout(() => {
+    this.unlockTimer = window.setTimeout(() => {
       el.classList.remove('show');
       window.setTimeout(() => this.nextUnlock(), 350);
-    }, 4800);
+    }, tab ? 7000 : 4800);
   }
 
   /** Tutorial bubble pointing at a button (or centered on screen). */
@@ -334,6 +522,9 @@ export class UI {
   }
 
   setMode(mode: 'title' | 'world' | 'battle' | 'none') {
+    this.mode = mode;
+    // Unlock cards held back during a fight come out once you're back on the map.
+    if (mode === 'world' && this.unlockQueue.length && !this.unlockShowing) window.setTimeout(() => this.nextUnlock(), 600);
     $('title').hidden = mode !== 'title';
     $('hud').hidden = mode === 'title' || mode === 'none';
     $('ctl-world').hidden = mode !== 'world';
@@ -465,6 +656,7 @@ export class UI {
   closeMenu(silent = false) {
     if (!this.menuOpen) return;
     this.menuOpen = false;
+    this.lastTab = null;
     this.modal.hidden = true;
     if (!silent) this.hooks.menuClosed();
   }
@@ -479,12 +671,22 @@ export class UI {
     const tabs = ([
       ['journey', '📜', 'Journal'], ['items', '🎒', 'Bag'], ['forge', '⚒', 'Forge'], ['village', '🏡', 'Village'], ['settings', '⚙️', 'More'],
     ] as [Tab, string, string][]).filter(([t]) => this.tabOpen(t));
+    if (this.tab === 'forge' && this.lastTab !== 'forge') {
+      const now = revealed(s);
+      s.forgeSeen ??= [...now];
+      // What you already own was never a discovery.
+      const owns = (id: string) => s.owned.includes(id) || TOOLS.some((t) => t.id === id && s.tools[t.skill] >= t.tier);
+      this.forgeNew = new Set([...now].filter((id) => !s.forgeSeen!.includes(id) && !owns(id)));
+      s.forgeSeen.push(...this.forgeNew);
+    }
+    this.lastTab = this.tab;
     // Looking at a tab clears its "new" dot.
     const seenKey = TAB_UNLOCK[this.tab];
     if (seenKey) s.fresh = s.fresh.filter((f) => f !== seenKey);
     const dot = (t: Tab) => ((TAB_UNLOCK[t] && s.fresh.includes(TAB_UNLOCK[t]!)) || (t === 'settings' && hasNews(s)) ? '<i class="dot on"></i>' : '');
     const scroll = fresh ? 0 : this.sheet.querySelector('.body')?.scrollTop ?? 0;
-    this.sheet.className = 'sheet menu';
+    // Each tab is its own thing from the world: a notebook, the satchel, the smithy's bench, the builder's board.
+    this.sheet.className = `sheet menu theme-${this.tab}`;
     const closeBtn = '<button class="tab-close" data-do="close" aria-label="Close menu"><span>✕</span>Close<kbd class="key">Esc</kbd></button>';
     const tabBtns = tabs.map(([id, ico, label], i) =>
       `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}<kbd class="key">${i + 1}</kbd></button>`).join('');
@@ -549,7 +751,7 @@ export class UI {
           ${rewards ? `<div class="qrew">Reward ${rewards}</div>` : ''}
         </section>`;
     } else {
-      card = `<section class="qcard done"><div class="qtitle">🌟 All chapters complete!</div><p class="qtext">Sprout Village is safe. Keep building, crafting and rematching bosses!</p></section>`;
+      card = `<section class="qcard done"><div class="qtitle">🌅 The smoke has cleared</div><p class="qtext">Sowerby is safe. Keep building, crafting and rematching bosses!</p></section>`;
     }
     const warp = s.build.warp > 0;
     const here = this.ctx.inVillage;
@@ -567,47 +769,68 @@ export class UI {
       const btn = warp && reachable && !(z.id === 'village' && here) ? `<button class="go sm" data-travel="${z.id}">Warp</button>` : '';
       return `<div class="zrow ${beaten ? '' : 'locked'}"><div class="zart">${art}</div><div class="info"><div class="name">${esc(z.name)}</div><div class="desc">${status}</div></div>${btn}</div>`;
     }).join('');
-    const warpNote = warp ? '' : `<div class="note">🔮 Build the <b>Warp Stone</b> in the village to fast travel between campfires.</div>`;
-    const home = here ? '' : `<button class="wide go alt" data-do="home">🏠 Warp home to Sprout Village</button>`;
+    const warpNote = warp ? '' : `<div class="note">🔮 Build the <b>Waystone</b> in the village to fast travel between campfires.</div>`;
+    const home = here ? '' : `<button class="wide go alt" data-do="home">🏠 Warp home to Sowerby</button>`;
     const chapters = QUESTS.map((qq, i) => {
       const st = i < s.quest ? 'done' : i === s.quest ? 'now' : 'later';
       const mark = st === 'done' ? '✓' : st === 'now' ? '▶' : '🔒';
       return `<li class="${st}"><span class="mk">${mark}</span><span class="ch">${esc(qq.chapter)}</span><span>${st === 'later' ? '???' : esc(qq.title)}</span></li>`;
     }).join('');
-    return `${card}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div>${home}<h3>Story</h3><ol class="chapters">${chapters}</ol>`;
+    const sides = this.hooks.stories().map((st) => `<div class="zrow ${st.done ? 'done' : ''}"><div class="zart"><span class="emo">${st.icon}</span></div>
+      <div class="info"><div class="name">${esc(st.title)}</div><div class="desc">${st.done ? '✓ ' : '▶ '}${esc(st.label)}</div></div></div>`).join('');
+    return `<div class="notebook">${card}${sides ? `<h3>Side stories</h3><div class="zones">${sides}</div>` : ''}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div>${home}<h3>Story</h3><ol class="chapters">${chapters}</ol></div>`;
   }
 
   private items(s: SaveState): string {
     const st = playerStats(s);
-    const slots: [Slot, string][] = [['weapon', 'Weapon'], ['armor', 'Armor'], ['charm', 'Charm']];
-    const cur = slots.map(([slot, label]) => {
-      const id = s.equip[slot];
-      const g = id ? GEAR[id] : null;
-      return `<div class="slot"><small>${label}</small>${g ? icon(g.id, g.icon) : '<span class="emo">➖</span>'}<span>${g ? esc(g.name) : 'None'}</span></div>`;
+    const pocket = this.sub.items;
+    const pick = this.pick.items;
+    // What you're wearing, in sockets across the top of the bag, and your potions beside them.
+    const sockets = ([['weapon', 'Weapon'], ['armor', 'Armor'], ['charm', 'Charm']] as [Slot, string][]).map(([slot, label]) => {
+      const id = s.equip[slot], g = id ? GEAR[id] : null;
+      return `<button class="sock${pick === id ? ' sel' : ''}" ${g ? `data-pick="items:${g.id}"` : 'disabled'} aria-label="${label}">${g ? icon(g.id, g.icon) : ''}<small>${label}</small></button>`;
     }).join('');
-    const owned = GEAR_ORDER.filter((id) => s.owned.includes(id));
-    const cards = owned.map((id) => {
-      const g = GEAR[id];
-      const on = s.equip[g.slot] === id;
-      return `<button class="gcard ${on ? 'on' : ''}" data-equip="${id}" ${on && g.slot !== 'charm' ? 'disabled' : ''}>
-        ${on ? '<span class="badge-on">Equipped</span>' : ''}${icon(g.id, g.icon, 'icon lg')}
-        <span class="name">${esc(g.name)}</span>${stars(g)}<span class="stats">${gearStats(g)}</span></button>`;
-    }).join('');
-    const gearHint = owned.length <= 2 && s.unlocked.includes('forge')
-      ? `<div class="note">⚒ Craft new gear at the Forge, then equip it here (or right from the Forge).</div>` : '';
-    const mats = MAT_ORDER.filter((m) => s.mats[m] > 0).map((m) => {
-      const n = s.mats[m];
-      return `<div class="mat"><div class="ico">${icon(m, MATS[m].icon)}</div><b>${n}</b><span>${esc(MATS[m].name)}</span><small>${esc(MATS[m].where)}</small></div>`;
-    }).join('');
-    return `
-      <h3>Wearing</h3><div class="slots">${cur}</div>
-      <h3>Gear <small>tap to equip</small></h3>${gearHint}<div class="ggrid">${cards}</div>
-      <h3>Potions</h3>
-      <div class="mcard row"><div class="ico">🧪</div><div class="info"><div class="name">${s.potions}/${MAX_POTIONS} potions</div>
-        <div class="desc">Heals ${Math.round(POTION_HEAL * 100)}% HP. Free refills at the village fountain.</div></div>
-        <button class="go" data-do="drink" ${s.potions > 0 && s.hp < st.maxHp ? '' : 'disabled'}>Drink</button></div>
-      ${this.skills(s)}
-      <h3>Materials</h3>${mats ? `<div class="grid">${mats}</div>` : '<p class="sub">Defeat monsters to collect materials.</p>'}`;
+    const flask = `<button class="sock flask${pick === 'potion' ? ' sel' : ''}" data-pick="items:potion" aria-label="Potions"><span class="emo">🧪</span><b class="n">${s.potions}</b><small>Potions</small></button>`;
+    const pockets = this.seg('items', [['gear', '⚔️ Gear'], ['stuff', '🪵 Stuff'], ['skills', '⭐ Skills']]);
+    let body = '';
+    let detail = '';
+    if (pocket === 'gear') {
+      const owned = GEAR_ORDER.filter((id) => s.owned.includes(id));
+      const chosen = pick && (GEAR[pick] || pick === 'potion') ? pick : s.equip.weapon;
+      body = `<div class="slotgrid">${owned.map((id) => slotTile('items', id, icon(id, GEAR[id].icon), GEAR[id].name, { sel: chosen === id, worn: s.equip[GEAR[id].slot] === id, cls: `tier${GEAR[id].tier ?? 0}` })).join('')}${emptySlots(owned.length)}</div>`;
+      detail = chosen === 'potion' ? this.potionTag(s, st.maxHp) : this.gearTag(s, GEAR[chosen]);
+      if (owned.length <= 2 && s.unlocked.includes('forge')) body += `<div class="note">⚒ Craft new gear at the Forge, then equip it here.</div>`;
+    } else if (pocket === 'stuff') {
+      const mats = MAT_ORDER.filter((m) => s.mats[m] > 0);
+      const chosen = mats.includes(pick as MatId) ? (pick as MatId) : mats[0];
+      body = mats.length
+        ? `<div class="slotgrid">${mats.map((m) => slotTile('items', m, icon(m, MATS[m].icon), MATS[m].name, { sel: chosen === m, count: s.mats[m] })).join('')}${emptySlots(mats.length)}</div>`
+        : '<p class="sub">Defeat monsters and gather to collect materials.</p>';
+      if (chosen) detail = tagCard(icon(chosen, MATS[chosen].icon), `${esc(MATS[chosen].name)} <span class="lvl">×${s.mats[chosen]}</span>`, `<div class="desc">${esc(MATS[chosen].where)}</div>`);
+      if (pick === 'potion') detail = this.potionTag(s, st.maxHp);
+    } else {
+      body = this.skills(s) || '<p class="sub">Craft a tool at the Forge to start woodcutting and mining.</p>';
+      if (pick === 'potion') detail = this.potionTag(s, st.maxHp);
+    }
+    // The tag hangs under the grid; on the skills page (no grid) it sits at the top.
+    const [above, below] = pocket === 'skills' ? [detail, ''] : ['', detail];
+    return `<div class="satchel"><div class="worn">${sockets}${flask}</div>${pockets}${above}${body}${below}</div>`;
+  }
+
+  /** A piece of gear's tag: stats, what it's like, and wearing it. */
+  private gearTag(s: SaveState, g: Gear | undefined): string {
+    if (!g) return '';
+    const on = s.equip[g.slot] === g.id;
+    const action = on
+      ? g.slot === 'charm' ? `<button class="go ghost" data-equip="${g.id}">Take off</button>` : '<span class="tag">✓ Worn</span>'
+      : `<button class="go" data-equip="${g.id}">Wear</button>`;
+    return tagCard(icon(g.id, g.icon), `${esc(g.name)} ${stars(g)}`, `<div class="stats">${gearStats(g)}</div><div class="desc">${esc(g.desc)}</div>`, action);
+  }
+
+  private potionTag(s: SaveState, maxHp: number): string {
+    return tagCard('<span class="emo big-emo">🧪</span>', `Potions <span class="lvl">${s.potions}/${MAX_POTIONS}</span>`,
+      `<div class="desc">Heals ${Math.round(POTION_HEAL * 100)}% HP. Free refills at Veyra's Spring.</div>`,
+      `<button class="go" data-do="drink" ${s.potions > 0 && s.hp < maxHp ? '' : 'disabled'}>Drink</button>`);
   }
 
   private skills(s: SaveState): string {
@@ -622,91 +845,153 @@ export class UI {
         <div class="desc">${esc(tool.name)} · ${max ? 'Mastered!' : `${sk.xp}/${need} XP`}</div>
         <div class="pbar"><i style="width:${max ? 100 : (100 * sk.xp) / need}%"></i></div></div></div>`;
     }).join('');
+    // Elder Oswin's old axe and pick, until they're mended.
+    const mend = s.flags.includes('oldtools') ? TOOLS.filter((t) => t.tier === 1 && s.tools[t.skill] < 1).map((t) => {
+      const can = hasMats(s, t.recipe);
+      const [name, what] = t.skill === 'wood' ? ['Blunt old axe', 'Goo to glue the head back on, Fluff to wrap the grip.'] : ['Chipped old pick', 'Goo to set the loose head, Fluff to wrap the grip.'];
+      return `<div class="mcard row mend"><div class="ico">${icon(t.id, t.icon)}</div><div class="info">
+        <div class="name">${name}</div><div class="desc">${what}</div><div class="chips">${costChips(s, t.recipe)}</div></div>
+        <button class="go" data-tool="${t.id}" ${can ? '' : 'disabled'}>Mend</button></div>`;
+    }).join('') : '';
     // Weapon handling: every class you've trained, plus the one in your hand.
     const style = GEAR[s.equip.weapon]?.style;
     const handling = (Object.keys(STYLE_NAMES) as Style[]).filter((k) => k === style || s.mastery[k].lv > 1 || s.mastery[k].xp > 0).map((k) => {
       const m = s.mastery[k], max = m.lv >= MASTERY_MAX, need = masteryXpToNext(m.lv);
       const emoji = { sword: '🗡️', hammer: '🔨', whip: '〰️', wand: '🪄' }[k];
-      return `<div class="mcard row"><div class="ico"><span class="emo">${emoji}</span></div><div class="info">
+      const sk = skillAt(MOVESETS[k].skill, m.lv), next = handlingNext(k, m.lv);
+      return `<div class="mcard row handling"><div class="ico"><span class="emo">${emoji}</span></div><div class="info">
         <div class="name">${STYLE_NAMES[k]} handling <span class="lvl">Lv ${m.lv}</span></div>
-        <div class="desc">${max ? 'Mastered!' : `${m.xp}/${need} XP · win fights with a ${STYLE_NAMES[k].toLowerCase()} to train`}</div>
+        <div class="desc">${sk ? `✨ <b>${esc(sk.name)}</b>: ${esc(sk.note)}` : `✨ Skill unlocks at Lv ${SKILL_LEVELS[0]}`} · ${handlingPace(k, m.lv)}</div>
+        ${handlingPath(m.lv)}
+        <div class="desc">${max ? 'Mastered!' : `${m.xp}/${need} XP${next ? ` · <b>Next:</b> ${esc(next)}` : ''}`}</div>
         <div class="pbar"><i style="width:${max ? 100 : (100 * m.xp) / need}%"></i></div></div></div>`;
     }).join('');
-    return `${rows ? `<h3>Skills</h3>${rows}` : ''}${handling ? `<h3>Weapon handling</h3>${handling}` : ''}`;
+    const PERKS: Record<string, [string, string, string]> = { trailboots: ['trailboots', 'Trail Boots', 'From Granny Clover: walk 25% faster outside of fights.'] };
+    const perks = s.perks.filter((p) => PERKS[p]).map((p) => {
+      const [id, name, desc] = PERKS[p];
+      return `<div class="mcard row"><div class="ico">${icon(id, '👢')}</div><div class="info"><div class="name">${esc(name)}</div><div class="desc">${esc(desc)}</div></div></div>`;
+    }).join('');
+    return `${mend ? `<h3>Old tools</h3>${mend}` : ''}${rows ? `<h3>Skills</h3>${rows}` : ''}${handling ? `<h3>Weapon handling</h3>${handling}` : ''}${perks ? `<h3>Perks</h3>${perks}` : ''}`;
   }
 
   private forge(s: SaveState): string {
     const flv = s.build.forge;
     const at = this.ctx.atForge;
     const level = PROJECTS.forge.levels[flv - 1];
-    const note = at
-      ? `<div class="note">⚒ <b>${esc(level.name)}</b> (Lv ${flv}): ${esc(level.perk)}. Upgrade it in the Village tab.</div>`
-      : `<div class="note">📍 Visit the ⚒ Forge in Sprout Village to craft. You can plan here.</div>`;
+    const plate = `<div class="plate"><b>⚒ ${esc(level?.name ?? 'The Forge')}</b><small>${at ? esc(level?.perk ?? '') : '📍 Visit the Forge in Sowerby to craft. You can plan here.'}</small></div>`;
+    const sub = this.sub.forge;
     const seg = this.seg('forge', [['weapon', 'Weapons'], ['armor', 'Armor'], ['charm', 'Charms'], ['tool', 'Tools'], ['potion', 'Potions']]);
-    if (this.sub.forge === 'tool') {
-      const cards = TOOLS.map((t) => {
-        const owned = s.tools[t.skill] >= t.tier;
-        const lock = owned ? null : levelLock(s, t);
-        if (lock) return mysteryCard(icon(t.id, t.icon, 'icon lg'), `<span class="stars">${'★'.repeat(t.tier)}</span>`, lock);
-        const action = owned ? '<span class="tag">✓ Owned</span>' : `<button class="go" data-tool="${t.id}" ${at && hasMats(s, t.recipe) ? '' : 'disabled'}>Craft</button>`;
-        return `<div class="mcard rcp ${owned ? 'owned' : ''}"><div class="ico">${icon(t.id, t.icon, 'icon lg')}</div>
-          <div class="info"><div class="name">${esc(t.name)} <span class="stars">${'★'.repeat(t.tier)}</span></div>
-          <div class="desc">${esc(t.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, t.recipe)}</div>`}</div>${action}</div>`;
-      }).join('');
-      return `${note}${seg}<p class="sub">Tools are used automatically. Walk up to a glowing tree to chop it, or a glowing rock to mine it.</p>${cards}`;
+    const key = `forge-${sub}`;
+    // Every recipe on the bench as a slot: made ones ticked, ones you can make now lit, ones you haven't reached yet a "?".
+    type Row = { id: string; art: string; name: string; tier: number; owned: boolean; lock: Lock | null; can: boolean; tag: () => string };
+    let rows: Row[];
+    if (sub === 'tool') {
+      rows = TOOLS.filter((t) => t.tier > 1 || s.tools[t.skill] >= t.tier).map((t) => {
+        const owned = s.tools[t.skill] >= t.tier, lock = owned ? null : levelLock(s, t), can = !owned && at && hasMats(s, t.recipe);
+        return {
+          id: t.id, art: icon(t.id, t.icon), name: t.name, tier: t.tier, owned, lock, can,
+          tag: () => tagCard(icon(t.id, t.icon), `${esc(t.name)} <span class="stars">${'★'.repeat(t.tier)}</span>`,
+            `<div class="desc">${esc(t.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, t.recipe)}</div>`}`,
+            owned ? '<span class="tag">✓ Owned</span>' : `<button class="go" data-tool="${t.id}" ${can ? '' : 'disabled'}>Craft</button>`),
+        };
+      });
+    } else if (sub === 'potion') {
+      rows = POTION_RECIPES.map((p) => {
+        const can = at && hasMats(s, p.recipe) && s.potions < MAX_POTIONS;
+        return {
+          id: p.id, art: '<span class="emo">🧪</span>', name: p.name, tier: 0, owned: false, lock: null, can,
+          tag: () => tagCard('<span class="emo big-emo">🧪</span>', esc(p.name), `<div class="desc">You carry ${s.potions}/${MAX_POTIONS}.</div><div class="chips">${costChips(s, p.recipe)}</div>`,
+            `<button class="go" data-potion="${p.id}" ${can ? '' : 'disabled'}>${s.potions >= MAX_POTIONS ? 'Full' : 'Brew'}</button>`),
+        };
+      });
+    } else {
+      rows = GEAR_ORDER.filter((id) => GEAR[id].slot === sub && GEAR[id].recipe).map((id) => {
+        const g = GEAR[id], owned = s.owned.includes(id), lock = owned ? null : levelLock(s, g), can = !owned && at && hasMats(s, g.recipe!);
+        const action = owned
+          ? s.equip[g.slot] === id ? '<span class="tag">✓ Worn</span>' : `<button class="go ghost" data-equip="${id}">Wear</button>`
+          : `<button class="go" data-craft="${id}" ${can ? '' : 'disabled'}>Craft</button>`;
+        return {
+          id, art: icon(g.id, g.icon), name: g.name, tier: g.tier ?? 0, owned, lock, can,
+          tag: () => tagCard(icon(g.id, g.icon), `${esc(g.name)} ${stars(g)}`,
+            `<div class="stats">${gearStats(g)}</div><div class="desc">${esc(g.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, g.recipe!)}</div>`}`, action),
+        };
+      });
     }
-    if (this.sub.forge === 'potion') {
-      const cards = POTION_RECIPES.map((p) => {
-        const ok = at && hasMats(s, p.recipe) && s.potions < MAX_POTIONS;
-        return `<div class="mcard rcp"><div class="ico">🧪</div><div class="info"><div class="name">${esc(p.name)}</div>
-          <div class="chips">${costChips(s, p.recipe)}</div></div>
-          <button class="go" data-potion="${p.id}" ${ok ? '' : 'disabled'}>${s.potions >= MAX_POTIONS ? 'Full' : 'Brew'}</button></div>`;
-      }).join('');
-      return `${note}${seg}<p class="sub">You carry ${s.potions}/${MAX_POTIONS} potions.</p>${cards}`;
-    }
-    const cards = GEAR_ORDER.filter((id) => GEAR[id].slot === this.sub.forge && GEAR[id].recipe).map((id) => {
-      const g = GEAR[id];
-      const owned = s.owned.includes(id);
-      const lock = owned ? null : levelLock(s, g);
-      if (lock) return mysteryCard(icon(g.id, g.icon, 'icon lg'), stars(g), lock);
-      const action = owned
-        ? s.equip[g.slot] === id ? '<span class="tag">✓ Equipped</span>' : `<button class="go ghost" data-equip="${id}">Equip</button>`
-        : `<button class="go" data-craft="${id}" ${at && hasMats(s, g.recipe!) ? '' : 'disabled'}>Craft</button>`;
-      return `<div class="mcard rcp ${owned ? 'owned' : ''}"><div class="ico">${icon(g.id, g.icon, 'icon lg')}</div>
-        <div class="info"><div class="name">${esc(g.name)} ${stars(g)}</div><div class="stats">${gearStats(g)}</div>
-        <div class="desc">${esc(g.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, g.recipe!)}</div>`}</div>${action}</div>`;
-    }).join('');
-    return `${note}${seg}${cards}`;
+    // What you've discovered, newest first, then the strongest you haven't made yet, then what you already own.
+    // Undiscovered recipes stay hidden unless you ask to see their outlines (they go last, weakest first).
+    const rank = (r: Row) => (this.forgeNew.has(r.id) ? 0 : !r.owned ? 1 : 2);
+    const known = rows.filter((r) => !r.lock).sort((a, b) => rank(a) - rank(b) || b.tier - a.tier);
+    const locked = rows.filter((r) => r.lock).sort((a, b) => a.tier - b.tier);
+    const shown = this.showLocked ? [...known, ...locked] : known;
+    // Default to the first thing you could make next.
+    const chosen = shown.find((r) => r.id === this.pick[key]) ?? known.find((r) => !r.owned) ?? shown[0];
+    const tiles = shown.map((r) => slotTile(key, r.id, r.art, r.lock ? 'Unknown' : r.name, {
+      sel: r === chosen, worn: r.owned, cls: `tier${r.tier}${r.lock ? ' mystery' : ''}${r.can ? ' ready' : ''}${this.forgeNew.has(r.id) ? ' new' : ''}`,
+    })).join('');
+    const toggle = locked.length
+      ? `<button class="go ghost wide peek" data-do="forge-locked">${this.showLocked ? 'Hide undiscovered' : `🔍 Show undiscovered (${locked.length})`}</button>` : '';
+    const tag = !chosen ? '' : chosen.lock
+      ? tagCard(`<span class="mystery-art">${chosen.art}</span>`, `??? <span class="stars">${'★'.repeat(chosen.tier)}</span>`, `<div class="desc">${esc(lockHow(chosen.lock))}</div>`, `<span class="tag lock">🔒 ${esc(lockLabel(chosen.lock))}</span>`)
+      : chosen.tag();
+    const hint = sub === 'tool' ? '<p class="sub">Tools work by themselves: walk up to a glowing tree or rock.</p>' : '';
+    // The work order is nailed above the recipes, so it stays in view however many there are.
+    return `<div class="bench">${plate}${seg}${tag}<div class="slotgrid">${tiles}${emptySlots(shown.length)}</div>${toggle}${hint}</div>`;
   }
 
   private village(s: SaveState): string {
     const here = this.ctx.inVillage;
     const note = here
       ? `<div class="note">🏗 Build and upgrade to grow stronger. Trophies from guardians unlock the best upgrades!</div>`
-      : `<div class="note">📍 Return to Sprout Village to build. You can plan here.</div>`;
-    const cards = PROJECT_ORDER.map((id) => {
+      : `<div class="note">📍 You can plan here. Head back to Sowerby to build.</div>`;
+    // Ready to build first, then what's still missing something, then what's finished, then plots not open yet.
+    const order = (id: ProjectId) => (!plotOpen(s, id) ? 3 : s.build[id] >= PROJECTS[id].levels.length ? 2 : canBuild(s, id) === 'ok' ? 0 : 1);
+    const cards = [...PROJECT_ORDER].sort((a, b) => order(a) - order(b)).map((id) => {
       const p = PROJECTS[id];
       const lv = s.build[id];
       const max = p.levels.length;
       const pips = Array.from({ length: max }, (_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('');
-      const current = lv ? `<div class="desc">Now: <b>${esc(p.levels[lv - 1].name)}</b> · ${esc(p.levels[lv - 1].perk)}</div>` : '<div class="desc">Not built yet</div>';
-      let next = '<div class="tag">✨ Fully built</div>';
-      if (lv < max) {
-        const nl = p.levels[lv];
-        const ok = here && canBuild(s, id) === 'ok';
-        next = `<div class="next"><div class="desc">Next: <b>${esc(nl.name)}</b> · ${esc(nl.perk)}</div>
-          <div class="chips">${costChips(s, nl.cost)}</div>
-          <button class="go wide" data-build="${id}" ${ok ? '' : 'disabled'}>${lv ? 'Upgrade' : 'Build'} ${esc(nl.name)}</button></div>`;
+      const nowName = lv ? p.levels[lv - 1].name : id === 'forge' ? 'Ruins' : id === 'warp' ? 'Old ruins' : 'Empty plot';
+      const head = `<div class="bp-head"><div class="name">${esc(p.name)}</div><span class="pips">${pips}</span></div>`;
+      if (!plotOpen(s, id)) {
+        return `<div class="mcard bcard locked" data-focus="${id}">${head}
+          <div class="bp-preview solo"><div class="bp-art">${buildingIcon(id, 0)}<small>${esc(nowName)}</small></div></div>
+          <div class="bp-locked">🔒 ${esc(PLOT_OPENS[PLOT_UNLOCK[id]!] ?? 'Not open yet')}</div></div>`;
       }
-      return `<div class="mcard bcard" data-focus="${id}"><div class="btop"><div class="ico">${buildingIcon(id, lv)}</div>
-        <div class="info"><div class="name">${esc(p.name)} <span class="pips">${pips}</span></div>${current}</div></div>${next}</div>`;
+      if (lv >= max) {
+        return `<div class="mcard bcard done" data-focus="${id}">${head}
+          <div class="bp-preview solo"><div class="bp-art">${buildingIcon(id, lv)}<small>${esc(nowName)}</small></div></div>
+          <div class="bp-perk">${esc(p.levels[lv - 1].perk)}</div><div class="bp-done">✨ Fully built</div></div>`;
+      }
+      const nl = p.levels[lv];
+      const ok = canBuild(s, id) === 'ok';
+      const missing = Object.entries(nl.cost).filter(([m, n]) => s.mats[m as MatId] < (n ?? 0));
+      const costs = Object.entries(nl.cost).map(([m, n]) => {
+        const have = s.mats[m as MatId], enough = have >= (n ?? 0);
+        return `<span class="bp-cost ${enough ? 'ok' : 'miss'}">${icon(m, MATS[m as MatId].icon, 'icon sm')}<b>${Math.min(have, n ?? 0)}</b>/${n}${enough ? '<i>✓</i>' : ''}</span>`;
+      }).join('');
+      // A disabled button says why.
+      const label = ok
+        ? here ? `${lv ? 'Upgrade to' : 'Build'} ${esc(nl.name)}` : '📍 Build it in Sowerby'
+        : `Still need ${missing.map(([m, n]) => `${esc(MATS[m as MatId].name)} ×${(n ?? 0) - s.mats[m as MatId]}`).join(' · ')}`;
+      return `<div class="mcard bcard${ok ? ' ready' : ''}" data-focus="${id}">${head}
+        <div class="bp-preview">
+          <div class="bp-art now">${buildingIcon(id, lv)}<small>${esc(nowName)}</small></div>
+          <div class="bp-arrow">➜</div>
+          <div class="bp-art next">${buildingIcon(id, lv + 1)}<small>${esc(nl.name)}</small></div>
+        </div>
+        <div class="bp-perk">⬆ ${esc(nl.perk)}</div>
+        ${costs ? `<div class="bp-costs">${costs}</div>` : ''}
+        <button class="go wide bp-go" data-build="${id}" ${ok && here ? '' : 'disabled'}>${label}</button></div>`;
     }).join('');
-    return `${note}${cards}`;
+    return `<div class="board">${note}<div class="blueprints">${cards}</div></div>`;
   }
+
+  /** Dev builds add their own row to the More tab (save slots and presets; see src/dev/devtools.ts). */
+  devRow: { html: string; open: () => void } | null = null;
 
   private settings(s: SaveState): string {
     const rep = reportInfo();
-    return `
+    return `<div class="notebook">${this.devRow?.html ?? ''}
       <div class="mcard row news"><div class="ico">📰</div><div class="info"><div class="name">What's new${hasNews(s) ? ' <span class="tag new">New!</span>' : ''}</div>
         <div class="desc">Version ${VERSION}: ${esc(PATCH_NOTES[0].title)}</div></div>
         <button class="go" data-do="notes">Patch notes</button></div>
@@ -715,7 +1000,7 @@ export class UI {
       <h3>How to play</h3>
       <div class="note" style="font-weight:600;line-height:1.5">
         • Drag anywhere to move. Walk through <b>tall grass</b> to meet monsters.<br>
-        • Follow the 📜 goal at the top of the screen. Elder Bloom has hints!<br>
+        • Follow the 📜 goal at the top of the screen. Elder Oswin has hints!<br>
         • <b>Guardians</b> block the roads. Beat them to open the way and light a 🔥 campfire checkpoint.<br>
         • In battle: ⚔️ attack the way you last moved (hold to combo), 💨 dodge, ✨ weapon skill, 🧪 potion. Red circles mean danger!<br>
         • Craft gear at the ⚒ Forge and build up the 🏡 Village for permanent boosts.<br>
@@ -727,7 +1012,7 @@ export class UI {
         <div class="desc">${rep.fights} fights and ${rep.gathers} gathers recorded, with time, damage, stamina and more. Share the file for balancing, or copy the summary to paste.</div></div>
         <div class="stack"><button class="go" data-do="report">${canShareFiles() ? 'Share file' : 'Download'}</button><button class="go ghost" data-do="report-copy">Copy summary</button></div></div>
       <div class="mcard row"><div class="ico">🗑️</div><div class="info"><div class="name">Reset save</div><div class="desc">Start over from scratch.</div></div>
-        <button class="go alt" data-do="reset">Reset</button></div>`;
+        <button class="go alt" data-do="reset">Reset</button></div></div>`;
   }
 
   private onClick(e: Event) {
@@ -746,6 +1031,12 @@ export class UI {
       this.tab = d.tab as Tab;
       this.focus = undefined;
       this.renderMenu(true);
+      return;
+    }
+    if (d.pick) {
+      const k = d.pick.indexOf(':');
+      this.pick[d.pick.slice(0, k)] = d.pick.slice(k + 1);
+      this.renderMenu(false);
       return;
     }
     if (d.sub) {
@@ -768,6 +1059,14 @@ export class UI {
     else if (d.do === 'report') this.hooks.exportReport('file');
     else if (d.do === 'report-copy') this.hooks.exportReport('copy');
     else if (d.do === 'notes') return this.hooks.patchNotes();
+    else if (d.do === 'forge-locked') {
+      this.showLocked = !this.showLocked;
+      return this.renderMenu(false);
+    }
+    else if (d.do === 'dev' && this.devRow) {
+      this.closeMenu();
+      return this.devRow.open();
+    }
     this.refresh();
   }
 
@@ -803,9 +1102,86 @@ export class UI {
     return this.dialog(`<div class="big" style="font-size:24px">${esc(title)}</div><p>${esc(text)}</p>`, [['ok', 'OK']]);
   }
 
+  /**
+   * Granny's Kitchen: every recipe she knows, what it does and costs, and an Eat button for the ones you can afford.
+   * Resolves 'cook:<meal>' or 'close'.
+   */
+  kitchen(s: SaveState, greeting: string): Promise<string> {
+    const now = mealLeft(s);
+    const rows = knownMeals(s).map((id: MealId) => {
+      const m = MEALS[id], can = hasMats(s, m.recipe);
+      return `<div class="mcard row"><div class="ico">${icon(`meal_${id}`, m.icon)}</div><div class="info">
+        <div class="name">${esc(m.name)}${m.from ? ` <span class="tag">from ${esc(m.from)}</span>` : ''}</div>
+        <div class="desc">${esc(m.desc)}</div><div class="chips">${costChips(s, m.recipe)}</div></div>
+        <button class="go" data-dialog="cook:${id}" ${can ? '' : 'disabled'}>Eat</button></div>`;
+    }).join('');
+    return this.dialog(
+      `${ribbon("Granny's Kitchen")}
+       <div class="speaker small">${icon('npc_granny', '👵', 'icon sm')}<b>Granny Clover</b></div>
+       <div class="bubble">${esc(greeting)}</div>
+       ${now ? `<p class="note">You're full of ${esc(now.name)} (${now.left} left). A new meal replaces it.</p>` : ''}
+       <div class="kitchen">${rows}</div>`,
+      [['close', 'Thanks, Granny']],
+      'celebrate quest kitchen',
+    );
+  }
+
+  /**
+   * Bram's Sawmill as a workbench: your logs, the saw (spinning while it works, with a bar filling for the plank on the
+   * blade), the planks on the tray, a slot per plank on the bench, and buttons to hand over logs or take the planks.
+   * It keeps itself up to date while open. Resolves 'saw:<n>:<log>', 'collect' or 'close'.
+   */
+  sawmill(s: SaveState, line: string): Promise<string> {
+    const logs = sawLogs(s), iron = s.build.sawmill >= 2;
+    const rows = logs.map((l) => `<div class="sawrow" data-log="${l}">${icon(l, MATS[l].icon, 'icon sm')}
+        <span><span><b class="n">${s.mats[l]}</b> ${esc(MATS[l].name)}s</span><small>${LOGS_PER_PLANK} logs a plank</small></span>
+        <button class="go ghost" data-dialog="saw:1:${l}">+1</button><button class="go ghost" data-dialog="saw:5:${l}">+5</button></div>`).join('');
+    const p = this.dialog(
+      `${ribbon(iron ? 'Iron Sawmill' : "Bram's Sawmill")}
+       <div class="speaker small">${icon('npc_bram_happy', '🧔', 'icon sm')}<b>Bram</b></div>
+       <div class="bubble">${esc(line)}</div>
+       <div class="bench">
+         <div class="stock">${icon('bark', MATS.bark.icon)}<b class="logs">0</b><small>logs in</small></div>
+         <div class="saw"><div class="blade ${iron ? 'iron' : 'copper'}">${SAW_BLADE}</div><div class="sawbar"><i></i></div><small class="next"></small></div>
+         <div class="stock tray">${icon('plank', MATS.plank.icon)}<b class="ready">0</b><small>ready</small></div>
+       </div>
+       <div class="slots">${Array.from({ length: SAW_MAX }, () => '<i></i>').join('')}</div>
+       <div class="sawrows">${rows}</div>
+       <p class="small">Bram saws even while you're away: one plank every ${sawSeconds(s)} seconds.${iron ? '' : ' An iron blade would cut Pine too, and faster.'}</p>`,
+      [['close', 'Bye, Bram'], ['collect', 'Take planks']],
+      'celebrate quest sawmill',
+    );
+    // Live: the bar, the countdown, the slots, the counts and the Take button follow the saw while this is open.
+    const sheet = this.sheet;
+    const tick = () => {
+      if (!sheet.classList.contains('sawmill') || this.modal.hidden) return window.clearInterval(timer);
+      const w = sawUpdate(s), next = nextPlankIn(s), each = sawSeconds(s);
+      const q = (sel: string) => sheet.querySelector<HTMLElement>(sel);
+      q('.bench .logs')!.textContent = String(w.queued * LOGS_PER_PLANK);
+      q('.bench .ready')!.textContent = String(w.ready);
+      q('.bench')!.classList.toggle('busy', w.queued > 0);
+      q('.sawbar i')!.style.width = `${w.queued ? (100 * (each - next)) / each : 0}%`;
+      q('.next')!.textContent = w.queued ? `Next plank in ${next}s` : 'Idle: hand Bram some logs';
+      sheet.querySelectorAll<HTMLElement>('.slots i').forEach((el, k) => {
+        el.className = k < w.ready ? 'done' : k === w.ready && w.queued ? 'now' : k < w.ready + w.queued ? 'wait' : '';
+      });
+      for (const r of sheet.querySelectorAll<HTMLElement>('.sawrow')) {
+        const l = r.dataset.log as 'bark' | 'pine', room = canOrder(s, l);
+        r.querySelector('.n')!.textContent = String(s.mats[l]);
+        r.querySelectorAll<HTMLButtonElement>('button').forEach((b, k) => (b.disabled = room < (k ? 5 : 1)));
+      }
+      const take = sheet.querySelector<HTMLButtonElement>('[data-dialog="collect"]')!;
+      take.disabled = !w.ready;
+      take.firstChild!.textContent = w.ready ? `Take ${w.ready} plank${w.ready > 1 ? 's' : ''}` : 'Take planks';
+    };
+    const timer = window.setInterval(tick, 250);
+    tick();
+    return p;
+  }
+
   elderSays(text: string, hint?: string) {
     return this.dialog(
-      `<div class="speaker">${icon('npc_elder', '🌿', 'icon xl')}<b>Elder Bloom</b></div>
+      `<div class="speaker">${icon('npc_elder', '🌿', 'icon xl')}<b>Elder Oswin</b></div>
        <div class="bubble">${esc(text)}</div>${hint ? `<div class="hint">🎯 ${esc(hint)}</div>` : ''}`,
       [['ok', 'Got it!']],
     );
@@ -816,11 +1192,11 @@ export class UI {
       ...Object.entries(q.reward?.mats ?? {}).map(([m, n]) => `<span class="chip ok">${icon(m, MATS[m as MatId].icon, 'icon sm')} ${esc(MATS[m as MatId].name)} ×${n}</span>`),
       ...(q.reward?.potions ? [`<span class="chip ok">🧪 Potion ×${q.reward.potions}</span>`] : []),
     ].join('');
+    this.hooks.sound('treasure');
     return this.dialog(
-      `<div class="confetti">${'🎉✨🌟🎊'.repeat(3)}</div>
-       <div class="qchap">${esc(q.chapter)} complete!</div>
+      `${ribbon(`${q.chapter} complete!`)}${stage(goalIcon(q), 'small')}
        <div class="big">${esc(q.title)}</div>
-       ${rewards ? `<div class="chips">${rewards}</div>` : '<p>Great job, little sprout!</p>'}`,
+       ${rewards ? `<div class="chips">${rewards}</div>` : '<p>Wonderful work!</p>'}`,
       [['ok', 'Hooray!']],
       'celebrate',
     );
@@ -828,13 +1204,13 @@ export class UI {
 
   questIntro(q: Quest) {
     return this.dialog(
-      `<div class="qchap">📜 ${esc(q.chapter)} · New goal</div>
-       <div class="qart big-art">${goalIcon(q)}</div>
-       <div class="big" style="font-size:26px">${esc(q.title)}</div>
-       <div class="speaker small">${icon('npc_elder', '🌿', 'icon sm')}<b>Elder Bloom</b></div>
+      `${ribbon(`📜 ${q.chapter}`)}<div class="stage calm small"><div class="stage-art">${goalIcon(q)}</div></div>
+       <div class="big">${esc(q.title)}</div>
+       <div class="speaker small">${icon('npc_elder', '🌿', 'icon sm')}<b>Elder Oswin</b></div>
        <div class="bubble">${esc(q.text)}</div>
        <div class="hint">🎯 ${esc(q.hint)}</div>`,
       [['ok', "Let's go!"]],
+      'celebrate quest',
     );
   }
 
@@ -843,20 +1219,33 @@ export class UI {
     document.body.classList.toggle('cinema', on);
   }
 
+  /** Someone talking up close: their portrait (in the right mood) and their words along the bottom, the world behind. */
+  async talk(name: string, portrait: string, emoji: string, text: string, top = false) {
+    this.modal.classList.add('cine');
+    this.modal.classList.toggle('top', top);
+    const r = await this.dialog(
+      `<div class="talk">${icon(portrait, emoji, 'icon lg')}<div><b class="talk-name">${esc(name)}</b><div class="caption-text">${esc(text)}</div></div></div>`,
+      [['ok', '▶']],
+      'caption',
+    );
+    this.modal.classList.remove('cine', 'top');
+    return r;
+  }
+
   /** A story caption along the bottom of the screen; the world stays visible behind it. */
   async caption(text: string, speaker: 'elder' | 'narrator') {
     this.modal.classList.add('cine');
-    const who = speaker === 'elder' ? `<div class="speaker small">${icon('npc_elder', '🌿', 'icon sm')}<b>Elder Bloom</b></div>` : '';
+    const who = speaker === 'elder' ? `<div class="speaker small">${icon('npc_elder', '🌿', 'icon sm')}<b>Elder Oswin</b></div>` : '';
     const r = await this.dialog(`${who}<div class="caption-text ${speaker}">${esc(text)}</div>`, [['ok', '▶']], 'caption');
     this.modal.classList.remove('cine');
     return r;
   }
 
   itemFound(id: string, name: string, text: string, emoji = '🗡️', heading = 'You found') {
+    this.hooks.sound('treasure');
     return this.dialog(
-      `<div class="confetti">✨🌟✨</div><div class="qchap">${esc(heading)}</div>
-       <div class="qart big-art">${icon(id, emoji, 'icon xxl')}</div>
-       <div class="big" style="font-size:28px">${esc(name)}!</div><p>${esc(text)}</p>`,
+      `${ribbon(heading)}${stage(icon(id, emoji, 'icon xxl'))}
+       <div class="big">${esc(name)}!</div><p>${esc(text)}</p>`,
       [['ok', 'Take it!']],
       'celebrate',
     );
@@ -864,32 +1253,40 @@ export class UI {
 
   /**
    * A new level: the game waits behind this while it shows how your stats grew and what you're now ready for
-   * (a guardian at your level, an area that matches it, the dragon).
+   * (a guardian at your level, an area that matches it, the dragon). The level number rings over from the old one,
+   * then each stat ticks up in turn.
    */
   levelUp(lv: number, before: { maxHp: number; atk: number; def: number }, after: { maxHp: number; atk: number; def: number }, ready: string[]) {
-    const row = (emoji: string, label: string, a: number, b: number) =>
-      `<span>${emoji} ${label}</span><span>${a} →</span><span class="up">${b}${b > a ? ` (+${b - a})` : ''}</span>`;
-    return this.dialog(
-      `<div class="lvup"><div class="confetti">✨🌟✨</div><div class="qchap">Level up!</div>
-       <div class="big" style="font-size:40px">Level ${lv}</div>
-       <div class="stats">${row('❤️', 'Max HP', before.maxHp, after.maxHp)}${row('⚔️', 'Attack', before.atk, after.atk)}${row('🛡️', 'Defense', before.def, after.def)}</div>
-       <p class="sub">Fully healed!</p>
-       ${ready.length ? `<div class="ready">${ready.map((r) => `• ${esc(r)}`).join('<br>')}</div>` : ''}</div>`,
+    const rows = [['❤️', 'Max HP', before.maxHp, after.maxHp], ['⚔️', 'Attack', before.atk, after.atk], ['🛡️', 'Defense', before.def, after.def]] as const;
+    const stats = rows.map(([e, label, a, b], i) =>
+      `<div class="srow" style="--d:${0.75 + i * 0.28}s"><span class="sl">${e} ${label}</span><span class="sa">${a}</span><span class="sar">➜</span><b class="sb">${b}</b>${
+        b > a ? `<span class="sd">+${b - a}</span>` : ''}</div>`).join('');
+    const p = this.dialog(
+      `${ribbon('Level up!')}${stage(`<div class="lvbadge"><small>LEVEL</small><b class="old">${lv - 1}</b><b class="new">${lv}</b></div>`)}
+       <div class="lvsheet"><div class="stats2">${stats}</div>
+       ${ready.length ? `<div class="ready">${ready.map((r) => `<div>🎯 ${esc(r)}</div>`).join('')}</div>` : ''}</div>`,
       [['ok', 'Onward!']],
-      'celebrate',
+      'celebrate levelup',
     );
+    this.hooks.sound('levelup');
+    window.setTimeout(() => this.hooks.sound('ding'), 450);
+    rows.forEach((_, i) => window.setTimeout(() => this.hooks.sound('tick'), (0.75 + i * 0.28) * 1000));
+    return p;
   }
 
   /** A gathering skill or weapon handling level: what it improves, and what you can craft now. */
   skillUp(title: string, lv: number, emoji: string, note: string, unlocks: { id: string; name: string; emoji: string }[]) {
-    const list = unlocks.map((u) => `<div class="u">${icon(u.id, u.emoji, 'icon lg')}<span>${esc(u.name)}</span></div>`).join('');
-    return this.dialog(
-      `<div class="lvup"><div class="confetti">${emoji}✨${emoji}</div><div class="qchap">${esc(title)}</div>
-       <div class="big" style="font-size:36px">Level ${lv}</div><p>${esc(note)}</p>
-       ${list ? `<div class="qchap">Unlocked in the Forge</div><div class="unlocks">${list}</div>` : ''}</div>`,
+    const list = unlocks.map((u, i) => `<div class="u" style="--d:${0.7 + i * 0.15}s">${icon(u.id, u.emoji, 'icon lg')}<span>${esc(u.name)}</span></div>`).join('');
+    const p = this.dialog(
+      `${ribbon(`${title} up!`)}${stage(`<div class="lvbadge skill"><span class="emo">${emoji}</span><b class="old">${lv - 1}</b><b class="new">${lv}</b></div>`)}
+       <div class="lvsheet"><p>${esc(note)}</p>
+       ${list ? `<div class="unlock-h">✨ New in the Forge</div><div class="unlocks">${list}</div>` : ''}</div>`,
       [['ok', 'Nice!']],
-      'celebrate',
+      'celebrate levelup',
     );
+    this.hooks.sound('levelup');
+    window.setTimeout(() => this.hooks.sound('ding'), 450);
+    return p;
   }
 
   /** Shown right after crafting: celebrate the new item and offer to equip it on the spot. */
@@ -900,11 +1297,10 @@ export class UI {
       const d = b - a;
       return `<span class="chip ${d >= 0 ? 'ok' : 'miss'}">${k.toUpperCase()} ${a} → <b>${b}</b></span>`;
     };
+    this.hooks.sound('treasure');
     return this.dialog(
-      `<div class="confetti">✨⚒✨</div>
-       <div class="qchap">New ${g.slot}!</div>
-       <div class="qart big-art">${icon(g.id, g.icon, 'icon xxl')}</div>
-       <div class="big" style="font-size:26px">${esc(g.name)}</div>
+      `${ribbon(`New ${g.slot}!`)}${stage(icon(g.id, g.icon, 'icon xxl'))}
+       <div class="big">${esc(g.name)}</div>
        <p>${esc(g.desc)}</p>
        <div class="chips">${cmp('atk')}${cmp('def')}${cmp('hp')}</div><br>`,
       [['later', 'Keep in bag'], ['equip', 'Equip now!']],
@@ -915,20 +1311,19 @@ export class UI {
   challenge(kind: MonsterKind, name: string, title: string, lv: number, playerLv: number, zoneName: string) {
     const under = playerLv < lv;
     return this.dialog(
-      `<div class="qart big-art">${bossIcon(kind, 'icon xxl')}</div>
-       <div class="big" style="font-size:28px">${esc(name)}</div>
-       <div class="qchap">${esc(title)}</div>
+      `${ribbon(title || 'Guardian')}<div class="stage calm"><div class="stage-art">${bossIcon(kind, 'icon xxl')}</div></div>
+       <div class="big">${esc(name)}</div>
        <p>It blocks the road to <b>${esc(zoneName)}</b>. Defeat it to open the way and light a campfire checkpoint.</p>
        <div class="lvcmp ${under ? 'bad' : 'good'}">Boss Lv ${lv} · You Lv ${playerLv}${under ? ' · ⚠️ Train a bit more!' : ' · 💪 Ready!'}</div>`,
       [['no', 'Not yet'], ['yes', '⚔️ Challenge!', 'alt']],
+      'celebrate guardian',
     );
   }
 
   roadOpened(bossName: string, zoneName: string, kind: MonsterKind) {
+    this.hooks.sound('treasure');
     return this.dialog(
-      `<div class="confetti">${'🎉🔥✨'.repeat(4)}</div>
-       <div class="qart big-art">${bossIcon(kind, 'icon xl')}</div>
-       <div class="big" style="font-size:26px">The road is open!</div>
+      `${ribbon('The road is open!')}${stage(bossIcon(kind, 'icon xl'), 'small')}
        <p>${esc(bossName)} steps aside. <b>${esc(zoneName)}</b> awaits, and a 🔥 campfire checkpoint has been lit just past the gate.</p>`,
       [['ok', 'Onward!']],
       'celebrate',

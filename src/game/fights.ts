@@ -1,17 +1,20 @@
 // Starting and finishing fights: field encounters, guardians and scripted prologue fights, rewards, the swoop in and
 // out, and the in-battle coaching.
-import { Battle, type BattleOutcome, type Foe } from '../battle/battle';
-import { GEAR, MONSTERS, STYLE_NAMES, ZONES, zoneById, type MonsterKind, type Zone } from '../data';
+import { Battle, type BattleOutcome, type BattleSetup, type Foe } from '../battle/battle';
+import { GEAR, MONSTERS, STYLE_NAMES, ZONES, zoneById, type Zone } from '../data';
 import { usingKeyboard } from '../input';
 import { recordKills } from '../quests';
 import type { Roamer } from '../roamers';
 import { gainMastery, gainXp, mergeDrops, playerStats, weightedPick } from '../rules';
+import { afterWin, xpBoost } from '../kitchen';
 import { logEvent } from '../stats';
 import { has } from '../unlocks';
+import type { WorldObj } from '../world';
 import { G, backToWorld, persist, showZoneBanner, syncWorld, transition } from './context';
 import { cancelGather } from './gathering';
 import { celebrate, leveledUp, lootLines, markLevels, type LevelMark } from './rewards';
 import { progressQuests } from './story';
+import { storyFainted, storyFightExtras } from './stories';
 
 /** HP when the current fight began, for the play report. */
 let fightHp = 0;
@@ -32,8 +35,10 @@ function rollFoes(z: Zone): Foe[] {
   }));
 }
 
-function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false) {
-  G.battle = new Battle({ zone, foes, boss, ambush }, G.save, G.input, G.audio, onBattleEnd);
+function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Partial<BattleSetup> = {}) {
+  G.battle = new Battle({ zone, foes, boss, ambush, ...extra }, G.save, G.input, G.audio, onBattleEnd);
+  // Regular fights: loot, the XP fill and any level-ups come the moment the last foe falls, then the swoop out.
+  if (!boss && !battleFlag) G.battle.onWin = quickWin;
   G.mode = 'battle';
   G.ui.setMode('battle');
   G.input.reset();
@@ -61,18 +66,25 @@ export function startFieldBattle(r: Roamer | null, ambush: boolean) {
 }
 
 /** Guardians, the dragon and scripted fights: an iris transition and a "Boss battle!" beat. */
-export function startBattle(zone: Zone, foes: Foe[], boss: boolean, flag?: string) {
+export function startBattle(zone: Zone, foes: Foe[], boss: boolean, flag?: string, extra?: Partial<BattleSetup>) {
   fightHp = Math.round(G.save.hp);
   G.audio.play('encounter');
   G.mode = 'dialog';
   battleFlag = flag;
-  transition(() => begin(zone, foes, boss), 0.9);
+  transition(() => begin(zone, foes, boss, false, extra), 0.9);
 }
 
-/** Prologue monsters block the forest path; walking into one starts a scripted fight. */
-export function challengeFoe(o: { flag?: string; monster?: MonsterKind }) {
+/**
+ * Monsters blocking the way: walking into them starts a scripted fight that sets their flag when won. The prologue's
+ * pair are gentle level-1 foes; a story's group brings its own lineup.
+ */
+export function challengeFoe(o: WorldObj) {
   if (!G.save.flags.includes('sword')) {
     G.ui.toast('😰 You need something to fight with! Something was glinting back in the clearing…');
+    return;
+  }
+  if (o.foes) {
+    startBattle(zoneById(o.zone ?? G.over.currentZone.id), o.foes.map((f) => ({ ...f, golden: false })), !!o.boss, o.flag, storyFightExtras(o));
     return;
   }
   startBattle(zoneById('glade'), [{ kind: o.monster!, lv: 1, golden: false, gentle: true }], false, o.flag);
@@ -86,7 +98,7 @@ function logFight(o: BattleOutcome, b: Battle) {
     result: o.result, seconds: Math.round(o.log.time * 10) / 10, swings: o.log.swings, hits: o.log.hits, crits: o.log.crits, skills: o.log.skills,
     dodges: o.log.dodges, potions: o.log.potions, dealt: o.log.dealt, taken: o.log.taken, hpStart: fightHp, hpEnd: Math.max(0, Math.round(o.hp)),
     maxHp: b.stats.maxHp, xp: o.xp, weapon: s.equip.weapon, armor: s.equip.armor,
-    emptied: o.log.emptied, starved: Math.round(o.log.starved * 10) / 10, rested: Math.round(o.log.rested * 10) / 10,
+    cooling: Math.round(o.log.cooling * 10) / 10, rested: Math.round(o.log.rested * 10) / 10, handling: b.handling,
     ...(o.result === 'lose' ? { killedBy: o.log.lastHitBy } : {}),
   });
 }
@@ -97,6 +109,10 @@ function grantWin(o: BattleOutcome, b: Battle): LevelMark {
   const mark = markLevels(GEAR[s.equip.weapon]?.style ?? 'sword');
   s.hp = o.hp;
   s.wins++;
+  // Granny's cooking: Fluff Pancakes add XP, Clover Tea heals a little after the win.
+  o.xp = Math.round(o.xp * xpBoost(s));
+  const healed = afterWin(s, playerStats(s).maxHp);
+  if (healed > 0) G.ui.toast(`🍵 Clover Tea: +${healed} HP`);
   gainXp(s, o.xp);
   mergeDrops(s.mats, o.drops);
   gainMastery(s, mark.style, o.xp);
@@ -104,32 +120,36 @@ function grantWin(o: BattleOutcome, b: Battle): LevelMark {
   return mark;
 }
 
+/** A regular win, while "Victory!" is up: loot, the XP bar filling, and any level-up screens. */
+async function quickWin(o: BattleOutcome) {
+  const b = G.battle!, s = G.save;
+  G.mode = 'dialog';
+  logFight(o, b);
+  const mark = grantWin(o, b);
+  G.ui.loot(lootLines(o.drops, [{ n: o.xp, what: STYLE_NAMES[mark.style], emo: '⚔️' }]));
+  persist();
+  await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
+  if (leveledUp(mark)) await celebrate(mark);
+}
+
 async function onBattleEnd(o: BattleOutcome) {
   const b = G.battle!, s = G.save;
   const boss = b.setup.boss;
-  G.mode = 'dialog';
-  logFight(o, b);
   // Regular fights swoop straight back out to the map; guardians, the dragon and the prologue keep their fanfare.
   const quick = !boss && !battleFlag;
+  if (o.result === 'win' && quick) {
+    // quickWin has handed out the rewards already.
+    swoopOut();
+    G.input.reset();
+    void progressQuests();
+    return;
+  }
+  G.mode = 'dialog';
+  logFight(o, b);
   if (o.result === 'run') {
     s.hp = o.hp;
     if (quick) swoopOut();
     else transition(() => backToWorld());
-    return;
-  }
-  if (o.result === 'win' && quick) {
-    const mark = grantWin(o, b);
-    swoopOut();
-    G.ui.loot(lootLines(o.drops, [{ n: o.xp }, { n: o.xp, what: STYLE_NAMES[mark.style], emo: '⚔️' }]));
-    persist();
-    if (leveledUp(mark)) {
-      await new Promise((r) => setTimeout(r, 380));
-      G.mode = 'dialog';
-      await celebrate(mark);
-      G.mode = 'world';
-      G.input.reset();
-    }
-    void progressQuests();
     return;
   }
   if (o.result === 'win') {
@@ -153,6 +173,7 @@ async function onBattleEnd(o: BattleOutcome) {
     }
     persist();
     await G.ui.result({ win: true, xp: o.xp, levels: s.lv - mark.fromLv, newLv: s.lv, drops: o.drops, boss });
+    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
     await celebrate(mark);
     if (firstClear && gz) await G.ui.roadOpened(MONSTERS[bossKind].name, gz.name, bossKind);
     transition(() => {
@@ -167,6 +188,8 @@ async function onBattleEnd(o: BattleOutcome) {
       G.over.teleport(p.x, p.y);
       backToWorld();
       showZoneBanner(G.over.currentZone);
+      // Anyone you were walking home stays behind, at the last checkpoint you reached.
+      storyFainted();
     });
   }
 }
@@ -204,7 +227,7 @@ export function coachBattle(b: Battle) {
     }
     return ui.coach(null);
   }
-  if (has(s, 'skill') && !s.tips.includes('coach-skill')) {
+  if (b.skillNow && !s.tips.includes('coach-skill')) {
     if (b.skillFrac > 0.5) s.tips.push('coach-skill');
     return ui.coach(`New! ${press('L', '✨')} for your weapon skill.`, 'btn-skill');
   }

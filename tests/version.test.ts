@@ -33,4 +33,45 @@ describe('version and patch notes', () => {
     saveState(old as ReturnType<typeof newState>);
     expect(loadState()!.seenVersion).toBe('0.1.0');
   });
+
+  test('saves from before the Echo Queen keep their place: past her, she counts as beaten; before her, you meet her', async () => {
+    const { loadState, newState, saveState } = await import('../src/state');
+    const { QUESTS } = await import('../src/data');
+    const at = QUESTS.findIndex((q) => q.id === 'echoqueen');
+    const load = (quest: number, visited: string[]) => {
+      const old = newState() as Partial<ReturnType<typeof newState>>;
+      delete old.echoQueen;
+      old.quest = quest;
+      old.visited = visited as never;
+      saveState(old as ReturnType<typeof newState>);
+      return loadState()!;
+    };
+    // Old quest `at` was "Glimmer Hollow": not there yet, so you meet the Queen first.
+    let s = load(at, ['glade', 'village', 'cave']);
+    expect({ quest: QUESTS[s.quest].id, beaten: s.bosses.includes('echoqueen') }).toEqual({ quest: 'echoqueen', beaten: false });
+    // Already in the Hollow on that quest: the Queen is behind you.
+    s = load(at, ['glade', 'village', 'cave', 'hollow']);
+    expect({ quest: QUESTS[s.quest].id, beaten: s.bosses.includes('echoqueen'), camp: s.camps.includes('hollow') }).toEqual({ quest: 'hollow', beaten: true, camp: true });
+    // Further along (old "The Crystal King"): same quest as before.
+    s = load(at + 1, ['glade', 'village', 'cave', 'hollow']);
+    expect(QUESTS[s.quest].id).toBe('crystalking');
+    // Earlier (old "The Waystone"): untouched.
+    s = load(at - 1, ['glade', 'village']);
+    expect({ quest: QUESTS[s.quest].id, beaten: s.bosses.includes('echoqueen') }).toEqual({ quest: 'warp', beaten: false });
+  });
+
+  test('saves from the three-level Forge keep every recipe they had (Smithy → Crystal Kiln, Master → Master)', async () => {
+    const { loadState, newState, saveState } = await import('../src/state');
+    for (const [was, now] of [[1, 1], [2, 4], [3, 5]]) {
+      const old = newState() as Partial<ReturnType<typeof newState>>;
+      delete old.forgeLevels;
+      old.build!.forge = was;
+      saveState(old as ReturnType<typeof newState>);
+      expect({ was, now: loadState()!.build.forge }).toEqual({ was, now });
+    }
+    const fresh = newState();
+    fresh.build.forge = 2;
+    saveState(fresh);
+    expect(loadState()!.build.forge).toBe(2);
+  });
 });

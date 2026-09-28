@@ -2,7 +2,8 @@
 import { GEAR, GEAR_ORDER, MATS, MONSTERS, SKILL_NAMES, STYLE_NAMES, TOOLS, ZONES, type MatId, type SkillId, type Style } from '../data';
 import { playerStats, revealed, type PlayerStats } from '../rules';
 import { logEvent } from '../stats';
-import { icon } from '../ui';
+import { handlingGain, icon } from '../ui';
+import { handlingStep } from '../weapons';
 import { G, paused } from './context';
 
 /** Loot rows; `what` (a skill or weapon class) names whose XP it is, and is dropped on phones where the icon says it. */
@@ -28,11 +29,11 @@ export function newlyRevealed(before: Set<string>) {
 }
 
 /** Where you stood before a win's XP went in, so the level-up screens can show what changed. */
-export interface LevelMark { fromLv: number; before: PlayerStats; style: Style; fromHandling: number; shown: Set<string> }
+export interface LevelMark { fromLv: number; fromXp: number; before: PlayerStats; style: Style; fromHandling: number; shown: Set<string> }
 
 export function markLevels(style: Style): LevelMark {
   const s = G.save;
-  return { fromLv: s.lv, before: playerStats(s), style, fromHandling: s.mastery[style].lv, shown: revealed(s) };
+  return { fromLv: s.lv, fromXp: s.xp, before: playerStats(s), style, fromHandling: s.mastery[style].lv, shown: revealed(s) };
 }
 
 export const leveledUp = (m: LevelMark) => G.save.lv > m.fromLv || G.save.mastery[m.style].lv > m.fromHandling;
@@ -41,22 +42,22 @@ export const leveledUp = (m: LevelMark) => G.save.lv > m.fromLv || G.save.master
 export async function celebrate(m: LevelMark) {
   const s = G.save;
   if (s.lv > m.fromLv) {
-    G.audio.play('levelup');
     logEvent(s, { kind: 'level', track: 'combat', lv: s.lv });
     await G.ui.levelUp(s.lv, m.before, playerStats(s), readyFor(m.fromLv, s.lv));
   }
   const lv = s.mastery[m.style].lv;
   if (lv > m.fromHandling) {
-    G.audio.play('levelup');
     logEvent(s, { kind: 'level', track: `handling:${m.style}`, lv });
-    await G.ui.skillUp(`${STYLE_NAMES[m.style]} handling`, lv, '⚔️', `Your ${STYLE_NAMES[m.style].toLowerCase()} work is getting sharper.`, newlyRevealed(m.shown));
+    // What each level gained gives: a skill rank (the big ones) or a step in attack speed.
+    const gains = Array.from({ length: lv - m.fromHandling }, (_, i) => m.fromHandling + 1 + i).map((l) => handlingGain(m.style, l).replace(/^Lv \d+: /, ''));
+    const skill = handlingStep(lv) === 'skill';
+    await G.ui.skillUp(`${STYLE_NAMES[m.style]} handling`, lv, skill ? '✨' : '⚡', `${skill ? '✨ ' : '⚡ '}${gains.join(' · ')}`, newlyRevealed(m.shown));
   }
 }
 
 /** A gathering skill level: a screen with what it unlocks (the game waits behind it). */
 export async function celebrateSkill(skill: SkillId, shown: Set<string>) {
   const lv = G.save.skills[skill].lv;
-  G.audio.play('levelup');
   logEvent(G.save, { kind: 'level', track: skill, lv });
   await paused(() => G.ui.skillUp(SKILL_NAMES[skill], lv, skill === 'wood' ? '🪓' : '⛏️', 'The sweet spot grows a little wider.', newlyRevealed(shown)));
 }

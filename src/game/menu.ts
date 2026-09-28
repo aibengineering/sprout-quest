@@ -8,6 +8,7 @@ import type { UIHooks } from '../ui';
 import { G, menuCtx, paused, persist, showZoneBanner, syncWorld, transition } from './context';
 import { VERSION } from '../version';
 import { newlyRevealed } from './rewards';
+import { activeStory, storyLog } from './stories';
 import { progressQuests } from './story';
 
 /** Travel (by warp or fast travel) with an iris transition, landing somewhere safe in the area. */
@@ -35,6 +36,15 @@ async function exportReport(how: 'file' | 'copy') {
 }
 
 export const menuHooks: UIHooks = {
+  sound: (s) => G.audio.play(s),
+  sweep: (dur, from, to) => G.audio.sweep(dur, from, to),
+  /** From an unlock card: open that tab, if you're free on the map. */
+  openTab(tab) {
+    if (G.mode !== 'world' || G.trans) return;
+    G.audio.play('ui');
+    G.mode = 'dialog';
+    G.ui.openMenu(menuCtx(), tab);
+  },
   save: () => G.save,
 
   async craftGear(id) {
@@ -73,7 +83,9 @@ export const menuHooks: UIHooks = {
     G.audio.play('craft');
     persist();
     G.ui.closeMenu(true);
-    await paused(() => G.ui.itemFound(t.id, t.name, `${t.desc} Walk up to a tree with a ribbon on it and chop!`, t.icon, 'You crafted'));
+    const what = t.skill === 'wood' ? 'Walk up to a tree with a ribbon on it and chop!' : 'Walk up to a rock with a ribbon on it and break it!';
+    await paused(() => G.ui.itemFound(t.id, t.name, `${t.desc} ${what}`, t.icon, t.tier === 1 ? 'Good as new' : 'You crafted'));
+    void progressQuests();
   },
 
   craftPotion(id) {
@@ -124,6 +136,12 @@ export const menuHooks: UIHooks = {
   },
 
   exportReport: (how) => void exportReport(how),
+
+  story() {
+    const a = activeStory();
+    return a && { icon: a.story.icon, title: a.story.title, label: a.step.label };
+  },
+  stories: storyLog,
 
   async patchNotes() {
     const seen = G.save.seenVersion;

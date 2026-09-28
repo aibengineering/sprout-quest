@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { GEAR, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
+import { GEAR, MONSTERS, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
+import { MOVESETS, SKILL_LEVELS, SKILL_RANKS, comboTime, handlingStep, skillShape, tierScale, type SkillKind } from '../src/weapons';
+import { ARENA_AREA } from '../src/balance';
 import {
-  CHECKPOINTS, HUNTER_DPS, RANGED_DPS, MAX_HUNTER_BURST, dpsBand, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
+  CHECKPOINTS, HUNTER_DPS, RANGED_DPS, MAX_HUNTER_BURST, dpsBand, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_MASTERED_SKILL_AREA, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
   zoneMatchups, type Range,
 } from '../src/balance';
 
@@ -36,6 +38,15 @@ describe('balance', () => {
       });
     }
   }
+
+  // Poppy's story opens once you're about ready for a first ★ weapon: Big Bun should be a real fight at that point, but
+  // no Slime King.
+  test('Big Bun, the meadow mini-boss, takes 13–20 swings and 6–10 hits to lose: more than a regular fight, less than the Slime King', () => {
+    const c = CHECKPOINTS.find((c) => c.id === 'meadow-gear')!, s = checkpointStats(c);
+    const bun = matchup(s, 'bigbun', MONSTERS.bigbun.lv), king = matchup(s, 'kingslime', 5);
+    expect(within(bun.hitsToKill, [13, 20]) && within(bun.hitsToDie, [6, 10])).toBe(true);
+    expect(bun.hitsToKill < king.hitsToKill && bun.hitsToDie > king.hitsToDie).toBe(true);
+  });
 
   test(`every material for every building, gear piece and tool farms in ≤${MAX_FARM_MINUTES} minutes`, () => {
     const off = farmTable()
@@ -94,6 +105,35 @@ describe('balance', () => {
     }
     const best4 = Math.max(...ws.filter((w) => w.tier === 4).map((w) => w.dps));
     for (const w of ws.filter((w) => w.tier === 5)) if (w.dps < best4 * LEGENDARY_EDGE) off.push(`${w.id}: only ${(w.dps / best4).toFixed(2)}× the best ★4`);
+    expect(off).toEqual([]);
+  });
+
+  test('handling: the skill unlocks at Lv 2 and ranks up at 5, 8 and 10; the levels between speed up your attacks', () => {
+    expect(SKILL_LEVELS).toEqual([2, 5, 8, 10]);
+    for (let lv = 2; lv <= 10; lv++) expect(handlingStep(lv)).not.toBeNull();
+    const sword = MOVESETS.sword;
+    // Speed only moves on speed levels, and every one of them is a real step.
+    for (let lv = 2; lv <= 10; lv++) {
+      const faster = comboTime(sword, lv - 1) / comboTime(sword, lv) - 1;
+      if (handlingStep(lv) === 'speed') expect(faster).toBeGreaterThan(0.05);
+      else expect(faster).toBe(0);
+    }
+  });
+
+  test('skills: one target takes about the same from every class at each rank (±25%), rising rank by rank; a mastered skill never fills the arena', () => {
+    const kinds = Object.keys(SKILL_RANKS) as SkillKind[];
+    const off: string[] = [];
+    for (let r = 1; r <= 4; r++) {
+      const mults = kinds.map((k) => skillShape(k, 1, r).mult), mean = mults.reduce((a, b) => a + b, 0) / mults.length;
+      kinds.forEach((k, i) => {
+        if (Math.abs(mults[i] / mean - 1) > 0.25) off.push(`${k} rank ${r}: ${mults[i].toFixed(2)}× vs ${mean.toFixed(2)}× average`);
+        if (r > 1 && mults[i] <= skillShape(k, 1, r - 1).mult) off.push(`${k} rank ${r} is no stronger than rank ${r - 1}`);
+      });
+    }
+    for (const g of Object.values(GEAR).filter((g) => g.slot === 'weapon')) {
+      const a = skillShape(MOVESETS[g.style!].skill, tierScale(g.tier ?? 0), 4).area / ARENA_AREA;
+      if (a > MAX_MASTERED_SKILL_AREA) off.push(`${g.name}: a mastered skill covers ${(a * 100).toFixed(0)}% of the arena`);
+    }
     expect(off).toEqual([]);
   });
 

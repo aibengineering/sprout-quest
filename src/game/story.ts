@@ -1,4 +1,4 @@
-// The story: finishing quests, introducing the next, unlock cards, Elder Bloom and the village cutscene.
+// The story: finishing quests, introducing the next, unlock cards, Elder Oswin and the village cutscene.
 import { currentQuest, advanceQuests } from '../quests';
 import { logEvent } from '../stats';
 import { checkUnlocks } from '../unlocks';
@@ -44,7 +44,7 @@ export async function progressQuests(): Promise<boolean> {
       if (next.chapter === 'Prologue') await G.ui.caption(next.text, 'narrator');
       else await G.ui.questIntro(next);
     } else {
-      await G.ui.message('🌟 The End… for now!', 'Every chapter is complete. Sprout Village is safe, and you are its hero! Keep exploring, crafting and rematching bosses.');
+      await G.ui.message('🌅 The smoke has cleared…', "Every chapter is complete. Sowerby is safe, and you are its hero. But the valley isn't done with you yet… Keep exploring, crafting and rematching bosses.");
     }
     persist();
     G.mode = prev === 'battle' || prev === 'dialog' ? 'world' : prev;
@@ -72,18 +72,22 @@ async function cutscene(shots: { x: number; y: number; text: string; speaker?: '
   });
 }
 
-/** The first time you walk into Sprout Village, Elder Bloom shows you around. */
+/** The first time you walk into Sowerby, Elder Oswin shows you around. */
 export async function arriveAtVillage() {
   const w = G.world, s = G.save;
   const elder = w.obj('elder')!, forge = w.obj('forge')!, home = w.obj('plot', 'home')!, sign = w.objs.find((o) => o.kind === 'sign' && o.x > elder.x)!;
+  const shrine = G.world.objs.find((o) => o.kind === 'statue' && o.id === 'veyra' && o.zone === 'village');
   await cutscene([
-    { x: elder.x + 0.4, y: elder.y + 1, text: 'Oh my! A traveler, and you made it through the glade all by yourself? Welcome to Sprout Village, little sprout!' },
+    { x: elder.x + 0.4, y: elder.y + 1, text: 'Oh my! A traveler, and you made it through the glade all by yourself? Welcome to Sowerby!' },
+    { x: elder.x + 0.4, y: elder.y + 1, text: "…And that leaf. Well. Veyra keep you, little sprout." },
+    ...(shrine ? [{ x: shrine.x + 0.4, y: shrine.y + 1.2, text: "Veyra's shrine. The Sower watches over our fields, and over everyone she plants here." }] : []),
     { x: home.x + 3, y: home.y + 1.5, text: "It isn't much right now. A tent, a dry garden patch and a lot of empty ground…" },
     { x: forge.x + 2, y: forge.y + 2, text: 'Even our old forge has crumbled. Ever since smoke started drifting from Ember Peak, the monsters have been grumpy and nobody dares travel.' },
     { x: sign.x + 3, y: sign.y + 2, text: 'Out east, big guardians now block every road. We are cut off from the rest of the world.' },
     { x: G.over.x, y: G.over.y, text: "But I have a feeling about you. With your help, this little village could grow into something wonderful. Will you stay and help us?" },
+    { x: G.over.x, y: G.over.y, text: "Here: my old axe and pick, from when I was young. They've seen better days, but they're yours." },
   ]);
-  s.flags.push('village');
+  s.flags.push('village', 'oldtools');
   s.respawn = 'village';
   if (!s.visited.includes('village')) s.visited.push('village');
   persist();
@@ -101,7 +105,7 @@ export async function talkToElder() {
 
 let autoTalked = false;
 
-/** Elder Bloom calls you over the first time you walk up to her. */
+/** Elder Oswin calls you over the first time you walk up to her. */
 export function maybeAutoTalk() {
   const q = currentQuest(G.save);
   const elder = G.world.obj('elder');

@@ -5,14 +5,15 @@ import { newState } from '../src/state';
 import { T, World } from '../src/world';
 
 describe('rules', () => {
-  test('leveling carries over extra XP and heals', () => {
+  test('leveling carries over extra XP, and adds the max HP it gains without healing what you lost', () => {
     const s = newState();
     s.hp = 1;
+    const before = playerStats(s).maxHp;
     const levels = gainXp(s, xpToNext(1) + xpToNext(2) + 3);
     expect(levels).toBe(2);
     expect(s.lv).toBe(3);
     expect(s.xp).toBe(3);
-    expect(s.hp).toBe(playerStats(s).maxHp);
+    expect(s.hp).toBe(1 + playerStats(s).maxHp - before);
   });
 
   test('damage is at least 1 and crits hit harder', () => {
@@ -40,7 +41,7 @@ describe('rules', () => {
   test('better weapons of a class need handling in it, trained by winning with it', () => {
     const s = newState();
     for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 99;
-    s.build.forge = 1;
+    s.build.forge = 2;
     expect(craftGear(s, 'sporewhip')).toBe('mastery');
     expect(masteryShort(s, GEAR.sporewhip)).toBe(MASTERY_FOR_TIER[2]);
     gainMastery(s, 'sword', 1000);
@@ -95,12 +96,15 @@ describe('forge reveals', () => {
     const s = newState();
     s.build.forge = 1;
     const shown = revealed(s);
-    // Monster gear and first tools need no levels; ore gear waits on Mining, better whips on handling, ★3+ on the Forge.
+    // Monster gear and first tools need no levels; ore gear waits on Mining, ★2+ on the Forge (then handling).
     for (const id of ['jellywhip', 'jellysling', 'fluffvest', 'axe1', 'pick1']) expect({ id, shown: shown.has(id) }).toEqual({ id, shown: true });
     for (const id of ['stonesword', 'sporewhip', 'pick2', 'ironsword']) expect({ id, shown: shown.has(id) }).toEqual({ id, shown: false });
     expect(levelLock(s, GEAR.stonesword)).toEqual({ kind: 'skill', skill: 'mine', level: 2 });
+    expect(levelLock(s, GEAR.sporewhip)).toEqual({ kind: 'forge', level: 2 });
+    s.build.forge = 2;
     expect(levelLock(s, GEAR.sporewhip)).toEqual({ kind: 'handling', style: 'whip', level: MASTERY_FOR_TIER[2] });
-    expect(levelLock(s, GEAR.ironsword)).toEqual({ kind: 'forge', level: 2 });
+    s.build.forge = 1;
+    expect(levelLock(s, GEAR.ironsword)).toEqual({ kind: 'forge', level: 3 });
     s.skills.mine.lv = 2;
     expect(revealed(s).has('stonesword')).toBe(true);
   });

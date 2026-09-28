@@ -11,6 +11,8 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <title>Sprout Quest</title>
+    <link rel="preload" href="fonts/fredoka.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -25,6 +27,7 @@
           <div class="bar hp"><i id="hud-hp"></i><span id="hud-hptext"></span></div>
           <div class="bar xp"><i id="hud-xp"></i></div>
         </div>
+        <span id="hud-meal" class="meal" hidden></span>
       </div>
       <div id="hud-zone" class="card zone"></div>
     </div>
@@ -52,7 +55,7 @@
       <button id="btn-potion" class="btn sm" aria-label="Potion">🧪<span id="potion-n" class="badge">0</span><kbd class="key">H</kbd></button>
       <button id="btn-skill" class="btn md" aria-label="Skill"><span>✨</span><small id="skill-name">Spin</small><i class="cd"></i><kbd class="key">L</kbd></button>
       <button id="btn-dodge" class="btn md" aria-label="Dodge"><span>💨</span><small>Dodge</small><i class="cd"></i><kbd class="key">K</kbd></button>
-      <button id="btn-attack" class="btn lg" aria-label="Attack">⚔️<i class="cd"></i><span id="clip" hidden></span><kbd class="key">J</kbd></button>
+      <button id="btn-attack" class="btn lg" aria-label="Attack">⚔️<i class="cd"></i><kbd class="key">J</kbd></button>
     </div>
 
     <div id="modal" hidden><div class="sheet"></div></div>
@@ -78,6 +81,55 @@
       <p class="hint"><span class="touch-only">Drag anywhere to move · Tap buttons to fight</span><span class="kbd-only">WASD to move · J attack · K dodge · L skill · E interact · B bag · Q journal</span><br /><span class="touch-only">Best in portrait · Add to home screen for fullscreen</span></p>
     </div>
 
-    <script type="module" src="main.js"></script>
+    <script>
+      // The game's code is the first big download, and until it runs nothing else can show progress: fetch it here,
+      // counting the bytes on the bar, then start it (the browser takes it from its cache). If anything fails, say so.
+      (function () {
+        var fill = document.getElementById('load-fill'), text = document.getElementById('load-text'), got = 0;
+        var say = function (msg) {
+          var l = document.getElementById('loading');
+          if (l && !l.hidden) text.textContent = msg;
+        };
+        addEventListener('error', function (e) {
+          var what = e.message || ((e.target && (e.target.src || e.target.href)) || 'a file') + ' failed to load';
+          say("Couldn't start the game: " + what + '. Try reloading.');
+        }, true);
+        addEventListener('unhandledrejection', function (e) {
+          say("Couldn't start the game: " + ((e.reason && e.reason.message) || e.reason) + '. Try reloading.');
+        });
+        setTimeout(function () {
+          if (!got && document.querySelector('.lbar.waiting')) say('Still connecting… (slow connection?)');
+        }, 8000);
+        var started = false;
+        var start = function () {
+          if (started) return;
+          started = true;
+          var s = document.createElement('script');
+          s.type = 'module';
+          s.src = 'main.js';
+          document.body.appendChild(s);
+        };
+        if (!window.fetch || !window.ReadableStream) return start();
+        var kb = function (n) { return Math.round(n / 1024) + ' KB'; };
+        fetch('main.js').then(function (r) {
+          if (!r.ok || !r.body) return start();
+          // The size before compression (the dev server says; otherwise the download's own length, if known).
+          var total = +(r.headers.get('x-size') || (r.headers.get('content-encoding') ? 0 : r.headers.get('content-length')) || 0);
+          var reader = r.body.getReader();
+          fill.parentElement.classList.remove('waiting');
+          fill.style.width = '0%';
+          var pump = function () {
+            return reader.read().then(function (c) {
+              if (c.done) return start();
+              got += c.value.length;
+              if (total) fill.style.width = Math.min(20, (20 * got) / total) + '%';
+              text.textContent = 'Downloading the game… ' + kb(got) + (total ? ' / ' + kb(total) : '');
+              return pump();
+            });
+          };
+          return pump();
+        }).catch(start);
+      })();
+    </script>
   </body>
 </html>

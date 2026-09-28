@@ -163,16 +163,16 @@ def _wing(parent, side, mat, span=0.55, h=0.35):
     return profile(pts, 0.035, mat, parent, bevel=0.012, line=0.016)
 
 
-def bat():
+def bat(fur='#7a5ab8', wingc='#5a3a8a', belly='#a08ad8'):
     P = {}
     root = P['root'] = empty('bat')
     piv = P['piv'] = empty('piv', root, (0, 0, 0.5))
-    fur, wingm = M('#7a5ab8'), M('#5a3a8a')
+    fur, wingm = M(fur), M(wingc)
     for s in (-1, 1):
         w = P[f'wing{s}'] = empty(f'wing{s}', piv, (0.18 * s, 0.05, 0.05))
         _wing(w, s, wingm)
     sphere((0, 0, 0), (0.28, 0.26, 0.26), fur, piv, seg=32)
-    sphere((0, -0.08, -0.08), (0.16, 0.14, 0.12), M('#a08ad8'), piv)
+    sphere((0, -0.08, -0.08), (0.16, 0.14, 0.12), M(belly), piv)
     for s in (-1, 1):
         cone((0.13 * s, 0.0, 0.26), 0.09, 0.2, fur, piv, rot=(0, 0.35 * s, 0), seg=12)
         cone((0.05 * s, surf(0.28, 0.26, 0.26, 0.05, -0.1) - 0.01, -0.13), 0.02, 0.06, M(WHITE), piv, rot=(math.pi, 0, 0), seg=8, line=0.008)
@@ -338,6 +338,38 @@ def alphawolf():
     return P, anim
 
 
+def scarwolf():
+    """The big scarred Woolf that leads the pack at Bram's camp: dusky brown, a pale scar across one eye, a torn ear."""
+    P, anim = wolf('#7a6450', '#d8c8b0', '#54443a')
+    head = P['head']
+    scar = M('#f0c8c0', rim=0)
+    # A long scar from brow to cheek across the left eye.
+    sphere((0.1, surf(0.25, 0.23, 0.22, 0.1, 0.05, inset=1.03), 0.05), (0.024, 0.02, 0.14), scar, head, rot=(0, -0.35, 0), line=0.008)
+    # One ear torn short.
+    sphere((0.14, -0.0, 0.26), (0.07, 0.05, 0.04), M('#54443a'), head, line=0.01)
+    for s in (-1, 1):
+        # Scowling brows.
+        box((0.09 * s, surf(0.25, 0.23, 0.22, 0.09, 0.12, inset=1.03), 0.12), (0.12, 0.03, 0.035), M('#2a1e18', rim=0), head, rot=(0, 0.55 * s, 0), bevel=0.01, line=0.006)
+    # Shaggy ruff.
+    for i in range(6):
+        a = (i - 2.5) * 0.35
+        sphere((math.sin(a) * 0.22, -0.24 + abs(a) * 0.04, 0.6 - abs(a) * 0.06), 0.1, M('#8a7460'), P['piv'])
+    return P, anim
+
+
+def echoqueen():
+    """The Echo Queen: a great dusky Flapper, crowned, with a jewelled collar and tall tufted ears that hear everything."""
+    from lib import torus
+    P, anim = bat('#4a3a78', '#2e2050', '#c8b0f0')
+    piv = P['piv']
+    for s in (-1, 1):
+        cone((0.15 * s, 0.02, 0.36), 0.06, 0.18, M('#e0d0ff'), piv, rot=(0, 0.3 * s, 0), seg=10)  # ear tufts
+    torus((0, -0.02, -0.2), 0.2, 0.035, M('#ffd35a'), piv, rot=(0.35, 0, 0))
+    sphere((0, -0.2, -0.24), 0.05, M('#b8f0ff', rim=0.5), piv, line=0.01)
+    crown(piv, (0, 0.02, 0.24), r=0.14, h=0.1)
+    return P, anim
+
+
 def crystalking():
     P, anim = golem('#8a7ab8', '#6a5a98', '#b8a0ff')
     gem = M('#e0c8ff', rim=0.45)
@@ -345,6 +377,21 @@ def crystalking():
                                (-0.5, 0.05, 0.9, 0.3, 0, -0.9), (0.5, 0.05, 0.9, 0.3, 0, 0.9)):
         crystal((x, y, z), 0.09, h, gem, P['piv'], rot=(rx, ry, 0))
     crown(P['head'], (0, 0, 0.18), r=0.2, h=0.12)
+    return P, anim
+
+
+def bigbun():
+    """Big Bun: a burly Hopbun with a scowl and a red bandana, clutching Poppy's Mr. Floppers."""
+    from hero import toy_bunny
+    from lib import torus
+    P, anim = bunny()
+    head = P['head']
+    for s in (-1, 1):
+        # Angry brows slanting down to the middle.
+        sphere((0.1 * s, surf(0.27, 0.25, 0.24, 0.1, 0.1, inset=1.02), 0.1), (0.085, 0.03, 0.028), M('#4a3a4a', rim=0), head, rot=(0, 0.5 * s, 0), line=0)
+    torus((0, -0.02, 0.44), 0.2, 0.045, M('#e8404a'), P['piv'])
+    profile([(-0.05, 0), (0.05, 0), (0.08, -0.16), (-0.03, -0.13)], 0.04, M('#e8404a'), P['piv'], loc=(0.1, -0.2, 0.44))
+    toy_bunny(P['piv'], (0, -0.36, 0.14), 0.75)
     return P, anim
 
 
@@ -362,10 +409,13 @@ BUILDERS = {
     'kingslime': kingslime,
     'alphawolf': alphawolf,
     'crystalking': crystalking,
+    'bigbun': bigbun,
+    'scarwolf': scarwolf,
+    'echoqueen': echoqueen,
 }
 
 # Guardians are the base models scaled up to their hitbox size.
-BOSS_SCALE = {'kingslime': 2.2, 'alphawolf': 2.1, 'crystalking': 1.7}
+BOSS_SCALE = {'kingslime': 2.2, 'alphawolf': 2.1, 'crystalking': 1.7, 'bigbun': 1.55, 'scarwolf': 1.6, 'echoqueen': 2.2}
 
 
 def build(kind, gold=False):

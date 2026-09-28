@@ -1,11 +1,12 @@
 // Balance model: where we expect the player to be at each point in the story, and how fights should feel there.
 // tests/balance.test.ts enforces the targets; `bun run balance` prints the full table while tuning.
 import { ARENA_RX, ARENA_RY } from './arena';
-import { GEAR, MASTERY_FOR_TIER, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
-import { MOVESETS, comboDps, openingBurst, skillShape, strikeShape, tierScale } from './weapons';
-import { GENTLE_ATK, calcDamage, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, type PlayerStats } from './rules';
+import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
+import { MOVESETS, comboDps, openingBurst, skillRank, skillShape, strikeShape, tierScale } from './weapons';
+import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
+import { LOGS_PER_PLANK } from './sawmill';
 
 export type Range = [min: number, max: number];
 
@@ -33,32 +34,35 @@ export interface Checkpoint {
 /** Kills (at mid zone level) needed to gain a level at each checkpoint, so levels neither fly by nor grind. */
 export const KILLS_PER_LEVEL: Range = [4, 20];
 
-// Regular monsters: 2–4 swings, dipping toward 2 right after an upgrade so new gear feels strong without one-shotting,
-// then the next zone pulls it back up. Bosses: roughly 20–50 swings.
+// Regular monsters: about 4–7 swings at your level (3 at the bottom of an area's level range, up to 10 at the top), fewer
+// once you've outlevelled an area (the level gap, see levelEdge) or right after an upgrade. Guardians: 25–45 swings.
 export const CHECKPOINTS: Checkpoint[] = [
   // The prologue fights teach the three-hit combo and should be nearly impossible to lose.
   {
     id: 'prologue', label: 'Prologue fights', lv: 1, weapon: 'twig', armor: 'tunic', zone: 'glade', hitsToKill: [2, 4], hitsToDie: [12, 30],
     foes: [{ kind: 'slime', lv: 1, gentle: true }, { kind: 'bunny', lv: 1, gentle: true }],
   },
-  { id: 'meadow', label: 'Meadow, fresh start', lv: 1, weapon: 'twig', armor: 'tunic', zone: 'meadow', hitsToKill: [2, 4], hitsToDie: [5, 12] },
+  { id: 'meadow', label: 'Meadow, fresh start', lv: 1, weapon: 'twig', armor: 'tunic', zone: 'meadow', hitsToKill: [4, 8], hitsToDie: [5, 12] },
   { id: 'meadow-gear', label: 'Meadow, first ★ weapon', lv: 3, weapon: 'stonesword', armor: 'tunic', zone: 'meadow', hitsToKill: [2, 3], hitsToDie: [5, 14] },
   {
-    id: 'woods', label: 'Whisper Woods', lv: 4, weapon: 'stonesword', armor: 'fluffvest', zone: 'woods', hitsToKill: [2, 5], hitsToDie: [4, 12],
-    boss: { kind: 'kingslime', lv: 5, hitsToKill: [18, 50], hitsToDie: [4, 12] },
+    id: 'woods', label: 'Whisper Woods', lv: 4, weapon: 'stonesword', armor: 'fluffvest', zone: 'woods', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    boss: { kind: 'kingslime', lv: 5, hitsToKill: [25, 45], hitsToDie: [4, 12] },
   },
   {
-    id: 'cave', label: 'Echo Cavern', lv: 8, weapon: 'coppersword', armor: 'coppermail', charm: 'toothcharm', training: 1, zone: 'cave', hitsToKill: [2, 5], hitsToDie: [4, 12],
-    boss: { kind: 'alphawolf', lv: 9, hitsToKill: [18, 50], hitsToDie: [4, 12] },
+    id: 'cave', label: 'Echo Cavern', lv: 8, weapon: 'coppersword', armor: 'coppermail', charm: 'toothcharm', training: 1, zone: 'cave', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    boss: { kind: 'alphawolf', lv: 9, hitsToKill: [25, 45], hitsToDie: [4, 12] },
   },
-  { id: 'hollow', label: 'Glimmer Hollow', lv: 11, weapon: 'ironsword', armor: 'ironplate', charm: 'toothcharm', training: 2, zone: 'hollow', hitsToKill: [2, 5], hitsToDie: [4, 12] },
   {
-    id: 'peak', label: 'Ember Peak', lv: 13, weapon: 'crystalsword', armor: 'crystalmail', charm: 'toothcharm', training: 2, home: 2, zone: 'peak', hitsToKill: [2, 5], hitsToDie: [4, 12],
-    boss: { kind: 'crystalking', lv: 14, hitsToKill: [18, 50], hitsToDie: [4, 12] },
+    id: 'hollow', label: 'Glimmer Hollow', lv: 11, weapon: 'ironsword', armor: 'ironplate', charm: 'toothcharm', training: 2, zone: 'hollow', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    boss: { kind: 'echoqueen', lv: 12, hitsToKill: [25, 45], hitsToDie: [4, 12] },
+  },
+  {
+    id: 'peak', label: 'Ember Peak', lv: 13, weapon: 'crystalsword', armor: 'crystalmail', charm: 'toothcharm', training: 2, home: 2, zone: 'peak', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    boss: { kind: 'crystalking', lv: 14, hitsToKill: [25, 45], hitsToDie: [4, 12] },
   },
   // By the dragon you've outleveled the bottom of Ember Peak, so only the fight at the top of the zone needs to stay tense.
   {
-    id: 'dragon', label: 'Emberwyrm', lv: 18, weapon: 'emberblade', armor: 'magmamail', charm: 'impring', training: 3, home: 3, zone: 'peak', hitsToKill: [1, 4], hitsToDie: [5, 24],
+    id: 'dragon', label: 'Emberwyrm', lv: 18, weapon: 'emberblade', armor: 'magmamail', charm: 'impring', training: 3, home: 3, zone: 'peak', hitsToKill: [1, 4], hitsToDie: [5, 40],
     boss: { kind: 'dragon', lv: 20, hitsToKill: [25, 60], hitsToDie: [3, 10] },
   },
 ];
@@ -79,8 +83,9 @@ export interface Matchup { kind: MonsterKind; name: string; lv: number; hp: numb
 export function matchup(p: PlayerStats, kind: MonsterKind, lv: number, gentle = false): Matchup {
   const m = MONSTERS[kind];
   const s = scaleMonster(m, lv, false);
-  const dealt = calcDamage(p.atk, s.def, 1, 0, avg).dmg;
-  const taken = calcDamage(gentle ? Math.round(s.atk * GENTLE_ATK) : s.atk, p.def, m.boss ? 0.8 : 1, 0, avg).dmg;
+  if (gentle) s.hp = Math.round(s.hp / MONSTER_HP);
+  const dealt = calcDamage(p.atk, s.def, levelEdge(p.lv, lv), 0, avg).dmg;
+  const taken = calcDamage(gentle ? Math.round(s.atk * GENTLE_ATK) : s.atk, p.def, (m.boss ? 0.8 : 1) * levelEdge(lv, p.lv), 0, avg).dmg;
   return { kind, name: m.name, lv, hp: s.hp, hitsToKill: Math.ceil(s.hp / dealt), hitsToDie: Math.ceil(p.maxHp / taken), xp: s.xp };
 }
 
@@ -112,7 +117,7 @@ export const MAX_DRAGON_FIGHTS = 4;
 
 // Rough real-time costs, so fighting and chopping compare fairly.
 /** One kill, including the walk through grass, the fight and the transitions. */
-export const SECONDS_PER_KILL = 12;
+export const SECONDS_PER_KILL = 14;
 /** Seconds to fell a tree or break a rock with decent timing: tougher nodes and weaker tools take longer. */
 export function chopSeconds(kind: NodeKind, toolTier: number): number {
   return 1.5 + (0.9 * NODES[kind].hp) / (toolPower(toolTier, NODES[kind].tier) * 1.3);
@@ -138,12 +143,19 @@ export interface Farm {
 
 export function totalDemand(): Partial<Record<MatId, number>> {
   const out: Partial<Record<MatId, number>> = {};
-  const add = (r: Recipe) => {
-    for (const [m, n] of Object.entries(r)) out[m as MatId] = (out[m as MatId] ?? 0) + (n ?? 0);
+  // Planks are sawn from logs at Bram's Sawmill (the sawing itself happens while you're away): Oak at first, and Pine once
+  // it's the Iron Sawmill, which is how the third-level buildings (Bloom Garden, Dojo, Manor) are paid for.
+  const add = (r: Recipe, log: 'bark' | 'pine' = 'bark') => {
+    for (const [m, n] of Object.entries(r)) {
+      if (m === 'plank') out[log] = (out[log] ?? 0) + (n ?? 0) * LOGS_PER_PLANK;
+      else out[m as MatId] = (out[m as MatId] ?? 0) + (n ?? 0);
+    }
   };
-  for (const p of Object.values(PROJECTS)) p.levels.forEach((l) => add(l.cost));
+  for (const p of Object.values(PROJECTS)) p.levels.forEach((l, i) => add(l.cost, i >= 2 ? 'pine' : 'bark'));
   for (const g of Object.values(GEAR)) if (g.recipe) add(g.recipe);
   for (const t of TOOLS) add(t.recipe);
+  add({ plank: BRAM_CABIN_PLANKS });
+  add(BRIDGE_COST);
   return out;
 }
 
@@ -254,6 +266,8 @@ export const MAX_STRIKE_REACH = 0.7;
 export const MAX_STRIKE_AREA = 0.1;
 /** A skill can clear a crowd, but not the whole arena. */
 export const MAX_SKILL_AREA = 0.3;
+/** A mastered skill (handling Lv 10) can be much bigger, but still never fills the arena. */
+export const MAX_MASTERED_SKILL_AREA = 0.5;
 /** Hunter weapons hit for this share of their tier's gatherer damage: less raw power, but they carry monster effects. */
 export const HUNTER_DPS: Range = [0.75, 0.95];
 /**
@@ -271,15 +285,19 @@ export const LEGENDARY_EDGE = 1.25;
 
 export interface WeaponStats { id: string; name: string; tier: number; style: Style; track: 'hunter' | 'gatherer' | 'both'; dps: number; burst: number; reach: number; area: number; skillArea: number; skillMult: number }
 
+/** The handling you'll typically have when you pick up a weapon of this tier: one past what the tier requires. */
+export const handlingFor = (tier: number) => Math.max(1, (MASTERY_FOR_TIER[tier] ?? 0) + 1);
+
 export function weaponStats(): WeaponStats[] {
   return Object.values(GEAR).filter((g) => g.slot === 'weapon').map((g) => {
     const m = MOVESETS[g.style ?? 'sword'], k = tierScale(g.tier ?? 0);
     const shapes = m.combo.map((s) => strikeShape(s, k)).filter((_, i) => m.combo[i].shape !== 'shot');
-    const sk = skillShape(m.skill, k);
+    // The skill as you'd typically have it with this tier of weapon (by handling level), at least its first rank.
+    const sk = skillShape(m.skill, k, Math.max(1, skillRank(handlingFor(g.tier ?? 0))));
     return {
       id: g.id, name: g.name, tier: g.tier ?? 0, style: g.style ?? 'sword', track: g.recipe ? gearTrack(g) : 'gatherer',
-      dps: comboDps(m) * (g.atk ?? 0),
-      burst: openingBurst(m) * (g.atk ?? 0),
+      dps: comboDps(m, handlingFor(g.tier ?? 0)) * (g.atk ?? 0),
+      burst: openingBurst(m, handlingFor(g.tier ?? 0)) * (g.atk ?? 0),
       reach: Math.max(0, ...shapes.map((s) => s.reach)) / ARENA_RX,
       area: Math.max(0, ...m.combo.map((s) => strikeShape(s, k).area)) / ARENA_AREA,
       skillArea: sk.area / ARENA_AREA,

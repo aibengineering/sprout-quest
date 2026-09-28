@@ -29,11 +29,22 @@ describe('rendered assets', () => {
     }
   });
 
-  test('Elder Bloom and every boss and building have art', () => {
+  test('Elder Oswin and every boss and building have art', () => {
     for (let f = 0; f < 4; f++) expect(atlas.frames[`npc/elder/${f}`]).toBeDefined();
     for (const k of ['kingslime', 'alphawolf', 'crystalking', 'dragon']) expect(existsSync(`public/assets/icons/boss_${k}.webp`)).toBe(true);
     for (const n of ['home1', 'home2', 'home3', 'forge2', 'forge3', 'garden1', 'garden2', 'garden3', 'training1', 'training2', 'training3', 'warp0', 'warp1', 'plot', 'campfire', 'gate_bramble', 'gate_crystal', 'gate_rock']) {
       expect(atlas.frames[`env/${n}`]).toBeDefined();
+    }
+  });
+
+  test("Poppy's story: her walk and hug, Granny, and every portrait and keepsake", () => {
+    for (let d = 0; d < 5; d++) for (let f = 0; f < 5; f++) expect(atlas.frames[`npc/poppy/${d}/${f}`]).toBeDefined();
+    for (let f = 0; f < 4; f++) {
+      expect(atlas.frames[`npc/granny/${f}`]).toBeDefined();
+      expect(atlas.frames[`npc/poppy_hug/0/${f}`]).toBeDefined();
+    }
+    for (const id of ['npc_poppy', 'npc_poppy_scared', 'npc_poppy_sad', 'npc_poppy_hug', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots', 'boss_bigbun']) {
+      expect(existsSync(`public/assets/icons/${id}.webp`)).toBe(true);
     }
   });
 

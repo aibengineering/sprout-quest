@@ -1,9 +1,9 @@
 // Progressive disclosure: systems switch on one at a time as the player reaches them in the story,
 // so a brand-new player only has to learn "move" and "attack" first.
-import { QUESTS } from './data';
+import { QUESTS, TOOLS } from './data';
 import type { SaveState } from './state';
 
-export type UnlockId = 'journal' | 'bag' | 'skill' | 'forge' | 'village' | 'plots' | 'warpplot';
+export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'forge' | 'village' | 'plots' | 'warpplot' | 'kitchen' | 'sawmill';
 
 export interface Unlock {
   id: UnlockId;
@@ -29,9 +29,14 @@ export const UNLOCKS: Unlock[] = [
     when: (s) => s.wins > 0,
   },
   {
+    id: 'mend', icon: '🪓', title: 'Mend Your Tools',
+    text: 'You have enough Slime Goo and Bunny Fluff to fix up an old tool. Open your Bag to mend it.',
+    when: (s) => s.flags.includes('oldtools') && TOOLS.some((t) => t.tier === 1 && s.tools[t.skill] < 1 && Object.entries(t.recipe).every(([m, n]) => s.mats[m as keyof typeof s.mats] >= (n ?? 0))),
+  },
+  {
     id: 'skill', icon: '✨', title: 'Weapon Skill', key: 'L',
-    text: 'Tap ✨ in battle for your weapon’s special move. It recharges after each use.',
-    when: (s) => s.wins > 2,
+    text: 'Your weapon handling unlocked its special move: tap ✨ in battle. It grows stronger as your handling improves.',
+    when: (s) => Object.values(s.mastery).some((m) => m.lv >= 2),
   },
   {
     id: 'forge', icon: '⚒', title: 'The Forge',
@@ -40,7 +45,7 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'village', icon: '🏡', title: 'Village Building',
-    text: 'Repair and build up Sprout Village for permanent boosts. Walk up to the old forge or a building plot to start!',
+    text: 'Repair and build up Sowerby for permanent boosts. Walk up to the old forge or a building plot to start!',
     when: (s) => reached(s, 'repair'),
   },
   {
@@ -49,9 +54,19 @@ export const UNLOCKS: Unlock[] = [
     when: (s) => s.bosses.includes('kingslime'),
   },
   {
-    id: 'warpplot', icon: '🔮', title: 'The Old Warp Stone',
-    text: 'Ancient ruins by the village hold a Warp Stone. Rebuild it to fast travel!',
+    id: 'warpplot', icon: '🔮', title: "Veyra's Old Waystone",
+    text: "Ancient ruins by the village hold one of Veyra's Waystones, older than anyone remembers. Rebuild it to travel between campfires!",
     when: (s) => s.bosses.includes('alphawolf'),
+  },
+  {
+    id: 'kitchen', icon: '🍳', title: "Granny's Kitchen",
+    text: 'Granny will cook for you! Visit her at the blue house: meals give you more XP, healing, or keep weak monsters away.',
+    when: (s) => (s.stories.poppy ?? 0) >= 6,
+  },
+  {
+    id: 'sawmill', icon: '🪚', title: "Bram's Sawmill",
+    text: 'Bram wants to build a Sawmill in Sowerby. Find it in the village plans, beside the Forge.',
+    when: (s) => s.flags.includes('bram:home'),
   },
 ];
 

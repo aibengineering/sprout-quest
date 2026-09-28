@@ -3,15 +3,15 @@
 import { ARENA_RX, ARENA_RY, OvalArena } from '../arena';
 import type { Audio, Sfx } from '../audio';
 import { vibrate } from '../audio';
-import { GEAR, MATS, MONSTERS, POTION_HEAL, type Fx as Element, type Gear, type MatId, type MonsterKind } from '../data';
+import { GEAR, MONSTERS, POTION_HEAL, type Fx as Element, type Gear, type MatId, type MonsterKind } from '../data';
 import { Fx } from '../fx';
 import type { Input } from '../input';
-import { GENTLE_ATK, calcDamage, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
+import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
-import { MOVESETS, SKILL_DATA, tierScale, type Moveset, type Strike } from '../weapons';
+import { MOVESETS, SKILL_DATA, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
 import { MONSTER_AI, type FoeWorld } from './monsters';
-import { pose } from './pose';
+import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
 import {
   AIM_ASSIST, SKILL_CD, TAU, ZOOM_T, angDiff, clamp01, easeInOut, easeOut, rand,
   type BattleLog, type BattleOutcome, type BattleSetup, type Crack, type Enemy, type Flame, type Foe, type Hazard,
@@ -25,6 +25,12 @@ export class Battle implements FoeWorld, HitWorld {
   intro = 1.2;
   /** Counts down once the fight is decided; the outcome is handed over when it runs out. */
   endT = -1;
+  /**
+   * Regular wins hand over the moment the last foe falls, so the XP bar fills while "Victory!" is up; the end pause
+   * (and its swoop in on you) waits until this settles.
+   */
+  onWin: ((o: BattleOutcome) => Promise<void>) | null = null;
+  private holding = false;
   private done = false;
   outcome: BattleOutcome | null = null;
   readonly stats: PlayerStats;
@@ -35,13 +41,18 @@ export class Battle implements FoeWorld, HitWorld {
   readonly reach: number;
   readonly element: Element;
   private readonly el: ElementDef;
+  /** Your handling level with this weapon's class, and the pace it gives you (see weapons.ts pace()). */
+  readonly handling: number;
+  private readonly pace: { chain: number; rest: number };
+  /** Your weapon's skill at your handling level (null until handling Lv 2). */
+  readonly skillNow: SkillRank | null;
   readonly p = {
     x: 0, y: 120, vx: 0, vy: 0, kx: 0, ky: 0, r: 12,
     hp: 0, face: -Math.PI / 2, moving: false,
     atkBuffer: 0, skillCd: 1, dodgeCd: 0, dodgeT: 0, dodgeDir: 0, iframes: 0, hurtT: 0,
     potionCd: 0, regenAcc: 0,
-    /** Cooldown after a full combo, and stamina pips. */
-    restT: 0, ammo: 0, ammoT: 0,
+    /** Rest after a full combo; seconds until the next strike may start, and how much of that comes after the swing. */
+    restT: 0, atkCd: 0, atkGap: 0,
     whirlT: 0, whirlTick: 0, whirlAng: 0,
     swing: null as Swing | null,
     combo: 0,
@@ -68,13 +79,15 @@ export class Battle implements FoeWorld, HitWorld {
   private runCd = 0;
   private xp = 0;
   private drops: Partial<Record<MatId, number>> = {};
+  /** Drops from each defeated monster, where it fell, waiting for the renderer to pop them out (cosmetic). */
+  readonly dropped: { x: number; y: number; floor: number; drops: Partial<Record<MatId, number>> }[] = [];
   private defeated: string[] = [];
   private hitCounter = 1;
   /** How many times the player has landed a hit (drives the first-battle tutorial). */
   hits = 0;
   private onceKeys = new Set<number>();
   /** Running tallies for the play report. */
-  readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0, emptied: 0, starved: 0, rested: 0, lastHitBy: '' };
+  readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0, cooling: 0, rested: 0, lastHitBy: '' };
 
   constructor(
     readonly setup: BattleSetup,
@@ -91,7 +104,9 @@ export class Battle implements FoeWorld, HitWorld {
     this.reach = tierScale(this.tier);
     this.element = this.weapon.fx ?? 'none';
     this.el = ELEMENTS[this.element];
-    this.p.ammo = this.moves.ammo.max;
+    this.handling = save.mastery[this.weapon.style ?? 'sword']?.lv ?? 1;
+    this.pace = pace(this.handling);
+    this.skillNow = skillAt(this.moves.skill, this.handling);
     // Regular fights swoop in and get going at once; bosses keep their dramatic "Boss battle!" beat.
     this.intro = this.dramatic ? 1.2 : ZOOM_T + 0.1;
     const n = setup.foes.length;
@@ -112,9 +127,12 @@ export class Battle implements FoeWorld, HitWorld {
   private spawn(f: Foe, x: number, y: number, minion: boolean): Enemy {
     const def = MONSTERS[f.kind];
     const s = scaleMonster(def, f.lv, f.golden);
+    // The prologue's gentle foes still fall to one three-hit combo.
+    if (f.gentle) s.hp = Math.round(s.hp / MONSTER_HP);
     const e: Enemy = {
       kind: f.kind, def, lv: f.lv, golden: f.golden,
-      hp: s.hp, maxHp: s.hp, atk: f.gentle ? Math.round(s.atk * GENTLE_ATK) : s.atk, dfn: s.def, xp: s.xp, spd: def.spd * (f.golden ? 1.1 : 1),
+      // The level gap: a monster above you hits harder, one below you softer (see levelEdge).
+      hp: s.hp, maxHp: s.hp, atk: Math.round((f.gentle ? s.atk * GENTLE_ATK : s.atk) * levelEdge(f.lv, this.stats.lv)), dfn: s.def, xp: s.xp, spd: def.spd * (f.golden ? 1.1 : 1),
       x, y, vx: 0, vy: 0, kx: 0, ky: 0,
       r: def.r, z: 0, state: MONSTER_AI[f.kind].start, t: rand(0.3, 1.2), dir: 0, face: 1, orb: Math.atan2(y, x), sub: 0, last: null,
       windup: 0, flash: 0, stun: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
@@ -124,17 +142,17 @@ export class Battle implements FoeWorld, HitWorld {
     return e;
   }
 
-  get skillFrac() { return Math.max(0, this.p.skillCd) / SKILL_CD; }
+  get skillFrac() { return Math.max(0, this.p.skillCd) / (this.skillNow?.cd ?? SKILL_CD); }
+  /** How far the whip's whirl reaches at your rank. */
+  get whirlRange() { return SKILL_DATA.whirl.radius * (this.skillNow?.size ?? 1) * this.reach; }
   get dodgeFrac() { return Math.max(0, this.p.dodgeCd) / 0.7; }
-  /** How much of the attack cooldown is left: the rest after a combo, or waiting on the next stamina pip. */
+  /** How much of the attack cooldown is left, once the swing itself is over: the gap before the next, or the rest after a combo. */
   get attackFrac() {
-    const rest = this.moves.rest ? Math.max(0, this.p.restT) / this.moves.rest : 0;
-    const { regen, delay } = this.moves.ammo;
-    const empty = this.p.ammo < 1 ? Math.min(1, Math.max(0, (regen - this.p.ammoT) / (regen + delay))) : 0;
-    return Math.max(rest, empty);
+    const p = this.p, rest = this.moves.rest * this.pace.rest;
+    const resting = rest ? Math.max(0, p.restT) / rest : 0;
+    const gap = !p.swing && p.atkGap > 0 ? Math.min(1, Math.max(0, p.atkCd) / p.atkGap) : 0;
+    return Math.max(resting, gap);
   }
-  /** Stamina pips left (shots in the clip, for ranged weapons). */
-  get clip(): { n: number; max: number } { return { n: this.p.ammo, max: this.moves.ammo.max }; }
   get boss(): Enemy | undefined { return this.enemies.find((e) => e.def.boss); }
 
   /** 0 = normal view, 1 = swooped right in on you (the start and end of a regular fight). */
@@ -166,7 +184,7 @@ export class Battle implements FoeWorld, HitWorld {
       return;
     }
     if (this.endT >= 0) {
-      this.endT -= dt;
+      if (!this.holding) this.endT -= dt;
       this.p.moving = false;
       if (this.endT < 0 && !this.done && this.outcome) {
         this.done = true;
@@ -236,15 +254,7 @@ export class Battle implements FoeWorld, HitWorld {
   private updatePlayer(dt: number) {
     const p = this.p, st = this.stats, inp = this.input;
     p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt;
-    p.potionCd -= dt; p.atkBuffer -= dt; p.comboT -= dt; this.runCd -= dt; p.restT -= dt;
-    const clip = this.moves.ammo;
-    if (p.ammo < clip.max) {
-      p.ammoT += dt;
-      if (p.ammoT >= clip.regen) {
-        p.ammoT -= clip.regen;
-        p.ammo++;
-      }
-    }
+    p.potionCd -= dt; p.atkBuffer -= dt; p.comboT -= dt; this.runCd -= dt; p.restT -= dt; p.atkCd -= dt;
     if (p.comboT <= 0 && !p.swing) p.combo = 0;
     if (st.regen && p.hp < st.maxHp) {
       p.regenAcc += st.regen * dt;
@@ -297,11 +307,10 @@ export class Battle implements FoeWorld, HitWorld {
     }
     if (inp.consume('attack')) p.atkBuffer = 0.25;
     const wantAttack = p.atkBuffer > 0 || inp.isHeld('attack');
-    const loaded = p.ammo >= 1;
-    // For the play report: how long you're kept waiting by stamina and the post-combo rest.
-    if (wantAttack && !loaded) this.log.starved += dt;
-    else if (wantAttack && p.restT > 0) this.log.rested += dt;
-    if (wantAttack && this.canStrike() && p.restT <= 0 && loaded && p.dodgeT <= 0 && p.whirlT <= 0) {
+    // For the play report: how long you're kept waiting after a combo, and between strikes.
+    if (wantAttack && p.restT > 0) this.log.rested += dt;
+    else if (wantAttack && p.atkCd > 0) this.log.cooling += dt;
+    if (wantAttack && p.atkCd <= 0 && p.restT <= 0 && p.dodgeT <= 0 && p.whirlT <= 0) {
       p.atkBuffer = 0;
       const combo = this.moves.combo;
       const idx = p.combo % combo.length;
@@ -309,16 +318,9 @@ export class Battle implements FoeWorld, HitWorld {
       this.startSwing(combo[idx], false, idx === combo.length - 1);
     }
     // Skills cancel whatever swing is in progress, so they always come out when pressed.
-    if (inp.consume('skill') && p.skillCd <= 0 && p.dodgeT <= 0 && p.whirlT <= 0) this.skill();
+    if (inp.consume('skill') && this.skillNow && p.skillCd <= 0 && p.dodgeT <= 0 && p.whirlT <= 0) this.skill(this.skillNow);
     if (inp.consume('potion')) this.drinkPotion();
     if (inp.consume('run')) this.tryRun();
-  }
-
-  /** You can chain into the next strike once the current one is into its recovery. */
-  private canStrike() {
-    const sw = this.p.swing;
-    if (!sw) return true;
-    return sw.t >= sw.s.windup + sw.s.active + sw.s.recover * 0.35;
   }
 
   /** The enemy almost straight ahead of you (within AIM_ASSIST), if any. */
@@ -344,6 +346,9 @@ export class Battle implements FoeWorld, HitWorld {
     const aim = this.aim();
     p.face = aim;
     p.swing = { s, t: 0, aim, id: ++this.hitCounter, prevAng: null, impacted: false, skill, trail: [], finisher: finisher && !skill };
+    // The next strike can start this far in (into this one's recovery, or past it at low handling).
+    p.atkCd = strikeTime(s, this.handling);
+    p.atkGap = Math.max(0, p.atkCd - (s.windup + s.active + s.recover));
     if (!skill) this.log.swings++;
     if (finisher && !skill) this.punch = Math.max(this.punch, 0.02);
   }
@@ -372,6 +377,8 @@ export class Battle implements FoeWorld, HitWorld {
         this.lineHit(sw, s.range * this.reach * easeOut(q), s.size * this.reach);
       }
     }
+    // A lash keeps going after the hand stops: the tip snaps over last.
+    if (s.shape === 'lash' && sw.t >= s.windup && sw.t - dt < lashEnd(s)) this.lashHit(sw);
     if (s.shape === 'circle' && !sw.impacted && sw.t >= activeEnd) this.impact(sw);
     // Fire weapons leave a longer blazing trail.
     sw.trail = sw.trail.filter((k) => this.t - k.t < (this.el.hot ? 0.26 : 0.14));
@@ -380,7 +387,7 @@ export class Battle implements FoeWorld, HitWorld {
       p.comboT = this.moves.window;
       // A full combo earns a short breather before the next one.
       if (sw.finisher) {
-        p.restT = this.moves.rest;
+        p.restT = this.moves.rest * this.pace.rest;
         p.combo = 0;
       }
     }
@@ -392,11 +399,6 @@ export class Battle implements FoeWorld, HitWorld {
     this.audio.play(s.shape === 'shot' ? 'shoot' : heavy ? 'heavy' : 'swing');
     if (s.shape === 'shot') {
       for (const off of s.shots ?? [0]) this.shoot(sw.aim + off, s.mult, s.size * (1 + this.tier * 0.06));
-    }
-    if (!sw.skill) {
-      p.ammo = Math.max(0, p.ammo - 1);
-      p.ammoT = -this.moves.ammo.delay;
-      if (p.ammo < 1) this.log.emptied++;
     }
     if (s.lunge) this.fx.burst(p.x, p.y, '#e8dcc8', 5, 60, { size: 3, grav: 0, life: 0.3 });
   }
@@ -436,6 +438,48 @@ export class Battle implements FoeWorld, HitWorld {
     }
   }
 
+  /**
+   * A whip's rope sweeping through the air: anything it touches is hit once, hardest by the tip (a "crack"), lightly by
+   * the rest. The tip cracks audibly as it snaps over, hit or miss.
+   */
+  private lashHit(sw: Swing) {
+    const p = this.p, s = sw.s;
+    const ang = pose(sw, this.reach).ang;
+    const hx = p.x + Math.cos(ang) * 7, hy = p.y - 10 + Math.sin(ang) * 4;
+    const rope = lashRope(sw, this.reach);
+    // How far along the rope each point is, for telling the tip from the rest.
+    const along = [0];
+    for (let i = 1; i < rope.length; i++) along.push(along[i - 1] + Math.hypot(rope[i][0] - rope[i - 1][0], rope[i][1] - rope[i - 1][1]));
+    const total = along[along.length - 1] || 1;
+    const half = (s.size * this.reach) / 2;
+    const [tx, ty] = rope[rope.length - 1];
+    if (!sw.cracked && sw.t >= lashCrackAt(s)) {
+      sw.cracked = true;
+      this.audio.play('crack');
+      this.rings.push({ x: hx + tx, y: hy + ty, r0: 3, r1: 18, t: 0, dur: 0.18, color: '255,255,255', width: 3 });
+    }
+    for (const e of this.enemies) {
+      if (e.dead || e.hitId === sw.id) continue;
+      const ex = e.x - hx, ey = e.y - e.r * 0.6 - hy;
+      let best = Infinity, at = 0;
+      for (let i = 1; i < rope.length; i++) {
+        const [ax, ay] = rope[i - 1], [bx, by] = rope[i];
+        const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1;
+        const k = clamp01(((ex - ax) * dx + (ey - ay) * dy) / l2);
+        const d = Math.hypot(ex - ax - dx * k, ey - ay - dy * k);
+        if (d < best) { best = d; at = along[i - 1] + Math.sqrt(l2) * k; }
+      }
+      if (best > half + e.r) continue;
+      e.hitId = sw.id;
+      const tip = at >= total * (1 - (s.tip ?? 0.3));
+      this.hitEnemy(e, tip ? s.mult : s.mult * (s.graze ?? 0.5), Math.atan2(ey, ex), tip ? s.kb : s.kb * 0.4, tip ? s.stun ?? 0 : 0, sw.id, tip ? s.hitstop : 0.02);
+      if (tip) {
+        this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Crack!', '#ffe07a', 14);
+        this.fx.burst(hx + tx, hy + ty, '#ffffff', 6, 160, { size: 2.5, star: true, life: 0.3 });
+      }
+    }
+  }
+
   /** Hammer impact: damage ring at the head, dust, cracks and a traveling shockwave. */
   private impact(sw: Swing) {
     sw.impacted = true;
@@ -469,10 +513,10 @@ export class Battle implements FoeWorld, HitWorld {
     }
     if (sw.skill) {
       // Quake: shockwaves burst out in every direction.
-      const q = SKILL_DATA.quake.waves;
-      for (let i = 0; i < q.count; i++) {
-        const dir = sw.aim + (i / q.count) * TAU;
-        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: q.mult, id: ++this.hitCounter, spikeAt: 0 });
+      const q = SKILL_DATA.quake.waves, n = this.skillNow?.count ?? q.count;
+      for (let i = 0; i < n; i++) {
+        const dir = sw.aim + (i / n) * TAU;
+        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: this.skillNow?.sub ?? q.mult, id: ++this.hitCounter, spikeAt: 0 });
       }
     }
   }
@@ -526,7 +570,7 @@ export class Battle implements FoeWorld, HitWorld {
       f.tick = 0.4;
       for (const e of this.enemies) {
         if (e.dead || Math.hypot(e.x - f.x, (e.y - f.y) * 1.4) > f.r + e.r * 0.7) continue;
-        const { dmg } = calcDamage(this.stats.atk, e.dfn, 0.15, 0);
+        const { dmg } = calcDamage(this.stats.atk, e.dfn, 0.15 * this.edge(e), 0);
         e.hp -= dmg;
         this.log.dealt += dmg;
         e.flash = 0.05;
@@ -541,9 +585,9 @@ export class Battle implements FoeWorld, HitWorld {
     this.zaps = this.zaps.filter((z) => z.t < 0.18);
   }
 
-  private skill() {
+  private skill(r: SkillRank) {
     const p = this.p;
-    p.skillCd = SKILL_CD;
+    p.skillCd = r.cd;
     this.log.skills++;
     p.swing = null;
     this.audio.play('skill');
@@ -551,8 +595,8 @@ export class Battle implements FoeWorld, HitWorld {
     const col = this.el.colors;
     switch (this.moves.skill) {
       case 'spin':
-        this.startSwing(SKILL_DATA.spin, true, true);
-        this.rings.push({ x: p.x, y: p.y - 10, r0: 20, r1: SKILL_DATA.spin.range * this.reach, t: 0, dur: 0.35, color: '255,255,200' });
+        this.startSwing({ ...SKILL_DATA.spin, mult: r.mult, range: SKILL_DATA.spin.range * r.size, stun: r.stun }, true, true);
+        this.rings.push({ x: p.x, y: p.y - 10, r0: 20, r1: SKILL_DATA.spin.range * r.size * this.reach, t: 0, dur: 0.35, color: '255,255,200' });
         if (this.el.hot) {
           for (let i = 0; i < 16; i++) {
             const a = (i / 16) * TAU;
@@ -566,10 +610,10 @@ export class Battle implements FoeWorld, HitWorld {
         p.whirlAng = ang;
         break;
       case 'quake':
-        this.startSwing(SKILL_DATA.quake.strike, true, true);
+        this.startSwing({ ...SKILL_DATA.quake.strike, mult: r.mult, stun: r.stun }, true, true);
         break;
       case 'nova':
-        for (let i = 0; i < SKILL_DATA.nova.shots; i++) this.shoot(ang + (i / SKILL_DATA.nova.shots) * TAU, SKILL_DATA.nova.mult, SKILL_DATA.nova.size);
+        for (let i = 0; i < r.count; i++) this.shoot(ang + (i / r.count) * TAU, r.sub, SKILL_DATA.nova.size);
         this.rings.push({ x: p.x, y: p.y - 10, r0: 10, r1: 70, t: 0, dur: 0.3, color: '160,230,255' });
         break;
     }
@@ -584,11 +628,11 @@ export class Battle implements FoeWorld, HitWorld {
     if (p.whirlTick <= 0) {
       p.whirlTick = SKILL_DATA.whirl.tick;
       const id = ++this.hitCounter;
-      const range = SKILL_DATA.whirl.radius * this.reach;
+      const range = this.whirlRange;
       for (const e of this.enemies) {
         if (e.dead) continue;
         if (Math.hypot(e.x - p.x, e.y - e.r * 0.6 - (p.y - 10)) - e.r > range) continue;
-        this.hitEnemy(e, SKILL_DATA.whirl.mult, Math.atan2(e.y - p.y, e.x - p.x), 160, 0.1, id, 0.02);
+        this.hitEnemy(e, this.skillNow?.sub ?? 0, Math.atan2(e.y - p.y, e.x - p.x), 160, 0.1, id, 0.02);
       }
       this.audio.play('swing');
     }
@@ -645,7 +689,7 @@ export class Battle implements FoeWorld, HitWorld {
     this.hits++;
     const st = this.stats;
     const critChance = 0.08 + st.luck * 0.2 + (this.el.crit ?? 0);
-    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult, critChance);
+    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult * this.edge(e), critChance);
     e.hp -= dmg;
     this.log.hits++;
     this.log.dealt += dmg;
@@ -680,7 +724,7 @@ export class Battle implements FoeWorld, HitWorld {
       if (d < bd) { bd = d; best = o; }
     }
     if (!best) return;
-    const { dmg } = calcDamage(this.stats.atk, best.dfn, 0.5, 0);
+    const { dmg } = calcDamage(this.stats.atk, best.dfn, 0.5 * this.edge(best), 0);
     best.hp -= dmg;
     best.flash = 0.1;
     this.log.dealt += dmg;
@@ -697,7 +741,7 @@ export class Battle implements FoeWorld, HitWorld {
     for (const o of this.enemies) {
       if (o === skip || o.dead) continue;
       if (Math.hypot(o.x - x, o.y - y) > 55 + o.r) continue;
-      const { dmg } = calcDamage(this.stats.atk, o.dfn, 0.5, 0);
+      const { dmg } = calcDamage(this.stats.atk, o.dfn, 0.5 * this.edge(o), 0);
       o.hp -= dmg;
       this.log.dealt += dmg;
       o.flash = 0.1;
@@ -724,14 +768,18 @@ export class Battle implements FoeWorld, HitWorld {
     const d = rollDrops(e.def, this.stats.luck, e.golden);
     cloverPity(this.save, e.def, d);
     mergeDrops(this.drops, d);
-    let i = 0;
-    for (const m in d) this.fx.text(e.x + (i++ - 0.5) * 18, e.y - e.r * 2.6, MATS[m as MatId].icon, '#fff', 18);
+    this.dropped.push({ x: e.x, y: e.y - e.r * 0.8, floor: e.y, drops: d });
     if (e.def.boss) {
       for (const m of this.enemies) if (m.minion && !m.dead) this.kill(m);
       this.shake = 20;
       this.audio.play('boom');
       for (let k = 0; k < 4; k++) this.fx.burst(e.x + rand(-40, 40), e.y - rand(20, 90), '#ffb03a', 20, 220, { size: 6 });
     }
+  }
+
+  /** Your hits on this monster, for the level gap between you. */
+  private edge(e: Enemy) {
+    return levelEdge(this.stats.lv, e.lv);
   }
 
   /** `by` says what hit you ("monster:contact|shot|hazard"), for the play report. */
@@ -770,8 +818,15 @@ export class Battle implements FoeWorld, HitWorld {
       this.audio.play('lose');
       this.finish({ result: 'lose', hp: 0, xp: 0, drops: {}, defeated: this.defeated, log: this.log }, 1.4);
     } else if (this.enemies.every((e) => e.dead)) {
-      this.audio.play('victory');
+      // Regular wins get a quick bell so the XP fill that follows is heard; guardians and story fights the full jingle.
+      this.audio.play(this.onWin ? 'win' : 'victory');
       this.finish({ result: 'win', hp: this.p.hp, xp: this.xp, drops: this.drops, defeated: this.defeated, log: this.log }, 1.1);
+      if (this.onWin && this.outcome) {
+        // Just the swoop in is left once the rewards are shown.
+        this.endT = ZOOM_T + 0.05;
+        this.holding = true;
+        void this.onWin(this.outcome).finally(() => (this.holding = false));
+      }
     }
   }
 

@@ -1,12 +1,16 @@
 // What happens when you press the action button next to something on the map: one handler per kind of object.
 import { MONSTERS, ZONES, zoneById } from '../data';
-import { playerStats, potionRefill } from '../rules';
+import { hasMats, playerStats, potionRefill, spend } from '../rules';
+import { BRIDGE_COST } from '../data';
+import { logEvent } from '../stats';
+import { costChips } from '../ui';
 import { has } from '../unlocks';
 import type { ObjKind, WorldObj } from '../world';
 import { G, menuCtx, paused, persist, syncWorld } from './context';
 import { challengeFoe, startBattle } from './fights';
 import { tryGather } from './gathering';
 import { progressQuests, talkToElder } from './story';
+import { openSawmill, sawmillBuilt } from './stories/bram';
 
 /** Opens the menu with the world waiting behind it. */
 function openMenu(...args: Parameters<typeof G.ui.openMenu>) {
@@ -28,7 +32,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
       if (!has(s, 'village')) return G.ui.toast('🏚 The old forge has fallen to pieces. Maybe someone in the village knows how to fix it…');
       return openMenu(menuCtx(), 'village', 'forge');
     }
-    if (!has(s, 'forge')) return G.ui.toast('🔒 The forge is cold. Elder Bloom will light it when you are ready.');
+    if (!has(s, 'forge')) return G.ui.toast('🔒 The forge is cold. Elder Oswin will light it when you are ready.');
     openMenu(menuCtx(true), 'forge');
   },
 
@@ -40,13 +44,14 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
       G.ui.toast('🏕 Your cozy tent. You feel rested!');
       return persist();
     }
+    // Bram's Sawmill, once it's built: his bench, logs in and planks out.
+    if (o.project === 'sawmill' && sawmillBuilt()) return openSawmill();
     openMenu(menuCtx(), 'village', o.project);
   },
 
   elder: () => talkToElder(),
 
   async pickup() {
-    G.audio.play('levelup');
     await paused(() => G.ui.itemFound('twig', 'Twig Sword', "It's just a stick… but it feels right in your hand."));
     G.save.flags.push('sword');
     syncWorld();
@@ -84,11 +89,47 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     persist();
   },
 
+  async statue(o) {
+    await paused(() => G.ui.message(o.id === 'king' ? '👑 An old statue' : '🌾 Veyra, the Sower', o.text ?? ''));
+  },
+
   async sign(o) {
     await paused(() => G.ui.message('📜 Sign', o.text ?? ''));
   },
 
   node: (o) => tryGather(o),
+
+  /** Bram's Bridge over the Woods creek: a shortcut up to the old camp, built from planks. */
+  async bridge() {
+    const s = G.save;
+    if (s.flags.includes('bridge:woods')) return;
+    if (s.build.sawmill < 1) {
+      await paused(() => G.ui.message('🌊 A little creek', 'It cuts right across the old way up to the logging camp. A few planks would bridge it, if only someone in the valley could saw them.'));
+      return;
+    }
+    G.mode = 'dialog';
+    const r = await G.ui.dialog(
+      `<div class="big" style="font-size:24px">🌉 Bram's Bridge</div>
+       <p>Bridge the creek: a shortcut from the west gate straight up to the old logging camp.</p>
+       <div class="chips">${costChips(s, BRIDGE_COST)}</div>`,
+      [['no', 'Not yet'], ['yes', 'Build it!', 'alt']],
+    );
+    G.input.reset();
+    G.mode = 'world';
+    if (r !== 'yes' || !hasMats(s, BRIDGE_COST)) return;
+    spend(s, BRIDGE_COST);
+    s.flags.push('bridge:woods');
+    logEvent(s, { kind: 'build', id: 'bridge', lv: 1 });
+    syncWorld();
+    persist();
+    G.audio.play('craft');
+    G.ui.toast("🌉 Bram's Bridge is built! A shortcut to the old camp.", 3200);
+  },
+
+  /** A story character: whatever they have to say. */
+  async npc(o) {
+    await G.over.actors.get(o.id!)?.talk?.();
+  },
 
   async lair() {
     const s = G.save;

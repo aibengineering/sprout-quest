@@ -1,4 +1,7 @@
+import { slotKey, storageFrozen } from './slots';
 import { VERSION } from './version';
+import type { MealId } from './kitchen';
+import type { SawState } from './sawmill';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
 export interface SaveState {
@@ -47,9 +50,24 @@ export interface SaveState {
   flags: string[];
   /** The newest version whose patch notes you've read (older than VERSION shows a "new" dot on them). */
   seenVersion: string;
+  /** Side stories: how far through each one you are (see game/stories.ts; missing = not started). */
+  stories: Record<string, number>;
+  /** Lasting upgrades earned from side stories (e.g. 'trailboots'). */
+  perks: string[];
+  /** The meal you last ate at Granny's and how much of it is left (fights, seconds on the map, or chops; see kitchen.ts). */
+  meal: { id: MealId; left: number } | null;
+  /** Bram's Sawmill: planks queued, ready to collect, and when the current one was started (see sawmill.ts). */
+  sawmill?: SawState;
+  /** Set once the Forge has its five levels (older saves had three: Smithy was ★★★–★★★★, Master Forge the third). */
+  forgeLevels?: 5;
+  /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */
+  echoQueen?: true;
+  /** Recipes you've seen in the Forge; ones revealed since show as new (missing: everything revealed counts as seen). */
+  forgeSeen?: string[];
 }
 
-const KEY = 'sprout-quest-save';
+/** Where the save lives (see slots.ts). */
+export const SAVE_KEY = 'sprout-quest-save';
 
 export function newState(): SaveState {
   const mats = Object.fromEntries(MAT_ORDER.map((m) => [m, 0])) as Record<MatId, number>;
@@ -73,7 +91,7 @@ export function newState(): SaveState {
     talked: false,
     crafted: 0,
     bosses: [],
-    build: { home: 1, forge: 0, garden: 0, training: 0, warp: 0 },
+    build: { home: 1, forge: 0, garden: 0, training: 0, warp: 0, sawmill: 0 },
     camps: [],
     respawn: 'glade',
     unlocked: [],
@@ -88,12 +106,18 @@ export function newState(): SaveState {
     flags: [],
     // A new adventure has nothing to catch up on.
     seenVersion: VERSION,
+    echoQueen: true,
+    stories: {},
+    perks: [],
+    meal: null,
+    forgeSeen: [],
+    forgeLevels: 5,
   };
 }
 
 export function loadState(): SaveState | null {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(slotKey(SAVE_KEY));
     if (!raw) return null;
     const data = JSON.parse(raw) as Partial<SaveState>;
     if (data.version !== 1) return null;
@@ -132,6 +156,25 @@ export function loadState(): SaveState | null {
       merged.crafted = Math.max(0, merged.owned.length - 2);
       if ((data.bossWins ?? 0) > 0) merged.bosses = ['dragon'];
     }
+    // The Forge went from three levels to five (one per tier): nobody loses recipes they could make.
+    if (data.forgeLevels === undefined) {
+      merged.build.forge = [0, 1, 4, 5][merged.build.forge] ?? merged.build.forge;
+      merged.forgeLevels = 5;
+    }
+    // Elder Oswin hands over his old axe and pick on arrival (older saves reached Sowerby before he did).
+    if (merged.flags.includes('village') && !merged.flags.includes('oldtools')) merged.flags.push('oldtools');
+    // The Echo Queen now guards Glimmer Hollow, with her own quest before it. Saves already past that point skip her
+    // (she's counted as beaten, her campfire lit) and keep their place in the story; others meet her on the way.
+    if (data.echoQueen === undefined) {
+      const at = QUESTS.findIndex((q) => q.id === 'echoqueen');
+      const beyond = merged.visited.includes('hollow') || merged.quest > at;
+      if (merged.quest >= at && beyond) merged.quest++;
+      if (beyond && !merged.bosses.includes('echoqueen')) {
+        merged.bosses.push('echoqueen');
+        if (!merged.camps.includes('hollow')) merged.camps.push('hollow');
+      }
+      merged.echoQueen = true;
+    }
     // Saves from before patch notes existed were made on 0.1.0.
     if (data.seenVersion === undefined) merged.seenVersion = '0.1.0';
     return merged;
@@ -160,8 +203,9 @@ function migrateToTracks(s: SaveState) {
 }
 
 export function saveState(s: SaveState): void {
+  if (storageFrozen()) return;
   try {
-    localStorage.setItem(KEY, JSON.stringify(s));
+    localStorage.setItem(slotKey(SAVE_KEY), JSON.stringify(s));
   } catch {
     // Storage full or disabled (private mode) — the game still runs, it just won't persist.
   }
@@ -169,7 +213,7 @@ export function saveState(s: SaveState): void {
 
 export function clearState(): void {
   try {
-    localStorage.removeItem(KEY);
+    localStorage.removeItem(slotKey(SAVE_KEY));
   } catch {
     // ignore
   }

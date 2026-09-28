@@ -1,15 +1,19 @@
 // Where the waypoint arrow points for the current goal.
-import { GEAR, GEAR_ORDER, NODES, PROJECTS, ZONES, forgeLevelFor, zoneById, type MatId, type Recipe } from '../data';
+import { GEAR, GEAR_ORDER, NODES, PROJECTS, TOOLS, ZONES, forgeLevelFor, zoneById, type MatId, type Recipe } from '../data';
 import { currentQuest } from '../quests';
-import { canGather, missingSkill } from '../rules';
+import { canGather, hasMats, missingSkill } from '../rules';
 import { has } from '../unlocks';
 import type { WorldObj } from '../world';
 import { G } from './context';
+import { storyTarget } from './stories';
 
 /** The spot in front of an object, where you actually stand to use it. */
 const front = (o?: { x: number; y: number; w: number; h: number }) => (o ? { x: o.x + o.w / 2, y: o.y + o.h + 0.7 } : null);
 
 export function objective(): { x: number; y: number } | null {
+  // A side story you're in the middle of leads the way.
+  const side = storyTarget();
+  if (side) return side;
   const s = G.save, w = G.world;
   const q = currentQuest(s);
   if (!q) return null;
@@ -43,6 +47,10 @@ export function objective(): { x: number; y: number } | null {
       // The guardian stands on the path just west of its gate.
       return gate ? { x: gate.x - 0.8, y: gate.y + 2.6 } : null;
     }
+    case 'mend':
+      // Enough for a tool: mend it in the Bag, no need to go anywhere. Otherwise off to the monsters.
+      if (TOOLS.some((t) => t.tier === 1 && s.tools[t.skill] < 1 && hasMats(s, t.recipe))) return null;
+    // falls through
     case 'mats':
     case 'kills': {
       // Outside the zone: head for its entrance. Inside: the nearest node for gathered materials, else a monster.
@@ -68,7 +76,8 @@ function gatherPointer(cost: Recipe): { x: number; y: number } | null {
   if (!mat) return null;
   const n = Object.values(NODES).find((n) => n.mat === mat)!;
   const forge = G.world.obj('forge')!;
-  if (s.tools[n.skill] < n.tier) return has(s, 'forge') ? { x: forge.x + forge.w / 2, y: forge.y + forge.h + 0.7 } : null;
+  // No tool for it yet: the first axe and pick are mended in the Bag (nowhere to walk to); later ones come from the Forge.
+  if (s.tools[n.skill] < n.tier) return n.tier > 1 && has(s, 'forge') ? { x: forge.x + forge.w / 2, y: forge.y + forge.h + 0.7 } : null;
   const node = nearestNode(mat);
   return node ? { x: node.x + node.w / 2, y: node.y + node.h + 0.5 } : null;
 }

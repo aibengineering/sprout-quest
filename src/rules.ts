@@ -1,10 +1,13 @@
 // Pure game rules: stats, damage, leveling, drops and crafting. No DOM access, so it's unit-testable.
 import { GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MAX_POTIONS, NODES, POTION_RECIPES, PROJECTS, SKILL_MAX, SLOW_TOOL, TOOLS, forgeLevelFor, type Gear, type Tool, type MatId, type MonsterDef, type NodeKind, type ProjectId, type Recipe, type SkillId, type Style } from './data';
 import type { SaveState } from './state';
+import { has, type UnlockId } from './unlocks';
 
 export type Rng = () => number;
 
 export interface PlayerStats {
+  /** Your level (for the level gap in fights). */
+  lv: number;
   maxHp: number;
   atk: number;
   def: number;
@@ -24,6 +27,7 @@ export function playerStats(s: SaveState): PlayerStats {
   const sum = (k: 'atk' | 'def' | 'hp' | 'spd' | 'luck' | 'regen') => gear.reduce((a, g) => a + (g[k] ?? 0), 0);
   const home = s.build?.home ?? 1, training = s.build?.training ?? 0;
   return {
+    lv: s.lv,
     maxHp: Math.round((24 + 6 * s.lv + sum('hp')) * (1 + 0.1 * (home - 1))),
     atk: Math.round((Math.round(2 + 1.5 * s.lv) + sum('atk')) * (1 + 0.05 * training)),
     def: Math.floor(s.lv * 0.8) + sum('def'),
@@ -33,6 +37,20 @@ export function playerStats(s: SaveState): PlayerStats {
     style: GEAR[s.equip.weapon]?.style ?? 'sword',
   };
 }
+
+/**
+ * The level gap in a fight: each level the attacker has over the defender makes its hits land 8% harder, and each level
+ * under, 8% softer, between 0.6× and 1.6×. At your level, fights take a real exchange; outlevel an area and its
+ * monsters go down in a few swings and barely scratch you; wander in underlevelled and it's the other way round.
+ */
+export const LEVEL_EDGE = 0.08;
+export const levelEdge = (attackerLv: number, defenderLv: number) => Math.min(1.6, Math.max(0.6, 1 + LEVEL_EDGE * (attackerLv - defenderLv)));
+
+/** Monsters are tougher than their listed HP: regular ones take a handful of swings at your level, guardians a long fight. */
+export const MONSTER_HP = 1.7;
+export const GUARDIAN_HP = 1.35;
+/** …and give a bit more XP for it, so levelling takes about as long as before. */
+export const MONSTER_XP = 1.25;
 
 export function calcDamage(atk: number, def: number, mult: number, critChance: number, rng: Rng = Math.random) {
   const base = ((atk * atk) / (atk + def + 0.001)) * mult;
@@ -47,10 +65,10 @@ export function scaleMonster(m: MonsterDef, lv: number, golden: boolean): Scaled
   const k = Math.max(0.6, 1 + 0.15 * (lv - m.lv));
   const g = golden ? 1.5 : 1;
   return {
-    hp: Math.round(m.hp * k * g),
+    hp: Math.round(m.hp * k * g * (m.boss ? GUARDIAN_HP : MONSTER_HP)),
     atk: Math.round(m.atk * k),
     def: Math.round(m.def * k),
-    xp: Math.round(m.xp * k * (golden ? 2 : 1)),
+    xp: Math.round(m.xp * k * (golden ? 2 : 1) * MONSTER_XP),
   };
 }
 
@@ -91,8 +109,12 @@ export function mergeDrops(into: Partial<Record<MatId, number>>, add: Partial<Re
   return into;
 }
 
-/** Adds XP, applying level ups. Returns how many levels were gained. Level ups fully heal. */
+/**
+ * Adds XP, applying level ups. Returns how many levels were gained. A level up raises max HP and adds the same to your
+ * HP, but doesn't heal what you'd already lost (rest at the Spring or a campfire for that).
+ */
 export function gainXp(s: SaveState, amount: number): number {
+  const before = playerStats(s).maxHp;
   s.xp += amount;
   let gained = 0;
   while (s.xp >= xpToNext(s.lv)) {
@@ -100,7 +122,10 @@ export function gainXp(s: SaveState, amount: number): number {
     s.lv++;
     gained++;
   }
-  if (gained) s.hp = playerStats(s).maxHp;
+  if (gained) {
+    const after = playerStats(s).maxHp;
+    s.hp = Math.min(after, s.hp + (after - before));
+  }
   return gained;
 }
 
@@ -108,20 +133,32 @@ export function hasMats(s: SaveState, recipe: Recipe): boolean {
   return Object.entries(recipe).every(([m, n]) => s.mats[m as MatId] >= (n ?? 0));
 }
 
-function spend(s: SaveState, recipe: Recipe) {
+export function spend(s: SaveState, recipe: Recipe) {
   for (const [m, n] of Object.entries(recipe)) s.mats[m as MatId] -= n ?? 0;
 }
 
-export type CraftResult = 'ok' | 'owned' | 'missing' | 'full' | 'unknown' | 'forge' | 'maxed' | 'skill' | 'mastery';
+export type CraftResult = 'ok' | 'owned' | 'missing' | 'full' | 'unknown' | 'forge' | 'maxed' | 'skill' | 'mastery' | 'locked';
 
 /** How many potions the fountain tops you up to — grows with the Garden. */
 export function potionRefill(s: SaveState): number {
   return Math.min(MAX_POTIONS, 2 + (s.build?.garden ?? 0));
 }
 
+/** The unlock that opens a project's plot: the Garden and Training Yard after the Slime King, the Waystone after the Alpha Woolf. */
+export const PLOT_UNLOCK: Partial<Record<ProjectId, UnlockId>> = { garden: 'plots', training: 'plots', warp: 'warpplot', sawmill: 'sawmill' };
+
+/** Whether a project's plot is open (on the map and in the building plans). Anything already built stays open. */
+export const plotOpen = (s: SaveState, id: ProjectId) => {
+  // Bram's Sawmill opens the moment he's moved in (the unlock card follows).
+  if (id === 'sawmill') return s.flags.includes('bram:home') || s.build.sawmill > 0;
+  const u = PLOT_UNLOCK[id];
+  return !u || has(s, u) || s.build[id] > 0;
+};
+
 export function canBuild(s: SaveState, id: ProjectId): CraftResult {
   const p = PROJECTS[id];
   const lv = s.build[id];
+  if (!plotOpen(s, id)) return 'locked';
   if (lv >= p.levels.length) return 'maxed';
   return hasMats(s, p.levels[lv].cost) ? 'ok' : 'missing';
 }
@@ -207,10 +244,15 @@ export function gainSkillXp(s: SaveState, skill: SkillId, amount: number): numbe
   return gained;
 }
 
+/** Elder Oswin's old axe and pick, given when you reach Sowerby: mended in your Bag rather than crafted. */
+export const hasOldTools = (s: SaveState) => s.flags.includes('oldtools');
+
+/** Crafts a tool at the Forge, or (the first axe and pick) mends Elder Oswin's old one. */
 export function craftTool(s: SaveState, id: string): CraftResult {
   const t = TOOLS.find((t) => t.id === id);
   if (!t) return 'unknown';
   if (s.tools[t.skill] >= t.tier) return 'owned';
+  if (t.tier === 1 && !hasOldTools(s)) return 'unknown';
   if (s.skills[t.skill].lv < t.level) return 'skill';
   if (!hasMats(s, t.recipe)) return 'missing';
   spend(s, t.recipe);

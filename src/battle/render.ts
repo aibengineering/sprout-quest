@@ -1,16 +1,19 @@
 // Draws a fight: the clearing, telegraphs, fighters, shots and effects, and the overlay text. Reads the battle's
 // state and never changes the simulation (it only adds cosmetic particles).
 import { ARENA_RX, ARENA_RY } from '../arena';
-import { drawFrame, drawHero as drawHeroSprite, frame } from '../assets';
+import { drawFrame, drawHero as drawHeroSprite, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from '../assets';
+import { handOf, hasModel, type Held } from '../models';
 import { GEAR, type ZoneId } from '../data';
 import { drawMonster, drawPlayer, drawWeapon, rrect, shadow } from '../sprites';
 import { SKILL_DATA } from '../weapons';
 import { hash2 } from '../world';
 import type { Battle } from './battle';
+import { drawBubble } from '../bubble';
+import { Particles } from '../particles';
 import { BURN_COLOR, ELEMENTS } from './elements';
 import { MONSTER_AI, spriteScale } from './monsters';
-import { pose } from './pose';
-import { TAU, UNIT, ZOOM, ZOOM_T, clamp01, easeOut, rand, type Enemy, type Spark, type Spike, type Swing } from './types';
+import { lashCrackAt, lashRope, pose } from './pose';
+import { TAU, UNIT, ZOOM, ZOOM_T, clamp01, easeIn, easeOut, rand, type Enemy, type Spark, type Spike, type Swing } from './types';
 
 type Ctx = CanvasRenderingContext2D;
 /** You're drawn a little bigger than your hitbox, like the monsters, so you stand out in the clearing. */
@@ -27,6 +30,26 @@ function layout(vw: number, vh: number) {
   const top = 64;
   const k = Math.min(vw / sw, (vh - top - 8) / sh);
   return { k, cx: vw / 2, cy: top + (vh - top) / 2 };
+}
+
+/** Each fight's loot in flight (screen space), and the fight time it was last drawn at. */
+const looting = new WeakMap<Battle, { fx: Particles; t: number }>();
+
+/**
+ * Monster drops: each defeated monster's materials pop out of it, bounce at its feet, then fly to the loot readout at
+ * the top right (where they're listed when the fight ends).
+ */
+function drawLoot(b: Battle, ctx: Ctx, vw: number, toScreen: (x: number, y: number) => { x: number; y: number }) {
+  let st = looting.get(b);
+  if (!st) looting.set(b, (st = { fx: new Particles(), t: b.t }));
+  for (const d of b.dropped.splice(0)) {
+    const at = toScreen(d.x, d.y), floor = toScreen(d.x, d.floor).y;
+    for (const [id, n] of Object.entries(d.drops)) if (n) st.fx.loot(at.x, at.y, id, Math.min(n, 4), floor);
+  }
+  st.fx.lootTo = { x: vw - 34, y: 96 };
+  st.fx.update(Math.max(0, Math.min(0.1, b.t - st.t)));
+  st.t = b.t;
+  st.fx.draw(ctx);
 }
 
 export function drawBattle(b: Battle, ctx: Ctx, vw: number, vh: number) {
@@ -52,6 +75,7 @@ export function drawBattle(b: Battle, ctx: Ctx, vw: number, vh: number) {
     ctx.fillRect(0, 0, vw, vh);
   }
   drawOverlay(b, ctx, vw, vh);
+  drawLoot(b, ctx, vw, (x, y) => ({ x: cx + sx + (x - b.p.x * q) * k, y: cy + sy + (y - (b.p.y - 20) * q) * k }));
 }
 
 /** Everything that happens on the battlefield: telegraphs, fighters, shots and effects. */
@@ -134,6 +158,16 @@ function drawField(b: Battle, ctx: Ctx) {
     actors.push({ y: e.y, draw: () => drawEnemy(b, ctx, e) });
   }
   for (const s of b.spikes) actors.push({ y: s.y, draw: () => drawSpike(b, ctx, s) });
+  const by = b.setup.bystander;
+  if (by) {
+    // Hiding at the edge of the clearing, trembling a little.
+    const x = -ARENA_RX * 0.78, y = ARENA_RY * 0.52;
+    actors.push({ y, draw: () => {
+      shadow(ctx, x, y, 12);
+      drawWalker(ctx, by.look, x + Math.sin(b.t * 30) * 0.8, y, UNIT * HERO_SCALE * 0.95, Math.PI / 2, false, b.t, {}, 'bystander');
+      drawBubble(ctx, x, y - UNIT * 1.35, by.mood, 26, 1 + b.t);
+    } });
+  }
   actors.push({ y: b.p.y, draw: () => drawHero(b, ctx) });
   actors.sort((a, c) => a.y - c.y);
   for (const a of actors) a.draw();
@@ -366,9 +400,7 @@ function drawAmbient(b: Battle, ctx: Ctx) {
 function drawEnemy(b: Battle, ctx: Ctx, e: Enemy) {
   const ai = MONSTER_AI[e.kind];
   const alpha = e.dead ? Math.max(0, e.deathT / 0.45) : 1;
-  const fi = Math.floor(b.t * (e.def.boss ? 5 : 7) + e.seed) % 6;
-  const f = frame(`mon/${e.kind}${e.golden ? '_gold' : ''}/${fi}`);
-  if (f) {
+  if (monsterReady(e.kind)) {
     shadow(ctx, e.x, e.y, e.r * (ai.flies ? 0.7 : 1.05) * (1 - Math.min(0.4, e.z / 60)));
     let sxk = 1, syk = 1;
     if (e.squash > 0) {
@@ -393,8 +425,8 @@ function drawEnemy(b: Battle, ctx: Ctx, e: Enemy) {
     const pop = popIn(b, e);
     sxk *= pop;
     syk *= pop;
-    drawFrame(ctx, f, e.x + shake, e.y - e.z - (1 - pop) * 14, UNIT * spriteScale(e.kind), {
-      flip: e.face < 0, alpha, sx: sxk, sy: syk,
+    drawMonsterAt(ctx, slotOf(e, 'enemy'), e.kind, e.golden, (b.t * (e.def.boss ? 5 : 7) + e.seed) / 6, e.face < 0, e.x + shake, e.y - e.z - (1 - pop) * 14, UNIT * spriteScale(e.kind), {
+      alpha, sx: sxk, sy: syk,
       // Bosses get hit constantly, so their flash is softer to keep them readable.
       flash: e.flash > 0 || (e.dead && alpha > 0.7) ? (e.def.boss && !e.dead ? 0.45 : 1) : 0,
       tint: e.burn > 0 ? e.dotColor : e.slow > 0 ? '#8af09a' : e.windup > 0.5 ? '#ff4a4a' : undefined,
@@ -603,7 +635,7 @@ function drawHero(b: Battle, ctx: Ctx) {
     ctx.globalAlpha = 0.35;
     ctx.strokeStyle = b.weapon.trail ?? '#fff';
     ctx.lineWidth = 16;
-    const R = SKILL_DATA.whirl.radius * b.reach;
+    const R = b.whirlRange;
     for (let k = 0; k < 3; k++) {
       ctx.beginPath();
       ctx.ellipse(p.x, p.y - 10, R, R * 0.8, 0, ang - 1.4 + (k * TAU) / 3, ang + (k * TAU) / 3);
@@ -617,17 +649,35 @@ function drawHero(b: Battle, ctx: Ctx) {
   const behind = idle ? sinF < -0.5 : Math.sin(ang) < -0.35 && !(sw && sw.s.anim === 'slam' && sw.t > sw.s.windup);
   const wf = frame(`wpn/${b.weapon.id}`);
   const weaponUnit = 34 * b.moves.size * scale;
+  const lashing = style === 'whip' && sw?.s.shape === 'lash';
   const drawW = () => {
     if (style === 'whip') drawLash(b, ctx, handX, handY, ang, sw, idle, side);
-    if (wf) drawFrame(ctx, wf, handX, handY, weaponUnit, { rot: ang, sy: flipY, alpha });
+    // Mid-lash the coils are out as the rope, so only the grip is in your hand.
+    if (lashing) drawGrip(ctx, handX, handY, ang, b.weapon.color ?? '#ccc', alpha);
+    else if (wf) drawFrame(ctx, wf, handX, handY, weaponUnit, { rot: ang, sy: flipY, alpha });
     else drawWeapon(ctx, style === 'whip' ? 'sword' : style, handX, handY, ang, 12 * scale, b.weapon.color ?? '#ccc');
   };
   shadow(ctx, p.x, p.y, 14);
-  if (behind) drawW();
   const armor = b.save.equip.armor;
-  const ok = drawHeroSprite(ctx, armor, p.x, p.y, UNIT * HERO_SCALE, p.face, p.moving && !sw, b.t, {
-    alpha, flash: p.hurtT > 0 ? 0.7 : 0, sx: p.dodgeT > 0 ? 1.2 : 1, sy: p.dodgeT > 0 ? 0.82 : 1,
-  });
+  // In 3D the weapon is in the hero's own hand: the arm turns to follow the swing's angle (the same one the hitboxes
+  // use), hangs down at rest, and rises for the heavy wind-ups (the sprites grew for those).
+  // (Its size stays put: the 2D sprite grew to fake height, the 3D one really goes up.)
+  const held: Held = {
+    id: `wpn_${b.weapon.id}`, at: 'hand', ang, lift: idle ? -1.15 : swingLift(sw),
+    scale: (34 * b.moves.size) / (UNIT * HERO_SCALE),
+  };
+  const heroOpts = { alpha, flash: p.hurtT > 0 ? 0.7 : 0, sx: p.dodgeT > 0 ? 1.2 : 1, sy: p.dodgeT > 0 ? 0.82 : 1 };
+  if (hasModel(`wpn_${b.weapon.id}`) && hasModel(`hero_${armor}`)) {
+    const drawn = drawHeroSprite(ctx, armor, p.x, p.y, UNIT * HERO_SCALE, p.face, p.moving && !sw, b.t, heroOpts, 'hero:battle', held);
+    if (drawn === 'model') {
+      // A whip's rope (or the skill's twirl) starts from the hand you can see.
+      const hand = handOf('hero:battle', UNIT * HERO_SCALE);
+      if (style === 'whip' && hand && !idle) drawLash(b, ctx, p.x + hand.x, p.y + hand.y, ang, sw, false, side);
+      return;
+    }
+  }
+  if (behind) drawW();
+  const ok = drawHeroSprite(ctx, armor, p.x, p.y, UNIT * HERO_SCALE, p.face, p.moving && !sw, b.t, heroOpts, 'hero:battle');
   if (!ok) {
     drawPlayer(ctx, p.x, p.y, 12, {
       t: b.t, moving: p.moving, face: p.face, armor: GEAR[armor]?.color ?? '#6fa8ff', hurt: p.hurtT > 0,
@@ -638,43 +688,140 @@ function drawHero(b: Battle, ctx: Ctx) {
 }
 
 /**
- * A whip's rope: coiled and dangling at rest; during a lash it snaps out to its full reach along the swing, bowed
- * against the direction it's moving so it reads as a crack of the whip.
+ * How high a weapon in the 3D hand points during a swing (radians above the ground; π/2 is straight up). The swing's
+ * angle on the ground comes from pose(); this is the height it doesn't have in 2D. Overhead slams go up behind you,
+ * over the top and down into the ground where the impact lands; slashes stay level; thrusts point a touch up.
+ */
+function swingLift(sw: Swing | null): number {
+  if (!sw) return 0.1;
+  const s = sw.s;
+  const qw = clamp01(sw.t / Math.max(0.001, s.windup));
+  const qa = clamp01((sw.t - s.windup) / s.active);
+  const qr = clamp01((sw.t - s.windup - s.active) / Math.max(0.001, s.recover));
+  switch (s.anim) {
+    case 'slam':
+    case 'chop':
+    case 'backchop': {
+      if (sw.t < s.windup) return 1.3 * easeOut(qw);
+      if (qa < 1) return qa < 0.35 ? 1.3 + (Math.PI / 2 - 1.3) * (qa / 0.35) : Math.PI / 2 - (Math.PI / 2 + 0.8) * easeIn((qa - 0.35) / 0.65);
+      // Head on the ground at the impact, then heaved back up.
+      return -0.8 + 0.7 * easeOut(qr);
+    }
+    case 'thrust':
+    case 'cast':
+      return 0.1;
+    default:
+      return 0.15;
+  }
+}
+
+/** A whip's grip on its own (the rope is drawn by drawLash): a short wrapped handle pointing along the lash. */
+function drawGrip(ctx: Ctx, x: number, y: number, ang: number, color: string, alpha: number) {
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.lineCap = 'round';
+  const ex = x + Math.cos(ang) * 11, ey = y + Math.sin(ang) * 11;
+  for (const [w, c] of [[8, '#3a2448'], [5, '#6a3a4a']] as const) {
+    ctx.strokeStyle = c;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(x - Math.cos(ang) * 3, y - Math.sin(ang) * 3);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+  }
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x - Math.cos(ang) * 4, y - Math.sin(ang) * 4, 3, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * A whip's rope. At rest it hangs coiled at your hip; in a lash it's the rope from lashRope (the same one the hits use),
+ * thick at the grip and fine at the tip, with a streak where the tip has just been and a flash as it cracks.
  */
 function drawLash(b: Battle, ctx: Ctx, hx: number, hy: number, ang: number, sw: Swing | null, idle: boolean, side: number) {
-  let len = 18, bow = 10;
-  let dir = idle ? (side > 0 ? 1.2 : Math.PI - 1.2) : ang;
-  if (sw) {
-    const q = clamp01((sw.t - sw.s.windup) / sw.s.active);
-    const reach = sw.s.range * b.reach;
-    len = sw.t < sw.s.windup ? 22 : 22 + (reach - 22) * easeOut(Math.min(1, q * 1.3)) * (1 - Math.max(0, q - 1) * 0.6);
-    bow = sw.s.shape === 'arc' ? (sw.s.anim === 'slashL' ? -1 : 1) * len * 0.22 : len * 0.06;
-    dir = ang;
-  } else if (b.p.whirlT > 0) {
-    len = SKILL_DATA.whirl.radius * b.reach;
-    bow = len * 0.3;
-  }
-  const ex = hx + Math.cos(dir) * len, ey = hy + Math.sin(dir) * len;
-  const mx = (hx + ex) / 2 - Math.sin(dir) * bow, my = (hy + ey) / 2 + Math.cos(dir) * bow;
+  const col = b.weapon.color ?? '#ccc', tipCol = b.weapon.trail ?? '#fff';
   ctx.save();
   ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(40,20,50,0.55)';
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(hx, hy);
-  ctx.quadraticCurveTo(mx, my, ex, ey);
-  ctx.stroke();
-  ctx.strokeStyle = b.weapon.color ?? '#ccc';
-  ctx.lineWidth = 3.5;
-  ctx.beginPath();
-  ctx.moveTo(hx, hy);
-  ctx.quadraticCurveTo(mx, my, ex, ey);
-  ctx.stroke();
-  // A bright popper at the tip.
-  ctx.fillStyle = b.weapon.trail ?? '#fff';
-  ctx.beginPath();
-  ctx.arc(ex, ey, sw && sw.t > sw.s.windup ? 4 : 2.5, 0, TAU);
-  ctx.fill();
+  ctx.lineJoin = 'round';
+  if (sw && sw.s.shape === 'lash') {
+    const rope = lashRope(sw, b.reach);
+    // Where the tip was a moment ago: a fading streak behind it.
+    const streak = [0.045, 0.03, 0.015].map((dt) => {
+      const r = lashRope({ ...sw, t: Math.max(0, sw.t - dt) }, b.reach);
+      return r[r.length - 1];
+    });
+    const [tx, ty] = rope[rope.length - 1];
+    ctx.strokeStyle = `${tipCol}`;
+    for (let k = 0; k < streak.length; k++) {
+      const [sx, sy] = streak[k], [nx, ny] = k + 1 < streak.length ? streak[k + 1] : [tx, ty];
+      ctx.globalAlpha = 0.15 + k * 0.15;
+      ctx.lineWidth = 2 + k;
+      ctx.beginPath();
+      ctx.moveTo(hx + sx, hy + sy);
+      ctx.lineTo(hx + nx, hy + ny);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    // The rope, tapering from the grip to the tip: a dark outline under the colour.
+    for (const [w, c] of [[2.6, 'rgba(40,20,50,0.6)'], [0, col]] as const) {
+      ctx.strokeStyle = c;
+      for (let i = 1; i < rope.length; i++) {
+        const f = 1 - i / rope.length;
+        ctx.lineWidth = 1.6 + 3.4 * f + w;
+        ctx.beginPath();
+        ctx.moveTo(hx + rope[i - 1][0], hy + rope[i - 1][1]);
+        ctx.lineTo(hx + rope[i][0], hy + rope[i][1]);
+        ctx.stroke();
+      }
+    }
+    // The popper at the tip, bright as it cracks.
+    const crack = lashCrackAt(sw.s), hot = Math.max(0, 1 - Math.abs(sw.t - crack) / 0.05);
+    if (hot) {
+      ctx.globalAlpha = hot;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(hx + tx, hy + ty, 7, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = tipCol;
+    ctx.beginPath();
+    ctx.arc(hx + tx, hy + ty, 3.2, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  // The skill's twirl: a wide loop around you.
+  if (b.p.whirlT > 0) {
+    const len = b.whirlRange, bow = len * 0.3;
+    const ex = hx + Math.cos(ang) * len, ey = hy + Math.sin(ang) * len;
+    const mx = (hx + ex) / 2 - Math.sin(ang) * bow, my = (hy + ey) / 2 + Math.cos(ang) * bow;
+    for (const [w, c] of [[6, 'rgba(40,20,50,0.55)'], [3.5, col]] as const) {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      ctx.quadraticCurveTo(mx, my, ex, ey);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
+  // At rest: a couple of loops hanging from the grip at your hip, swaying a little.
+  if (idle) {
+    const sway = Math.sin(b.t * 2.4) * 1.5;
+    for (const [w, c] of [[5.5, 'rgba(40,20,50,0.55)'], [3, col]] as const) {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = w;
+      for (let k = 0; k < 2; k++) {
+        ctx.beginPath();
+        ctx.ellipse(hx + side * (4 + k * 2) + sway, hy + 8 + k * 3, 6 - k, 9 - k * 2, side * 0.3, 0, TAU);
+        ctx.stroke();
+      }
+    }
+  }
   ctx.restore();
 }
 

@@ -8,6 +8,7 @@ import { Overworld } from '../overworld';
 import { loadState, newState, saveState, type SaveState } from '../state';
 import type { UI } from '../ui';
 import { has } from '../unlocks';
+import { plotOpen } from '../rules';
 import { World } from '../world';
 
 /**
@@ -86,7 +87,7 @@ export function menuCtx(atForge = false) {
 
 export function showZoneBanner(z: Zone) {
   const s = G.save;
-  const sub = z.id === 'village' ? 'Safe · Home of Elder Bloom' : z.id === 'glade' ? 'A peaceful clearing' : `Monsters Lv ${z.lv[0]}–${z.lv[1]}${s.lv < z.rec ? ' · ⚠️ Dangerous!' : ''}`;
+  const sub = z.id === 'village' ? 'Safe · Home of Elder Oswin' : z.id === 'glade' ? 'A peaceful clearing' : `Monsters Lv ${z.lv[0]}–${z.lv[1]}${s.lv < z.rec ? ' · ⚠️ Dangerous!' : ''}`;
   G.ui.banner(z.name, sub);
   if (!s.visited.includes(z.id)) {
     s.visited.push(z.id);
@@ -97,17 +98,23 @@ export function showZoneBanner(z: Zone) {
 /** Opens gates whose guardians are beaten, lights campfires and reveals building plots as they unlock. */
 export function syncWorld() {
   const s = G.save;
+  G.world.setBridge(s.flags.includes('bridge:woods'));
   for (const o of G.world.objs) {
     const z = o.zone ? zoneById(o.zone) : null;
     if (o.kind === 'gate' && z?.guardian) o.hidden = s.bosses.includes(z.guardian.kind);
     if (o.kind === 'camp') o.hidden = !s.camps.includes(o.zone!);
     if (o.kind === 'plot') {
-      if (o.project === 'garden' || o.project === 'training') o.hidden = !has(s, 'plots');
-      if (o.project === 'warp') o.hidden = !has(s, 'warpplot');
+      o.hidden = !plotOpen(s, o.project!);
       if (o.project === 'home') o.label = has(s, 'village') ? 'Build' : 'Rest';
+      if (o.project === 'sawmill') o.label = s.build.sawmill ? 'Sawmill' : 'Build';
     }
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);
+    if (o.kind === 'bridge') o.hidden = s.flags.includes('bridge:woods');
+    // Bram's cabin goes up at the end of his story.
+    if (o.kind === 'prop' && o.id === 'bramhut') o.hidden = !s.flags.includes('bram:hut');
+    // A story's monsters are only there at their step.
+    if (o.story) o.hidden ||= (s.stories[o.story.id] ?? 0) !== o.story.step;
   }
 }
 

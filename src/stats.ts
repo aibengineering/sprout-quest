@@ -1,10 +1,12 @@
 // Play report: a log of every fight, gather, level-up, craft and story step, plus time spent per area and activity,
 // kept in their own localStorage entries (so they never bloat the save) and exportable from the More tab.
 import { GEAR, NODES, TOOLS } from './data';
+import { slotKey, storageFrozen } from './slots';
 import type { SaveState } from './state';
 
-const KEY = 'sprout-quest-log';
-const TIME_KEY = 'sprout-quest-time';
+/** Where the log and time split live (per save slot, see slots.ts). */
+export const LOG_KEY = 'sprout-quest-log';
+export const TIME_KEY = 'sprout-quest-time';
 /** Oldest events are dropped past this, to keep storage small. */
 const MAX_EVENTS = 6000;
 
@@ -13,8 +15,8 @@ export type LogEvent =
       kind: 'fight'; zone: string; foes: string[]; boss: boolean; ambush: boolean; result: 'win' | 'lose' | 'run';
       seconds: number; swings: number; hits: number; crits: number; skills: number; dodges: number; potions: number;
       dealt: number; taken: number; hpStart: number; hpEnd: number; maxHp: number; xp: number; weapon: string; armor: string;
-      /** Times stamina ran dry; seconds spent wanting to attack while out of stamina, or resting after a combo. */
-      emptied: number; starved: number; rested: number;
+      /** Seconds spent wanting to attack while waiting between strikes, or resting after a combo; weapon handling level. */
+      cooling: number; rested: number; handling: number;
       /** On a loss: what landed the last hit ("monster:contact|shot|hazard"). */
       killedBy?: string;
     }
@@ -31,17 +33,18 @@ type Of<K extends LogEvent['kind']> = Extract<Stamped, { kind: K }>;
 
 function load(): Stamped[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '[]') as Stamped[];
+    return JSON.parse(localStorage.getItem(slotKey(LOG_KEY)) ?? '[]') as Stamped[];
   } catch {
     return [];
   }
 }
 
 export function logEvent(save: SaveState, e: LogEvent) {
+  if (storageFrozen()) return;
   try {
     const all = load();
     all.push({ at: Date.now(), play: Math.round(save.playtime), lv: save.lv, ...e });
-    localStorage.setItem(KEY, JSON.stringify(all.slice(-MAX_EVENTS)));
+    localStorage.setItem(slotKey(LOG_KEY), JSON.stringify(all.slice(-MAX_EVENTS)));
   } catch {
     // Storage full or blocked: the report is a nice-to-have.
   }
@@ -59,7 +62,7 @@ let unsaved = 0;
 function loadTime(): TimeLog {
   if (!time) {
     try {
-      time = JSON.parse(localStorage.getItem(TIME_KEY) ?? '{}') as TimeLog;
+      time = JSON.parse(localStorage.getItem(slotKey(TIME_KEY)) ?? '{}') as TimeLog;
     } catch {
       time = {};
     }
@@ -78,8 +81,9 @@ export function trackTime(zone: string, activity: Activity, dt: number) {
 
 export function flushTime() {
   unsaved = 0;
+  if (storageFrozen()) return;
   try {
-    localStorage.setItem(TIME_KEY, JSON.stringify(loadTime()));
+    localStorage.setItem(slotKey(TIME_KEY), JSON.stringify(loadTime()));
   } catch {
     // ignore
   }
@@ -88,8 +92,8 @@ export function flushTime() {
 export function clearLog() {
   time = {};
   try {
-    localStorage.removeItem(KEY);
-    localStorage.removeItem(TIME_KEY);
+    localStorage.removeItem(slotKey(LOG_KEY));
+    localStorage.removeItem(slotKey(TIME_KEY));
   } catch {
     // ignore
   }
@@ -112,8 +116,8 @@ function fightStats(fs: Of<'fight'>[]) {
     avgSwings: avg(fs.map((f) => f.swings)), avgHits: avg(fs.map((f) => f.hits)), avgDealt: avg(fs.map((f) => f.dealt)),
     avgTaken: avg(fs.map((f) => f.taken)), avgHpLostPct: avg(fs.map((f) => (100 * f.taken) / Math.max(1, f.maxHp))),
     avgPotions: avg(fs.map((f) => f.potions)), avgLv: avg(fs.map((f) => f.lv)),
-    // Stamina: how often it ran dry, and how long you were kept waiting per fight.
-    avgEmptied: avg(fs.map((f) => f.emptied ?? 0)), avgStarvedSec: avg(fs.map((f) => f.starved ?? 0)), avgRestedSec: avg(fs.map((f) => f.rested ?? 0)),
+    // Pace: how long you were kept waiting per fight, and at what handling.
+    avgCoolingSec: avg(fs.map((f) => f.cooling ?? 0)), avgRestedSec: avg(fs.map((f) => f.rested ?? 0)), avgHandling: avg(fs.map((f) => f.handling ?? 1)),
   };
 }
 

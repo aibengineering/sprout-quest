@@ -1,5 +1,5 @@
 // Story progression: evaluates the current quest's goal against the save and advances the chain.
-import { MATS, MAX_POTIONS, MONSTERS, PROJECTS, QUESTS, ZONES, type MatId, type Quest } from './data';
+import { MATS, MAX_POTIONS, MONSTERS, PROJECTS, QUESTS, TOOLS, ZONES, type MatId, type Quest } from './data';
 import { mergeDrops } from './rules';
 import type { SaveState } from './state';
 
@@ -11,7 +11,7 @@ export function progress(s: SaveState, q: Quest): { cur: number; max: number; la
   const g = q.goal;
   switch (g.type) {
     case 'talk':
-      return { cur: s.talked ? 1 : 0, max: 1, label: 'Talk to Elder Bloom' };
+      return { cur: s.talked ? 1 : 0, max: 1, label: 'Talk to Elder Oswin' };
     case 'flag':
       return { cur: s.flags.includes(g.flag) ? 1 : 0, max: 1, label: g.label };
     case 'kills': {
@@ -27,6 +27,10 @@ export function progress(s: SaveState, q: Quest): { cur: number; max: number; la
       }
       const names = Object.entries(g.need).map(([m, n]) => `${n} ${MATS[m as MatId].name}`).join(' + ');
       return { cur, max, label: `Collect ${names}` };
+    }
+    case 'mend': {
+      const n = TOOLS.filter((t) => t.tier === 1 && s.tools[t.skill] >= 1).length;
+      return { cur: n, max: 2, label: 'Mend your axe and pick' };
     }
     case 'craft':
       return { cur: s.crafted > 0 ? 1 : 0, max: 1, label: 'Craft new gear' };
@@ -47,6 +51,11 @@ export function questNeeds(s: SaveState, q: Quest): { mat: MatId; have: number; 
   const g = q.goal;
   let r: Partial<Record<MatId, number>> | null = null;
   if (g.type === 'mats') r = g.need;
+  else if (g.type === 'mend') {
+    // What the tools you haven't mended yet still need, added up.
+    r = {};
+    for (const t of TOOLS.filter((t) => t.tier === 1 && s.tools[t.skill] < 1)) for (const [m, n] of Object.entries(t.recipe)) r[m as MatId] = (r[m as MatId] ?? 0) + (n ?? 0);
+  }
   else if (g.type === 'build' && s.build[g.project] < g.level) r = PROJECTS[g.project].levels[g.level - 1].cost;
   return Object.entries(r ?? {}).map(([m, n]) => ({ mat: m as MatId, have: s.mats[m as MatId] ?? 0, need: n ?? 0 }));
 }

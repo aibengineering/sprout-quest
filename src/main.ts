@@ -1,5 +1,6 @@
 // Entry point: the canvas, the frame loop, and wiring the page's buttons to the game. The flows themselves live in
 // game/: fights, gathering, story, interactions, the menu's actions and the title screen, sharing state through `G`.
+import { modelStats, tickModels } from './models';
 import type { Battle } from './battle/battle';
 import { drawBattle } from './battle/render';
 import { MAX_POTIONS, MONSTERS, QUESTS, ZONES, zoneById, type MonsterKind, type ZoneId } from './data';
@@ -9,11 +10,13 @@ import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/ga
 import { interact } from './game/interact';
 import { menuHooks } from './game/menu';
 import { arriveAtVillage, maybeAutoTalk, progressQuests } from './game/story';
+import { checkStories, tickStories } from './game/stories';
 import { boot, setUpTitle } from './game/title';
 import { objective } from './game/waypoint';
 import { trackInputDevice, usingKeyboard, type Input } from './input';
 import { UI } from './ui';
 import { flushTime, trackTime, type Activity } from './stats';
+import { mealTick } from './kitchen';
 import { has } from './unlocks';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
@@ -34,6 +37,8 @@ resize();
 trackInputDevice();
 G.ui = new UI(menuHooks);
 setUpTitle();
+// Save slots and preset saves for testing; compiled out of the published game.
+if (__DEV__) void import('./dev/devtools').then((m) => m.install());
 
 // ------------------------------------------------------------------ page buttons
 
@@ -79,10 +84,11 @@ function battleFrame(b: Battle, dt: number) {
   ui.questPill(false);
   ui.dock(false);
   ui.dragHint(false);
-  ui.battleButtons(has(s, 'skill'), has(s, 'bag') && s.flags.includes('village'));
+  // The skill button only once your handling with this weapon's class has unlocked its skill (Lv 2).
+  ui.battleButtons(!!b.skillNow, has(s, 'bag') && s.flags.includes('village'));
   if (G.mode === 'battle') {
     coachBattle(b);
-    ui.battleHud(s.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac, b.clip);
+    ui.battleHud(s.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac);
   }
 }
 
@@ -123,10 +129,14 @@ function worldFrame(dt: number) {
       if (ev.zone.id === 'village' && !s.flags.includes('village')) void arriveAtVillage();
     }
     if (canAct && s.flags.includes('sword')) {
-      // Bumping into the monster's blocking box starts the fight.
-      const foe = G.world.objs.find((o) => o.kind === 'foe' && !o.hidden && over.x > o.x - 1.1 && over.x < o.x + o.w + 1.1 && over.y > o.y && over.y < o.y + o.h + 0.4);
+      // Walking into monsters blocking the way starts the fight.
+      const gap = (o: { x: number; y: number; w: number; h: number }) =>
+        Math.hypot(Math.max(o.x - over.x, 0, over.x - (o.x + o.w)), Math.max(o.y - over.y, 0, over.y - (o.y + o.h + 0.3)));
+      const foe = G.world.objs.find((o) => o.kind === 'foe' && !o.hidden && gap(o) < 0.75);
       if (foe) challengeFoe(foe);
     }
+    tickStories();
+    if (canAct) void checkStories();
     if (ev?.type === 'encounter') startFieldBattle(ev.roamer, false);
   }
   const near = canAct ? over.nearbyObject() : null;
@@ -194,12 +204,15 @@ function frame(now: number) {
   updateTransitions(dt);
   if (G.mode !== 'title') {
     G.save.playtime += dt;
+    // Granny's meals count down while you play (on the map, fighting, chopping), not while you're in a menu.
+    if (G.mode === 'world' || G.mode === 'battle' || G.mode === 'gather') mealTick(G.save, dt);
     trackTime(G.battle?.setup.zone.id ?? G.over.currentZone.id, ACTIVITY[G.mode], dt);
   }
   // A fight on the map can end inside update() and hand straight back to the overworld, so hold on to it for this frame.
   const b = G.battle;
   if (b) battleFrame(b, dt);
   else worldFrame(dt);
+  tickModels();
   G.input.flush();
   if (G.trans) drawIris(G.trans.t / G.trans.dur);
   requestAnimationFrame(frame);
@@ -226,8 +239,10 @@ requestAnimationFrame(frame);
   get save() { return G.save; },
   get mode() { return G.mode; },
   get battle() { return G.battle; },
+  get ui() { return G.ui; },
   get over() { return G.over; },
   get chop() { return chop; },
+  get modelStats() { return modelStats; },
   set zoom(z: number) { debugZoom = z; },
   /** A regular grass encounter right here (or in `zone`). */
   encounter(zone?: ZoneId) {

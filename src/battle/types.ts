@@ -27,7 +27,7 @@ export const angDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Mat
 /** Every state a monster's behaviour can be in (each monster uses a few). */
 export type EState =
   | 'idle' | 'hop' | 'windup' | 'charge' | 'move' | 'puff' | 'circle' | 'dash' | 'recover' | 'flutter' | 'swoop' | 'retreat'
-  | 'walk' | 'slam' | 'float' | 'cast' | 'ring' | 'triple' | 'stomp' | 'howl' | 'spikes' | 'shards';
+  | 'walk' | 'slam' | 'float' | 'cast' | 'ring' | 'triple' | 'stomp' | 'howl' | 'spikes' | 'shards' | 'screech' | 'dive' | 'bolts';
 
 export interface Enemy {
   kind: MonsterKind;
@@ -90,8 +90,8 @@ export interface Zap { x1: number; y1: number; x2: number; y2: number; t: number
 /** What happened in a fight, for the play report. */
 export interface BattleLog {
   time: number; swings: number; hits: number; crits: number; skills: number; dodges: number; potions: number; dealt: number; taken: number;
-  /** Times your stamina ran dry, and seconds you wanted to attack but were out of stamina or resting after a combo. */
-  emptied: number; starved: number; rested: number;
+  /** Seconds you wanted to attack but were waiting between strikes, or resting after a combo. */
+  cooling: number; rested: number;
   /** What last hurt you, as "monster:contact|shot|hazard" (on a loss, what knocked you out). */
   lastHitBy: string;
 }
@@ -113,6 +113,8 @@ export interface Swing {
   trail: { ang: number; t: number }[];
   /** The last strike of the combo: earns the rest afterwards. */
   finisher: boolean;
+  /** A lash has cracked at the tip (the snap you hear, hit or miss). */
+  cracked?: boolean;
 }
 
 /** A hammer's traveling shockwave (or the Wyrmbreaker's dragonfire). */
@@ -129,6 +131,8 @@ export interface BattleSetup {
   boss: boolean;
   /** You got the jump on them: they start stunned. */
   ambush?: boolean;
+  /** Someone watching from the arena's edge (e.g. Poppy, hiding while you fight for her): their sprite and feeling. */
+  bystander?: { look: string; mood: string };
 }
 
 export interface BattleOutcome {

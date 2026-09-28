@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { WORLD_H, ZONES, type ZoneId } from '../src/data';
 import { ROUTES } from '../src/routes';
-import { GATE_Y } from '../src/world';
+import { GATE_Y, World } from '../src/world';
 
 type P = { x: number; y: number };
 
@@ -75,4 +75,24 @@ describe('route maps', () => {
       }
     });
   }
+
+  // Each area's gathering nodes are its own tier, so exploring never hands you materials meant for later.
+  test('the Sunny Meadow (and its Secret Grove) only has oaks and rocks', () => {
+    const nodes = new Set(ROUTES.meadow!.join('').replace(/[^kKpPrRuUiIyY]/g, ''));
+    expect([...nodes].sort()).toEqual(['K', 'R', 'k', 'r']);
+  });
+});
+
+describe("Bram's Bridge", () => {
+  test('the creek blocks the way up to the old camp until the bridge is built, then it walks straight through', () => {
+    const w = new World();
+    const W = ZONES.find((z) => z.id === 'woods')!.x0;
+    // The narrow way: from the west gate (row 12) straight up to the camp (row 7), across the creek at rows 9-10.
+    const across = [12, 11, 10, 9, 8, 7].map((y) => ({ x: W + 6.5, y: y + 0.5 }));
+    expect(across.some((p) => w.solidAt(p.x, p.y))).toBe(true);
+    w.setBridge(true);
+    expect(across.filter((p) => w.solidAt(p.x, p.y))).toEqual([]);
+    // Wider than the way, so there's no stepping around it.
+    expect(w.solidAt(W + 5.5, 9.5) && w.solidAt(W + 8.5, 9.5)).toBe(true);
+  });
 });

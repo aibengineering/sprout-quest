@@ -9,7 +9,12 @@ export const T = {
   POOL: 3,
   PATH: 4,
   DECOR: 5,
+  /** Planks over water (Bram's Bridge, once built): drawn over the pool, and walkable. */
+  BRIDGE: 6,
 } as const;
+
+/** Bram's Bridge: the creek tiles it spans (the Woods' west way up to the old camp), as offsets from the Woods' left edge. */
+const BRIDGE_TILES = [[6, 9], [7, 9], [6, 10], [7, 10]];
 
 /** Routes connect through rows GATE_Y..GATE_Y+3 on their west and east edges. */
 export const GATE_Y = 12;
@@ -28,7 +33,8 @@ const NODE_MARKS: [string, NodeKind, boolean][] = [
   ['y', 'crystal', false], ['Y', 'crystal', true],
 ];
 
-export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node';
+/** 'prop': scenery drawn from its `id`'s sprite (Bram's camp, his hut). */
+export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop' | 'bridge';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -48,10 +54,18 @@ export interface WorldObj {
   /** Story flag set when this scripted object is resolved (sword picked up, prologue foe beaten). */
   flag?: string;
   monster?: MonsterKind;
-  /** Gathering node: which tree, its stable id (for regrowth timers) and whether it stands in tall grass. */
+  /** Gathering node: which tree, its stable id (for regrowth timers) and whether it stands in tall grass. A statue's
+   * `id` picks its sprite (statue_<id>). */
   node?: NodeKind;
   id?: string;
   grass?: boolean;
+  /** A story's monster group: who you fight when you walk into it (a guardian-style fight if `boss`). */
+  foes?: { kind: MonsterKind; lv: number }[];
+  boss?: boolean;
+  /** Which way the group looks: -1 west, 1 east (they face every which way if unset). */
+  facing?: -1 | 1;
+  /** Only there at this step of a side story. */
+  story?: { id: string; step: number };
 }
 
 export function hash2(x: number, y: number, seed: number): number {
@@ -181,6 +195,13 @@ export class World {
         for (let x = Math.floor(o.x) - 1; x <= Math.ceil(o.x + o.w); x++)
           if (this.tile(x, y) !== T.PATH) this.set(x, y, T.GROUND);
     };
+    // The glade where you wake: Veyra looks down on it.
+    add({
+      kind: 'statue', id: 'veyra_wild', zone: 'glade', x: 5.6, y: MID - 4.1, w: 0.8, h: 0.6, label: 'Look',
+      text: 'A mossy statue of a veiled woman holding a golden seed. Someone has kept the moss off her face. Standing here feels… familiar.',
+    });
+    // The faceless king's statue (env: statue_king) is kept out of the game until its art is improved; see the story
+    // bible (Gods and the old war) for where it goes and what it means.
     // Prologue: the sword in the grass, then two monsters blocking the forest path.
     add({ kind: 'pickup', flag: 'sword', x: 4.2, y: MID - 1.4, w: 0.6, h: 0.5, label: 'Pick up', text: 'Twig Sword' });
     const gy = pathY(10) - 1;
@@ -188,12 +209,27 @@ export class World {
     add({ kind: 'foe', flag: 'glade2', monster: 'bunny', x: 13, y: gy, w: 1, h: 4, label: 'Fight', text: 'Hopbun' }, false);
     add({ kind: 'forge', x: V + 5, y: 7, w: 4, h: 3, label: 'Forge', text: 'The Forge' });
     add({ kind: 'house', x: V + 13, y: 6.5, w: 3, h: 3, label: '' });
-    add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Bloom' });
+    add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
     add({ kind: 'plot', project: 'home', x: V + 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
     add({ kind: 'plot', project: 'garden', x: V + 7.2, y: 18.4, w: 3, h: 1.6, label: 'Build', text: 'Garden' });
     add({ kind: 'plot', project: 'training', x: V + 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
-    add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Warp Stone' });
-    add({ kind: 'fountain', x: V + 12, y: 17, w: 2, h: 2, label: 'Rest', text: 'Healing Fountain' });
+    add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Waystone' });
+    // Bram's corner, once he's moved in (his story): the Sawmill beside the Forge, and his cabin below it.
+    add({ kind: 'plot', project: 'sawmill', x: V + 1.1, y: 5.5, w: 3.4, h: 2, label: 'Build', text: 'Sawmill' });
+    add({ kind: 'prop', id: 'bramhut', x: V + 1.5, y: 9, w: 2, h: 1.3, label: '' });
+    // Bram's old logging camp, in the Woods' north-west corner: the stump with his axe in it, the caved-in mill, logs.
+    const W = ZONES.find((z) => z.id === 'woods')!.x0;
+    add({ kind: 'prop', id: 'prop_campmill', zone: 'woods', x: W + 3.8, y: 3.2, w: 2.6, h: 1, label: '' }, false);
+    add({ kind: 'prop', id: 'prop_campstump', zone: 'woods', x: W + 8.6, y: 5.1, w: 1.2, h: 0.7, label: '' }, false);
+    add({ kind: 'prop', id: 'prop_logs', zone: 'woods', x: W + 11, y: 4.1, w: 1, h: 0.6, label: '' }, false);
+    // Where Bram's Bridge goes: a stake by the creek, on the south bank of the narrow way up to the camp.
+    add({ kind: 'bridge', zone: 'woods', x: W + 8.1, y: 11.1, w: 0.6, h: 0.5, label: 'Build', text: "Bram's Bridge" }, false);
+    add({ kind: 'fountain', x: V + 12, y: 17, w: 2, h: 2, label: 'Rest', text: "Veyra's Spring" });
+    // Veyra's shrine, where Elder Oswin prays: north of where he stands, between the forge and the blue house.
+    add({
+      kind: 'statue', id: 'veyra', zone: 'village', x: V + 10.1, y: 7.6, w: 0.8, h: 0.6, label: 'Look',
+      text: 'Veyra, the Sower. A veiled goddess with a golden seed in one hand and a sickle in the other. Fresh flowers lie at her feet. The words on the plinth read: "All that is planted, I tend."',
+    });
     add({
       kind: 'sign', x: V + 18.6, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
       text: 'East: Sunny Meadow. Walk through tall grass to find monsters. Bring back materials to the Forge!',
@@ -238,6 +274,12 @@ export class World {
       }
     }
     return seen;
+  }
+
+  /** Lays Bram's Bridge over the creek (or takes it away). */
+  setBridge(built: boolean) {
+    const W = ZONES.find((z) => z.id === 'woods')!.x0;
+    for (const [dx, y] of BRIDGE_TILES) this.set(W + dx, y, built ? T.BRIDGE : T.POOL);
   }
 
   solidAt(x: number, y: number): boolean {

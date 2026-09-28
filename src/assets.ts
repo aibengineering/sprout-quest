@@ -1,8 +1,10 @@
 // Loads the Blender-rendered sprite atlas and draws frames. If loading fails the game falls back to the
-// procedural canvas drawings in sprites.ts, so it always stays playable.
+// procedural canvas drawings in sprites.ts, so it always stays playable. Characters are drawn in 3D (models.ts) once
+// their models are in, with their sprites as the fallback.
+import { drawModel, hasModel, type Held } from './models';
 
 export interface Frame {
-  img: HTMLImageElement;
+  img: HTMLImageElement | HTMLCanvasElement;
   x: number;
   y: number;
   w: number;
@@ -27,7 +29,8 @@ export interface LoadProgress { stage: 'sprites' | 'icons'; done: number; total:
 async function fetchWithProgress(url: string, onBytes: (got: number, total: number) => void): Promise<Blob> {
   const res = await fetch(url);
   if (!res.ok || !res.body) throw new Error(`${url}: ${res.status}`);
-  const total = Number(res.headers.get('content-length') ?? 0);
+  // Bytes arrive uncompressed, so a gzipped download's length doesn't count them: use the size the dev server gives.
+  const total = Number(res.headers.get('x-size') ?? (res.headers.get('content-encoding') ? 0 : res.headers.get('content-length')) ?? 0);
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
   let got = 0;
@@ -76,17 +79,33 @@ export async function loadAssets(onProgress?: (p: LoadProgress) => void, base = 
 }
 
 /** Warms the browser cache with the menu icons so bags and forges open with every picture already there. */
+/**
+ * Icons downloaded once and kept in memory, as blob URLs to their bytes (with the decoded image held, so the browser
+ * keeps it decoded). Menus rebuild their HTML every time they open; pointing at these means the icons paint in the
+ * first frame instead of each one being fetched (or re-fetched, on a server that says not to cache) and popping in.
+ */
+const iconBlobs = new Map<string, string>();
+const decodedIcons: HTMLImageElement[] = [];
+
 export async function preloadIcons(ids: string[], onProgress?: (p: LoadProgress) => void): Promise<void> {
   let done = 0;
-  await Promise.all(ids.map((id) => new Promise<void>((ok) => {
-    const img = new Image();
-    img.onload = img.onerror = () => {
-      done++;
-      onProgress?.({ stage: 'icons', done, total: ids.length });
-      ok();
-    };
-    img.src = iconUrl(id);
-  })));
+  await Promise.all(ids.map(async (id) => {
+    try {
+      const res = await fetch(`assets/icons/${id}.webp`);
+      if (res.ok) {
+        const url = URL.createObjectURL(await res.blob());
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        iconBlobs.set(id, url);
+        decodedIcons.push(img);
+      }
+    } catch {
+      // Missing or broken: that icon falls back to its emoji.
+    }
+    done++;
+    onProgress?.({ stage: 'icons', done, total: ids.length });
+  }));
 }
 
 export function frame(name: string): Frame | undefined {
@@ -199,17 +218,77 @@ export function heroDir(face: number): { dir: number; flip: boolean } {
 /** The hero's outline: dark and a little heavier than the sprites' own, so you can always spot yourself. */
 export const HERO_OUTLINE = { color: '#2a1a36', width: 0.035 };
 
-/** Draws the hero sprite; returns false if sprites aren't available so callers can fall back. */
-export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}): boolean {
+/** How long the walkers' loops take: a step cycle, and a slow breath standing still. */
+const WALK_T = 4 / 9, IDLE_T = 50 / 24;
+/** Monsters are turned a little toward the camera, like their sprites were rendered. */
+const MONSTER_YAW = (25 * Math.PI) / 180;
+
+let slotCount = 0;
+const slotIds = new WeakMap<object, string>();
+/** A stable name for an on-screen thing (a roamer, an enemy), so its 3D image is reused frame to frame. */
+export function slotOf(thing: object, kind: string): string {
+  let id = slotIds.get(thing);
+  if (!id) slotIds.set(thing, (id = `${kind}${++slotCount}`));
+  return id;
+}
+
+/**
+ * Draws a character that walks like the hero (the hero, Poppy): a 3D model once it's loaded, else its sprite
+ * (`<prefix>/<dir>/<frame>`: 5 directions, standing + 4 steps), facing `face` and walking if `moving`. `slot` names this
+ * on-screen character. `held`: a weapon in hand or carried (3D only; with sprites the caller draws it). Returns
+ * 'model' or 'sprite' for what drew it, or false if neither is available so callers can fall back.
+ */
+export function drawWalker(ctx: CanvasRenderingContext2D, prefix: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}, slot = prefix, held?: Held): 'model' | 'sprite' | false {
+  const pose = { anim: moving ? 'walk' : 'idle', phase: t / (moving ? WALK_T : IDLE_T), yaw: Math.PI / 2 - face, bold: !!o.outline, held };
+  // The 3D hero gets its heavier outline from the shader instead of a 2D one.
+  if (drawModel(ctx, slot, prefix.replace('/', '_'), pose, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, { ...o, outline: undefined }))) return 'model';
   const { dir, flip } = heroDir(face);
   const n = moving ? 1 + (Math.floor(t * 9) % 4) : 0;
-  const f = frame(`hero/${armor}/${dir}/${n}`) ?? frame(`hero/tunic/${dir}/${n}`);
+  const f = frame(`${prefix}/${dir}/${n}`) ?? frame(`${prefix}/${dir}/0`) ?? frame(`${prefix}/0/0`);
   if (!f) return false;
   const breathe = moving ? 1 : 1 + Math.sin(t * 3) * 0.015;
-  drawFrame(ctx, f, x, y, unit, { outline: HERO_OUTLINE, ...o, flip, sy: (o.sy ?? 1) * breathe, sx: (o.sx ?? 1) / breathe });
+  drawFrame(ctx, f, x, y, unit, { ...o, flip, sy: (o.sy ?? 1) * breathe, sx: (o.sx ?? 1) / breathe });
+  return 'sprite';
+}
+
+/**
+ * Draws the hero, with `held` in hand or carried if drawn in 3D. Returns what drew it ('model' or 'sprite'), or false
+ * if neither is available so callers can fall back.
+ */
+export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}, slot = 'hero', held?: Held): 'model' | 'sprite' | false {
+  const prefix = frame(`hero/${armor}/0/0`) || hasModel(`hero_${armor}`) ? `hero/${armor}` : 'hero/tunic';
+  return drawWalker(ctx, prefix, x, y, unit, face, moving, t, { outline: HERO_OUTLINE, ...o }, slot, held);
+}
+
+/**
+ * Draws a monster with its feet at (x, y): a 3D model once it's loaded, else its sprite. `phase` runs through its idle
+ * loop (1 = once round), `left` turns it to face left. Returns false if neither is available.
+ */
+export function drawMonsterAt(ctx: CanvasRenderingContext2D, slot: string, kind: string, golden: boolean, phase: number, left: boolean, x: number, y: number, unit: number, o: DrawOpts = {}): boolean {
+  const pose = { anim: 'idle', phase, yaw: left ? -MONSTER_YAW : MONSTER_YAW, gold: golden };
+  if (drawModel(ctx, slot, `mon_${kind}`, pose, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, o))) return true;
+  const f = frame(`mon/${kind}${golden ? '_gold' : ''}/${Math.floor((((phase % 1) + 1) % 1) * 6)}`) ?? frame(`mon/${kind}/0`);
+  if (!f) return false;
+  drawFrame(ctx, f, x, y, unit, { ...o, flip: left !== !!o.flip });
+  return true;
+}
+
+/** Can this monster be drawn yet (its model or its sprite is in)? */
+export const monsterReady = (kind: string) => hasModel(`mon_${kind}`) || !!frame(`mon/${kind}/0`);
+
+/**
+ * Draws a villager standing in place and breathing (Elder Oswin, Granny, Poppy hugging her bunny): a 3D model once it's
+ * loaded, else its 4-frame sprite loop. `phase`: 1 = one breath. Returns false if neither is available.
+ */
+export function drawIdler(ctx: CanvasRenderingContext2D, slot: string, name: string, phase: number, x: number, y: number, unit: number, o: DrawOpts = {}): boolean {
+  if (drawModel(ctx, slot, `npc_${name}`, { anim: 'idle', phase, yaw: 0 }, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, o))) return true;
+  const i = Math.floor((((phase % 1) + 1) % 1) * 4);
+  const f = frame(`npc/${name}/${i}`) ?? frame(`npc/${name}/0/${i}`);
+  if (!f) return false;
+  drawFrame(ctx, f, x, y, unit, o);
   return true;
 }
 
 export function iconUrl(id: string) {
-  return `assets/icons/${id}.webp`;
+  return iconBlobs.get(id) ?? `assets/icons/${id}.webp`;
 }

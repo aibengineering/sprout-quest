@@ -48,12 +48,14 @@ Opus 5.5 rework it. Some of the bigger rounds so far:
   in-game patch notes
 - **Visual pass (0.2.1):** a sharper, outlined hero whose every armor changes their silhouette, and axes and picks
   that swing into the tree or rock
+- **Side stories (0.3.0):** Poppy's Bunny, a small story told with camera pans, emoji feelings over people's heads and
+  face-to-face dialogue, built on reusable pieces (story characters, scenes, story steps) for the ones to come
 
 Each release's player-facing changes are in the in-game patch notes (`src/version.ts`).
 
 ## The game
 
-A cute, mobile-first little adventure game. Wander from Sprout Village through tall grass, get pulled into
+A cute, mobile-first little adventure game. Wander from Sowerby through tall grass, get pulled into
 real-time arena battles, level up, chop and mine your way up the material tiers, and craft better gear at the Forge,
 then push east toward stronger monsters and the dragon at the end of Ember Peak.
 
@@ -86,24 +88,38 @@ must pass first:
   requests that only change documentation (Markdown, `docs/`) or CI tooling (`.github/`) skip it, since they don't
   change the game
 
-So a release is: bump `version` in `package.json`, add its patch notes at the top of `src/version.ts`, and open a pull
+So a release is: bump `version` in `package.json`, add its patch notes at the top of `src/version.ts` (and keep
+extending that one entry, moving its date along, as more lands on `dev` before the merge), and open a pull
 request from `dev` to `main`. The version lives only in `package.json`; the game reads it from there, and players
 see a dot on the patch notes until they've read the new ones.
 
 ## Build and test
 
 ```sh
-bun run build      # static site in dist/: host anywhere (GitHub Pages, Netlify, itch.io…)
-bun test           # rules, balance, story, routes and map tests
+bun run build          # static site in dist/: host anywhere (GitHub Pages, Netlify, itch.io…)
+bun run build --dev    # the same, with the dev tools (save slots and presets, see below) for a test server
+bun test               # rules, balance, story, routes and map tests
 bun run typecheck
-bun run balance    # prints the balance model: fights, pacing, the material economy, every weapon
-bun run e2e        # plays the real game in headless Chromium (add --shots for screenshots in tests/e2e/out/)
+bun run balance        # prints the balance model: fights, pacing, the material economy, every weapon
+bun run e2e            # plays the real game in headless Chromium (add --shots for screenshots in tests/e2e/out/)
 ```
+
+### Dev tools: save slots and preset saves
+
+The dev server (and `bun run build --dev`, for hosting a test build) adds a **🛠 Save slot** button to the title
+screen. Each slot keeps its own save and play report, and **main** is your real playthrough, so testing never touches
+it. From there you can switch slots, copy one, or start a **preset**: a save partway through the game (Poppy's story at
+each step, each guardian, Glimmer Hollow, the dragon, a sandbox with everything), with the gear and levels from the
+balance checkpoints. Presets also work as links: `?preset=poppy-chase`, and `?slot=main` to go back. Outside the main
+slot a small badge at the bottom of the screen shows which slot you're in. None of this is in the published build
+(`__DEV__` is compiled out).
 
 The end-to-end smoke test (`tests/e2e/smoke.ts`) needs Playwright's Chromium once:
 `bunx playwright-core install chromium-headless-shell`. It plays a new game through the prologue, wins a fight
 through its level-up screens, mashes every weapon class, fights every monster, mines crystal, checks the Forge's
-mystery cards and exports a play report, failing on any page error.
+mystery cards, exports a play report, plays Poppy's side story start to finish and starts a preset save in its own
+slot, failing on any page error.
+`bun run e2e --only <name>` runs just the scenarios whose name contains it.
 
 ## Play report
 
@@ -115,11 +131,11 @@ timeline and the raw events, to tune the balance against real play.
 
 **Prologue.** You wake up in the Quiet Glade west of the village, pick up a Twig Sword, and fight your way down the
 forest path: a slime (attack) and then a Hopbun (its charge teaches dodging), with only ⚔️ and 💨 on screen and coaching
-bubbles. Reaching Sprout Village plays a letterboxed camera tour with Elder Bloom (the empty plots, the ruined forge, the
+bubbles. Reaching Sowerby plays a letterboxed camera tour with Elder Oswin, Veyra's priest (the empty plots, the ruined forge, the
 guarded roads east). From there systems unlock one at a time with a small card: 🎒 Bag, 📜 Journal, ✨ weapon skill,
 🏡 Village building (starting with repairing the forge), ⚒ crafting, then new building plots as guardians fall.
 
-Smoke from Ember Peak has made the monsters grumpy, and guardians block the roads. Elder Bloom guides you through a
+Smoke from Ember Peak has made the monsters grumpy, and guardians block the roads. Elder Oswin guides you through a
 chain of chapters, and the current goal is always shown in the 📜 tracker at the top of the screen, with a progress bar
 for the materials it needs.
 
@@ -128,7 +144,7 @@ for the materials it needs.
 | Prologue | Wake in the glade → find a sword → beat a slime and a Hopbun → reach the village |
 | 1 | Gather materials in the meadow → repair the Forge → craft gear → craft a Stone Axe and Pick → build a Cottage |
 | 2 | 👑 **Slime King** (Lv 5) guards Whisper Woods → upgrade the Forge to a Smithy |
-| 3 | 🐺 **Alpha Woolf** (Lv 9) guards Echo Cavern → build the Warp Stone |
+| 3 | 🐺 **Alpha Woolf** (Lv 9) guards Echo Cavern → build the Waystone |
 | 4 | 💎 Mine crystal in **Glimmer Hollow** |
 | 5 | 💎 **Crystal King** (Lv 14) guards Ember Peak → upgrade to a Master Forge |
 | Finale | 🐉 **Emberwyrm** (Lv 20), then build your Manor |
@@ -136,12 +152,21 @@ for the materials it needs.
 - **Guardian gates**: each road is physically blocked until you beat its guardian, like gyms. Guardians have their
   own attack patterns and summon helpers. Beating one opens the road, lights a 🔥 **campfire checkpoint** (heal, respawn,
   warp point) and drops a **trophy** needed for the next village upgrade.
-- **Village construction**: Home (Tent → Cottage → Manor, +max HP), Forge (Forge → Smithy → Master Forge, gating
-  ★★★ and ★★★★★ recipes), Garden (more free potions), Training Yard (+attack) and Warp Stone (fast travel). Buildings
+- **Village construction**: Home (Tent → Cottage → Manor, +max HP), Forge (Forge → Smithy → Iron Smithy → Crystal Kiln → Master
+  Forge, one level per star tier of gear), Garden (more free potions), Training Yard (+attack) and Waystone (fast travel). Buildings
   visibly change in the village.
 - **Levels you can feel**: a combat level-up pauses the game on its own screen with your stat changes and what you're
   now ready for (a guardian, a new area). Woodcutting, Mining and weapon handling levels get a screen too, listing what
   they just unlocked in the Forge.
+
+**Side stories.** Alongside the main chapters, small stories wait to be stumbled into. People show how they feel from
+across the map with emoji bubbles (😨 cornered, 😢 missing something, 💖 happy again), and you talk to them face to face.
+The first, **Poppy's Bunny**, opens once you've settled in the village: a girl cornered by slimes at the mouth of the
+**Secret Grove** off the meadow's south-east corner (sneak up behind them for a surprise attack), a walk home with her
+following you, a stolen toy, a gauntlet of tougher monsters down the grove and the **Big Bun** mini-boss in its
+clearing. It ends with a **perk**, Trail Boots (+25% walking speed on the map), and the grove's oaks and rocks free to
+gather. Side stories show in the tracker while you're in
+one, and in the Journal.
 
 ## Areas
 
@@ -153,7 +178,7 @@ grass, and that every tree, rock, sign and campfire can be reached. Each area is
 | Area | Lv | Monsters | Materials |
 | --- | --- | --- | --- |
 | 🌳 Quiet Glade | – | Prologue only | Where your story begins |
-| 🏡 Sprout Village | – | – | Forge, Fountain, Elder Bloom, building plots |
+| 🏡 Sowerby | – | – | Forge, Veyra's Spring and shrine, Elder Oswin, building plots |
 | 🌼 Sunny Meadow | 1–3 | Slime, Hopbun | Goo, Fluff, Clover · 🪵 oak, 🪨 stone |
 | 🌲 Whisper Woods | 4–7 | Sporecap, Woolf, Hopbun | Shroom Cap, Fang · 🌲 pine, 🟠 copper |
 | 🪨 Echo Cavern | 8–11 | Flapper, Pebblor, Sporecap | Bat Wing, Golem Core · ⚙️ iron |
@@ -205,8 +230,12 @@ you hit), and a weapon at every tier from ★ to ★★★★★:
   material to forge the tool that mines it properly: Stone Axe (oak, slowly pine) → Copper Axe; Stone Pick (stone,
   slowly copper) → Copper Pick → Iron Pick → Crystal Pick.
 - **The minigames**: chopping is a bar with a green sweet spot; mining is a rock face where you strike when the pick
-  lines up with the glowing seam. The tree or rock shows every blow (a deepening notch, cracks that fork on perfect
-  hits), then topples or splits. Clean hits build a streak that speeds things up; a flawless job gives one extra.
+  lines up with the glowing seam. You swing the axe or pick for your tool's tier at a close-up of the tree or rock,
+  which shows every blow: a notch that deepens with chips, sawdust and falling leaves, or cracks that run from where
+  the pick lands (forking on perfect hits) with stone chips, sparks and dust. When it's through, the tree topples off
+  its stump and lands in a shower of leaves, or the rock splits along its cracks and tumbles apart, and the materials
+  you earned pop out and fly to your bag. Clean hits build a streak that speeds things up; a flawless job gives one
+  extra.
   Nodes by the path are safe but slow to come back; ones out in the tall grass give more and can hold a rare find, but
   monsters roam there. Skill levels widen the sweet spot and unlock the better tools.
 - **The Forge**: 20 weapons, 10 armors (each changes how your hero looks), 4 charms and 3 potions. Gear you haven't
@@ -224,18 +253,25 @@ outlines, posed per frame and rendered with EEVEE. It runs headless, with no Ble
 
 ```sh
 bun run art              # re-render everything (~30 min on CPU), then pack into public/assets/
-bun run art monsters     # re-render one group: hero | monsters | weapons | env | icons
+bun run art monsters     # re-render one group: hero | monsters | weapons | env | icons | icons2 | npc | gather
 BLENDER=/path/to/blender bun run art
 ```
 
 - `art/lib.py`: toon material, outlines, primitive builders, ortho camera and render helpers
-- `art/hero.py`: the hero (every armor looks different) plus the walk cycle
+- `art/hero.py`: the hero (every armor looks different) plus the walk cycle, and the villagers who share its rig
 - `art/monsters.py`: monsters with idle loops and golden variants
+- `art/gather.py`: close-ups for the chop/mine minigame: trees whole and split into stump and top, big rocks, and
+  the axes and picks for every tool tier
 - `art/weapons.py`, `art/env.py`, `art/icons.py`: weapons (built from reusable parts per material), scenery and
   buildings, menu icons
 - `art/pack.py`: trims frames and packs them into WebP atlases plus `atlas.json`
 
-The game falls back to its procedural canvas drawings if the atlas can't load.
+Characters (the hero in every armor, the villagers and every monster) and every weapon are real-time 3D (the weapon rides in the hero's hand, the arm following each swing, or on the back or hip on the map): `art/models.py` exports each
+one with its animations to `public/assets/models/*.glb` (compressed with gltfpack; `bun run art models`), and
+`src/models.ts` draws them with a cel shader and inverted-hull outlines that match the Blender material. Each character
+is rendered into a small image at its on-screen size and drawn like a sprite, so the 2D world, depth sorting and every
+effect work unchanged. Without WebGL the game falls back to the characters' sprites, and to procedural canvas drawings
+if the atlas can't load either. Dev builds show a performance readout (fps, frame time, 3D renders, GPU).
 
 ## Code map
 
@@ -243,7 +279,10 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
 - `src/game/`: the game's flows, sharing state through `G` in `context.ts` (save, map, fight, mode, transitions)
   - `fights.ts`: starting and finishing fights, rewards, the swoop in and out, in-battle coaching
   - `gathering.ts`: the chop/mine minigame on the map
-  - `story.ts`: quests, unlock cards, Elder Bloom, the village cutscene
+  - `story.ts`: quests, unlock cards, Elder Oswin, the village cutscene
+  - `stories.ts`: side stories as steps (a check, then a scene), and the characters and monster groups each step puts
+    on the map; one file per story in `stories/` (`poppy.ts`)
+  - `scenes.ts`: writing scenes as plain async code: pan, follow, walk, emoji bubbles, dialogue, narration
   - `rewards.ts`: loot rows, level-up screens, gear the Forge reveals
   - `interact.ts`: what the action button does next to each kind of map object
   - `menu.ts`: what the menu's buttons do (crafting, building, travel, the play report)
@@ -257,13 +296,18 @@ The game falls back to its procedural canvas drawings if the atlas can't load.
   grass encounters, rendering
 - `src/routes.ts`: the hand-drawn route maps, one character per tile (legend at the top)
 - `src/roamers.ts`: monsters wandering the grass: noticing, chasing, surprise attacks
+- `src/actors.ts`, `src/bubble.ts`: story characters on the map (walking paths, following you, moods, talking) and
+  their emoji speech bubbles
 - `src/weapons.ts`: each class's moveset (combo timings, hitbox shapes, stamina) and the damage model
 - `src/data.ts`: monsters, zones, guardians, gear, recipes, tools, village projects and story chapters
 - `src/rules.ts`: pure stat, damage, XP, crafting and gathering rules (unit tested)
 - `src/quests.ts`, `src/unlocks.ts`: story progression and system unlocks
-- `src/gather.ts`: the chopping and mining minigames
+- `src/gather.ts`: the chopping and mining minigames; `src/nodeart.ts` draws the close-up tree or rock (the notch
+  and the fall, cracks and the break) and `src/particles.ts` the chips, dust, sparks, leaves and loot
 - `src/stats.ts`: the play report log
 - `src/balance.ts`: balance targets for fights, pacing, weapons and the material economy; `bun run balance` prints
   them, `tests/balance.test.ts` enforces them
 - `src/assets.ts`, `src/sprites.ts`: sprite atlas loading and drawing, and the procedural fallbacks
 - `src/ui.ts`, `public/`: DOM HUD, menus, styles
+- `src/slots.ts`: which save slot is in use (always the main one in the published game)
+- `src/dev/`: dev-build-only tools: `presets.ts` (preset saves), `devtools.ts` (the title's slot panel, `?preset=`)

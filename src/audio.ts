@@ -2,7 +2,16 @@
 
 export type Sfx =
   | 'swing' | 'hit' | 'crit' | 'hurt' | 'kill' | 'levelup' | 'encounter' | 'victory'
-  | 'craft' | 'heal' | 'dodge' | 'shoot' | 'boom' | 'ui' | 'lose' | 'skill' | 'step' | 'heavy';
+  | 'craft' | 'heal' | 'dodge' | 'shoot' | 'boom' | 'ui' | 'lose' | 'skill' | 'step' | 'heavy'
+  // Gathering: an axe biting wood, a pick on stone, a glancing miss, a tree creaking over and landing, a rock
+  // crumbling, and what you earned landing in your bag.
+  | 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup'
+  // A whip's tip snapping over.
+  | 'crack'
+  // Rewards: a bell as the XP bar tops out (a level), a tick per stat that grows, and a treasure's little fanfare.
+  | 'ding' | 'tick' | 'treasure'
+  // A regular win: a quick bright bell, leaving room for the XP fill right after it (guardians keep the full jingle).
+  | 'win';
 
 export class Audio {
   private ctx: AudioContext | null = null;
@@ -56,6 +65,53 @@ export class Audio {
     src.start(t0);
   }
 
+  /**
+   * The XP bar filling: a stream of bubbles. Built the way Pokémon's is (Gold/Silver's EXP sound, read from the
+   * disassembly), as re-struck notes rather than one long slide, but each one a soft sine "bloop" that leaps up in
+   * pitch, with no buzzy square tone under it. The pitch follows the bar (slow at the bottom, racing near the top,
+   * which builds anticipation), and it gets louder as the bar fills.
+   */
+  sweep(dur: number, from: number, to: number) {
+    if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
+    const t0 = this.ctx.currentTime + 0.01;
+    const n = Math.max(2, Math.round(dur / 0.075)), step = dur / n;
+    for (let i = 0; i < n; i++) {
+      const a = from + ((to - from) * i) / n, b = from + ((to - from) * (i + 1)) / n;
+      this.chirp(xpPitch(a) * 1.5, xpPitch(b) * 2, 0.05, 'sine', 0.07 + 0.07 * b, t0 + i * step);
+    }
+  }
+
+  /** One short note whose pitch climbs from `f0` to `f1`; it falls to `tail` of its volume by the end. */
+  private chirp(f0: number, f1: number, dur: number, type: OscillatorType, vol: number, t0: number, tail = 0.01) {
+    const ctx = this.ctx!;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t0);
+    o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.004);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol * tail), t0 + dur);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.012);
+    o.connect(g).connect(this.master!);
+    o.start(t0);
+    o.stop(t0 + dur + 0.03);
+  }
+
+  /**
+   * The bar topping out: Pokémon's bell is two voices a fourth apart, each flicking up through two grace notes
+   * (a frame each) before it rings. Here in C: C-E-G under E-G-C, ringing on G and C, with a shimmer on top.
+   */
+  private bell() {
+    const t0 = this.ctx!.currentTime + 0.005, f = 1 / 60;
+    [[1047, 1319, 1568], [1319, 1568, 2093]].forEach((voice, v) =>
+      voice.forEach((hz, k) => {
+        const last = k === voice.length - 1;
+        this.chirp(hz, hz, last ? 0.34 : f, 'square', v ? 0.07 : 0.09, t0 + k * f, last ? 0.02 : 1);
+        if (last) this.chirp(hz, hz, 0.6, 'triangle', 0.12, t0 + k * f);
+      }));
+    this.chirp(4186, 4186, 0.25, 'sine', 0.025, t0 + 0.06);
+  }
+
   play(s: Sfx) {
     if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
     const notes = (fs: number[], step: number, type: OscillatorType = 'square', vol = 0.12) =>
@@ -79,6 +135,18 @@ export class Audio {
       case 'skill': this.tone(400, 0.25, 'sawtooth', 0.1, 1200); this.noise(0.2, 0.2, 2000); break;
       case 'ui': this.tone(740, 0.05, 'square', 0.07); break;
       case 'step': this.noise(0.03, 0.05, 700); break;
+      case 'chop': this.tone(170, 0.1, 'triangle', 0.3, 85); this.noise(0.07, 0.3, 1100); break;
+      case 'clink': this.tone(1500, 0.07, 'square', 0.06, 1000); this.tone(720, 0.1, 'triangle', 0.14, 520); this.noise(0.05, 0.22, 3200); break;
+      case 'glance': this.noise(0.08, 0.12, 2600); this.tone(950, 0.06, 'sine', 0.05, 620); break;
+      case 'creak': this.tone(150, 0.55, 'sawtooth', 0.045, 95); this.tone(230, 0.45, 'sawtooth', 0.03, 130, 0.08); break;
+      case 'thud': this.noise(0.32, 0.45, 380); this.tone(95, 0.32, 'sine', 0.38, 42); break;
+      case 'crumble': this.noise(0.5, 0.38, 850); this.noise(0.3, 0.2, 2400, 0.06); this.tone(115, 0.26, 'sine', 0.28, 48); break;
+      case 'pickup': notes([988, 1319], 0.05, 'square', 0.07); break;
+      case 'crack': this.noise(0.035, 0.55, 7000); this.tone(2400, 0.025, 'square', 0.08, 1200); break;
+      case 'ding': this.bell(); break;
+      case 'tick': this.tone(1320, 0.05, 'square', 0.06); break;
+      case 'win': this.tone(1319, 0.14, 'triangle', 0.2); this.tone(1976, 0.3, 'triangle', 0.18, undefined, 0.08); this.tone(3951, 0.2, 'sine', 0.03, undefined, 0.1); break;
+      case 'treasure': notes([659, 784, 1047, 1319], 0.07, 'triangle', 0.16); this.tone(1568, 0.5, 'sine', 0.1, undefined, 0.3); break;
     }
   }
 }
@@ -90,3 +158,6 @@ export function vibrate(ms: number) {
     // Not supported (iOS) — fine.
   }
 }
+
+/** Where a point on the XP bar sits in pitch: even steps in period, as on the Game Boy, so it rises faster near the top. */
+const xpPitch = (p: number) => 440 / (1 - 0.55 * p);

@@ -163,6 +163,15 @@ def wing():
     return r
 
 
+def echowing():
+    """The Echo Queen's trophy: a dusky wing that shimmers lilac, with a little crystal at its joint."""
+    r = empty('i')
+    pts = [(-0.45, 0.2), (-0.1, 0.4), (0.4, 0.3), (0.45, -0.05), (0.3, -0.25), (0.15, -0.05), (0.0, -0.3), (-0.15, -0.05), (-0.35, -0.2)]
+    profile(pts, 0.06, toon('#6a4ab8', rim=0.5), r, bevel=0.02)
+    crystal((-0.2, -0.05, 0.05), 0.08, 0.22, toon('#e0d0ff', rim=0.5), r, rot=(0.3, 0, 0.4))
+    return r
+
+
 def crystal_mat():
     r = empty('i')
     for x, h, tilt, c in ((0, 0.8, 0, '#b8a0ff'), (-0.22, 0.5, -0.4, '#8ae8ff'), (0.22, 0.55, 0.4, '#8ae8ff')):
@@ -229,13 +238,85 @@ def kingcrystal():
     return r
 
 
+def plank():
+    """Two sawn planks, crossed."""
+    r = empty('i')
+    for rot, z in ((0.35, -0.05), (-0.35, 0.05)):
+        box((0, 0, z), (1.1, 0.26, 0.08), toon('#e8c890'), r, rot=(0, 0, rot), bevel=0.02)
+        for k in (-0.3, 0.1, 0.4):
+            box((k * math.cos(rot), k * math.sin(rot), z + 0.045), (0.08, 0.2, 0.01), toon('#c8a070', rim=0), r, rot=(0, 0, rot), bevel=0.003, line=0)
+    return r
+
+
+def pie():
+    """Granny's pie for Bram: a golden lattice crust in a tin."""
+    r = empty('i')
+    cylinder((0, 0, -0.1), 0.48, 0.14, toon('#b8bcc8'), r, seg=28, r2=0.42)
+    cylinder((0, 0, -0.02), 0.45, 0.08, toon('#e8a860'), r, seg=28)
+    for k in range(-2, 3):
+        box((k * 0.15, 0, 0.03), (0.06, 0.8 - abs(k) * 0.12, 0.03), toon('#f0c070'), r, bevel=0.01, line=0.008)
+        box((0, k * 0.15, 0.05), (0.8 - abs(k) * 0.12, 0.06, 0.03), toon('#f0c070'), r, bevel=0.01, line=0.008)
+    sphere((0.12, -0.1, 0.04), (0.05, 0.05, 0.02), toon('#c83a5a'), r, line=0)
+    r.rotation_euler = (0.7, 0, 0)
+    return r
+
+
+def _plate(r, z=-0.3, rad=0.5):
+    cylinder((0, 0, z), rad, 0.05, toon('#ffffff'), r, seg=28, r2=rad * 0.8)
+
+
+def pancakes():
+    r = empty('i')
+    _plate(r)
+    for i in range(3):
+        cylinder((0, 0, -0.22 + i * 0.12), 0.34, 0.1, toon('#e8b060'), r, seg=24)
+    cylinder((0, 0, 0.1), 0.3, 0.03, toon('#b86a2a', rim=0.3), r, seg=24, line=0)  # syrup
+    box((0, 0, 0.16), (0.14, 0.14, 0.08), toon('#fff0a0'), r, bevel=0.02)  # butter
+    r.rotation_euler = (0.5, 0, 0)
+    return r
+
+
+def tea():
+    r = empty('i')
+    cylinder((0, 0, -0.35), 0.42, 0.04, toon('#ffffff'), r, seg=24)
+    cylinder((0, 0, -0.05), 0.3, 0.55, toon('#f0f4ff'), r, seg=24, r2=0.25)
+    cylinder((0, 0, 0.2), 0.27, 0.02, toon('#9ac85a', rim=0.3), r, seg=24, line=0)
+    torus((0.33, 0, -0.05), 0.12, 0.035, toon('#f0f4ff'), r, rot=(math.pi / 2, 0, 0))
+    clover_leaves(r, 0.24, 0.35)
+    r.rotation_euler = (0.45, 0, 0)
+    return r
+
+
+def goojelly():
+    r = empty('i')
+    _plate(r, -0.35)
+    lathe([(0.0, -0.3), (0.34, -0.3), (0.3, 0.0), (0.2, 0.18), (0.0, 0.22)], toon('#62d85a', rim=0.45), r)
+    sphere((-0.08, -0.12, 0.08), (0.05, 0.03, 0.07), toon('#ffffff', rim=0), r, line=0)
+    sphere((0, 0, 0.3), 0.07, toon('#e8404a'), r, line=0.01)  # a berry on top
+    r.rotation_euler = (0.45, 0, 0)
+    return r
+
+
+def stew():
+    r = empty('i')
+    lathe([(0.0, -0.35), (0.3, -0.35), (0.48, -0.1), (0.5, 0.05), (0.0, 0.05)], toon('#a8743a'), r)
+    cylinder((0, 0, 0.02), 0.44, 0.04, toon('#c8743a', rim=0.3), r, seg=24, line=0)
+    for x, y, c in ((-0.15, 0.05, '#ff9a4a'), (0.12, -0.1, '#8ad85a'), (0.05, 0.18, '#e8c890')):
+        sphere((x, y, 0.07), 0.07, toon(c), r, line=0.01)
+    cylinder((0.3, 0.2, 0.25), 0.03, 0.6, toon('#c89a6a'), r, seg=8, rot=(0, 0.6, 0.4))
+    r.rotation_euler = (0.55, 0, 0)
+    return r
+
+
+ITEMS = {'pie': pie, 'meal_pancakes': pancakes, 'meal_tea': tea, 'meal_goojelly': goojelly, 'meal_stew': stew}
+
 CHARMS = {'clovercharm': clovercharm, 'toothcharm': toothcharm, 'crystalheart': crystalheart, 'impring': impring}
 MATERIALS = {
     'goo': goo, 'fluff': fluff, 'clover': clover, 'cap': cap, 'bark': bark, 'pine': pine_log, 'fang': fang, 'wing': wing,
     'stone': lambda: ore('#9aa0b0', None),
     'glimmer': glimmer_jelly, 'copper': lambda: ore('#8a7a6a', '#ff9a4a'), 'iron': lambda: ore('#5e6272', '#c8dcf8'),
     'crystal': crystal_mat, 'core': core, 'ember': ember, 'horn': horn, 'scale': scale,
-    'royaljelly': royaljelly, 'alphapelt': alphapelt, 'kingcrystal': kingcrystal,
+    'royaljelly': royaljelly, 'alphapelt': alphapelt, 'echowing': echowing, 'kingcrystal': kingcrystal, 'plank': plank,
 }
 TOOLS = {
     'axe1': lambda: axe('#9aa0b0', [(0.32, 0.03), (0.46, 0.03), (0.56, 0.3), (0.48, 0.37), (0.4, 0.38), (0.32, 0.37), (0.24, 0.3)]),
