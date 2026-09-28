@@ -1,7 +1,7 @@
 // Loads the Blender-rendered sprite atlas and draws frames. If loading fails the game falls back to the
 // procedural canvas drawings in sprites.ts, so it always stays playable. Characters are drawn in 3D (models.ts) once
 // their models are in, with their sprites as the fallback.
-import { drawModel, hasModel } from './models';
+import { drawModel, hasModel, type Held } from './models';
 
 export interface Frame {
   img: HTMLImageElement | HTMLCanvasElement;
@@ -218,25 +218,29 @@ export function slotOf(thing: object, kind: string): string {
 /**
  * Draws a character that walks like the hero (the hero, Poppy): a 3D model once it's loaded, else its sprite
  * (`<prefix>/<dir>/<frame>`: 5 directions, standing + 4 steps), facing `face` and walking if `moving`. `slot` names this
- * on-screen character. Returns false if neither is available so callers can fall back.
+ * on-screen character. `held`: a weapon in hand or carried (3D only; with sprites the caller draws it). Returns
+ * 'model' or 'sprite' for what drew it, or false if neither is available so callers can fall back.
  */
-export function drawWalker(ctx: CanvasRenderingContext2D, prefix: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}, slot = prefix): boolean {
-  const pose = { anim: moving ? 'walk' : 'idle', phase: t / (moving ? WALK_T : IDLE_T), yaw: Math.PI / 2 - face, bold: !!o.outline };
+export function drawWalker(ctx: CanvasRenderingContext2D, prefix: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}, slot = prefix, held?: Held): 'model' | 'sprite' | false {
+  const pose = { anim: moving ? 'walk' : 'idle', phase: t / (moving ? WALK_T : IDLE_T), yaw: Math.PI / 2 - face, bold: !!o.outline, held };
   // The 3D hero gets its heavier outline from the shader instead of a 2D one.
-  if (drawModel(ctx, slot, prefix.replace('/', '_'), pose, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, { ...o, outline: undefined }))) return true;
+  if (drawModel(ctx, slot, prefix.replace('/', '_'), pose, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, { ...o, outline: undefined }))) return 'model';
   const { dir, flip } = heroDir(face);
   const n = moving ? 1 + (Math.floor(t * 9) % 4) : 0;
   const f = frame(`${prefix}/${dir}/${n}`) ?? frame(`${prefix}/${dir}/0`) ?? frame(`${prefix}/0/0`);
   if (!f) return false;
   const breathe = moving ? 1 : 1 + Math.sin(t * 3) * 0.015;
   drawFrame(ctx, f, x, y, unit, { ...o, flip, sy: (o.sy ?? 1) * breathe, sx: (o.sx ?? 1) / breathe });
-  return true;
+  return 'sprite';
 }
 
-/** Draws the hero; returns false if neither the model nor the sprites are available so callers can fall back. */
-export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}, slot = 'hero'): boolean {
+/**
+ * Draws the hero, with `held` in hand or carried if drawn in 3D. Returns what drew it ('model' or 'sprite'), or false
+ * if neither is available so callers can fall back.
+ */
+export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}, slot = 'hero', held?: Held): 'model' | 'sprite' | false {
   const prefix = frame(`hero/${armor}/0/0`) || hasModel(`hero_${armor}`) ? `hero/${armor}` : 'hero/tunic';
-  return drawWalker(ctx, prefix, x, y, unit, face, moving, t, { outline: HERO_OUTLINE, ...o }, slot);
+  return drawWalker(ctx, prefix, x, y, unit, face, moving, t, { outline: HERO_OUTLINE, ...o }, slot, held);
 }
 
 /**

@@ -2,6 +2,7 @@
 // state and never changes the simulation (it only adds cosmetic particles).
 import { ARENA_RX, ARENA_RY } from '../arena';
 import { drawFrame, drawHero as drawHeroSprite, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from '../assets';
+import { handOf, hasModel, type Held } from '../models';
 import { GEAR, type ZoneId } from '../data';
 import { drawMonster, drawPlayer, drawWeapon, rrect, shadow } from '../sprites';
 import { SKILL_DATA } from '../weapons';
@@ -657,11 +658,26 @@ function drawHero(b: Battle, ctx: Ctx) {
     else drawWeapon(ctx, style === 'whip' ? 'sword' : style, handX, handY, ang, 12 * scale, b.weapon.color ?? '#ccc');
   };
   shadow(ctx, p.x, p.y, 14);
-  if (behind) drawW();
   const armor = b.save.equip.armor;
-  const ok = drawHeroSprite(ctx, armor, p.x, p.y, UNIT * HERO_SCALE, p.face, p.moving && !sw, b.t, {
-    alpha, flash: p.hurtT > 0 ? 0.7 : 0, sx: p.dodgeT > 0 ? 1.2 : 1, sy: p.dodgeT > 0 ? 0.82 : 1,
-  }, 'hero:battle');
+  // In 3D the weapon is in the hero's own hand: the arm turns to follow the swing's angle (the same one the hitboxes
+  // use), hangs down at rest, and rises for the heavy wind-ups (the sprites grew for those).
+  const held: Held = {
+    id: `wpn_${b.weapon.id}`, at: 'hand', ang,
+    lift: idle ? -1.15 : scale > 1.02 ? Math.min(1.2, (scale - 1) * 2.4) : 0.12,
+    scale: weaponUnit / (UNIT * HERO_SCALE),
+  };
+  const heroOpts = { alpha, flash: p.hurtT > 0 ? 0.7 : 0, sx: p.dodgeT > 0 ? 1.2 : 1, sy: p.dodgeT > 0 ? 0.82 : 1 };
+  if (hasModel(`wpn_${b.weapon.id}`) && hasModel(`hero_${armor}`)) {
+    const drawn = drawHeroSprite(ctx, armor, p.x, p.y, UNIT * HERO_SCALE, p.face, p.moving && !sw, b.t, heroOpts, 'hero:battle', held);
+    if (drawn === 'model') {
+      // A whip's rope (or the skill's twirl) starts from the hand you can see.
+      const hand = handOf('hero:battle', UNIT * HERO_SCALE);
+      if (style === 'whip' && hand && !idle) drawLash(b, ctx, p.x + hand.x, p.y + hand.y, ang, sw, false, side);
+      return;
+    }
+  }
+  if (behind) drawW();
+  const ok = drawHeroSprite(ctx, armor, p.x, p.y, UNIT * HERO_SCALE, p.face, p.moving && !sw, b.t, heroOpts, 'hero:battle');
   if (!ok) {
     drawPlayer(ctx, p.x, p.y, 12, {
       t: b.t, moving: p.moving, face: p.face, armor: GEAR[armor]?.color ?? '#6fa8ff', hurt: p.hurtT > 0,

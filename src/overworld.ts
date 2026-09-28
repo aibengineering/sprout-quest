@@ -2,6 +2,7 @@
 import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { currentQuest } from './quests';
 import { Actors, type Actor } from './actors';
+import { hasModel, type Held } from './models';
 import { drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from './assets';
 import { drawBubble } from './bubble';
 import { spriteScale } from './battle/monsters';
@@ -428,16 +429,21 @@ export class Overworld {
   private drawHero(ctx: CanvasRenderingContext2D, ts: number) {
     const px = this.x * ts, py = this.y * ts;
     shadow(ctx, px, py, ts * 0.27);
-    // Your weapon rides on your back: peeking over a shoulder from the front, strapped on when you walk away.
+    // Your weapon rides on you: swords and hammers strapped across your back, whips and wands at your hip. In 3D it's
+    // part of the model (it turns with you); with sprites it's drawn peeking over a shoulder.
     const wpn = GEAR[this.save.equip.weapon];
-    const wf = wpn && frame(`wpn/${wpn.id}`);
+    const style = wpn?.style ?? 'sword';
+    const size = MOVESETS[style]?.size ?? 1;
+    const held: Held | undefined = wpn && { id: `wpn_${wpn.id}`, at: style === 'whip' || style === 'wand' ? 'hip' : 'back', scale: (style === 'wand' ? 0.5 : 0.75) * size, hipDown: style === 'wand' };
+    const in3d = !!wpn && hasModel(`wpn_${wpn.id}`) && hasModel(`hero_${this.save.equip.armor}`);
+    const wf = !in3d && wpn && frame(`wpn/${wpn.id}`);
     const away = Math.sin(this.face) < -0.5;
     const bob = this.moving ? Math.abs(Math.sin(this.t * 9)) * ts * 0.03 : 0;
     const back = () => {
-      if (wf) drawFrame(ctx, wf, px - ts * 0.15, py - ts * 0.36 - bob, ts * 0.47 * (MOVESETS[wpn.style ?? 'sword']?.size ?? 1), { rot: -1.05 });
+      if (wf) drawFrame(ctx, wf, px - ts * 0.15, py - ts * 0.36 - bob, ts * 0.47 * size, { rot: -1.05 });
     };
     if (!away) back();
-    if (!drawHero(ctx, this.save.equip.armor, px, py, ts / 1.2, this.face, this.moving, this.t)) {
+    if (!drawHero(ctx, this.save.equip.armor, px, py, ts / 1.2, this.face, this.moving, this.t, {}, 'hero', in3d ? held : undefined)) {
       drawPlayer(ctx, px, py, ts * 0.3, {
         t: this.t, moving: this.moving, face: this.face,
         armor: GEAR[this.save.equip.armor]?.color ?? '#6fa8ff',

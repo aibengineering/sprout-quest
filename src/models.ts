@@ -8,7 +8,7 @@
 // pose, facing or size changes.
 import {
   AnimationMixer, BackSide, Box3, BufferAttribute, BufferGeometry, Color, DirectionalLight, Float32BufferAttribute, LoopRepeat,
-  Matrix4, Mesh, Object3D, OrthographicCamera, PCFShadowMap, Scene, ShaderMaterial, UniformsLib, UniformsUtils, Vector2, Vector3, WebGLRenderer,
+  Matrix4, Mesh, Object3D, OrthographicCamera, PCFShadowMap, Quaternion, Scene, ShaderMaterial, UniformsLib, UniformsUtils, Vector2, Vector3, WebGLRenderer,
   type AnimationAction, type AnimationClip,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -200,6 +200,8 @@ function mergeParts(root: Object3D, clips: AnimationClip[]) {
 /** How far the model reaches across all its animations, so its image is always big enough. */
 function measure(root: Object3D, clips: Record<string, AnimationClip>) {
   const mixer = new AnimationMixer(root), box = new Box3(), tmp = new Box3();
+  root.updateMatrixWorld(true);
+  box.setFromObject(root, true);
   for (const clip of Object.values(clips)) {
     const action = mixer.clipAction(clip).play();
     for (let i = 0; i < 8; i++) {
@@ -307,6 +309,12 @@ interface Slot {
   frame: Frame;
   key: string;
   seen: number;
+  /** Walkers only: the weapon hand's arm, and where a weapon goes in the hand, on the back and at the hip. */
+  arm?: Object3D;
+  mounts?: { hand: Object3D; back: Object3D; hip: Object3D };
+  weapon?: { id: string; obj: Object3D };
+  /** Where the hand was on the last render, in model units from the feet, on screen (y down). */
+  hand: { x: number; y: number };
 }
 
 const slots = new Map<string, Slot>();
@@ -319,9 +327,74 @@ function slotFor(name: string, id: string, model: Model): Slot {
   const mixer = new AnimationMixer(root);
   const actions = Object.fromEntries(Object.entries(model.clips).map(([k, c]) => [k, mixer.clipAction(c).setLoop(LoopRepeat, Infinity)]));
   const canvas = document.createElement('canvas');
-  s = { id, model, root, mixer, actions, canvas, frame: { img: canvas, x: 0, y: 0, w: 0, h: 0, ax: 0, ay: 0, ppu: 1 }, key: '', seen: 0 };
+  s = { id, model, root, mixer, actions, canvas, frame: { img: canvas, x: 0, y: 0, w: 0, h: 0, ax: 0, ay: 0, ppu: 1 }, key: '', seen: 0, hand: { x: 0, y: 0 } };
+  // Characters built like the hero (art/hero.py) hold things in their right hand (arm1) and carry them on the body.
+  const arm = root.getObjectByName('arm1'), body = root.getObjectByName('bodyPivot');
+  if (arm && body) {
+    const mount = (parent: Object3D, x: number, y: number, z: number) => {
+      const o = new Object3D();
+      o.position.set(x, y, z);
+      parent.add(o);
+      return o;
+    };
+    // The hand sits at the end of the arm (art/hero.py: a sphere 0.14 below the shoulder, in glTF axes).
+    s.arm = arm;
+    s.mounts = { hand: mount(arm, 0.03, -0.15, 0.01), back: mount(body, 0.2, 0.52, -0.27), hip: mount(body, 0.29, 0.14, -0.02) };
+  }
   slots.set(name, s);
   return s;
+}
+
+/**
+ * Something held or carried: a weapon model (wpn_<id>), in the hand pointing along `ang` on the ground (radians: 0 to
+ * the right, π/2 toward the camera) raised by `lift`, or on the back, or at the hip (`hipDown`: pointing down, like
+ * a wand in a belt, rather than hanging sideways like a coiled whip). `scale`: its size in the character's units.
+ */
+export interface Held { id: string; at: 'hand' | 'back' | 'hip'; ang?: number; lift?: number; scale: number; hipDown?: boolean }
+
+const DOWN = new Vector3(0, -1, 0);
+/** The camera looks down 30° from the front: blades turn their flat side toward it, as the sprites were drawn. */
+const TO_CAMERA = new Vector3(0, Math.sin(ELEVATION), Math.cos(ELEVATION));
+const tmpQ = new Quaternion(), tmpV = new Vector3(), tmpM = new Matrix4();
+
+/** Puts the weapon in the right place for this render: in the hand (turning the arm to hold it out), or stowed. */
+function placeHeld(s: Slot, held: Held | undefined) {
+  if (!s.mounts || !s.arm) return;
+  const wanted = held && models.get(held.id);
+  if (held && !wanted) void loadModel(held.id);
+  if (s.weapon && (!wanted || s.weapon.id !== held!.id)) {
+    s.weapon.obj.removeFromParent();
+    s.weapon = undefined;
+  }
+  if (!wanted || !held) return;
+  if (!s.weapon) s.weapon = { id: held.id, obj: wanted.root.clone(true) };
+  const w = s.weapon.obj;
+  w.scale.setScalar(held.scale);
+  s.mounts[held.at].add(w);
+  s.root.updateMatrixWorld(true);
+  if (held.at === 'hand') {
+    // Where the weapon points, in the world: along the ground at `ang`, tilted up by `lift`.
+    const lift = held.lift ?? 0, ang = held.ang ?? 0;
+    const dir = new Vector3(Math.cos(ang) * Math.cos(lift), Math.sin(lift), Math.sin(ang) * Math.cos(lift)).normalize();
+    // The arm reaches out that way (a little below it, as an arm would), turned in the body's frame.
+    const armDir = tmpV.copy(dir).addScaledVector(DOWN, 0.55).normalize();
+    const parentQ = s.arm.parent!.getWorldQuaternion(new Quaternion());
+    s.arm.quaternion.copy(parentQ.invert().multiply(tmpQ.setFromUnitVectors(DOWN, armDir)));
+    s.root.updateMatrixWorld(true);
+    // The blade along `dir`, its flat side turned toward the camera.
+    const normal = TO_CAMERA.clone().addScaledVector(dir, -TO_CAMERA.dot(dir)).normalize();
+    const side = new Vector3().crossVectors(normal, dir);
+    const worldQ = new Quaternion().setFromRotationMatrix(tmpM.makeBasis(dir, side, normal));
+    const mountQ = s.mounts.hand.getWorldQuaternion(new Quaternion());
+    w.quaternion.copy(mountQ.invert().multiply(worldQ));
+  } else if (held.at === 'back') {
+    // Strapped across the back, the grip up over the right shoulder (so it shows from the front) and the blade or head
+    // down toward the left hip.
+    w.quaternion.setFromUnitVectors(new Vector3(1, 0, 0), new Vector3(-0.62, -1, -0.12).normalize());
+  } else {
+    // At the right hip: a wand tucked in the belt pointing down, or a whip's coils hanging flat against the thigh.
+    w.quaternion.setFromUnitVectors(new Vector3(1, 0, 0), held.hipDown ? new Vector3(0.1, -1, 0.2).normalize() : new Vector3(0.1, -0.35, 1).normalize());
+  }
 }
 
 /** What to draw: which animation and how far through it (0–1), which way it faces, and whether it's golden. */
@@ -332,6 +405,14 @@ export interface Pose {
   gold?: boolean;
   /** A heavier outline (the hero), so you can always spot yourself. */
   bold?: boolean;
+  /** A weapon in the hand or carried (walkers only). */
+  held?: Held;
+}
+
+/** Where a character's hand was on its last render, in canvas units from its feet (for effects that start at the hand). */
+export function handOf(slot: string, unit: number): { x: number; y: number } | null {
+  const s = slots.get(slot);
+  return s?.mounts ? { x: s.hand.x * unit, y: s.hand.y * unit } : null;
 }
 
 /**
@@ -355,12 +436,14 @@ export function drawModel(ctx: CanvasRenderingContext2D, slot: string, id: strin
   const clip = model.clips[pose.anim] ?? Object.values(model.clips)[0];
   const step = Math.floor((((pose.phase % 1) + 1) % 1) * clip.duration * 24);
   const yaw = Math.round(pose.yaw * 36 / Math.PI);
-  const key = `${clip.name}|${step}|${yaw}|${ppu}|${pose.gold ? 1 : 0}|${pose.bold ? 1 : 0}`;
+  const h = pose.held, heldKey = h && models.has(h.id) ? `${h.id}|${h.at}|${Math.round((h.ang ?? 0) * 36 / Math.PI)}|${Math.round((h.lift ?? 0) * 20)}|${h.scale.toFixed(2)}` : '';
+  if (h && !models.has(h.id)) void loadModel(h.id);
+  const key = `${clip.name}|${step}|${yaw}|${ppu}|${pose.gold ? 1 : 0}|${pose.bold ? 1 : 0}|${heldKey}`;
   if (key !== s.key) {
     s.key = key;
     gold.value = pose.gold ? 1 : 0;
     outlineScale.value = pose.bold ? 1 : OUTLINE_SCALE;
-    render(r, s, clip, step / 24, (yaw * Math.PI) / 36, ppu);
+    render(r, s, clip, step / 24, (yaw * Math.PI) / 36, ppu, heldKey ? h : undefined);
   }
   draw(s.frame);
   return true;
@@ -369,10 +452,12 @@ export function drawModel(ctx: CanvasRenderingContext2D, slot: string, id: strin
 /** Rendering counters, for tuning (window.game.modelStats). */
 export const modelStats = { renders: 0, ms: 0, copyMs: 0, shadowMs: 0 };
 
-function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, yaw: number, ppu: number) {
+function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, yaw: number, ppu: number, held?: Held) {
   const t0 = performance.now();
   modelStats.renders++;
-  const { radius, height } = s.model;
+  // A weapon in hand or on the back reaches further than the character does: grow the image to fit it.
+  const reachOut = held ? (models.get(held.id)?.radius ?? 0) * held.scale : 0;
+  const radius = s.model.radius + reachOut, height = s.model.height + reachOut * 0.8;
   const sin = Math.sin(ELEVATION), cos = Math.cos(ELEVATION);
   // The image covers the model's reach in every animation and facing, plus a margin for the outline.
   const pad = 4;
@@ -392,6 +477,7 @@ function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, ya
   }
   s.mixer.update(0);
   s.root.rotation.y = yaw;
+  placeHeld(s, held);
   // Frame it: one model unit is `ppu` pixels, with its feet `pad + up` pixels from the image's top.
   const ax = w / 2, ay = pad + up;
   Object.assign(camera, { left: -ax / ppu, right: (w - ax) / ppu, top: ay / ppu, bottom: -(h - ay) / ppu });
@@ -400,6 +486,12 @@ function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, ya
   Object.assign(sun.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach, near: 0.5, far: 20 });
   sun.shadow.camera.updateProjectionMatrix();
   scene.add(s.root);
+  // Where the hand ends up on screen (for effects that start from it): in camera space, one unit per model unit.
+  if (s.mounts) {
+    s.root.updateMatrixWorld(true);
+    const p = s.mounts.hand.getWorldPosition(new Vector3()).applyMatrix4(camera.matrixWorldInverse);
+    s.hand = { x: p.x, y: -p.y };
+  }
   r.setViewport(0, 0, w, h);
   r.setScissor(0, 0, w, h);
   r.setScissorTest(true);

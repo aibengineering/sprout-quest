@@ -32,6 +32,7 @@ lib.toon = _tagged
 
 import hero  # noqa: E402
 import monsters  # noqa: E402
+import weapons  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), '..', 'public', 'assets', 'models')
 FPS = 24
@@ -65,6 +66,15 @@ def monster(kind):
     return build
 
 
+def weapon(wid):
+    """A weapon for the hero's hand: grip at the origin, pointing along +X (see art/weapons.py). A little chunkier across
+    than life, as the sprites were, so it reads at phone size."""
+    root = lib.empty('weapon')
+    weapons.WEAPONS[wid][0](root)
+    root.scale = (1, 1.25, 1.25)
+    return {'root': root}, {}
+
+
 # name: () -> (parts, {animation: (pose(parts, phase), frames at 24 fps)})
 CHARACTERS = {
     **{f'hero_{a}': (lambda a=a: (hero.build(a), walker_anims())) for a in hero.ARMORS},
@@ -73,6 +83,7 @@ CHARACTERS = {
     'npc_elder': lambda: (hero.build_elder(), {'idle': (lambda P, t: breathe(P, t, head='hat'), 32)}),
     'npc_granny': lambda: (hero.build_granny(), {'idle': (lambda P, t: breathe(P, t, head='head'), 32)}),
     **{f'mon_{k}': monster(k) for k in monsters.BUILDERS},
+    **{f'wpn_{w}': (lambda w=w: weapon(w)) for w in weapons.WEAPONS},
 }
 
 

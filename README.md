@@ -266,7 +266,7 @@ BLENDER=/path/to/blender bun run art
   buildings, menu icons
 - `art/pack.py`: trims frames and packs them into WebP atlases plus `atlas.json`
 
-Characters (the hero in every armor, the villagers and every monster) are real-time 3D: `art/models.py` exports each
+Characters (the hero in every armor, the villagers and every monster) and every weapon are real-time 3D (the weapon rides in the hero's hand, the arm following each swing, or on the back or hip on the map): `art/models.py` exports each
 one with its animations to `public/assets/models/*.glb` (compressed with gltfpack; `bun run art models`), and
 `src/models.ts` draws them with a cel shader and inverted-hull outlines that match the Blender material. Each character
 is rendered into a small image at its on-screen size and drawn like a sprite, so the 2D world, depth sorting and every

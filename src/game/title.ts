@@ -31,7 +31,8 @@ export async function boot() {
   if (!ok) show(0.65, 'Sprites unavailable: using simple drawings');
   // Characters are 3D models: the hero in their armor, the villagers and every monster. The other armors follow later.
   const armor = loadState()?.equip.armor ?? 'tunic';
-  const characters = [`hero_${armor}`, 'npc_elder', 'npc_granny', 'npc_poppy', 'npc_poppy_hug', ...Object.keys(MONSTERS).map((k) => `mon_${k}`)];
+  const weapon = loadState()?.equip.weapon ?? 'twig';
+  const characters = [`hero_${armor}`, `wpn_${weapon}`, 'npc_elder', 'npc_granny', 'npc_poppy', 'npc_poppy_hug', ...Object.keys(MONSTERS).map((k) => `mon_${k}`)];
   await loadModels(characters, (done, total) => show(0.65 + 0.22 * (done / total), `Waking everyone up… ${done} / ${total}`));
   await preloadIcons(allIconIds(), (p) => show(0.87 + 0.13 * (p.done / p.total), `Unpacking menu icons… ${p.done} / ${p.total}`));
   show(1, 'Ready!');
@@ -48,6 +49,8 @@ export async function boot() {
   booted = true;
   // Every other armor, quietly, so changing gear shows the new look straight away.
   void loadModels(Object.values(GEAR).filter((g) => g.slot === 'armor' && g.id !== armor).map((g) => `hero_${g.id}`));
+  // …and every weapon you own, so switching shows it in your hand straight away (others load when first held).
+  void loadModels((loadState()?.owned ?? []).filter((id) => GEAR[id]?.slot === 'weapon' && id !== weapon).map((id) => `wpn_${id}`));
 }
 
 /** The version under the title, with a dot if a saved game hasn't read the newest patch notes. */
