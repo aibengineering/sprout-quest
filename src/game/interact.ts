@@ -7,6 +7,7 @@ import { G, menuCtx, paused, persist, syncWorld } from './context';
 import { challengeFoe, startBattle } from './fights';
 import { tryGather } from './gathering';
 import { progressQuests, talkToElder } from './story';
+import { openSawmill, sawmillBuilt } from './stories/bram';
 
 /** Opens the menu with the world waiting behind it. */
 function openMenu(...args: Parameters<typeof G.ui.openMenu>) {
@@ -40,6 +41,8 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
       G.ui.toast('🏕 Your cozy tent. You feel rested!');
       return persist();
     }
+    // Bram's Sawmill, once it's built: his bench, logs in and planks out.
+    if (o.project === 'sawmill' && sawmillBuilt()) return openSawmill();
     openMenu(menuCtx(), 'village', o.project);
   },
 

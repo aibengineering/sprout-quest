@@ -1,6 +1,7 @@
 import { slotKey, storageFrozen } from './slots';
 import { VERSION } from './version';
 import type { MealId } from './kitchen';
+import type { SawState } from './sawmill';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
 export interface SaveState {
@@ -55,6 +56,8 @@ export interface SaveState {
   perks: string[];
   /** The meal you last ate at Granny's and how much of it is left (fights, seconds on the map, or chops; see kitchen.ts). */
   meal: { id: MealId; left: number } | null;
+  /** Bram's Sawmill: planks queued, ready to collect, and when the current one was started (see sawmill.ts). */
+  sawmill?: SawState;
   /** Set once the Forge has its five levels (older saves had three: Smithy was ★★★–★★★★, Master Forge the third). */
   forgeLevels?: 5;
   /** Recipes you've seen in the Forge; ones revealed since show as new (missing: everything revealed counts as seen). */
@@ -86,7 +89,7 @@ export function newState(): SaveState {
     talked: false,
     crafted: 0,
     bosses: [],
-    build: { home: 1, forge: 0, garden: 0, training: 0, warp: 0 },
+    build: { home: 1, forge: 0, garden: 0, training: 0, warp: 0, sawmill: 0 },
     camps: [],
     respawn: 'glade',
     unlocked: [],

@@ -1136,3 +1136,11 @@ body.kbd .drag-hint .keys { display: flex; }
 .sheet.kitchen .mcard.row { align-items: center; }
 .sheet.kitchen .mcard .emo { font-size: 34px; }
 .sheet.kitchen .note { margin: 8px 0 0; font-weight: 700; }
+
+/* ================= Bram's Sawmill ================= */
+.sheet.sawmill .sawbench { margin: 10px 0 12px; padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.6); }
+.sheet.sawmill .sawbench .chips { justify-content: center; font-weight: 800; }
+.sheet.sawmill .sawbench p { margin: 6px 0; }
+.sheet.sawmill .sawbench .ready { color: #3a8a44; font-weight: 900; }
+.sheet.sawmill .sawbench .small { font-size: 13px; opacity: 0.75; }
+.sheet.sawmill .btns .go { padding: 10px 16px; font-size: 15px; }

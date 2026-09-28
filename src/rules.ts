@@ -121,10 +121,12 @@ export function potionRefill(s: SaveState): number {
 }
 
 /** The unlock that opens a project's plot: the Garden and Training Yard after the Slime King, the Waystone after the Alpha Woolf. */
-export const PLOT_UNLOCK: Partial<Record<ProjectId, UnlockId>> = { garden: 'plots', training: 'plots', warp: 'warpplot' };
+export const PLOT_UNLOCK: Partial<Record<ProjectId, UnlockId>> = { garden: 'plots', training: 'plots', warp: 'warpplot', sawmill: 'sawmill' };
 
 /** Whether a project's plot is open (on the map and in the building plans). Anything already built stays open. */
 export const plotOpen = (s: SaveState, id: ProjectId) => {
+  // Bram's Sawmill opens the moment he's moved in (the unlock card follows).
+  if (id === 'sawmill') return s.flags.includes('bram:home') || s.build.sawmill > 0;
   const u = PLOT_UNLOCK[id];
   return !u || has(s, u) || s.build[id] > 0;
 };

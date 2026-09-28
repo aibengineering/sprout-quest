@@ -76,6 +76,56 @@ function hopper(color: string, dust: string, leap: number, land?: (e: Enemy, w: 
   };
 }
 
+/** The Alpha Woolf: circles you, lunges, and howls for its pack once it's hurt (the scarred Woolf fights the same way). */
+const ALPHA: Behaviour = {
+  start: 'circle', color: '#5a6488',
+  think(e, w, dt, _dist, toP, rage) {
+    const p = w.p;
+    if (!e.flag && e.hp < e.maxHp * 0.6 && e.state !== 'dash') {
+      e.flag = true;
+      e.state = 'howl';
+      e.t = 1.0;
+      e.vx = e.vy = 0;
+    }
+    switch (e.state) {
+      case 'howl':
+        e.windup = 1;
+        if (Math.random() < 0.3) w.ring({ x: e.x, y: e.y - 20, r0: 10, r1: 90, dur: 0.4, color: '220,230,255' });
+        if (e.t <= 0) {
+          e.windup = 0;
+          w.summon('wolf', Math.max(4, e.lv - 3), e, 2);
+          e.state = 'circle';
+          e.t = 1;
+        }
+        break;
+      case 'circle': {
+        e.orb += dt * 1.3;
+        const tx = p.x + Math.cos(e.orb) * 150, ty = p.y + Math.sin(e.orb) * 150;
+        moveToward(e, Math.atan2(ty - e.y, tx - e.x), e.spd * 1.2 * Math.min(1, Math.hypot(tx - e.x, ty - e.y) / 30));
+        if (e.t <= 0) { e.state = 'windup'; e.t = 0.45 * rage; e.sub = 0; }
+        break;
+      }
+      case 'windup':
+        e.vx = e.vy = 0;
+        e.windup = 1 - e.t / (0.45 * rage);
+        if (e.t > 0.1) e.dir = toP;
+        if (e.t <= 0) { e.state = 'dash'; e.t = 0.34; e.windup = 0; moveToward(e, e.dir, e.spd * 4.6); }
+        break;
+      case 'dash':
+        if (Math.random() < 0.5) w.fx.burst(e.x, e.y, '#dfe6f0', 1, 30, { size: 4, grav: 0, life: 0.3 });
+        if (e.t <= 0) {
+          e.sub++;
+          if (e.sub < (rage < 1 ? 3 : 2)) { e.state = 'windup'; e.t = 0.28; e.vx = e.vy = 0; }
+          else { e.state = 'recover'; e.t = 0.7; e.vx = e.vy = 0; }
+        }
+        break;
+      default:
+        e.vx = e.vy = 0;
+        if (e.t <= 0) { e.state = 'circle'; e.t = rand(1.1, 1.8) * rage; e.orb = Math.atan2(e.y - p.y, e.x - p.x); }
+    }
+  },
+};
+
 export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
   slime: hopper('#6fdc7a', '#a8f0a8', 1.9),
   // Magma slimes leap further and sometimes spit four embers as they land.
@@ -391,54 +441,9 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
   },
 
   // Alpha Woolf: circles, then chains dashes (three when angry) and howls for its pack once.
-  alphawolf: {
-    start: 'circle', color: '#5a6488',
-    think(e, w, dt, _dist, toP, rage) {
-      const p = w.p;
-      if (!e.flag && e.hp < e.maxHp * 0.6 && e.state !== 'dash') {
-        e.flag = true;
-        e.state = 'howl';
-        e.t = 1.0;
-        e.vx = e.vy = 0;
-      }
-      switch (e.state) {
-        case 'howl':
-          e.windup = 1;
-          if (Math.random() < 0.3) w.ring({ x: e.x, y: e.y - 20, r0: 10, r1: 90, dur: 0.4, color: '220,230,255' });
-          if (e.t <= 0) {
-            e.windup = 0;
-            w.summon('wolf', Math.max(4, e.lv - 3), e, 2);
-            e.state = 'circle';
-            e.t = 1;
-          }
-          break;
-        case 'circle': {
-          e.orb += dt * 1.3;
-          const tx = p.x + Math.cos(e.orb) * 150, ty = p.y + Math.sin(e.orb) * 150;
-          moveToward(e, Math.atan2(ty - e.y, tx - e.x), e.spd * 1.2 * Math.min(1, Math.hypot(tx - e.x, ty - e.y) / 30));
-          if (e.t <= 0) { e.state = 'windup'; e.t = 0.45 * rage; e.sub = 0; }
-          break;
-        }
-        case 'windup':
-          e.vx = e.vy = 0;
-          e.windup = 1 - e.t / (0.45 * rage);
-          if (e.t > 0.1) e.dir = toP;
-          if (e.t <= 0) { e.state = 'dash'; e.t = 0.34; e.windup = 0; moveToward(e, e.dir, e.spd * 4.6); }
-          break;
-        case 'dash':
-          if (Math.random() < 0.5) w.fx.burst(e.x, e.y, '#dfe6f0', 1, 30, { size: 4, grav: 0, life: 0.3 });
-          if (e.t <= 0) {
-            e.sub++;
-            if (e.sub < (rage < 1 ? 3 : 2)) { e.state = 'windup'; e.t = 0.28; e.vx = e.vy = 0; }
-            else { e.state = 'recover'; e.t = 0.7; e.vx = e.vy = 0; }
-          }
-          break;
-        default:
-          e.vx = e.vy = 0;
-          if (e.t <= 0) { e.state = 'circle'; e.t = rand(1.1, 1.8) * rage; e.orb = Math.atan2(e.y - p.y, e.x - p.x); }
-      }
-    },
-  },
+  alphawolf: ALPHA,
+  // The scarred Woolf fights like the Alpha: circling, lunging, and howling for its pack once it's hurt.
+  scarwolf: { ...ALPHA, color: '#7a6450' },
 
   // Crystal King: ground slams, lines of erupting crystal spikes, and crystal shard rings.
   crystalking: {

@@ -124,7 +124,7 @@ async function winFight(page: Page) {
 /** Scenarios run from a queue, a few at a time (each has its own browser context, so their saves don't mix). */
 const queue: { name: string; run: () => Promise<void> }[] = [];
 /** The long ones start first, so none is left running alone at the end. */
-const SLOW = ['Poppy', 'every monster', 'characters are drawn in 3D', 'prologue', 'waits between strikes', 'play report'];
+const SLOW = ['Poppy', "Bram's story", 'every monster', 'characters are drawn in 3D', 'prologue', 'waits between strikes', 'play report'];
 const weight = (name: string) => { const i = SLOW.findIndex((s) => name.includes(s)); return i < 0 ? SLOW.length : i; };
 
 function scenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>) {
@@ -575,6 +575,98 @@ scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   await closeDialogs(page);
   await waitFor(page, 'the end', async () => (await step()) === 6, 8000);
   check(await game<boolean>(page, `g.save.perks.includes('trailboots') && g.over.actors.get('poppy:poppy').look.name === 'poppy_hug'`), 'no hug, or no boots');
+});
+
+scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns his stew", (g) => {
+  const s = g.save;
+  s.lv = 6;
+  s.bosses.push('kingslime');
+  s.camps.push('woods');
+  s.visited.push('meadow', 'woods');
+  s.quest = g.quests.findIndex((q: any) => q.id === 'smithy');
+  s.stories.poppy = 6;
+  s.flags.push('poppy:returned');
+  s.tools = { wood: 2, mine: 1 };
+  s.pos = { x: 31.8, y: 11.4 };
+}, async (page) => {
+  const step = () => game<number>(page, 'g.save.stories.bram ?? 0');
+  /** Clicks through whatever's on screen (scenes, rewards) and wins any fight, until `until` holds. */
+  const playUntil = async (what: string, until: () => Promise<boolean>, ms = 40000) => {
+    await waitFor(page, what, async () => {
+      if (await until()) return true;
+      if (await game<boolean>(page, '!!g.battle && g.battle.intro <= 0 && !g.battle.done')) await endFight(page);
+      const b = await page.$('#modal:not([hidden]) [data-dialog]:last-of-type');
+      if (b) {
+        await b.dispatchEvent('pointerdown');
+        await b.click().catch(() => {});
+      }
+      await page.waitForTimeout(250);
+      return false;
+    }, ms);
+  };
+  const talk = (id: string) => run(page, `void g.over.actors.get('${id}').talk()`);
+
+  // Granny asks the favour and hands over the pie.
+  await waitFor(page, 'Granny', async () => game<boolean>(page, `!!g.over.actors.get('granny:granny')`));
+  await talk('granny:granny');
+  await playUntil('the pie', async () => (await step()) === 1);
+  // The grump at his camp: the pie gets him talking.
+  await run(page, 'g.over.teleport(86.9, 6.9)');
+  await page.waitForTimeout(600);
+  await waitFor(page, 'Bram at his camp', async () => game<boolean>(page, `!!g.over.actors.get('bram:bram')`));
+  await talk('bram:bram');
+  await playUntil('the contest', async () => (await step()) === 2 && (await game<string>(page, 'g.mode')) === 'world');
+  // A loud chop brings Woolves early (and the tree waits).
+  check(await game<boolean>(page, `g.over.world.objs.some((o) => o.kind === 'node' && o.node === 'pine' && o.x < 91 && o.y < 8)`), 'no pines at the camp');
+  // Three pines felled (the chopping itself is covered by its own scenario), and the raid comes anyway.
+  await run(page, `g.over.world.objs.filter((o) => o.kind === 'node' && o.node === 'pine' && o.x > 79 && o.x < 91 && o.y > 2.5 && o.y < 8).slice(0, 3).forEach((o) => g.save.flags.push('bram:pine:' + o.id))`);
+  await playUntil('the raid and the scarred Woolf', async () => (await step()) === 6 && (await game<string>(page, 'g.mode')) === 'world', 90000);
+  check(await game<boolean>(page, `['bram:wave1', 'bram:wave2', 'bram:scar'].every((f) => g.save.flags.includes(f))`), 'the raid did not play out');
+  check(await game<boolean>(page, `g.over.actors.get('bram:bram').follow && g.over.actors.get('bram:bram').look.name === 'bram_hurt'`), 'Bram is not leaning on you');
+  // The walk home: through both ambushes, then to Granny's door.
+  for (const flag of ['bram:ambush1', 'bram:ambush2']) {
+    await run(page, `const o = g.over.world.objs.find((o) => o.flag === '${flag}'); g.over.teleport(o.x + o.w / 2, o.y + o.h / 2)`);
+    await page.waitForTimeout(400);
+    await page.keyboard.press('KeyE');
+    await playUntil(`the ${flag} fight`, async () => game<boolean>(page, `g.save.flags.includes('${flag}') && g.mode === 'world'`));
+  }
+  await run(page, `g.over.teleport(31.8, 11.4)`);
+  await page.keyboard.down('KeyW'); await page.waitForTimeout(150); await page.keyboard.up('KeyW');
+  await playUntil('home in Sowerby', async () => (await step()) === 7 && (await game<string>(page, 'g.mode')) === 'world');
+  check(await game<boolean>(page, `g.save.flags.includes('bram:home') && !g.over.world.objs.find((o) => o.project === 'sawmill').hidden`), 'no Sawmill plot');
+  // Build the Sawmill from the village plans.
+  await run(page, `Object.assign(g.save.mats, { pine: 8, stone: 8, copper: 4, bark: 20 }); const o = g.over.world.objs.find((o) => o.project === 'sawmill'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5)`);
+  await page.waitForTimeout(400);
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'the plans', async () => !!(await page.$('#modal:not([hidden]) [data-build="sawmill"]:not([disabled])')));
+  await page.click('#modal [data-build="sawmill"]');
+  await page.keyboard.press('Escape');
+  await playUntil('the Sawmill', async () => (await step()) === 8 && (await game<string>(page, 'g.mode')) === 'world');
+  // Saw six planks (the clock wound on, rather than waiting three minutes), take them, and bring them to Bram.
+  await talk('bram:bram');
+  await waitFor(page, 'the bench', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:5"]')));
+  await page.click('[data-dialog="saw:5"]');
+  await waitFor(page, 'saw one more', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:1"]')));
+  await page.click('[data-dialog="saw:1"]');
+  await page.waitForTimeout(300);
+  await page.click('[data-dialog="close"]');
+  await page.waitForTimeout(300);
+  check(await game<number>(page, 'g.save.sawmill.queued') === 6 && await game<number>(page, 'g.save.mats.bark') === 8, 'the logs did not go to the saw');
+  await run(page, 'g.save.sawmill.since -= 6 * 30000');
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'planks ready', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="collect"]')), 8000).catch(async () => {
+    await page.click('#modal [data-dialog="close"]').catch(() => {});
+    await talk('bram:bram');
+    await waitFor(page, 'planks ready', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="collect"]')));
+  });
+  await page.click('[data-dialog="collect"]');
+  await page.waitForTimeout(300);
+  await page.click('[data-dialog="close"]');
+  check(await game<number>(page, 'g.save.mats.plank') === 6, 'the planks did not reach your bag');
+  await page.waitForTimeout(400);
+  await talk('bram:bram');
+  await playUntil('the cabin', async () => (await step()) === 9 && (await game<string>(page, 'g.mode')) === 'world');
+  check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'bramhut').hidden && g.save.flags.includes('bram:stew')`), 'no cabin, or no stew');
 });
 
 scenario('dev builds: a preset plays in its own slot, and your real save is untouched', null, async (page) => {

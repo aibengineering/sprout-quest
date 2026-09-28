@@ -9,9 +9,14 @@ import type { WorldObj } from '../world';
 import { G, persist } from './context';
 import { celebrateSkill, lootLines } from './rewards';
 import { progressQuests } from './story';
+import { storyFelled, storyNoisy, storyTooLoud } from './stories';
+import { afterChop, sweetBoost } from '../kitchen';
 
 /** The minigame in progress, if any, and what it paid out once the node gave way. */
-export let chop: { game: Chop; obj: WorldObj; view: GatherView; reward?: GatherReward; fromLv?: number; shown?: ReturnType<typeof revealed> } | null = null;
+export let chop: { game: Chop; obj: WorldObj; view: GatherView; reward?: GatherReward; fromLv?: number; shown?: ReturnType<typeof revealed>; noise?: number } | null = null;
+
+/** How much noise each kind of strike makes, where a story is listening (Bram's camp): 1 brings trouble. */
+const NOISE: Record<'perfect' | 'hit' | 'miss', number> = { perfect: 0, hit: 0.12, miss: 0.4 };
 let chopStart = 0;
 
 /** Colors for each kind of rock in the mining minigame: its face on the bar, and the chips that fly off it. */
@@ -52,7 +57,9 @@ export function tryGather(o: WorldObj) {
     : { kind: 'mine', rock: o.node!, tool, ...ROCK_COLORS[o.node!] };
   const view = new GatherView(look);
   view.onSound = (sfx) => G.audio.play(sfx);
-  chop = { game: new Chop(n.hp, toolPower(tool, n.tier), sweetWidth(s.skills[n.skill].lv)), obj: o, view };
+  // Woodcutter's Stew (Granny's) widens the sweet spot on trees.
+  const width = sweetWidth(s.skills[n.skill].lv) * (n.skill === 'wood' ? sweetBoost(s) : 1);
+  chop = { game: new Chop(n.hp, toolPower(tool, n.tier), width), obj: o, view, noise: storyNoisy(o) ? 0 : undefined };
   chopStart = performance.now();
   G.over.startChop(o);
   G.mode = 'gather';
@@ -91,6 +98,19 @@ export function updateGather(dt: number) {
     if (r) {
       G.audio.play('swing');
       G.over.chopHit(r === 'perfect' ? 2 : r === 'hit' ? 1 : 0.3);
+      if (NODES[c.obj.node!].skill === 'wood') afterChop(G.save);
+      if (c.noise !== undefined) {
+        c.noise += NOISE[r];
+        if (c.noise >= 1) {
+          // Too loud: whatever was listening comes running, and the tree waits.
+          const o = c.obj;
+          cancelGather();
+          G.mode = 'world';
+          input.reset();
+          storyTooLoud(o);
+          return;
+        }
+      }
       const seen = NODES[c.obj.node!].skill === 'wood' ? 'chopped' : 'mined';
       if (!G.save.tips.includes(seen)) G.save.tips.push(seen);
     }
@@ -121,6 +141,7 @@ function finishGather() {
   G.mode = 'world';
   G.input.reset();
   persist();
+  storyFelled(obj);
   if (r!.levels) void celebrateSkill(n.skill, shown!).then(() => progressQuests());
   else void progressQuests();
 }
@@ -134,7 +155,32 @@ export function drawGather(ctx: CanvasRenderingContext2D, vw: number, vh: number
   const how = mine ? 'when the pick lines up with the seam!' : 'in the green!';
   const hint = seen ? 'Walk away to stop' : usingKeyboard() ? `Press E or Space ${how}` : `Tap ${how}`;
   const icon = TOOLS.find((t) => t.skill === n.skill)!.icon;
-  chop.view.draw(ctx, chop.game, vw, vh, `${icon} ${chop.obj.grass ? 'Wild ' : ''}${n.name}`, hint);
+  chop.view.draw(ctx, chop.game, vw, vh, `${icon} ${chop.obj.grass ? 'Wild ' : ''}${n.name}`, chop.noise !== undefined ? 'Clean hits are quiet. Misses are loud!' : hint);
+  if (chop.noise !== undefined) drawNoise(ctx, vw, chop.noise);
+}
+
+/** The noise meter over the minigame: fills with every sloppy strike, red as it nears the top. */
+function drawNoise(ctx: CanvasRenderingContext2D, vw: number, noise: number) {
+  const w = Math.min(260, vw - 80), h = 16, x = (vw - w) / 2, y = 64;
+  ctx.save();
+  ctx.fillStyle = 'rgba(42, 26, 48, 0.75)';
+  ctx.beginPath();
+  ctx.roundRect(x - 44, y - 6, w + 56, h + 12, 12);
+  ctx.fill();
+  ctx.font = '800 14px ui-rounded, "Nunito", system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.fillText('🔊', x - 36, y + h / 2);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 8);
+  ctx.fill();
+  const q = Math.min(1, noise);
+  ctx.fillStyle = q > 0.7 ? '#ff5a4a' : q > 0.35 ? '#ffb03a' : '#8ad85a';
+  ctx.beginPath();
+  ctx.roundRect(x, y, Math.max(h, w * q), h, 8);
+  ctx.fill();
+  ctx.restore();
 }
 
 /** The action button's label while gathering ("Chop!" / "Mine!"). */

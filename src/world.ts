@@ -28,7 +28,8 @@ const NODE_MARKS: [string, NodeKind, boolean][] = [
   ['y', 'crystal', false], ['Y', 'crystal', true],
 ];
 
-export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue';
+/** 'prop': scenery drawn from its `id`'s sprite (Bram's camp, his hut). */
+export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -208,6 +209,14 @@ export class World {
     add({ kind: 'plot', project: 'garden', x: V + 7.2, y: 18.4, w: 3, h: 1.6, label: 'Build', text: 'Garden' });
     add({ kind: 'plot', project: 'training', x: V + 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
     add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Waystone' });
+    // Bram's corner, once he's moved in (his story): the Sawmill beside the Forge, and his cabin below it.
+    add({ kind: 'plot', project: 'sawmill', x: V + 1.1, y: 5.5, w: 3.4, h: 2, label: 'Build', text: 'Sawmill' });
+    add({ kind: 'prop', id: 'bramhut', x: V + 1.5, y: 9, w: 2, h: 1.3, label: '' });
+    // Bram's old logging camp, in the Woods' north-west corner: the stump with his axe in it, the caved-in mill, logs.
+    const W = ZONES.find((z) => z.id === 'woods')!.x0;
+    add({ kind: 'prop', id: 'prop_campmill', zone: 'woods', x: W + 3.8, y: 3.2, w: 2.6, h: 1, label: '' }, false);
+    add({ kind: 'prop', id: 'prop_campstump', zone: 'woods', x: W + 8.6, y: 5.1, w: 1.2, h: 0.7, label: '' }, false);
+    add({ kind: 'prop', id: 'prop_logs', zone: 'woods', x: W + 11, y: 4.1, w: 1, h: 0.6, label: '' }, false);
     add({ kind: 'fountain', x: V + 12, y: 17, w: 2, h: 2, label: 'Rest', text: "Veyra's Spring" });
     // Veyra's shrine, where Elder Oswin prays: north of where he stands, between the forge and the blue house.
     add({

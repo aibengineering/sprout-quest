@@ -10,6 +10,7 @@ import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
 import { MOVESETS, comboTime } from './weapons';
 import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
+import { LOGS_PER_PLANK, SAW_SECONDS, canOrder, nextPlankIn, sawUpdate } from './sawmill';
 import { usingKeyboard } from './input';
 import { canShareFiles } from './share';
 import { reportInfo } from './stats';
@@ -140,7 +141,7 @@ function goalIcon(q: Quest): string {
 
 /** Every icon the menus can show (materials, gear, tools, guardians, buildings, the Elder), for preloading. */
 export function allIconIds(): string[] {
-  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire',
+  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'sawmill0', 'sawmill1', 'bramhut',
     ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`))];
   return [
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
@@ -148,6 +149,7 @@ export function allIconIds(): string[] {
     ...buildings.map((b) => `b_${b}`), 'npc_elder',
     // Story portraits and keepsakes.
     'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots',
+    'npc_bram', 'npc_bram_happy', 'npc_bram_hurt', 'pie', ...Object.keys(MEALS).map((m) => `meal_${m}`),
   ];
 }
 
@@ -166,11 +168,14 @@ function handlingPace(style: Style, lv: number): string {
 }
 
 /** What opens a locked building plot. */
-const PLOT_OPENS: Partial<Record<UnlockId, string>> = { plots: 'The plot opens once you beat the Slime King', warpplot: 'The ruins open up once you beat the Alpha Woolf' };
+const PLOT_OPENS: Partial<Record<UnlockId, string>> = {
+  plots: 'The plot opens once you beat the Slime King', warpplot: 'The ruins open up once you beat the Alpha Woolf',
+  sawmill: 'Someone who knows timber could build one. Granny might know who.',
+};
 
 function buildingIcon(id: ProjectId, level: number): string {
   // Before it's built: the old forge's ruins, the Waystone's broken stones, or an empty plot.
-  if (level === 0) return icon(id === 'warp' ? 'b_warp0' : id === 'forge' ? 'b_forge0' : 'b_plot', PROJECTS[id].icon, 'icon lg');
+  if (level === 0) return icon(id === 'warp' ? 'b_warp0' : id === 'forge' ? 'b_forge0' : id === 'sawmill' ? 'b_sawmill0' : 'b_plot', PROJECTS[id].icon, 'icon lg');
   const name = id === 'forge' ? forgeArt(level) : `${id}${level}`;
   return icon(`b_${name}`, PROJECTS[id].icon, 'icon lg');
 }
@@ -411,9 +416,9 @@ export class UI {
   }
 
   /** The tab each unlock opens when you tap its card (the weapon skill lives in fights, so it has none). */
-  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
+  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', sawmill: 'village', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
   /** The corner button that leads there, which bounces while its card is up. */
-  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag' };
+  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag' };
 
   private nextUnlock() {
     const el = $('unlock-card');
@@ -1071,7 +1076,7 @@ export class UI {
     const now = mealLeft(s);
     const rows = knownMeals(s).map((id: MealId) => {
       const m = MEALS[id], can = hasMats(s, m.recipe);
-      return `<div class="mcard row"><div class="ico"><span class="emo">${m.icon}</span></div><div class="info">
+      return `<div class="mcard row"><div class="ico">${icon(`meal_${id}`, m.icon)}</div><div class="info">
         <div class="name">${esc(m.name)}${m.from ? ` <span class="tag">from ${esc(m.from)}</span>` : ''}</div>
         <div class="desc">${esc(m.desc)}</div><div class="chips">${costChips(s, m.recipe)}</div></div>
         <button class="go" data-dialog="cook:${id}" ${can ? '' : 'disabled'}>Eat</button></div>`;
@@ -1084,6 +1089,34 @@ export class UI {
        <div class="kitchen">${rows}</div>`,
       [['close', 'Thanks, Granny']],
       'celebrate quest kitchen',
+    );
+  }
+
+  /**
+   * Bram's Sawmill: what's on the bench, what's ready, and buttons to hand him logs or take your planks.
+   * Resolves 'saw:<n>', 'collect' or 'close'.
+   */
+  sawmill(s: SaveState, line: string): Promise<string> {
+    const w = sawUpdate(s), room = canOrder(s), next = nextPlankIn(s);
+    const bench = w.queued
+      ? `🪚 Sawing <b>${w.queued}</b> plank${w.queued > 1 ? 's' : ''}: the next in ${next}s.`
+      : 'The saw is quiet. Bring Oak Logs and Bram will get to work.';
+    const btns: [string, string, string?][] = [['close', 'Bye, Bram']];
+    if (room >= 5) btns.unshift(['saw:5', `Saw 5 (${5 * LOGS_PER_PLANK} logs)`, 'ghost']);
+    if (room >= 1) btns.unshift(['saw:1', `Saw 1 (${LOGS_PER_PLANK} logs)`, 'ghost']);
+    if (w.ready) btns.push(['collect', `Take ${w.ready} plank${w.ready > 1 ? 's' : ''}`]);
+    return this.dialog(
+      `${ribbon("Bram's Sawmill")}
+       <div class="speaker small">${icon('npc_bram_happy', '🧔', 'icon sm')}<b>Bram</b></div>
+       <div class="bubble">${esc(line)}</div>
+       <div class="sawbench">
+         <div class="chips">${icon('bark', MATS.bark.icon, 'icon sm')} <b>${s.mats.bark}</b> Oak Logs · ${icon('plank', MATS.plank.icon, 'icon sm')} <b>${s.mats.plank}</b> Planks</div>
+         <p>${bench}</p>
+         ${w.ready ? `<p class="ready">✨ ${w.ready} plank${w.ready > 1 ? 's' : ''} ready to take!</p>` : ''}
+         <p class="small">${LOGS_PER_PLANK} Oak Logs make a Plank, one every ${SAW_SECONDS} seconds, even while you're away.</p>
+       </div>`,
+      btns,
+      'celebrate quest sawmill',
     );
   }
 

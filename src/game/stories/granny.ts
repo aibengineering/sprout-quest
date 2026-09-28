@@ -41,6 +41,20 @@ function kitchen() {
   });
 }
 
+/** Bram's story starts with her: once the Woods are open and Poppy's safe home, she asks you to take him a pie. */
+const bramDue = () => G.save.bosses.includes('kingslime') && poppyStep() >= 6 && !G.save.flags.includes('bram:pie');
+
+function askFavour() {
+  return paused(async () => {
+    await say(GRANNY, "Oh, dear, would you do an old woman a favour? My old friend Bram is a lumberjack, out in Whisper Woods.");
+    await say(GRANNY, "He used to bring me firewood every week. I haven't seen him in years, and I do worry.", 'worried');
+    await say(GRANNY, "Would you take him this pie? Cherry. It's his favourite.");
+    G.save.flags.push('bram:pie');
+    persist();
+    await G.ui.itemFound('pie', "Granny's Cherry Pie", "Still warm. For Bram, at his logging camp in the north-west of Whisper Woods.", '🥧', 'Granny gave you');
+  });
+}
+
 export const GRANNY_STORY: Story = {
   id: 'granny',
   title: "Granny's Kitchen",
@@ -52,7 +66,7 @@ export const GRANNY_STORY: Story = {
     id: GRANNY_ID, look: { kind: 'idle', name: 'granny' }, ...GRANNY_AT,
     label: kitchenOpen(G.save) ? 'Cook' : 'Talk',
     mood: poppyStep() <= 4 ? '😟' : undefined,
-    talk: () => (kitchenOpen(G.save) ? kitchen() : paused(async () => {
+    talk: () => (bramDue() ? askFavour() : kitchenOpen(G.save) ? kitchen() : paused(async () => {
       for (const [text, mood] of lines()) await say(GRANNY, text, mood);
     })),
   }],

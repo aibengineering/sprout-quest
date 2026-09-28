@@ -33,7 +33,7 @@ export async function boot() {
   // Characters are 3D models: the hero in their armor, the villagers and every monster. The other armors follow later.
   const armor = loadState()?.equip.armor ?? 'tunic';
   const weapon = loadState()?.equip.weapon ?? 'twig';
-  const characters = [`hero_${armor}`, `wpn_${weapon}`, 'npc_elder', 'npc_granny', 'npc_poppy', 'npc_poppy_hug', ...Object.keys(MONSTERS).map((k) => `mon_${k}`)];
+  const characters = [`hero_${armor}`, `wpn_${weapon}`, 'npc_elder', 'npc_granny', 'npc_poppy', 'npc_poppy_hug', 'npc_bram', 'npc_bram_hurt', ...Object.keys(MONSTERS).map((k) => `mon_${k}`)];
   await loadModels(characters, (done, total) => show(0.65 + 0.22 * (done / total), `Waking everyone up… ${done} / ${total}`));
   await preloadIcons(allIconIds(), (p) => show(0.87 + 0.13 * (p.done / p.total), `Unpacking menu icons… ${p.done} / ${p.total}`));
   show(1, 'Ready!');

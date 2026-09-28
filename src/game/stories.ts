@@ -5,6 +5,7 @@ import type { ActorSpec } from '../actors';
 import type { BattleSetup } from '../battle/types';
 import type { WorldObj } from '../world';
 import { G, persist, syncWorld } from './context';
+import { BRAM_STORY } from './stories/bram';
 import { GRANNY_STORY } from './stories/granny';
 import { POPPY } from './stories/poppy';
 
@@ -37,9 +38,15 @@ export interface Story {
   fight?: (flag: string) => Partial<BattleSetup> | undefined;
   /** Small touches every frame (moods that react to what's around). */
   tick?: (step: number) => void;
+  /** Chopping this tree makes noise that matters to the story (a meter fills with every sloppy strike)… */
+  noisy?: (o: WorldObj) => boolean;
+  /** …and what happens when it gets too loud. */
+  tooLoud?: (o: WorldObj) => void;
+  /** A tree was felled (or a rock broken). */
+  felled?: (o: WorldObj) => void;
 }
 
-export const STORIES: Story[] = [GRANNY_STORY, POPPY];
+export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY];
 
 /** How far through a story you are (0 = not started; the step count = finished). */
 export const stepOf = (id: string) => G.save.stories[id] ?? 0;
@@ -113,6 +120,12 @@ export async function checkStories(): Promise<boolean> {
 export function tickStories() {
   for (const st of STORIES) if (stepOf(st.id) > 0) st.tick?.(stepOf(st.id));
 }
+
+/** Stories that are under way (or can start), for the gathering hooks. */
+const live = () => STORIES.filter((st) => st.available() || stepOf(st.id) > 0);
+export const storyNoisy = (o: WorldObj) => live().some((st) => st.noisy?.(o));
+export const storyTooLoud = (o: WorldObj) => live().forEach((st) => st.tooLoud?.(o));
+export const storyFelled = (o: WorldObj) => live().forEach((st) => st.felled?.(o));
 
 /** Extra battle setup for a story's monster group. */
 export function storyFightExtras(o: WorldObj): Partial<BattleSetup> | undefined {

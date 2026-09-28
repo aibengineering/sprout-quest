@@ -6,7 +6,9 @@ export type MatId =
   | 'stone' | 'copper' | 'iron'
   | 'wing' | 'crystal' | 'core' | 'glimmer'
   | 'ember' | 'horn' | 'scale'
-  | 'royaljelly' | 'alphapelt' | 'kingcrystal';
+  | 'royaljelly' | 'alphapelt' | 'kingcrystal'
+  /** Sawn at Bram's Sawmill from Oak Logs. */
+  | 'plank';
 
 export type Recipe = Partial<Record<MatId, number>>;
 
@@ -31,6 +33,7 @@ export const MATS: Record<MatId, { name: string; icon: string; where: string }> 
   royaljelly: { name: 'Royal Jelly', icon: '👑', where: 'Trophy · Slime King' },
   alphapelt: { name: 'Alpha Pelt', icon: '🐺', where: 'Trophy · Alpha Woolf' },
   kingcrystal: { name: 'King Crystal', icon: '💠', where: 'Trophy · Crystal King' },
+  plank: { name: 'Plank', icon: '🪵', where: "Bram's Sawmill · Sowerby" },
 };
 
 export const MAT_ORDER = Object.keys(MATS) as MatId[];
@@ -40,7 +43,9 @@ export type MonsterKind =
   | 'golem' | 'glimmer' | 'imp' | 'magma' | 'dragon'
   | 'kingslime' | 'alphawolf' | 'crystalking'
   /** Poppy's story: the bully who stole Mr. Floppers. */
-  | 'bigbun';
+  | 'bigbun'
+  /** Bram's story: the scarred Woolf leading the pack at his camp. */
+  | 'scarwolf';
 
 export interface Drop { mat: MatId; chance: number; min: number; max: number }
 
@@ -104,6 +109,10 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
   bigbun: {
     name: 'Big Bun', lv: 4, hp: 175, atk: 10, def: 2, spd: 85, r: 22, xp: 60, boss: true, title: 'The Bunny Bully',
     drops: [{ mat: 'fluff', chance: 1, min: 3, max: 5 }, { mat: 'clover', chance: 1, min: 1, max: 1 }],
+  },
+  scarwolf: {
+    name: 'Scarred Woolf', lv: 6, hp: 300, atk: 13, def: 4, spd: 105, r: 24, xp: 120, boss: true, title: 'Leader of the Pack',
+    drops: [{ mat: 'fang', chance: 1, min: 3, max: 4 }],
   },
   kingslime: {
     name: 'Slime King', lv: 5, hp: 280, atk: 11, def: 3, spd: 60, r: 34, xp: 120, boss: true, title: 'Warden of the Bramble Line',
@@ -395,7 +404,8 @@ export const SLOW_TOOL = 0.4;
 /** How many nodes of each kind each zone has, on open ground and out in the grass (placed by the route maps). */
 export const NODE_SPAWNS: Partial<Record<ZoneId, { kind: NodeKind; safe: number; grass: number }[]>> = {
   meadow: [{ kind: 'oak', safe: 5, grass: 5 }, { kind: 'rock', safe: 5, grass: 3 }],
-  woods: [{ kind: 'oak', safe: 2, grass: 2 }, { kind: 'pine', safe: 2, grass: 5 }, { kind: 'rock', safe: 1, grass: 2 }, { kind: 'copper', safe: 2, grass: 3 }],
+  // (Woods pines: four of the six by the path stand in Bram's camp.)
+  woods: [{ kind: 'oak', safe: 2, grass: 2 }, { kind: 'pine', safe: 6, grass: 5 }, { kind: 'rock', safe: 1, grass: 2 }, { kind: 'copper', safe: 2, grass: 3 }],
   cave: [{ kind: 'copper', safe: 2, grass: 2 }, { kind: 'iron', safe: 2, grass: 4 }],
   hollow: [{ kind: 'crystal', safe: 2, grass: 4 }, { kind: 'iron', safe: 1, grass: 2 }],
   peak: [{ kind: 'iron', safe: 2, grass: 3 }, { kind: 'crystal', safe: 1, grass: 2 }],
@@ -403,7 +413,7 @@ export const NODE_SPAWNS: Partial<Record<ZoneId, { kind: NodeKind; safe: number;
 
 // ----------------------------------------------------------------------------- village construction
 
-export type ProjectId = 'home' | 'forge' | 'garden' | 'training' | 'warp';
+export type ProjectId = 'home' | 'forge' | 'garden' | 'training' | 'warp' | 'sawmill';
 
 export interface ProjectLevel {
   name: string;
@@ -458,9 +468,14 @@ export const PROJECTS: Record<ProjectId, Project> = {
     name: 'Waystone', icon: '🔮',
     levels: [{ name: 'Waystone', cost: { alphapelt: 1, pine: 4, iron: 3 }, perk: 'Fast travel to any campfire you have lit' }],
   },
+  // Bram's, once he's moved to Sowerby (his story).
+  sawmill: {
+    name: 'Sawmill', icon: '🪚',
+    levels: [{ name: 'Sawmill', cost: { pine: 6, stone: 6, copper: 3 }, perk: 'Bram saws your Oak Logs into Planks, even while you\'re away' }],
+  },
 };
 
-export const PROJECT_ORDER: ProjectId[] = ['home', 'forge', 'garden', 'training', 'warp'];
+export const PROJECT_ORDER: ProjectId[] = ['home', 'forge', 'garden', 'training', 'warp', 'sawmill'];
 
 // ----------------------------------------------------------------------------- story
 

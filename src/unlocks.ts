@@ -3,7 +3,7 @@
 import { QUESTS, TOOLS } from './data';
 import type { SaveState } from './state';
 
-export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'forge' | 'village' | 'plots' | 'warpplot' | 'kitchen';
+export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'forge' | 'village' | 'plots' | 'warpplot' | 'kitchen' | 'sawmill';
 
 export interface Unlock {
   id: UnlockId;
@@ -62,6 +62,11 @@ export const UNLOCKS: Unlock[] = [
     id: 'kitchen', icon: '🍳', title: "Granny's Kitchen",
     text: 'Granny will cook for you! Visit her at the blue house: meals give you more XP, healing, or keep weak monsters away.',
     when: (s) => (s.stories.poppy ?? 0) >= 6,
+  },
+  {
+    id: 'sawmill', icon: '🪚', title: "Bram's Sawmill",
+    text: 'Bram wants to build a Sawmill in Sowerby. Find it in the village plans, beside the Forge.',
+    when: (s) => s.flags.includes('bram:home'),
   },
 ];
 

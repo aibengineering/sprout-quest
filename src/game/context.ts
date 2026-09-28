@@ -108,6 +108,8 @@ export function syncWorld() {
     }
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);
+    // Bram's cabin goes up at the end of his story.
+    if (o.kind === 'prop' && o.id === 'bramhut') o.hidden = !s.flags.includes('bram:hut');
     // A story's monsters are only there at their step.
     if (o.story) o.hidden ||= (s.stories[o.story.id] ?? 0) !== o.story.step;
   }

@@ -923,10 +923,12 @@ export class Overworld {
       case 'lair': return { name: 'lair', back: 0.4 };
       case 'camp': return { name: 'campfire', back: 0.05 };
       case 'statue': return { name: `statue_${o.id}`, back: 0.1 };
+      case 'prop': return { name: o.id!, back: 0.2 };
       case 'plot': {
         const p = o.project!, l = lv(p);
         if (p === 'home') return { name: `home${l}`, back: 0.42 };
         if (p === 'warp') return { name: `warp${l}`, back: 0.1 };
+        if (p === 'sawmill') return { name: `sawmill${l ? 1 : 0}`, back: 0.3 };
         return { name: l ? `${p}${l}` : 'plot', back: 0.28 };
       }
       default: return null;
@@ -979,8 +981,8 @@ export class Overworld {
       case 'plot': {
         // Empty plots (and your home, always) say what goes there.
         const p = o.project!;
-        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Waystone' } as Record<string, string>)[p] ?? '';
-        if (!this.save.build[p] || p === 'home') this.nameTag(ctx, name, ax, top, ts);
+        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Waystone', sawmill: '🪚 Sawmill' } as Record<string, string>)[p] ?? '';
+        if (!this.save.build[p] || p === 'home' || p === 'sawmill') this.nameTag(ctx, name, ax, top, ts);
         break;
       }
       case 'lair':

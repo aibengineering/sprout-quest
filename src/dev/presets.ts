@@ -109,6 +109,22 @@ function poppy(step: number, flags: string[], x: number, y: number, then?: (s: S
 
 const bossFlags = ['poppy:rescue', 'poppy:pack1', 'poppy:pack2', 'poppy:bigbun'];
 
+const W = zoneById('woods').x0;
+
+/** Bram's story at a step: the Slime King beaten, Poppy's story done, a copper axe for the camp's pines. */
+function bram(step: number, flags: string[], x: number, y: number, then?: (s: SaveState) => void) {
+  return base('smithy', 'woods', x, y, (s) => {
+    tools(s, 2, 1);
+    s.lv = Math.max(s.lv, 5);
+    s.stories.poppy = 6;
+    s.perks.push('trailboots');
+    s.flags.push(...bossFlags, 'poppy:returned');
+    s.stories.bram = step;
+    s.flags.push(...flags);
+    then?.(s);
+  });
+}
+
 export const PRESETS: Preset[] = [
   {
     id: 'village', name: 'Just reached the village', desc: 'Prologue done, Lv 2, Twig Sword. The first chapter starts.',
@@ -133,6 +149,24 @@ export const PRESETS: Preset[] = [
   {
     id: 'poppy-done', name: 'Poppy: story finished', desc: 'Trail Boots on, and the Secret Grove free to gather in.',
     make: () => poppy(6, [...bossFlags, 'poppy:returned'], M + 29, 23.4, (s) => s.perks.push('trailboots')),
+  },
+  {
+    id: 'bram', name: "Bram: Granny's favour", desc: 'Slime King beaten and Poppy home: Granny has a pie for Bram. Lv 5, copper axe.',
+    make: () => bram(0, [], 31.8, 11.4),
+  },
+  {
+    id: 'bram-contest', name: 'Bram: the quiet chop', desc: "At Bram's camp with the pie delivered: fell three pines, quietly.",
+    make: () => bram(2, ['bram:pie', 'bram:met'], W + 9.5, 6.4),
+  },
+  {
+    id: 'bram-escort', name: 'Bram: the walk home', desc: 'The raid is over and Bram is hurt: help him back to Sowerby.',
+    make: () => bram(6, ['bram:pie', 'bram:met', 'bram:wave1', 'bram:wave2', 'bram:scar'], W + 9.2, 6.5),
+  },
+  {
+    id: 'bram-mill', name: 'Bram: the Sawmill', desc: 'Bram lives in Sowerby now: build his Sawmill, then saw planks for his cabin.',
+    make: () => bram(7, ['bram:pie', 'bram:met', 'bram:wave1', 'bram:wave2', 'bram:scar', 'bram:ambush1', 'bram:ambush2', 'bram:home'], zoneById('village').x0 + 4.5, 12.5, (s) => {
+      Object.assign(s.mats, { pine: 8, stone: 8, copper: 4, bark: 16 });
+    }),
   },
   {
     id: 'kingslime', name: 'Slime King', desc: 'Lv 4, Stone Sword and Fluff Vest, at the Whisper Woods gate.',
