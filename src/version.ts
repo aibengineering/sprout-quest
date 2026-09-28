@@ -17,7 +17,7 @@ export const PATCH_NOTES: PatchNote[] = [
   {
     version: '0.3.0',
     date: '2026-09-28',
-    title: "Poppy's Bunny",
+    title: 'Tales of Sowerby',
     notes: [
       "🧸 A side story: once you've settled into Sowerby, explore the far corner of the Sunny Meadow. Someone there needs a hero.",
       '🌳 A new place: the Secret Grove, tucked away off the meadow, with oaks and rocks to gather once it is safe.',
