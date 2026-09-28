@@ -330,9 +330,11 @@ export interface Tool {
 }
 
 export const TOOLS: Tool[] = [
-  { id: 'axe1', name: 'Stone Axe', skill: 'wood', tier: 1, icon: '🪓', desc: 'Chops oak. Can hack at pine, slowly.', recipe: { goo: 3, fluff: 2 }, level: 1 },
+  // The first axe and pick are Elder Oswin's old ones, mended in your Bag (their recipes are the mending: Slime Goo to
+  // glue the heads back on, Bunny Fluff to wrap the grips). The rest are crafted at the Forge.
+  { id: 'axe1', name: 'Stone Axe', skill: 'wood', tier: 1, icon: '🪓', desc: 'Chops oak. Can hack at pine, slowly.', recipe: { goo: 2, fluff: 1 }, level: 1 },
   { id: 'axe2', name: 'Copper Axe', skill: 'wood', tier: 2, icon: '🪓', desc: 'Bites through pine, and chops oak faster.', recipe: { copper: 3, bark: 4 }, level: 4 },
-  { id: 'pick1', name: 'Stone Pick', skill: 'mine', tier: 1, icon: '⛏️', desc: 'Breaks rocks. Can chip copper, slowly.', recipe: { goo: 2, fluff: 3 }, level: 1 },
+  { id: 'pick1', name: 'Stone Pick', skill: 'mine', tier: 1, icon: '⛏️', desc: 'Breaks rocks. Can chip copper, slowly.', recipe: { goo: 2, fluff: 2 }, level: 1 },
   { id: 'pick2', name: 'Copper Pick', skill: 'mine', tier: 2, icon: '⛏️', desc: 'Cracks copper veins. Can chip iron, slowly.', recipe: { copper: 4, bark: 3 }, level: 3 },
   { id: 'pick3', name: 'Iron Pick', skill: 'mine', tier: 3, icon: '⛏️', desc: 'Splits iron veins. Can chip crystal, slowly.', recipe: { iron: 4, pine: 3 }, level: 6 },
   { id: 'pick4', name: 'Crystal Pick', skill: 'mine', tier: 4, icon: '⛏️', desc: 'Mines crystal cleanly, and everything else in a blink.', recipe: { crystal: 4, iron: 3 }, level: 9 },
@@ -429,7 +431,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
     name: 'Forge', icon: '⚒',
     // One level per tier of gear: each area's materials upgrade the Forge to work them.
     levels: [
-      { name: 'Forge', cost: { goo: 4, fluff: 3 }, perk: 'Repaired! Craft ★ gear' },
+      { name: 'Forge', cost: { stone: 4, bark: 3, goo: 2 }, perk: 'Repaired! Craft ★ gear' },
       { name: 'Smithy', cost: { royaljelly: 1, bark: 4, copper: 4 }, perk: 'Craft ★★ gear from copper and woods finds' },
       { name: 'Iron Smithy', cost: { iron: 6, core: 2, pine: 4 }, perk: 'Craft ★★★ gear from iron and cavern finds' },
       { name: 'Crystal Kiln', cost: { crystal: 6, glimmer: 4, pine: 3 }, perk: 'Craft ★★★★ gear from crystal and glimmer' },
@@ -469,6 +471,8 @@ export type Goal =
   /** Have these materials in the bag (monsters in `zone` drop them). */
   | { type: 'mats'; zone: ZoneId; need: Recipe }
   | { type: 'craft' }
+  /** Mend Elder Oswin's old axe and pick (monsters in `zone` drop what it takes). */
+  | { type: 'mend'; zone: ZoneId }
   | { type: 'build'; project: ProjectId; level: number }
   | { type: 'boss'; kind: MonsterKind };
 
@@ -503,23 +507,23 @@ export const QUESTS: Quest[] = [
     hint: 'Follow the path east', text: 'The path leads east, toward chimney smoke. There must be a village!',
   },
   {
-    id: 'meadow', chapter: 'Chapter 1', title: 'Gather Materials', goal: { type: 'mats', zone: 'meadow', need: { goo: 4, fluff: 3 } }, hint: 'Collect 4 Slime Goo and 3 Bunny Fluff',
-    text: 'To fix our forge we need Slime Goo and Bunny Fluff. Monsters in Sunny Meadow, just east of here, drop them. They hide in the tall grass!',
+    id: 'meadow', chapter: 'Chapter 1', title: 'Mend the Old Tools', goal: { type: 'mend', zone: 'meadow' }, hint: 'Collect Slime Goo and Bunny Fluff, then mend your axe and pick in the Bag',
+    text: "That old axe is blunt and the pick's head wobbles, but they'll serve once they're mended. Slime Goo holds like glue, and Bunny Fluff makes a soft grip. The monsters in Sunny Meadow, just east of here, drop both. They hide in the tall grass!",
     reward: { potions: 1 },
   },
   {
     id: 'repair', chapter: 'Chapter 1', title: 'Rekindle the Forge', goal: { type: 'build', project: 'forge', level: 1 }, hint: 'Repair the Forge',
-    text: "Wonderful! Bring those materials to the old forge and let's get it burning again.",
+    text: "Good as new! Now the old forge: it needs Stone and Oak Logs, so chop the oaks and break the rocks around the meadow. A little Slime Goo will seal the old bellows.",
     reward: { mats: { goo: 2, fluff: 1 } },
   },
   {
     id: 'gear', chapter: 'Chapter 1', title: 'Gear Up', goal: { type: 'craft' }, hint: 'Craft any gear at the Forge',
-    text: "Listen to it roar! Now craft yourself something better than that old twig: gear from monster bits, or (once you've made tools) from wood and stone.",
+    text: "Listen to it roar! Now craft yourself something better than that old twig: gear from monster bits, or from wood and stone.",
     reward: { mats: { goo: 3, fluff: 2 } },
   },
   {
-    id: 'cottage', chapter: 'Chapter 1', title: 'A Real Home', goal: { type: 'build', project: 'home', level: 2 }, hint: 'Craft an axe and a pick, gather logs and stone, build a Cottage',
-    text: "A hero can't sleep in a tent forever! A cottage needs Oak Logs and Stone: craft a Stone Axe and a Stone Pick at the Forge (Tools), then chop the oaks and break the rocks around the meadow. The ones out in the tall grass give more, if you dare.",
+    id: 'cottage', chapter: 'Chapter 1', title: 'A Real Home', goal: { type: 'build', project: 'home', level: 2 }, hint: 'Gather logs and stone, build a Cottage',
+    text: "A hero can't sleep in a tent forever! A cottage needs plenty of Oak Logs and Stone. The trees and rocks out in the tall grass give more, if you dare.",
     reward: { potions: 1 },
   },
   {

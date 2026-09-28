@@ -27,6 +27,7 @@ function reach(s: SaveState, questId: string) {
     if (g.type === 'flag') s.flags.push(g.flag);
     if (g.type === 'build') s.build[g.project] = Math.max(s.build[g.project], g.level);
     if (g.type === 'craft') s.crafted = Math.max(s.crafted, 1);
+    if (g.type === 'mend') s.tools = { wood: Math.max(1, s.tools.wood), mine: Math.max(1, s.tools.mine) };
     if (g.type === 'boss') {
       s.bosses.push(g.kind);
       const z = ZONES.find((z) => z.guardian?.kind === g.kind);
@@ -35,6 +36,7 @@ function reach(s: SaveState, questId: string) {
     }
   }
   s.quest = i;
+  if (s.flags.includes('village')) s.flags.push('oldtools');
   // No tutorial popups or chapter intros you'd have seen already.
   s.tips.push('moved', 'chopped', 'mined', 'coach-skill', 'coach-potion', ...QUESTS.slice(0, i + 1).map((q) => `elder:${q.id}`));
   s.wins = Math.max(s.wins, 3 + i * 4);

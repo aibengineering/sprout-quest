@@ -133,6 +133,7 @@ function goalIcon(q: Quest): string {
   if (g.type === 'build') return icon(`b_${g.project === 'forge' ? forgeArt(g.level) : g.project + g.level}`, PROJECTS[g.project].icon, 'icon xl');
   if (g.type === 'kills') return icon('goo', '⚔️', 'icon xl');
   if (g.type === 'craft') return icon('jelly', '⚒', 'icon xl');
+  if (g.type === 'mend') return icon('axe1', '🪓', 'icon xl');
   return icon('npc_elder', '🌿', 'icon xl');
 }
 
@@ -399,9 +400,9 @@ export class UI {
   }
 
   /** The tab each unlock opens when you tap its card (the weapon skill lives in fights, so it has none). */
-  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
+  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
   /** The corner button that leads there, which bounces while its card is up. */
-  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag' };
+  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag' };
 
   private nextUnlock() {
     const el = $('unlock-card');
@@ -424,6 +425,8 @@ export class UI {
     el.onclick = tab ? () => {
       el.onclick = null;
       window.clearTimeout(this.unlockTimer);
+      // Mending happens on the Bag's Skills page.
+      if (u.id === 'mend') this.sub.items = 'skills';
       this.hooks.openTab(tab);
       this.nextUnlock();
     } : null;
@@ -795,6 +798,14 @@ export class UI {
         <div class="desc">${esc(tool.name)} · ${max ? 'Mastered!' : `${sk.xp}/${need} XP`}</div>
         <div class="pbar"><i style="width:${max ? 100 : (100 * sk.xp) / need}%"></i></div></div></div>`;
     }).join('');
+    // Elder Oswin's old axe and pick, until they're mended.
+    const mend = s.flags.includes('oldtools') ? TOOLS.filter((t) => t.tier === 1 && s.tools[t.skill] < 1).map((t) => {
+      const can = hasMats(s, t.recipe);
+      const [name, what] = t.skill === 'wood' ? ['Blunt old axe', 'Goo to glue the head back on, Fluff to wrap the grip.'] : ['Chipped old pick', 'Goo to set the loose head, Fluff to wrap the grip.'];
+      return `<div class="mcard row mend"><div class="ico">${icon(t.id, t.icon)}</div><div class="info">
+        <div class="name">${name}</div><div class="desc">${what}</div><div class="chips">${costChips(s, t.recipe)}</div></div>
+        <button class="go" data-tool="${t.id}" ${can ? '' : 'disabled'}>Mend</button></div>`;
+    }).join('') : '';
     // Weapon handling: every class you've trained, plus the one in your hand.
     const style = GEAR[s.equip.weapon]?.style;
     const handling = (Object.keys(STYLE_NAMES) as Style[]).filter((k) => k === style || s.mastery[k].lv > 1 || s.mastery[k].xp > 0).map((k) => {
@@ -810,7 +821,7 @@ export class UI {
       const [id, name, desc] = PERKS[p];
       return `<div class="mcard row"><div class="ico">${icon(id, '👢')}</div><div class="info"><div class="name">${esc(name)}</div><div class="desc">${esc(desc)}</div></div></div>`;
     }).join('');
-    return `${rows ? `<h3>Skills</h3>${rows}` : ''}${handling ? `<h3>Weapon handling</h3>${handling}` : ''}${perks ? `<h3>Perks</h3>${perks}` : ''}`;
+    return `${mend ? `<h3>Old tools</h3>${mend}` : ''}${rows ? `<h3>Skills</h3>${rows}` : ''}${handling ? `<h3>Weapon handling</h3>${handling}` : ''}${perks ? `<h3>Perks</h3>${perks}` : ''}`;
   }
 
   private forge(s: SaveState): string {
@@ -825,7 +836,7 @@ export class UI {
     type Row = { id: string; art: string; name: string; tier: number; owned: boolean; lock: Lock | null; can: boolean; tag: () => string };
     let rows: Row[];
     if (sub === 'tool') {
-      rows = TOOLS.map((t) => {
+      rows = TOOLS.filter((t) => t.tier > 1 || s.tools[t.skill] >= t.tier).map((t) => {
         const owned = s.tools[t.skill] >= t.tier, lock = owned ? null : levelLock(s, t), can = !owned && at && hasMats(s, t.recipe);
         return {
           id: t.id, art: icon(t.id, t.icon), name: t.name, tier: t.tier, owned, lock, can,

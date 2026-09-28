@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { GEAR, PROJECTS, QUESTS, ZONES } from '../src/data';
 import { advanceQuests, currentQuest, recordKills } from '../src/quests';
 import { checkUnlocks } from '../src/unlocks';
-import { build, canBuild, craftGear, playerStats, plotOpen, potionRefill } from '../src/rules';
+import { build, canBuild, craftGear, craftTool, playerStats, plotOpen, potionRefill } from '../src/rules';
 import { newState } from '../src/state';
 import { World } from '../src/world';
 
@@ -15,16 +15,22 @@ describe('story', () => {
     expect(advanceQuests(s).map((q) => q.id)).toEqual(['wake']);
     s.flags.push('glade1', 'glade2');
     expect(advanceQuests(s).map((q) => q.id)).toEqual(['firstfight', 'dodge']);
-    s.flags.push('village');
+    // Arriving, Elder Oswin hands over his old axe and pick.
+    s.flags.push('village', 'oldtools');
     advanceQuests(s);
     expect(currentQuest(s)!.id).toBe('meadow');
-    // Defeating monsters isn't enough: you need the actual repair materials.
+    // Trip one: monster drops. Defeating monsters or holding the materials isn't enough: the tools must be mended.
     recordKills(s, 'meadow', 3);
-    Object.assign(s.mats, { goo: 4, fluff: 1 });
+    Object.assign(s.mats, { goo: 4, fluff: 3 });
     expect(advanceQuests(s)).toHaveLength(0);
-    s.mats.fluff = 3;
+    expect(craftTool(s, 'axe1')).toBe('ok');
+    expect(advanceQuests(s)).toHaveLength(0);
+    expect(craftTool(s, 'pick1')).toBe('ok');
     expect(advanceQuests(s).map((q) => q.id)).toEqual(['meadow']);
     expect(currentQuest(s)!.id).toBe('repair');
+    // Trip two: the forge is stone and wood (and a little goo for the bellows).
+    expect(build(s, 'forge')).toBe('missing');
+    Object.assign(s.mats, { stone: 4, bark: 3, goo: 2 });
     expect(build(s, 'forge')).toBe('ok');
     expect(advanceQuests(s).map((q) => q.id)).toEqual(['repair']);
     expect(currentQuest(s)!.id).toBe('gear');
@@ -145,17 +151,26 @@ describe('onboarding unlocks', () => {
     s.flags.push('glade2', 'village');
     s.wins = 2;
     advanceQuests(s);
+    s.flags.push('oldtools');
     expect(ids()).toEqual(['journal']); // arriving in the village
     Object.assign(s.mats, { goo: 4, fluff: 3 });
     s.wins = 3;
+    expect(ids()).toEqual(['mend', 'skill']); // enough to mend a tool
+    craftTool(s, 'axe1');
+    craftTool(s, 'pick1');
     advanceQuests(s);
-    expect(ids()).toEqual(['skill', 'village']); // time to repair the forge
+    expect(ids()).toEqual(['village']); // time to repair the forge
     expect(s.unlocked).not.toContain('forge');
   });
 });
 
-test('the repair quest only sends you back once you can afford the repair', () => {
-  const { PROJECTS, QUESTS } = require('../src/data');
-  const gather = QUESTS.find((q: { id: string }) => q.id === 'meadow').goal.need;
-  expect(gather).toEqual(PROJECTS.forge.levels[0].cost);
+test('the first trip is monster drops for mending the tools; the forge is then built from what they gather', () => {
+  const { PROJECTS, TOOLS } = require('../src/data');
+  const mending = TOOLS.filter((t: { tier: number }) => t.tier === 1).flatMap((t: { recipe: object }) => Object.keys(t.recipe));
+  expect(new Set(mending)).toEqual(new Set(['goo', 'fluff']));
+  expect(Object.keys(PROJECTS.forge.levels[0].cost)).toEqual(expect.arrayContaining(['stone', 'bark']));
+  // You can't craft a stone axe from nothing: the first axe and pick are Elder Oswin's, mended.
+  const s = newState();
+  Object.assign(s.mats, { goo: 9, fluff: 9 });
+  expect(craftTool(s, 'axe1')).toBe('unknown');
 });

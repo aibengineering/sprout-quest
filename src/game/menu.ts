@@ -83,7 +83,9 @@ export const menuHooks: UIHooks = {
     G.audio.play('craft');
     persist();
     G.ui.closeMenu(true);
-    await paused(() => G.ui.itemFound(t.id, t.name, `${t.desc} Walk up to a tree with a ribbon on it and chop!`, t.icon, 'You crafted'));
+    const what = t.skill === 'wood' ? 'Walk up to a tree with a ribbon on it and chop!' : 'Walk up to a rock with a ribbon on it and break it!';
+    await paused(() => G.ui.itemFound(t.id, t.name, `${t.desc} ${what}`, t.icon, t.tier === 1 ? 'Good as new' : 'You crafted'));
+    void progressQuests();
   },
 
   craftPotion(id) {

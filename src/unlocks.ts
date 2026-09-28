@@ -1,9 +1,9 @@
 // Progressive disclosure: systems switch on one at a time as the player reaches them in the story,
 // so a brand-new player only has to learn "move" and "attack" first.
-import { QUESTS } from './data';
+import { QUESTS, TOOLS } from './data';
 import type { SaveState } from './state';
 
-export type UnlockId = 'journal' | 'bag' | 'skill' | 'forge' | 'village' | 'plots' | 'warpplot';
+export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'forge' | 'village' | 'plots' | 'warpplot';
 
 export interface Unlock {
   id: UnlockId;
@@ -27,6 +27,11 @@ export const UNLOCKS: Unlock[] = [
     id: 'bag', icon: '🎒', title: 'Your Bag', key: 'B',
     text: 'Monsters drop materials! Tap 🎒 to see your gear and everything you have collected. Potions are ready in battle too.',
     when: (s) => s.wins > 0,
+  },
+  {
+    id: 'mend', icon: '🪓', title: 'Mend Your Tools',
+    text: 'You have enough Slime Goo and Bunny Fluff to fix up an old tool. Open your Bag to mend it.',
+    when: (s) => s.flags.includes('oldtools') && TOOLS.some((t) => t.tier === 1 && s.tools[t.skill] < 1 && Object.entries(t.recipe).every(([m, n]) => s.mats[m as keyof typeof s.mats] >= (n ?? 0))),
   },
   {
     id: 'skill', icon: '✨', title: 'Weapon Skill', key: 'L',

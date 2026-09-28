@@ -3,7 +3,7 @@ import { NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind } from '../data';
 import { Chop, GatherView, type Look } from '../gather';
 import type { RockColors } from '../nodeart';
 import { usingKeyboard } from '../input';
-import { canGather, harvest, revealed, sweetWidth, toolPower, type GatherReward } from '../rules';
+import { canGather, harvest, hasOldTools, revealed, sweetWidth, toolPower, type GatherReward } from '../rules';
 import { logEvent } from '../stats';
 import type { WorldObj } from '../world';
 import { G, persist } from './context';
@@ -35,7 +35,9 @@ export function tryGather(o: WorldObj) {
     const t = TOOLS.find((t) => t.skill === n.skill && t.tier === n.tier)!;
     const what = n.skill === 'wood' ? 'chop trees' : 'break rocks';
     G.ui.toast(s.tools[n.skill] === 0
-      ? `${t.icon} You need a ${t.name} to ${what}. Craft one at the Forge (Tools)!`
+      ? hasOldTools(s)
+        ? `${t.icon} Mend your old ${n.skill === 'wood' ? 'axe' : 'pick'} in the Bag (Skills) first, then you can ${what}.`
+        : `${t.icon} You need ${n.skill === 'wood' ? 'an axe' : 'a pick'} to ${what}.`
       : `${t.icon} ${n.name} is too tough for your ${n.skill === 'wood' ? 'axe' : 'pick'}. Craft a ${t.name} (${SKILL_NAMES[n.skill]} ${t.level}).`, 3200);
     return;
   }

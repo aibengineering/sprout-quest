@@ -218,10 +218,15 @@ export function gainSkillXp(s: SaveState, skill: SkillId, amount: number): numbe
   return gained;
 }
 
+/** Elder Oswin's old axe and pick, given when you reach Sowerby: mended in your Bag rather than crafted. */
+export const hasOldTools = (s: SaveState) => s.flags.includes('oldtools');
+
+/** Crafts a tool at the Forge, or (the first axe and pick) mends Elder Oswin's old one. */
 export function craftTool(s: SaveState, id: string): CraftResult {
   const t = TOOLS.find((t) => t.id === id);
   if (!t) return 'unknown';
   if (s.tools[t.skill] >= t.tier) return 'owned';
+  if (t.tier === 1 && !hasOldTools(s)) return 'unknown';
   if (s.skills[t.skill].lv < t.level) return 'skill';
   if (!hasMats(s, t.recipe)) return 'missing';
   spend(s, t.recipe);

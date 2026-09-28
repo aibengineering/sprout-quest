@@ -151,6 +151,8 @@ export function loadState(): SaveState | null {
       merged.build.forge = [0, 1, 4, 5][merged.build.forge] ?? merged.build.forge;
       merged.forgeLevels = 5;
     }
+    // Elder Oswin hands over his old axe and pick on arrival (older saves reached Sowerby before he did).
+    if (merged.flags.includes('village') && !merged.flags.includes('oldtools')) merged.flags.push('oldtools');
     // Saves from before patch notes existed were made on 0.1.0.
     if (data.seenVersion === undefined) merged.seenVersion = '0.1.0';
     return merged;

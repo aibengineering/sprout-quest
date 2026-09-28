@@ -213,6 +213,7 @@ scenario('a new game plays through the prologue to Elder Oswin', null, async (pa
     await page.waitForTimeout(900);
   }
   check(await game(page, `g.save.flags.includes('village')`), 'arriving in the village did not finish the welcome');
+  check(await game(page, `g.save.flags.includes('oldtools')`), 'Elder Oswin did not hand over his old tools');
   await closeDialogs(page);
   await page.waitForTimeout(500);
   check(await game(page, `g.mode`) === 'world', 'not back in control after the welcome');

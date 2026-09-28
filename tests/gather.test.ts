@@ -82,6 +82,7 @@ describe('woodcutting rules', () => {
   test('trees need the right axe, pay out wood and XP, then regrow', () => {
     const s = newState();
     expect(canGather(s, 'oak', 'x', 0)).toBe('tool');
+    s.flags.push('oldtools');
     Object.assign(s.mats, { goo: 3, fluff: 2 });
     expect(craftTool(s, 'axe1')).toBe('ok');
     expect(craftTool(s, 'axe1')).toBe('owned');
@@ -121,6 +122,7 @@ describe('woodcutting rules', () => {
     const s = newState();
     Object.assign(s.mats, { goo: 9, fluff: 9, stone: 20, bark: 20, pine: 20, fang: 9, copper: 20, iron: 20, crystal: 20 });
     expect(canGather(s, 'rock', 'r', 0)).toBe('tool');
+    s.flags.push('oldtools');
     expect(craftTool(s, 'pick1')).toBe('ok');
     expect(canGather(s, 'rock', 'r', 0)).toBe('ok');
     expect(canGather(s, 'copper', 'c', 0)).toBe('ok');

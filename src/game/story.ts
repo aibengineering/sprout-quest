@@ -85,8 +85,9 @@ export async function arriveAtVillage() {
     { x: forge.x + 2, y: forge.y + 2, text: 'Even our old forge has crumbled. Ever since smoke started drifting from Ember Peak, the monsters have been grumpy and nobody dares travel.' },
     { x: sign.x + 3, y: sign.y + 2, text: 'Out east, big guardians now block every road. We are cut off from the rest of the world.' },
     { x: G.over.x, y: G.over.y, text: "But I have a feeling about you. With your help, this little village could grow into something wonderful. Will you stay and help us?" },
+    { x: G.over.x, y: G.over.y, text: "Here: my old axe and pick, from when I was young. They've seen better days, but they're yours." },
   ]);
-  s.flags.push('village');
+  s.flags.push('village', 'oldtools');
   s.respawn = 'village';
   if (!s.visited.includes('village')) s.visited.push('village');
   persist();
