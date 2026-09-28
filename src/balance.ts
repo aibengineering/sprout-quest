@@ -3,7 +3,7 @@
 import { ARENA_RX, ARENA_RY } from './arena';
 import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
 import { MOVESETS, comboDps, openingBurst, skillShape, strikeShape, tierScale } from './weapons';
-import { GENTLE_ATK, calcDamage, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, type PlayerStats } from './rules';
+import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
 import { LOGS_PER_PLANK } from './sawmill';
@@ -34,35 +34,35 @@ export interface Checkpoint {
 /** Kills (at mid zone level) needed to gain a level at each checkpoint, so levels neither fly by nor grind. */
 export const KILLS_PER_LEVEL: Range = [4, 20];
 
-// Regular monsters: 2–4 swings, dipping toward 2 right after an upgrade so new gear feels strong without one-shotting,
-// then the next zone pulls it back up. Bosses: roughly 20–50 swings.
+// Regular monsters: about 4–7 swings at your level (3 at the bottom of an area's level range, up to 10 at the top), fewer
+// once you've outlevelled an area (the level gap, see levelEdge) or right after an upgrade. Guardians: 25–45 swings.
 export const CHECKPOINTS: Checkpoint[] = [
   // The prologue fights teach the three-hit combo and should be nearly impossible to lose.
   {
     id: 'prologue', label: 'Prologue fights', lv: 1, weapon: 'twig', armor: 'tunic', zone: 'glade', hitsToKill: [2, 4], hitsToDie: [12, 30],
     foes: [{ kind: 'slime', lv: 1, gentle: true }, { kind: 'bunny', lv: 1, gentle: true }],
   },
-  { id: 'meadow', label: 'Meadow, fresh start', lv: 1, weapon: 'twig', armor: 'tunic', zone: 'meadow', hitsToKill: [2, 4], hitsToDie: [5, 12] },
+  { id: 'meadow', label: 'Meadow, fresh start', lv: 1, weapon: 'twig', armor: 'tunic', zone: 'meadow', hitsToKill: [4, 8], hitsToDie: [5, 12] },
   { id: 'meadow-gear', label: 'Meadow, first ★ weapon', lv: 3, weapon: 'stonesword', armor: 'tunic', zone: 'meadow', hitsToKill: [2, 3], hitsToDie: [5, 14] },
   {
-    id: 'woods', label: 'Whisper Woods', lv: 4, weapon: 'stonesword', armor: 'fluffvest', zone: 'woods', hitsToKill: [2, 5], hitsToDie: [4, 12],
-    boss: { kind: 'kingslime', lv: 5, hitsToKill: [18, 50], hitsToDie: [4, 12] },
+    id: 'woods', label: 'Whisper Woods', lv: 4, weapon: 'stonesword', armor: 'fluffvest', zone: 'woods', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    boss: { kind: 'kingslime', lv: 5, hitsToKill: [25, 45], hitsToDie: [4, 12] },
   },
   {
-    id: 'cave', label: 'Echo Cavern', lv: 8, weapon: 'coppersword', armor: 'coppermail', charm: 'toothcharm', training: 1, zone: 'cave', hitsToKill: [2, 5], hitsToDie: [4, 12],
-    boss: { kind: 'alphawolf', lv: 9, hitsToKill: [18, 50], hitsToDie: [4, 12] },
+    id: 'cave', label: 'Echo Cavern', lv: 8, weapon: 'coppersword', armor: 'coppermail', charm: 'toothcharm', training: 1, zone: 'cave', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    boss: { kind: 'alphawolf', lv: 9, hitsToKill: [25, 45], hitsToDie: [4, 12] },
   },
   {
-    id: 'hollow', label: 'Glimmer Hollow', lv: 11, weapon: 'ironsword', armor: 'ironplate', charm: 'toothcharm', training: 2, zone: 'hollow', hitsToKill: [2, 5], hitsToDie: [4, 12],
-    boss: { kind: 'echoqueen', lv: 12, hitsToKill: [18, 50], hitsToDie: [4, 12] },
+    id: 'hollow', label: 'Glimmer Hollow', lv: 11, weapon: 'ironsword', armor: 'ironplate', charm: 'toothcharm', training: 2, zone: 'hollow', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    boss: { kind: 'echoqueen', lv: 12, hitsToKill: [25, 45], hitsToDie: [4, 12] },
   },
   {
-    id: 'peak', label: 'Ember Peak', lv: 13, weapon: 'crystalsword', armor: 'crystalmail', charm: 'toothcharm', training: 2, home: 2, zone: 'peak', hitsToKill: [2, 5], hitsToDie: [4, 12],
-    boss: { kind: 'crystalking', lv: 14, hitsToKill: [18, 50], hitsToDie: [4, 12] },
+    id: 'peak', label: 'Ember Peak', lv: 13, weapon: 'crystalsword', armor: 'crystalmail', charm: 'toothcharm', training: 2, home: 2, zone: 'peak', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    boss: { kind: 'crystalking', lv: 14, hitsToKill: [25, 45], hitsToDie: [4, 12] },
   },
   // By the dragon you've outleveled the bottom of Ember Peak, so only the fight at the top of the zone needs to stay tense.
   {
-    id: 'dragon', label: 'Emberwyrm', lv: 18, weapon: 'emberblade', armor: 'magmamail', charm: 'impring', training: 3, home: 3, zone: 'peak', hitsToKill: [1, 4], hitsToDie: [5, 24],
+    id: 'dragon', label: 'Emberwyrm', lv: 18, weapon: 'emberblade', armor: 'magmamail', charm: 'impring', training: 3, home: 3, zone: 'peak', hitsToKill: [1, 4], hitsToDie: [5, 40],
     boss: { kind: 'dragon', lv: 20, hitsToKill: [25, 60], hitsToDie: [3, 10] },
   },
 ];
@@ -83,8 +83,9 @@ export interface Matchup { kind: MonsterKind; name: string; lv: number; hp: numb
 export function matchup(p: PlayerStats, kind: MonsterKind, lv: number, gentle = false): Matchup {
   const m = MONSTERS[kind];
   const s = scaleMonster(m, lv, false);
-  const dealt = calcDamage(p.atk, s.def, 1, 0, avg).dmg;
-  const taken = calcDamage(gentle ? Math.round(s.atk * GENTLE_ATK) : s.atk, p.def, m.boss ? 0.8 : 1, 0, avg).dmg;
+  if (gentle) s.hp = Math.round(s.hp / MONSTER_HP);
+  const dealt = calcDamage(p.atk, s.def, levelEdge(p.lv, lv), 0, avg).dmg;
+  const taken = calcDamage(gentle ? Math.round(s.atk * GENTLE_ATK) : s.atk, p.def, (m.boss ? 0.8 : 1) * levelEdge(lv, p.lv), 0, avg).dmg;
   return { kind, name: m.name, lv, hp: s.hp, hitsToKill: Math.ceil(s.hp / dealt), hitsToDie: Math.ceil(p.maxHp / taken), xp: s.xp };
 }
 
@@ -116,7 +117,7 @@ export const MAX_DRAGON_FIGHTS = 4;
 
 // Rough real-time costs, so fighting and chopping compare fairly.
 /** One kill, including the walk through grass, the fight and the transitions. */
-export const SECONDS_PER_KILL = 12;
+export const SECONDS_PER_KILL = 14;
 /** Seconds to fell a tree or break a rock with decent timing: tougher nodes and weaker tools take longer. */
 export function chopSeconds(kind: NodeKind, toolTier: number): number {
   return 1.5 + (0.9 * NODES[kind].hp) / (toolPower(toolTier, NODES[kind].tier) * 1.3);

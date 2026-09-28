@@ -6,6 +6,8 @@ import { has, type UnlockId } from './unlocks';
 export type Rng = () => number;
 
 export interface PlayerStats {
+  /** Your level (for the level gap in fights). */
+  lv: number;
   maxHp: number;
   atk: number;
   def: number;
@@ -25,6 +27,7 @@ export function playerStats(s: SaveState): PlayerStats {
   const sum = (k: 'atk' | 'def' | 'hp' | 'spd' | 'luck' | 'regen') => gear.reduce((a, g) => a + (g[k] ?? 0), 0);
   const home = s.build?.home ?? 1, training = s.build?.training ?? 0;
   return {
+    lv: s.lv,
     maxHp: Math.round((24 + 6 * s.lv + sum('hp')) * (1 + 0.1 * (home - 1))),
     atk: Math.round((Math.round(2 + 1.5 * s.lv) + sum('atk')) * (1 + 0.05 * training)),
     def: Math.floor(s.lv * 0.8) + sum('def'),
@@ -34,6 +37,20 @@ export function playerStats(s: SaveState): PlayerStats {
     style: GEAR[s.equip.weapon]?.style ?? 'sword',
   };
 }
+
+/**
+ * The level gap in a fight: each level the attacker has over the defender makes its hits land 8% harder, and each level
+ * under, 8% softer, between 0.6× and 1.6×. At your level, fights take a real exchange; outlevel an area and its
+ * monsters go down in a few swings and barely scratch you; wander in underlevelled and it's the other way round.
+ */
+export const LEVEL_EDGE = 0.08;
+export const levelEdge = (attackerLv: number, defenderLv: number) => Math.min(1.6, Math.max(0.6, 1 + LEVEL_EDGE * (attackerLv - defenderLv)));
+
+/** Monsters are tougher than their listed HP: regular ones take a handful of swings at your level, guardians a long fight. */
+export const MONSTER_HP = 1.7;
+export const GUARDIAN_HP = 1.35;
+/** …and give a bit more XP for it, so levelling takes about as long as before. */
+export const MONSTER_XP = 1.25;
 
 export function calcDamage(atk: number, def: number, mult: number, critChance: number, rng: Rng = Math.random) {
   const base = ((atk * atk) / (atk + def + 0.001)) * mult;
@@ -48,10 +65,10 @@ export function scaleMonster(m: MonsterDef, lv: number, golden: boolean): Scaled
   const k = Math.max(0.6, 1 + 0.15 * (lv - m.lv));
   const g = golden ? 1.5 : 1;
   return {
-    hp: Math.round(m.hp * k * g),
+    hp: Math.round(m.hp * k * g * (m.boss ? GUARDIAN_HP : MONSTER_HP)),
     atk: Math.round(m.atk * k),
     def: Math.round(m.def * k),
-    xp: Math.round(m.xp * k * (golden ? 2 : 1)),
+    xp: Math.round(m.xp * k * (golden ? 2 : 1) * MONSTER_XP),
   };
 }
 

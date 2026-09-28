@@ -96,7 +96,7 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
   },
   imp: {
     name: 'Impy', lv: 14, hp: 88, atk: 30, def: 10, spd: 90, r: 14, xp: 58,
-    drops: [{ mat: 'ember', chance: 0.8, min: 1, max: 2 }, { mat: 'horn', chance: 0.7, min: 1, max: 1 }],
+    drops: [{ mat: 'ember', chance: 0.8, min: 1, max: 2 }, { mat: 'horn', chance: 0.8, min: 1, max: 1 }],
   },
   magma: {
     name: 'Magma Slime', lv: 15, hp: 120, atk: 36, def: 14, spd: 80, r: 16, xp: 62,
@@ -108,11 +108,11 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
   },
   // A mini-boss: tougher than anything else in the meadow, well short of the Slime King.
   bigbun: {
-    name: 'Big Bun', lv: 4, hp: 175, atk: 10, def: 2, spd: 85, r: 22, xp: 60, boss: true, title: 'The Bunny Bully',
+    name: 'Big Bun', lv: 4, hp: 175, atk: 9, def: 2, spd: 85, r: 22, xp: 60, boss: true, title: 'The Bunny Bully',
     drops: [{ mat: 'fluff', chance: 1, min: 3, max: 5 }, { mat: 'clover', chance: 1, min: 1, max: 1 }],
   },
   scarwolf: {
-    name: 'Scarred Woolf', lv: 6, hp: 300, atk: 13, def: 4, spd: 105, r: 24, xp: 120, boss: true, title: 'Leader of the Pack',
+    name: 'Scarred Woolf', lv: 6, hp: 225, atk: 13, def: 4, spd: 105, r: 24, xp: 120, boss: true, title: 'Leader of the Pack',
     drops: [{ mat: 'fang', chance: 1, min: 3, max: 4 }],
   },
   kingslime: {

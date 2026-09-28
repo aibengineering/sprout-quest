@@ -6,7 +6,7 @@ import { vibrate } from '../audio';
 import { GEAR, MONSTERS, POTION_HEAL, type Fx as Element, type Gear, type MatId, type MonsterKind } from '../data';
 import { Fx } from '../fx';
 import type { Input } from '../input';
-import { GENTLE_ATK, calcDamage, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
+import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
 import { MOVESETS, SKILL_DATA, pace, strikeTime, tierScale, type Moveset, type Strike } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
@@ -124,9 +124,12 @@ export class Battle implements FoeWorld, HitWorld {
   private spawn(f: Foe, x: number, y: number, minion: boolean): Enemy {
     const def = MONSTERS[f.kind];
     const s = scaleMonster(def, f.lv, f.golden);
+    // The prologue's gentle foes still fall to one three-hit combo.
+    if (f.gentle) s.hp = Math.round(s.hp / MONSTER_HP);
     const e: Enemy = {
       kind: f.kind, def, lv: f.lv, golden: f.golden,
-      hp: s.hp, maxHp: s.hp, atk: f.gentle ? Math.round(s.atk * GENTLE_ATK) : s.atk, dfn: s.def, xp: s.xp, spd: def.spd * (f.golden ? 1.1 : 1),
+      // The level gap: a monster above you hits harder, one below you softer (see levelEdge).
+      hp: s.hp, maxHp: s.hp, atk: Math.round((f.gentle ? s.atk * GENTLE_ATK : s.atk) * levelEdge(f.lv, this.stats.lv)), dfn: s.def, xp: s.xp, spd: def.spd * (f.golden ? 1.1 : 1),
       x, y, vx: 0, vy: 0, kx: 0, ky: 0,
       r: def.r, z: 0, state: MONSTER_AI[f.kind].start, t: rand(0.3, 1.2), dir: 0, face: 1, orb: Math.atan2(y, x), sub: 0, last: null,
       windup: 0, flash: 0, stun: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
@@ -562,7 +565,7 @@ export class Battle implements FoeWorld, HitWorld {
       f.tick = 0.4;
       for (const e of this.enemies) {
         if (e.dead || Math.hypot(e.x - f.x, (e.y - f.y) * 1.4) > f.r + e.r * 0.7) continue;
-        const { dmg } = calcDamage(this.stats.atk, e.dfn, 0.15, 0);
+        const { dmg } = calcDamage(this.stats.atk, e.dfn, 0.15 * this.edge(e), 0);
         e.hp -= dmg;
         this.log.dealt += dmg;
         e.flash = 0.05;
@@ -681,7 +684,7 @@ export class Battle implements FoeWorld, HitWorld {
     this.hits++;
     const st = this.stats;
     const critChance = 0.08 + st.luck * 0.2 + (this.el.crit ?? 0);
-    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult, critChance);
+    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult * this.edge(e), critChance);
     e.hp -= dmg;
     this.log.hits++;
     this.log.dealt += dmg;
@@ -716,7 +719,7 @@ export class Battle implements FoeWorld, HitWorld {
       if (d < bd) { bd = d; best = o; }
     }
     if (!best) return;
-    const { dmg } = calcDamage(this.stats.atk, best.dfn, 0.5, 0);
+    const { dmg } = calcDamage(this.stats.atk, best.dfn, 0.5 * this.edge(best), 0);
     best.hp -= dmg;
     best.flash = 0.1;
     this.log.dealt += dmg;
@@ -733,7 +736,7 @@ export class Battle implements FoeWorld, HitWorld {
     for (const o of this.enemies) {
       if (o === skip || o.dead) continue;
       if (Math.hypot(o.x - x, o.y - y) > 55 + o.r) continue;
-      const { dmg } = calcDamage(this.stats.atk, o.dfn, 0.5, 0);
+      const { dmg } = calcDamage(this.stats.atk, o.dfn, 0.5 * this.edge(o), 0);
       o.hp -= dmg;
       this.log.dealt += dmg;
       o.flash = 0.1;
@@ -767,6 +770,11 @@ export class Battle implements FoeWorld, HitWorld {
       this.audio.play('boom');
       for (let k = 0; k < 4; k++) this.fx.burst(e.x + rand(-40, 40), e.y - rand(20, 90), '#ffb03a', 20, 220, { size: 6 });
     }
+  }
+
+  /** Your hits on this monster, for the level gap between you. */
+  private edge(e: Enemy) {
+    return levelEdge(this.stats.lv, e.lv);
   }
 
   /** `by` says what hit you ("monster:contact|shot|hazard"), for the play report. */

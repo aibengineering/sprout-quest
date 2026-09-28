@@ -45,6 +45,7 @@ export const PATCH_NOTES: PatchNote[] = [
       '🔔 Winning a regular fight rings a quick bell, then your XP bar fills right after it, so you hear both.',
       "🪓 A better start in Sowerby: Elder Oswin hands you his old axe and pick. Mend them with monster drops, then gather stone and logs to rebuild the forge.",
       '❤️ Levelling up raises your max HP, and adds the same to your health, but no longer heals you fully: rest at Veyra\'s Spring or a campfire for that.',
+      '🛡️ Monsters are tougher: at your level a fight takes a real exchange of blows, and guardians are proper battles. The level gap counts both ways: outlevel an area and its monsters drop fast and barely scratch you; wander in underlevelled and they hit hard. Monsters give a little more XP for it.',
       '⚔️ Weapon handling matters: every swing and shot has a moment before the next, and a full combo a short rest. The more you fight with a kind of weapon, the quicker you get with it, up to about 80% faster when mastered (the Skills tab shows how much). This replaces the stamina meter.',
       '🏁 Fights end smoothly: the moment the last monster falls, your loot and XP come in under "Victory!", then the camera swoops you back to the map.',
       '🎉 Level ups, treasure, new gear, new quests and finished chapters get proper celebrations: a ribbon banner, your prize spinning in on rays of light, your new level ringing in, and each stat ticking up with its own sound.',
