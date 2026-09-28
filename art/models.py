@@ -82,6 +82,8 @@ CHARACTERS = {
     'npc_poppy_hug': lambda: (hero.build_poppy(hug=True), {'idle': (lambda P, t: breathe(P, t), 32)}),
     'npc_elder': lambda: (hero.build_elder(), {'idle': (lambda P, t: breathe(P, t, head='hat'), 32)}),
     'npc_granny': lambda: (hero.build_granny(), {'idle': (lambda P, t: breathe(P, t, head='head'), 32)}),
+    'npc_bram': lambda: (hero.build_bram(), walker_anims()),
+    'npc_bram_hurt': lambda: (hero.build_bram('hurt', hurt=True), walker_anims()),
     **{f'mon_{k}': monster(k) for k in monsters.BUILDERS},
     **{f'wpn_{w}': (lambda w=w: weapon(w)) for w in weapons.WEAPONS},
 }

@@ -338,6 +338,25 @@ def alphawolf():
     return P, anim
 
 
+def scarwolf():
+    """The big scarred Woolf that leads the pack at Bram's camp: dusky brown, a pale scar across one eye, a torn ear."""
+    P, anim = wolf('#7a6450', '#d8c8b0', '#54443a')
+    head = P['head']
+    scar = M('#f0c8c0', rim=0)
+    # A long scar from brow to cheek across the left eye.
+    sphere((0.1, surf(0.25, 0.23, 0.22, 0.1, 0.05, inset=1.03), 0.05), (0.024, 0.02, 0.14), scar, head, rot=(0, -0.35, 0), line=0.008)
+    # One ear torn short.
+    sphere((0.14, -0.0, 0.26), (0.07, 0.05, 0.04), M('#54443a'), head, line=0.01)
+    for s in (-1, 1):
+        # Scowling brows.
+        box((0.09 * s, surf(0.25, 0.23, 0.22, 0.09, 0.12, inset=1.03), 0.12), (0.12, 0.03, 0.035), M('#2a1e18', rim=0), head, rot=(0, 0.55 * s, 0), bevel=0.01, line=0.006)
+    # Shaggy ruff.
+    for i in range(6):
+        a = (i - 2.5) * 0.35
+        sphere((math.sin(a) * 0.22, -0.24 + abs(a) * 0.04, 0.6 - abs(a) * 0.06), 0.1, M('#8a7460'), P['piv'])
+    return P, anim
+
+
 def crystalking():
     P, anim = golem('#8a7ab8', '#6a5a98', '#b8a0ff')
     gem = M('#e0c8ff', rim=0.45)
@@ -378,10 +397,11 @@ BUILDERS = {
     'alphawolf': alphawolf,
     'crystalking': crystalking,
     'bigbun': bigbun,
+    'scarwolf': scarwolf,
 }
 
 # Guardians are the base models scaled up to their hitbox size.
-BOSS_SCALE = {'kingslime': 2.2, 'alphawolf': 2.1, 'crystalking': 1.7, 'bigbun': 1.55}
+BOSS_SCALE = {'kingslime': 2.2, 'alphawolf': 2.1, 'crystalking': 1.7, 'bigbun': 1.55, 'scarwolf': 1.6}
 
 
 def build(kind, gold=False):

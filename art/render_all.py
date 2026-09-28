@@ -112,7 +112,7 @@ elif GROUP == 'icons':
         P['root'].rotation_euler = (0, 0, math.radians(15))
         hero.pose(P, 0, False)
         shot(f'icon/{armor}', 128, 128, 88, anchor=(0, 0, 0.64), elevation=math.radians(12), fit_origin=0.5)
-    for name, fn in {**icons.CHARMS, **icons.MATERIALS, **icons.TOOLS}.items():
+    for name, fn in {**icons.CHARMS, **icons.MATERIALS, **icons.TOOLS, **icons.ITEMS}.items():
         if not wanted(name):
             continue
         lib.clear_objects()
@@ -147,6 +147,18 @@ elif GROUP == 'npc':
             for f in range(4):
                 hero.pose(P, f / 4 + 0.125, True)
                 shot(f'npc/poppy/{d}/{f + 1}', 280, 280, HERO_PPU)
+    for name, hurt in (('bram', False), ('bram_hurt', True)):
+        if not wanted(name):
+            continue
+        lib.clear_objects()
+        P = hero.build_bram('hurt' if hurt else 'grumpy', hurt=hurt)
+        for d, ang in enumerate(HERO_DIRS):
+            P['root'].rotation_euler = (0, 0, math.radians(ang))
+            hero.pose(P, 0, False)
+            shot(f'npc/{name}/{d}/0', 280, 280, HERO_PPU)
+            for f in range(4):
+                hero.pose(P, f / 4 + 0.125, True)
+                shot(f'npc/{name}/{d}/{f + 1}', 280, 280, HERO_PPU)
     if wanted('poppy_hug'):
         lib.clear_objects()
         P = hero.build_poppy(hug=True)
@@ -157,7 +169,7 @@ elif GROUP == 'npc':
 
 elif GROUP == 'icons2':
     # Auto-framed icons for guardians and village buildings.
-    for kind in ('kingslime', 'alphawolf', 'crystalking', 'dragon', 'bigbun'):
+    for kind in ('kingslime', 'alphawolf', 'crystalking', 'dragon', 'bigbun', 'scarwolf'):
         if not wanted(kind):
             continue
         lib.clear_objects()
@@ -171,7 +183,9 @@ elif GROUP == 'icons2':
     for name, build in (('npc_poppy', lambda: hero.build_poppy('happy')), ('npc_poppy_scared', lambda: hero.build_poppy('scared')),
                         ('npc_poppy_sad', lambda: hero.build_poppy('sad')), ('npc_poppy_hug', lambda: hero.build_poppy('happy', hug=True)),
                         ('npc_granny', lambda: hero.build_granny()), ('npc_granny_worried', lambda: hero.build_granny('worried')),
-                        ('floppers', lambda: hero.toy_bunny(None)), ('trailboots', hero.build_boots)):
+                        ('floppers', lambda: hero.toy_bunny(None)), ('trailboots', hero.build_boots),
+                        ('npc_bram', lambda: hero.build_bram('grumpy')), ('npc_bram_happy', lambda: hero.build_bram('happy')),
+                        ('npc_bram_hurt', lambda: hero.build_bram('hurt', hurt=True))):
         if not wanted(name):
             continue
         lib.clear_objects()
@@ -189,7 +203,7 @@ elif GROUP == 'icons2':
         lib.render_fit(path, 128, math.radians(12))
         frames.append({'name': 'icon/npc_elder', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
     for name in ('home1', 'home2', 'home3', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'garden1', 'garden2', 'garden3',
-                 'training1', 'training2', 'training3', 'warp0', 'warp1', 'campfire', 'plot'):
+                 'training1', 'training2', 'training3', 'warp0', 'warp1', 'campfire', 'plot', 'sawmill0', 'sawmill1', 'bramhut'):
         if not wanted(name):
             continue
         lib.clear_objects()

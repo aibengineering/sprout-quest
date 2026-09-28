@@ -332,6 +332,70 @@ def build_poppy(mood='happy', hug=False):
     return P
 
 
+def build_bram(mood='grumpy', hurt=False):
+    """Bram, the lumberjack: big and broad, a red plaid shirt with braces, a green knit cap and a bushy russet beard.
+
+    Same part names as the hero, so he walks with `pose`. Moods: grumpy (heavy brows, flat mouth), happy (a grin under
+    the beard), hurt (a wince). With `hurt`, a bandage round his leg and a plaster on his brow.
+    """
+    P = {}
+    root = P['root'] = empty('bram')
+    bodyp = P['body'] = empty('bodyPivot', root)
+    skin, beard = toon('#f0c8a8'), toon('#b0643a')
+    red, black = toon('#d8483a'), toon('#3a2a2a')
+    for side in (-1, 1):
+        f = P[f'foot{side}'] = empty(f'foot{side}', root, (0.14 * side, 0, 0))
+        sphere((0, -0.04, 0.06), (0.11, 0.15, 0.07), toon('#5a3a2a'), f)
+        cylinder((0, 0, 0.16), 0.1, 0.2, toon('#4a5a7a'), f, seg=12)  # trousers
+        if hurt and side == 1:
+            torus((0, 0, 0.18), 0.1, 0.035, toon('#fff6e8'), f, line=0.01)
+    # A barrel chest in red plaid, with dark braces.
+    sphere((0, 0, 0.42), (0.36, 0.3, 0.32), red, bodyp)
+    for z in (0.3, 0.46):
+        torus((0, 0, z), 0.335 if z < 0.4 else 0.345, 0.018, black, bodyp, line=0)
+    for x in (-0.14, 0.14):
+        box((x, -0.27, 0.43), (0.022, 0.05, 0.5), black, bodyp, bevel=0.005, line=0)
+    for side in (-1, 1):
+        box((0.12 * side, -0.29, 0.44), (0.06, 0.04, 0.46), toon('#6a4a2a'), bodyp, bevel=0.01, line=0.008)  # braces
+        arm = P[f'arm{side}'] = empty(f'arm{side}', bodyp, (0.36 * side, 0, 0.5))
+        sphere((0.03 * side, 0, -0.06), (0.11, 0.11, 0.14), red, arm)
+        sphere((0.05 * side, -0.02, -0.2), 0.08, skin, arm)
+    head = P['head'] = empty('head', bodyp, (0, 0, 0.86))
+    sphere((0, 0, 0), (0.33, 0.3, 0.3), skin, head, seg=32)
+    face_y = -0.29
+    brow = toon('#5a3222', rim=0)
+    for side in (-1, 1):
+        if mood == 'happy':
+            # Squinting with a grin: flat, upturned eyes and rosy cheeks.
+            sphere((0.12 * side, face_y, 0.01), (0.05, 0.02, 0.018), toon('#2a2233', rim=0), head, rot=(0, -0.3 * side, 0), line=0)
+            sphere((0.21 * side, -0.25, -0.06), (0.06, 0.02, 0.035), toon('#ff9aaa', rim=0), head, line=0)
+        elif mood == 'hurt':
+            sphere((0.12 * side, face_y, 0.0), (0.05, 0.02, 0.022), toon('#2a2233', rim=0), head, rot=(0, 0.35 * side, 0), line=0)
+        else:
+            sphere((0.12 * side, face_y, -0.005), (0.04, 0.02, 0.035), toon('#2a2233', rim=0), head, line=0)
+        # Heavy brows: slanted down to the middle when grumpy, up when hurt, relaxed when happy.
+        tilt = {'grumpy': -0.5, 'hurt': 0.45}.get(mood, 0.1)
+        box((0.12 * side, -0.3, 0.085), (0.15, 0.035, 0.05), brow, head, rot=(0, tilt * side, 0), bevel=0.015, line=0.008)
+    sphere((0, -0.31, -0.03), (0.06, 0.05, 0.05), toon('#f4a888', rim=0), head, line=0.01)  # nose
+    # The beard: a big bushy spade from ear to ear, with a moustache, and a mouth that shows his mood.
+    sphere((0, -0.14, -0.2), (0.3, 0.22, 0.2), beard, head, seg=24)
+    sphere((0, -0.2, -0.33), (0.2, 0.15, 0.14), beard, head)
+    for side in (-1, 1):
+        sphere((0.08 * side, -0.3, -0.1), (0.09, 0.04, 0.035), beard, head, rot=(0, 0.3 * side, 0), line=0.008)
+    if mood == 'happy':
+        sphere((0, -0.34, -0.15), (0.08, 0.02, 0.035), toon('#8a3a4a', rim=0), head, line=0)
+    if mood == 'hurt':
+        sphere((0.28, -0.18, 0.08), (0.035, 0.02, 0.05), toon('#bfe8ff', rim=0.4), head, line=0.01)  # sweat drop
+    if hurt:
+        box((0.16, -0.25, 0.14), (0.1, 0.02, 0.05), toon('#ffe0c0'), head, rot=(0, 0.4, 0), bevel=0.01, line=0.006)
+    # A green knit cap with a turned-up brim.
+    sphere((0, 0.03, 0.2), (0.34, 0.31, 0.22), toon('#4a8a4a'), head, seg=24)
+    torus((0, 0.02, 0.16), 0.31, 0.05, toon('#3a7a3a'), head, line=0.012)
+    sphere((0, 0.05, 0.42), 0.07, toon('#e8e0d0'), head, line=0.01)
+    root.scale = (1.08, 1.08, 1.08)
+    return P
+
+
 def build_granny(mood='happy'):
     """Granny Clover, the village cobbler: silver bun, round glasses, a lilac shawl over her apron."""
     P = {}
