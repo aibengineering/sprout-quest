@@ -350,7 +350,7 @@ function slotFor(name: string, id: string, model: Model): Slot {
  * the right, π/2 toward the camera) raised by `lift`, or on the back, or at the hip (`hipDown`: pointing down, like
  * a wand in a belt, rather than hanging sideways like a coiled whip). `scale`: its size in the character's units.
  */
-export interface Held { id: string; at: 'hand' | 'back' | 'hip'; ang?: number; lift?: number; scale: number; hipDown?: boolean }
+export interface Held { id: string; at: 'hand' | 'back' | 'hip'; ang?: number; lift?: number; scale: number; hipDown?: boolean; headUp?: boolean }
 
 const DOWN = new Vector3(0, -1, 0);
 /** The camera looks down 30° from the front: blades turn their flat side toward it, as the sprites were drawn. */
@@ -373,6 +373,7 @@ function placeHeld(s: Slot, held: Held | undefined) {
   s.mounts[held.at].add(w);
   s.root.updateMatrixWorld(true);
   if (held.at === 'hand') {
+    w.position.set(0, 0, 0);
     // Where the weapon points, in the world: along the ground at `ang`, tilted up by `lift`.
     const lift = held.lift ?? 0, ang = held.ang ?? 0;
     const dir = new Vector3(Math.cos(ang) * Math.cos(lift), Math.sin(lift), Math.sin(ang) * Math.cos(lift)).normalize();
@@ -388,10 +389,14 @@ function placeHeld(s: Slot, held: Held | undefined) {
     const mountQ = s.mounts.hand.getWorldQuaternion(new Quaternion());
     w.quaternion.copy(mountQ.invert().multiply(worldQ));
   } else if (held.at === 'back') {
-    // Strapped across the back, the grip up over the right shoulder (so it shows from the front) and the blade or head
-    // down toward the left hip.
-    w.quaternion.setFromUnitVectors(new Vector3(1, 0, 0), new Vector3(-0.62, -1, -0.12).normalize());
+    // Strapped across the back. A blade goes hilt up over the right shoulder (so it shows from the front) and down to
+    // the left hip; a hammer goes the other way up, its grip low at the right hip and its head up behind the left
+    // shoulder, where it peeks out from every side.
+    w.position.set(0, held.headUp ? -0.3 : 0, 0);
+    // (The hammer leans well out to the side, or the big head hides it from the front.)
+    w.quaternion.setFromUnitVectors(new Vector3(1, 0, 0), held.headUp ? new Vector3(-0.95, 0.7, -0.25).normalize() : new Vector3(-0.62, -1, -0.12).normalize());
   } else {
+    w.position.set(0, 0, 0);
     // At the right hip: a wand tucked in the belt pointing down, or a whip's coils hanging flat against the thigh.
     w.quaternion.setFromUnitVectors(new Vector3(1, 0, 0), held.hipDown ? new Vector3(0.1, -1, 0.2).normalize() : new Vector3(0.1, -0.35, 1).normalize());
   }

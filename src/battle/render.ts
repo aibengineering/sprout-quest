@@ -13,7 +13,7 @@ import { Particles } from '../particles';
 import { BURN_COLOR, ELEMENTS } from './elements';
 import { MONSTER_AI, spriteScale } from './monsters';
 import { lashCrackAt, lashRope, pose } from './pose';
-import { TAU, UNIT, ZOOM, ZOOM_T, clamp01, easeOut, rand, type Enemy, type Spark, type Spike, type Swing } from './types';
+import { TAU, UNIT, ZOOM, ZOOM_T, clamp01, easeIn, easeOut, rand, type Enemy, type Spark, type Spike, type Swing } from './types';
 
 type Ctx = CanvasRenderingContext2D;
 /** You're drawn a little bigger than your hitbox, like the monsters, so you stand out in the clearing. */
@@ -661,10 +661,10 @@ function drawHero(b: Battle, ctx: Ctx) {
   const armor = b.save.equip.armor;
   // In 3D the weapon is in the hero's own hand: the arm turns to follow the swing's angle (the same one the hitboxes
   // use), hangs down at rest, and rises for the heavy wind-ups (the sprites grew for those).
+  // (Its size stays put: the 2D sprite grew to fake height, the 3D one really goes up.)
   const held: Held = {
-    id: `wpn_${b.weapon.id}`, at: 'hand', ang,
-    lift: idle ? -1.15 : scale > 1.02 ? Math.min(1.2, (scale - 1) * 2.4) : 0.12,
-    scale: weaponUnit / (UNIT * HERO_SCALE),
+    id: `wpn_${b.weapon.id}`, at: 'hand', ang, lift: idle ? -1.15 : swingLift(sw),
+    scale: (34 * b.moves.size) / (UNIT * HERO_SCALE),
   };
   const heroOpts = { alpha, flash: p.hurtT > 0 ? 0.7 : 0, sx: p.dodgeT > 0 ? 1.2 : 1, sy: p.dodgeT > 0 ? 0.82 : 1 };
   if (hasModel(`wpn_${b.weapon.id}`) && hasModel(`hero_${armor}`)) {
@@ -685,6 +685,34 @@ function drawHero(b: Battle, ctx: Ctx) {
     });
   }
   if (!behind) drawW();
+}
+
+/**
+ * How high a weapon in the 3D hand points during a swing (radians above the ground; π/2 is straight up). The swing's
+ * angle on the ground comes from pose(); this is the height it doesn't have in 2D. Overhead slams go up behind you,
+ * over the top and down into the ground where the impact lands; slashes stay level; thrusts point a touch up.
+ */
+function swingLift(sw: Swing | null): number {
+  if (!sw) return 0.1;
+  const s = sw.s;
+  const qw = clamp01(sw.t / Math.max(0.001, s.windup));
+  const qa = clamp01((sw.t - s.windup) / s.active);
+  const qr = clamp01((sw.t - s.windup - s.active) / Math.max(0.001, s.recover));
+  switch (s.anim) {
+    case 'slam':
+    case 'chop':
+    case 'backchop': {
+      if (sw.t < s.windup) return 1.3 * easeOut(qw);
+      if (qa < 1) return qa < 0.35 ? 1.3 + (Math.PI / 2 - 1.3) * (qa / 0.35) : Math.PI / 2 - (Math.PI / 2 + 0.8) * easeIn((qa - 0.35) / 0.65);
+      // Head on the ground at the impact, then heaved back up.
+      return -0.8 + 0.7 * easeOut(qr);
+    }
+    case 'thrust':
+    case 'cast':
+      return 0.1;
+    default:
+      return 0.15;
+  }
 }
 
 /** A whip's grip on its own (the rope is drawn by drawLash): a short wrapped handle pointing along the lash. */

@@ -434,7 +434,7 @@ export class Overworld {
     const wpn = GEAR[this.save.equip.weapon];
     const style = wpn?.style ?? 'sword';
     const size = MOVESETS[style]?.size ?? 1;
-    const held: Held | undefined = wpn && { id: `wpn_${wpn.id}`, at: style === 'whip' || style === 'wand' ? 'hip' : 'back', scale: (style === 'wand' ? 0.5 : 0.75) * size, hipDown: style === 'wand' };
+    const held: Held | undefined = wpn && { id: `wpn_${wpn.id}`, at: style === 'whip' || style === 'wand' ? 'hip' : 'back', scale: (style === 'wand' ? 0.5 : style === 'hammer' ? 0.7 : 0.75) * size, hipDown: style === 'wand', headUp: style === 'hammer' };
     const in3d = !!wpn && hasModel(`wpn_${wpn.id}`) && hasModel(`hero_${this.save.equip.armor}`);
     const wf = !in3d && wpn && frame(`wpn/${wpn.id}`);
     const away = Math.sin(this.face) < -0.5;
