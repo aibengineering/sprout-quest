@@ -6,6 +6,7 @@ import { usingKeyboard } from '../input';
 import { recordKills } from '../quests';
 import type { Roamer } from '../roamers';
 import { gainMastery, gainXp, mergeDrops, playerStats, weightedPick } from '../rules';
+import { afterWin, xpBoost } from '../kitchen';
 import { logEvent } from '../stats';
 import { has } from '../unlocks';
 import type { WorldObj } from '../world';
@@ -108,6 +109,10 @@ function grantWin(o: BattleOutcome, b: Battle): LevelMark {
   const mark = markLevels(GEAR[s.equip.weapon]?.style ?? 'sword');
   s.hp = o.hp;
   s.wins++;
+  // Granny's cooking: Fluff Pancakes add XP, Clover Tea heals a little after the win.
+  o.xp = Math.round(o.xp * xpBoost(s));
+  const healed = afterWin(s, playerStats(s).maxHp);
+  if (healed > 0) G.ui.toast(`🍵 Clover Tea: +${healed} HP`);
   gainXp(s, o.xp);
   mergeDrops(s.mats, o.drops);
   gainMastery(s, mark.style, o.xp);

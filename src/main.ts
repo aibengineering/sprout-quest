@@ -16,6 +16,7 @@ import { objective } from './game/waypoint';
 import { trackInputDevice, usingKeyboard, type Input } from './input';
 import { UI } from './ui';
 import { flushTime, trackTime, type Activity } from './stats';
+import { mealTick } from './kitchen';
 import { has } from './unlocks';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
@@ -202,6 +203,8 @@ function frame(now: number) {
   updateTransitions(dt);
   if (G.mode !== 'title') {
     G.save.playtime += dt;
+    // Minute meals (Goo Jelly) count down while you're out on the map.
+    if (G.mode === 'world') mealTick(G.save, dt);
     trackTime(G.battle?.setup.zone.id ?? G.over.currentZone.id, ACTIVITY[G.mode], dt);
   }
   // A fight on the map can end inside update() and hand straight back to the overworld, so hold on to it for this frame.

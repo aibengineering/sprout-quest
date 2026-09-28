@@ -1,6 +1,7 @@
 // Overworld: walking around, tall-grass encounters and drawing the tile map.
 import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { currentQuest } from './quests';
+import { repelBelow } from './kitchen';
 import { Actors, type Actor } from './actors';
 import { hasModel, type Held } from './models';
 import { forgeArt } from './ui';
@@ -149,7 +150,7 @@ export class Overworld {
   update(dt: number, input: Input, frozen: boolean, roam = !frozen): WorldEvent {
     this.t += dt;
     if (roam && this.alert <= 0) {
-      const caught = this.roamers.update(dt, this.x, this.y, this.save.wins === 0);
+      const caught = this.roamers.update(dt, this.x, this.y, this.save.wins === 0, repelBelow(this.save));
       if (caught) {
         this.alert = 0.3;
         this.moving = false;
@@ -200,7 +201,9 @@ export class Overworld {
       this.stepAcc += moved;
       while (this.stepAcc >= 1) {
         this.stepAcc -= 1;
-        if (this.roamers.calm <= 0 && this.zone.monsters.length && Math.random() < ENCOUNTER_CHANCE) {
+        // Goo Jelly: grass whose monsters are all well below you stays quiet.
+        const rep = repelBelow(this.save), quiet = rep !== null && this.zone.lv[1] <= rep;
+        if (this.roamers.calm <= 0 && this.zone.monsters.length && !quiet && Math.random() < ENCOUNTER_CHANCE) {
           this.alert = 0.4;
           this.moving = false;
           this.stepAcc = 0;

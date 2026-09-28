@@ -109,7 +109,7 @@ export function hasMats(s: SaveState, recipe: Recipe): boolean {
   return Object.entries(recipe).every(([m, n]) => s.mats[m as MatId] >= (n ?? 0));
 }
 
-function spend(s: SaveState, recipe: Recipe) {
+export function spend(s: SaveState, recipe: Recipe) {
   for (const [m, n] of Object.entries(recipe)) s.mats[m as MatId] -= n ?? 0;
 }
 

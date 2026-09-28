@@ -1,5 +1,6 @@
 import { slotKey, storageFrozen } from './slots';
 import { VERSION } from './version';
+import type { MealId } from './kitchen';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
 export interface SaveState {
@@ -52,6 +53,8 @@ export interface SaveState {
   stories: Record<string, number>;
   /** Lasting upgrades earned from side stories (e.g. 'trailboots'). */
   perks: string[];
+  /** The meal you last ate at Granny's and how much of it is left (fights, seconds on the map, or chops; see kitchen.ts). */
+  meal: { id: MealId; left: number } | null;
   /** Set once the Forge has its five levels (older saves had three: Smithy was ★★★–★★★★, Master Forge the third). */
   forgeLevels?: 5;
   /** Recipes you've seen in the Forge; ones revealed since show as new (missing: everything revealed counts as seen). */
@@ -100,6 +103,7 @@ export function newState(): SaveState {
     seenVersion: VERSION,
     stories: {},
     perks: [],
+    meal: null,
     forgeSeen: [],
     forgeLevels: 5,
   };

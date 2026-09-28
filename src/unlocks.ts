@@ -3,7 +3,7 @@
 import { QUESTS, TOOLS } from './data';
 import type { SaveState } from './state';
 
-export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'forge' | 'village' | 'plots' | 'warpplot';
+export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'forge' | 'village' | 'plots' | 'warpplot' | 'kitchen';
 
 export interface Unlock {
   id: UnlockId;
@@ -57,6 +57,11 @@ export const UNLOCKS: Unlock[] = [
     id: 'warpplot', icon: '🔮', title: "Veyra's Old Waystone",
     text: "Ancient ruins by the village hold one of Veyra's Waystones, older than anyone remembers. Rebuild it to travel between campfires!",
     when: (s) => s.bosses.includes('alphawolf'),
+  },
+  {
+    id: 'kitchen', icon: '🍳', title: "Granny's Kitchen",
+    text: 'Granny will cook for you! Visit her at the blue house: meals give you more XP, healing, or keep weak monsters away.',
+    when: (s) => (s.stories.poppy ?? 0) >= 6,
   },
 ];
 

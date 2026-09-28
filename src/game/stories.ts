@@ -5,6 +5,7 @@ import type { ActorSpec } from '../actors';
 import type { BattleSetup } from '../battle/types';
 import type { WorldObj } from '../world';
 import { G, persist, syncWorld } from './context';
+import { GRANNY_STORY } from './stories/granny';
 import { POPPY } from './stories/poppy';
 
 export interface StoryStep {
@@ -38,7 +39,7 @@ export interface Story {
   tick?: (step: number) => void;
 }
 
-export const STORIES: Story[] = [POPPY];
+export const STORIES: Story[] = [GRANNY_STORY, POPPY];
 
 /** How far through a story you are (0 = not started; the step count = finished). */
 export const stepOf = (id: string) => G.save.stories[id] ?? 0;

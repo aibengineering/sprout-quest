@@ -1123,3 +1123,16 @@ body.kbd .drag-hint .keys { display: flex; }
 @media (prefers-reduced-motion: reduce) {
   .rays, .stage-art, .sparkles i { animation: none; }
 }
+
+/* ================= Granny's Kitchen ================= */
+/* What you last ate, pinned to the corner of the health card. */
+#hud .meal {
+  position: absolute; right: 10px; bottom: -11px; padding: 1px 8px 2px; border-radius: 99px;
+  background: #fff4dc; border: 2px solid #e8c48a; font: 600 13px var(--display); color: var(--ink);
+  box-shadow: 0 2px 0 rgba(74, 42, 90, 0.2); white-space: nowrap;
+}
+.sheet.kitchen .speaker { margin-top: 6px; }
+.sheet.kitchen .kitchen { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 14px; text-align: left; }
+.sheet.kitchen .mcard.row { align-items: center; }
+.sheet.kitchen .mcard .emo { font-size: 34px; }
+.sheet.kitchen .note { margin: 8px 0 0; font-weight: 700; }

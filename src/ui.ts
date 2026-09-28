@@ -9,6 +9,7 @@ import { MASTERY_MAX, PLOT_UNLOCK, canBuild, hasMats, levelLock, masteryXpToNext
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
 import { MOVESETS, comboTime } from './weapons';
+import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
 import { usingKeyboard } from './input';
 import { canShareFiles } from './share';
 import { reportInfo } from './stats';
@@ -316,6 +317,16 @@ export class UI {
     const xpPct = `${Math.min(100, (100 * s.xp) / xpToNext(s.lv))}%`;
     if (!this.xpAnim) this.set('xp', xpPct, () => ($('hud-xp').style.width = xpPct));
     this.set('zone', zoneName, () => ($('hud-zone').textContent = zoneName));
+    // Whatever you last ate at Granny's, and how much is left.
+    const meal = mealLeft(s), mealKey = meal ? `${meal.icon}${meal.left}` : '';
+    this.set('meal', mealKey, () => {
+      const el = $('hud-meal');
+      el.hidden = !meal;
+      if (meal) {
+        el.textContent = `${meal.icon} ${meal.left}`;
+        el.title = `${meal.name}: ${meal.left} left`;
+      }
+    });
   }
 
   /** The little "current goal" tracker under the HUD. */
@@ -1050,6 +1061,30 @@ export class UI {
 
   message(title: string, text: string) {
     return this.dialog(`<div class="big" style="font-size:24px">${esc(title)}</div><p>${esc(text)}</p>`, [['ok', 'OK']]);
+  }
+
+  /**
+   * Granny's Kitchen: every recipe she knows, what it does and costs, and an Eat button for the ones you can afford.
+   * Resolves 'cook:<meal>' or 'close'.
+   */
+  kitchen(s: SaveState, greeting: string): Promise<string> {
+    const now = mealLeft(s);
+    const rows = knownMeals(s).map((id: MealId) => {
+      const m = MEALS[id], can = hasMats(s, m.recipe);
+      return `<div class="mcard row"><div class="ico"><span class="emo">${m.icon}</span></div><div class="info">
+        <div class="name">${esc(m.name)}${m.from ? ` <span class="tag">from ${esc(m.from)}</span>` : ''}</div>
+        <div class="desc">${esc(m.desc)}</div><div class="chips">${costChips(s, m.recipe)}</div></div>
+        <button class="go" data-dialog="cook:${id}" ${can ? '' : 'disabled'}>Eat</button></div>`;
+    }).join('');
+    return this.dialog(
+      `${ribbon("Granny's Kitchen")}
+       <div class="speaker small">${icon('npc_granny', '👵', 'icon sm')}<b>Granny Clover</b></div>
+       <div class="bubble">${esc(greeting)}</div>
+       ${now ? `<p class="note">You're full of ${esc(now.name)} (${now.left} left). A new meal replaces it.</p>` : ''}
+       <div class="kitchen">${rows}</div>`,
+      [['close', 'Thanks, Granny']],
+      'celebrate quest kitchen',
+    );
   }
 
   elderSays(text: string, hint?: string) {

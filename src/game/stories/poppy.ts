@@ -7,9 +7,9 @@ import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { bubble, follow, lookAt, narrate, pan, say, scene, walk, wait, type Speaker } from '../scenes';
 import type { Story } from '../stories';
+import { GRANNY, GRANNY_ID } from './granny';
 
 const POPPY_TALK: Speaker = { name: 'Poppy', emoji: '👧', portrait: (m) => (m === 'happy' ? 'npc_poppy' : m === 'hug' ? 'npc_poppy_hug' : `npc_poppy_${m}`) };
-const GRANNY: Speaker = { name: 'Granny Clover', emoji: '👵', portrait: (m) => (m === 'worried' ? 'npc_granny_worried' : 'npc_granny') };
 
 /**
  * The Secret Grove, in route-map tiles of the meadow (see routes.ts): its mouth opens west off the meadow's
@@ -23,9 +23,8 @@ const COWER = tile(22.5, 23.4);
 /** Just outside the grove's mouth, and where Big Bun is caught with the toy. */
 const MOUTH = tile(28.6, 23.2);
 const DROPPED = tile(25, 23.3);
-/** Granny's cottage (the blue house in Sowerby): Poppy's place by the door, and Granny's. */
+/** Granny's cottage (the blue house in Sowerby): Poppy's place by the door (Granny's is in granny.ts). */
 const HOME = { x: 29.4, y: 10.4 };
-const GRANNY_AT = { x: 31.8, y: 10.3 };
 const DOOR = { x: 30.5, y: 10.4 };
 /** Big Bun's getaway: west down the corridor, around the clump of trees, and into the clearing. */
 const GETAWAY = [tile(23.5, 23.4), tile(20.3, 23.5), tile(19.6, 24.6), tile(15.5, 24.6), tile(14.5, 23.6), tile(12.2, 23.3), tile(7, 23.3)];
@@ -52,13 +51,6 @@ const poppy = () => G.over.actors.get('poppy:poppy');
 const chat = (lines: [Speaker, string, string?][]) => paused(async () => {
   for (const [who, text, mood] of lines) await say(who, text, mood);
 });
-
-function grannyLines(step: number): [Speaker, string, string?][] {
-  if (step <= 1) return [[GRANNY, "My granddaughter Poppy went to pick flowers in the Sunny Meadow this morning. She should have been home by now…", 'worried']];
-  if (step <= 4) return [[GRANNY, "Poor Poppy. That bunny is her best friend in the whole world.", 'worried']];
-  if (step === 5) return [[GRANNY, "You found him? Oh, go on, give him to her, dear!"]];
-  return [[GRANNY, "Those boots holding up? Poppy hasn't stopped talking about you. And that grove of hers has lovely timber and stone, now the bullies are gone."]];
-}
 
 const HOME_LINES = ["Mr. Floppers says hi!", "You can chop the trees in my secret grove. Mr. Floppers says it's okay!", "Granny's baking cookies. Don't tell her I told you.", "When I grow up, I'm going to be a hero too!"];
 const ROAD_LINES = ["Granny says the tall grass is where the Hopbuns nap.", "Are we nearly there yet?", "You're really brave, you know."];
@@ -115,10 +107,10 @@ export const POPPY: Story = {
         await scene(async () => {
           await pan(DOOR.x, DOOR.y - 0.5, 600);
           await walk('poppy:poppy', [HOME], 2.8);
-          lookAt('poppy:poppy', 'poppy:granny');
-          bubble('poppy:granny', '😮', 1.2);
+          lookAt('poppy:poppy', GRANNY_ID);
+          bubble(GRANNY_ID, '😮', 1.2);
           await wait(700);
-          bubble('poppy:granny', '😊', 3);
+          bubble(GRANNY_ID, '😊', 3);
           await say(GRANNY, 'Poppy! Oh, thank goodness. Where have you been, my little poppyseed?', 'worried');
           await say(POPPY_TALK, 'Slimes chased me, Granny! But this hero saved me!');
           await say(GRANNY, "Then you have my thanks, dear. It's so good to have you both here safe.");
@@ -185,6 +177,7 @@ export const POPPY: Story = {
           persist();
           await G.ui.itemFound('trailboots', 'Trail Boots', 'Sturdy boots from Granny Clover. You walk 25% faster outside of fights.', '👢', 'Granny made you');
           await say(POPPY_TALK, 'Mr. Floppers says thank you!', 'hug');
+          await say(GRANNY, "And you come by my kitchen whenever you're hungry, dear. A hero can't fight on an empty stomach!");
         });
       },
     },
@@ -192,13 +185,6 @@ export const POPPY: Story = {
 
   cast(step) {
     const cast: ActorSpec[] = [];
-    if (has('village')) {
-      cast.push({
-        id: 'poppy:granny', look: { kind: 'idle', name: 'granny' }, ...GRANNY_AT, label: 'Talk',
-        mood: step <= 4 ? '😟' : undefined,
-        talk: () => chat(grannyLines(step)),
-      });
-    }
     const at = (mood: string, talk: () => Promise<void> | void): ActorSpec => ({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...HOME, face: Math.PI / 2, mood, label: 'Talk', talk });
     if (step === 1) {
       cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...COWER, face: 0, mood: '😨', label: 'Talk', talk: () => chat([[POPPY_TALK, 'H-help! Please! The slimes!', 'scared']]) });
