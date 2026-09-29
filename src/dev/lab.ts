@@ -1,12 +1,13 @@
 // The combat lab (dev builds, from the dev panel in the game): climb the Battle Tower from any floor, gear up for any
 // stage, change your level, handling and weapon, raise the XP rate, and start a fight with any monsters.
 import { CHECKPOINTS } from '../balance';
-import { GEAR, GEAR_ORDER, MONSTERS, STYLE_NAMES, ZONES, forgeLevelFor, type MonsterKind, type Style } from '../data';
+import { GEAR, GEAR_ORDER, MONSTERS, STYLE_NAMES, ZONES, type MonsterKind, type Style } from '../data';
 import { G, persist } from '../game/context';
 import { startBattle } from '../game/fights';
 import { XP_RATES, openCamp, setFloor, setXpRate } from '../game/tower';
 import { MASTERY_MAX, playerStats } from '../rules';
 import { TOWER, checkpointFor } from '../tower';
+import { kitSave, towerLink } from './towerLink';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`);
 const value = (id: string) => (document.getElementById(id) as HTMLSelectElement | HTMLInputElement | null)?.value ?? '';
@@ -16,25 +17,8 @@ const last = { floor: '1', monster: 'slime', lv: '', count: '1' };
 
 const style = (): Style => GEAR[G.save.equip.weapon]?.style ?? 'sword';
 
-/**
- * The level, armor and charm a balance checkpoint expects, and the weapon of your class at its tier (with the handling
- * to wield it and a Forge that could have made it).
- */
-function gearUp(checkpoint: string) {
-  const s = G.save, c = CHECKPOINTS.find((c) => c.id === checkpoint)!, cls = style();
-  const tier = GEAR[c.weapon].tier ?? 0;
-  const weapon = tier === 0 ? c.weapon : GEAR_ORDER.find((id) => GEAR[id].slot === 'weapon' && GEAR[id].style === cls && GEAR[id].tier === tier) ?? c.weapon;
-  s.lv = c.lv;
-  s.xp = 0;
-  s.equip = { weapon, armor: c.armor, charm: c.charm ?? null };
-  s.owned = [...new Set([...s.owned, weapon, c.armor, ...(c.charm ? [c.charm] : [])])];
-  s.build.training = Math.max(s.build.training, c.training ?? 0);
-  s.build.home = Math.max(s.build.home, c.home ?? 1);
-  const w = GEAR[weapon];
-  if (w.style) s.mastery[w.style].lv = Math.max(s.mastery[w.style].lv, 1 + (w.tier ?? 0) * 2);
-  if ((w.tier ?? 0) > 0) s.build.forge = Math.max(s.build.forge, forgeLevelFor(w));
-  s.hp = playerStats(s).maxHp;
-}
+/** A balance checkpoint's gear and level, keeping your class (see towerLink.ts). */
+const gearUp = (checkpoint: string) => kitSave(G.save, checkpoint, style());
 
 function equip(id: string) {
   const s = G.save;
@@ -58,7 +42,9 @@ export async function lab(): Promise<'away' | 'close'> {
      <p class="dev-note">Dev builds only. Changes apply to this slot's save.</p>
      ${inTower ? `<div class="dev-h">🗼 Skip the run ahead</div>
      <div class="dev-row"><select id="lab-floor">${floors}</select></div>
-     <div class="dev-row lab-btns"><button class="go" data-dialog="jump">Jump there, geared up for it</button></div>` : ''}
+     <div class="dev-row lab-btns"><button class="go" data-dialog="jump">Jump there, geared up for it</button></div>
+     <div class="dev-row"><div class="dev-info"><b>🔗 Link to this run</b><small>Its floor, level, gear, handling and materials, to start again from here</small></div>
+       <button class="go ghost" data-dialog="link">Copy link</button></div>` : ''}
      <div class="dev-h">You</div>
      <div class="dev-row"><div class="dev-info"><b>Level ${s.lv}</b></div>
        <button class="go ghost" data-dialog="lv:-1">−</button><button class="go ghost" data-dialog="lv:1">+</button></div>
@@ -82,6 +68,23 @@ export async function lab(): Promise<'away' | 'close'> {
   last.count = value('lab-count') || last.count;
   const [act, arg] = r.split(':');
   switch (act) {
+    case 'link': {
+      const url = towerLink(s, G.xpRate);
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(url);
+        copied = true;
+      } catch {
+        // Plain http has no clipboard: the link is shown to copy by hand.
+      }
+      await G.ui.dialog(
+        `<div class="big" style="font-size:20px">🔗 Link to this run</div><p class="dev-note">${copied ? 'Copied!' : 'Copy it from here:'}</p>
+         <input class="lab-link" readonly value="${esc(url)}" onfocus="this.select()">`,
+        [['ok', 'OK']],
+        'dev-panel',
+      );
+      return lab();
+    }
     case 'jump':
       gearUp(checkpointFor(TOWER[Number(last.floor) - 1]).id);
       setFloor(Number(last.floor));
@@ -127,4 +130,5 @@ export const LAB_CSS = `
 .dev-panel select { flex: 1; }
 .dev-panel #lab-lv { width: 64px; }
 .dev-panel .lab-btns { justify-content: flex-end; background: none; padding-top: 0; }
+.dev-panel .lab-link { width: 100%; font-size: 12px; }
 `;

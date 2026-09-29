@@ -3,6 +3,7 @@
 //
 //   ?preset=poppy-chase   start that preset (in its own slot, reset to the preset each time)
 //   ?slot=copy-1          switch to a slot (?slot=main for your real save)
+//   ?tower&floor=8&…      a Battle Tower run at that point, in the tower slot (see towerLink.ts for the settings)
 //
 // Switching reloads the page into the slot and continues straight into the game.
 import { QUESTS, zoneAtX } from '../data';
@@ -10,9 +11,10 @@ import { G, persist } from '../game/context';
 import { activeSlot, freezeStorage, setActiveSlot, slotKey } from '../slots';
 import { SAVE_KEY, type SaveState } from '../state';
 import { LOG_KEY, TIME_KEY } from '../stats';
-import { TOWER_SLOT, loadXpRate, openCamp } from '../game/tower';
+import { TOWER_SLOT, XP_RATES, XP_RATE_KEY, loadXpRate, openCamp } from '../game/tower';
 import { LAB_CSS, lab } from './lab';
 import { PRESETS, towerRun } from './presets';
+import { towerSaveFromLink } from './towerLink';
 
 /** Set across the reload so the game continues without a stop at the title screen. */
 const AUTOPLAY = 'sprout-quest-autoplay';
@@ -30,6 +32,18 @@ const slotOf = (name: string) => (name === MAIN ? null : name);
 export function install() {
   const url = new URL(location.href);
   const preset = url.searchParams.get('preset'), slot = url.searchParams.get('slot');
+  if (url.searchParams.has('tower')) {
+    // A link into the tower at a set point: a fresh run built from it, opening on its camp.
+    const save = towerSaveFromLink(url.searchParams);
+    const xp = Number(url.searchParams.get('xp'));
+    history.replaceState(null, '', url.pathname);
+    deleteSlot(TOWER_SLOT);
+    localStorage.setItem(slotKey(SAVE_KEY, TOWER_SLOT), JSON.stringify(save));
+    localStorage.setItem(XP_RATE_KEY, String(XP_RATES.includes(xp) ? xp : 1));
+    sessionStorage.setItem(CAMP, '1');
+    switchTo(TOWER_SLOT);
+    return;
+  }
   if (preset || slot !== null) {
     url.searchParams.delete('preset');
     url.searchParams.delete('slot');

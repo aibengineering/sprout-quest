@@ -914,6 +914,16 @@ scenario('dev builds: a Battle Tower run climbs floor after floor from its camp,
   await run(page, `localStorage.removeItem('sprout-quest-dev-xp-rate'); localStorage.removeItem('sprout-quest-slot')`);
 });
 
+scenario('dev builds: a Battle Tower link opens the camp at that point, with that gear', null, async (page) => {
+  const url = page.url().split('?')[0];
+  await page.goto(`${url}?tower&floor=4&lv=3&weapon=jellywhip&h=whip:2&mats=goo:9&xp=5`);
+  await waitFor(page, 'the camp', async () => !!(await page.$('#modal:not([hidden]) .tower-camp')), 30000);
+  check(await game<boolean>(page, `localStorage.getItem('sprout-quest-slot') === 'tower' && g.save.tower.floor === 4 && g.save.lv === 3`), 'the link did not set the floor and level');
+  check(await game<boolean>(page, `g.save.equip.weapon === 'jellywhip' && g.save.mastery.whip.lv === 2 && g.save.mats.goo === 9 && g.xpRate === 5`), 'the link did not set gear, handling, materials and XP rate');
+  check(/Floor 4/.test((await page.textContent('#modal .tower-camp')) ?? ''), 'the camp is not on floor 4');
+  await run(page, `localStorage.removeItem('sprout-quest-dev-xp-rate'); localStorage.removeItem('sprout-quest-slot')`);
+});
+
 scenario('dev builds: a preset plays in its own slot, and your real save is untouched', null, async (page) => {
   const url = page.url().split('?')[0];
   await page.goto(`${url}?preset=poppy-chase`);

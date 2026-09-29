@@ -17,7 +17,8 @@ import { startBattle } from './fights';
 export const TOWER_SLOT = 'tower';
 
 /** The XP rate lasts across reloads on this device. */
-const RATE = 'sprout-quest-dev-xp-rate';
+export const XP_RATE_KEY = 'sprout-quest-dev-xp-rate';
+const RATE = XP_RATE_KEY;
 export const XP_RATES = [1, 5, 25, 100];
 
 export function loadXpRate() {

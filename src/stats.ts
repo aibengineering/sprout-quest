@@ -19,6 +19,8 @@ export type LogEvent =
       cooling: number; rested: number; handling: number;
       /** Damage from critical hits (part of `dealt`), and how many monsters fell. */
       critDealt?: number; kills?: number;
+      /** A Battle Tower floor, if it was one (dev builds). */
+      tower?: number;
       /** On a loss: what landed the last hit ("monster:contact|shot|hazard"). */
       killedBy?: string;
     }
@@ -207,6 +209,8 @@ export function buildSummary(save: SaveState) {
       time: timeSplit(),
       fightsByZone: map(byKey(fights, (f) => `${f.zone}${f.boss ? ' (boss)' : ''}`), fightStats),
       fightsByWeapon: map(byKey(fights.filter((f) => !f.boss), (f) => f.weapon), fightStats),
+      // Battle Tower runs (dev builds): each floor fought, first climbs and training alike.
+      ...(fights.some((f) => f.tower) ? { fightsByTowerFloor: map(byKey(fights.filter((f) => f.tower), (f) => `floor ${f.tower}`), fightStats) } : {}),
       defeatsAndRuns: fights.filter((f) => f.result !== 'win').map((f) => ({
         result: f.result, zone: f.zone, foes: f.foes, by: f.killedBy, lv: f.lv, weapon: f.weapon, armor: f.armor, playMinutes: at(f),
       })),
