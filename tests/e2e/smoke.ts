@@ -264,7 +264,7 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
   Object.assign(g.save, { lv: 4, xp: 108 });
   g.save.owned.push('jellywhip');
   g.save.equip.weapon = 'jellywhip';
-  g.save.mastery.whip.xp = 43; // 2 short of handling Lv 2 (rules.ts masteryXpToNext)
+  g.save.mastery.whip.xp = 8; // 2 short of handling Lv 2 (rules.ts masteryXpToNext)
   // ★★ gear needs the Smithy.
   g.save.build.forge = 2;
 }, async (page) => {
@@ -275,6 +275,11 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
   await page.waitForTimeout(900);
   await pinFoes(page, 1);
   await page.keyboard.press('KeyJ');
+  if (SHOTS) {
+    await page.waitForSelector('#hud .stat.gain');
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${OUT}xp-fill.png`, clip: { x: 0, y: 0, width: 390, height: 140 } });
+  }
   await waitFor(page, 'the level-up screen', async () => !!(await page.$('#modal:not([hidden]) .lvsheet')));
   // Loot and XP stack on the right, clear of the quest tracker.
   const pill = await page.locator('#quest-pill').boundingBox(), rows = await page.locator('#loot .lrow').all();

@@ -1,5 +1,6 @@
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
+import { xpBloops } from './audio';
 import {
   GEAR, GEAR_ORDER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
   STYLE_NAMES, TOOLS, ZONES, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
@@ -306,11 +307,36 @@ export class UI {
     card.classList.add('gain');
     const tag = document.createElement('div');
     tag.className = 'xp-float';
-    tag.textContent = `+${gained} XP`;
+    tag.textContent = '+0 XP';
     card.append(tag);
     // Let the win's bell ring out first, so the fill's chirps are heard on their own.
     await wait(380);
     let lv = from.lv, frac = Math.min(1, from.xp / xpToNext(lv));
+    // The "+XP" counts up with the bubbles: each one adds its share of the whole fill, level-ups included.
+    const units = Math.max(0.001, to.lv - from.lv + Math.min(1, to.xp / xpToNext(to.lv)) - frac);
+    let done = 0;
+    const track = card.querySelector('.bar.xp') as HTMLElement;
+    /** A notch pops onto the bar where it's just filled to, and a spark jumps off it. */
+    const notch = (at: number, big = false) => {
+      // (The card is scaled up a little while it celebrates; positions inside it are unscaled.)
+      const c = card.getBoundingClientRect(), b = track.getBoundingClientRect(), k = c.width / card.offsetWidth || 1;
+      const x = (b.left - c.left + at * b.width) / k, y = (b.top - c.top) / k, h = b.height / k;
+      const n = document.createElement('i');
+      n.className = 'xp-notch';
+      n.style.cssText = `left:${x}px;top:${y}px;height:${h}px`;
+      card.append(n);
+      const sparks = big ? 8 : 1;
+      for (let k = 0; k < sparks; k++) {
+        const sp = document.createElement('i');
+        sp.className = 'xp-spark';
+        const dx = big ? Math.cos((k / sparks) * Math.PI * 2) * 26 : (Math.random() - 0.5) * 14;
+        const dy = big ? Math.sin((k / sparks) * Math.PI * 2) * 18 - 6 : -12 - Math.random() * 12;
+        sp.style.cssText = `left:${x}px;top:${y + h / 2}px;--dx:${dx}px;--dy:${dy}px`;
+        card.append(sp);
+        setTimeout(() => sp.remove(), 600);
+      }
+      setTimeout(() => n.remove(), 500);
+    };
     // A big jump (a dev build's raised XP rate, say) runs through its levels faster, so it's over in a few seconds.
     const speed = Math.max(1, (to.lv - from.lv) / 2);
     const fill = async (target: number) => {
@@ -318,6 +344,19 @@ export class UI {
       bar.style.transition = `width ${dur}s linear`;
       bar.style.width = `${target * 100}%`;
       this.hooks.sweep(dur, frac, target);
+      // In time with each bubble: a notch where the bar has reached, and the count ticking up.
+      const n = xpBloops(dur), start = frac;
+      for (let i = 0; i < n; i++) {
+        const at = start + ((target - start) * (i + 1)) / n;
+        setTimeout(() => {
+          notch(at);
+          done += (target - start) / n;
+          tag.textContent = `+${Math.min(gained, Math.round((gained * done) / units))} XP`;
+          tag.classList.remove('tick');
+          void tag.offsetWidth;
+          tag.classList.add('tick');
+        }, 10 + (i * dur * 1000) / n);
+      }
       await wait(dur * 1000);
       frac = target;
     };
@@ -325,6 +364,7 @@ export class UI {
       await fill(1);
       // Topped out: a bell, the level ticks over, and the bar starts again from empty.
       this.hooks.sound('ding');
+      notch(1, true);
       card.classList.add('ding');
       $('hud-lv').textContent = String(lv + 1);
       await wait(420 / speed);
@@ -335,6 +375,7 @@ export class UI {
       await wait(60);
     }
     await fill(Math.min(1, to.xp / xpToNext(to.lv)));
+    tag.textContent = `+${gained} XP`;
     await wait(350);
     tag.remove();
     card.classList.remove('gain');

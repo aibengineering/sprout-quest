@@ -13,6 +13,9 @@ export type Sfx =
   // A regular win: a quick bright bell, leaving room for the XP fill right after it (guardians keep the full jingle).
   | 'win';
 
+/** How many bubbles an XP fill of `dur` seconds plays, evenly spaced (the HUD pops a notch onto the bar with each). */
+export const xpBloops = (dur: number) => Math.max(2, Math.round(dur / 0.075));
+
 export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -74,7 +77,7 @@ export class Audio {
   sweep(dur: number, from: number, to: number) {
     if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
     const t0 = this.ctx.currentTime + 0.01;
-    const n = Math.max(2, Math.round(dur / 0.075)), step = dur / n;
+    const n = xpBloops(dur), step = dur / n;
     for (let i = 0; i < n; i++) {
       const a = from + ((to - from) * i) / n, b = from + ((to - from) * (i + 1)) / n;
       this.chirp(xpPitch(a) * 1.5, xpPitch(b) * 2, 0.05, 'sine', 0.07 + 0.07 * b, t0 + i * step);

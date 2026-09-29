@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { GEAR, MONSTERS, NODES, TOOLS, ZONES, MASTERY_FOR_TIER } from '../src/data';
-import { CLOVER_PITY, gainMastery, levelLock, revealed, masteryShort, masteryXpToNext, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpToNext } from '../src/rules';
+import { CLOVER_PITY, gainMastery, levelLock, revealed, masteryShort, masteryXpToNext, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpEdge, xpToNext } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
 
@@ -38,11 +38,18 @@ describe('rules', () => {
     expect(playerStats(s).atk).toBe(atkBefore - GEAR.twig.atk! + GEAR.jellywhip.atk!);
   });
 
-  test("handling isn't raised by the prologue and the first fight in the meadow", () => {
+  test('handling reaches Lv 2 (the weapon skill) on your first meadow fight, not in the prologue, then climbs slowly', () => {
     const s = newState();
-    const xp = [scaleMonster(MONSTERS.slime, 1, false).xp, scaleMonster(MONSTERS.bunny, 1, false).xp, scaleMonster(MONSTERS.slime, 3, false).xp, scaleMonster(MONSTERS.bunny, 3, false).xp];
-    for (const n of xp) gainMastery(s, 'sword', n);
+    const xp = (kind: 'slime' | 'bunny', lv: number) => Math.round(scaleMonster(MONSTERS[kind], lv, false).xp * xpEdge(1, lv));
+    gainMastery(s, 'sword', xp('slime', 1));
+    gainMastery(s, 'sword', xp('bunny', 1));
     expect(s.mastery.sword.lv).toBe(1);
+    // The weakest first fight in the meadow still gets there.
+    gainMastery(s, 'sword', Math.min(xp('slime', 1), xp('bunny', 1)));
+    expect(s.mastery.sword.lv).toBe(2);
+    // …and the next level takes a good few more.
+    for (let i = 0; i < 8; i++) gainMastery(s, 'sword', xp('slime', 2));
+    expect(s.mastery.sword.lv).toBe(2);
   });
 
   test('better weapons of a class need handling in it, trained by winning with it', () => {

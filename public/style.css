@@ -1019,6 +1019,29 @@ body.kbd .drag-hint .keys { display: flex; }
   animation: xpfloat 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 @keyframes xpfloat { from { transform: translateY(14px) scale(0.5); opacity: 0; } }
+.xp-float.tick { animation: xptick 0.12s ease-out; }
+@keyframes xptick { 50% { transform: scale(1.12); } }
+/* Each bubble of the fill: a bright notch pops onto the bar where it's reached, and a spark jumps off it. */
+.xp-notch {
+  position: absolute; width: 3px; margin-left: -1.5px; border-radius: 2px; pointer-events: none; z-index: 2;
+  background: #fff; box-shadow: 0 0 6px #fff6c0, 0 0 10px #ffd24a;
+  animation: xpnotch 0.45s ease-out forwards;
+}
+@keyframes xpnotch {
+  0% { transform: scaleY(0.2); opacity: 1; }
+  30% { transform: scaleY(1.9); opacity: 1; }
+  100% { transform: scaleY(1); opacity: 0; }
+}
+.xp-spark {
+  position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; pointer-events: none; z-index: 2;
+  background: #ffe07a; border: 1px solid #fff; transform: rotate(45deg); border-radius: 1px;
+  animation: xpspark 0.55s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+}
+@keyframes xpspark {
+  0% { transform: translate(0, 0) rotate(45deg) scale(0.4); opacity: 1; }
+  40% { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) rotate(225deg) scale(1); opacity: 0; }
+}
 
 /* ================= Celebrations =================
    Every reward (level up, item found, new gear, quest done, road open) shares one look: a ribbon banner, the prize
