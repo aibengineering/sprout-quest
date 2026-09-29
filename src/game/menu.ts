@@ -12,7 +12,8 @@ import { activeStory, storyLog } from './stories';
 import { progressQuests } from './story';
 
 /** Travel (by warp or fast travel) with an iris transition, landing somewhere safe in the area. */
-function travelTo(id: ZoneId) {
+/** Off to an area in a flash: its campfire, or Sowerby's entrance. */
+export function travelTo(id: ZoneId) {
   G.ui.closeMenu();
   transition(() => {
     const w = G.world;
@@ -110,8 +111,6 @@ export const menuHooks: UIHooks = {
     persist();
   },
 
-  travel: travelTo,
-  warpHome: () => travelTo('village'),
 
   toggleMute() {
     G.save.muted = !G.save.muted;

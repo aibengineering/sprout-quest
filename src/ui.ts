@@ -61,8 +61,6 @@ export interface UIHooks {
   equip(id: string): void;
   build(id: ProjectId): void;
   drink(): void;
-  travel(id: ZoneId): void;
-  warpHome(): void;
   toggleMute(): void;
   resetSave(): void;
   /** Play report: share or download the full file, or copy the summary to paste. */
@@ -969,23 +967,21 @@ export class UI {
       card = `<section class="qcard done"><div class="qtitle">🌅 The smoke has cleared</div><p class="qtext">Sowerby is safe. Keep building, crafting and rematching bosses!</p></section>`;
     }
     const warp = s.build.warp > 0;
-    const here = this.ctx.inVillage;
     const zones = ZONES.filter((z) => z.id !== 'glade').map((z) => {
       const g = z.guardian;
       const beaten = !g || s.bosses.includes(g.kind);
-      const seen = s.visited.includes(z.id);
-      const reachable = z.id === 'village' || (beaten && (seen || !g));
       let status: string;
       if (z.id === 'village') status = 'Home sweet home';
       else if (!beaten) status = `🔒 Guarded by ${MONSTERS[g!.kind].name} · Lv ${g!.lv}`;
       else if (g) status = `🔥 Campfire lit · Monsters Lv ${z.lv[0]}–${z.lv[1]}`;
       else status = `Monsters Lv ${z.lv[0]}–${z.lv[1]}`;
       const art = !beaten ? bossIcon(g!.kind) : `<span class="emo">${ZONE_EMOJI[z.id]}</span>`;
-      const btn = warp && reachable && !(z.id === 'village' && here) ? `<button class="go sm" data-travel="${z.id}">Warp</button>` : '';
-      return `<div class="zrow ${beaten ? '' : 'locked'}"><div class="zart">${art}</div><div class="info"><div class="name">${esc(z.name)}</div><div class="desc">${status}</div></div>${btn}</div>`;
+      return `<div class="zrow ${beaten ? '' : 'locked'}"><div class="zart">${art}</div><div class="info"><div class="name">${esc(z.name)}</div><div class="desc">${status}</div></div></div>`;
     }).join('');
-    const warpNote = warp ? '' : `<div class="note">🔮 Build the <b>Waystone</b> in the village to fast travel between campfires.</div>`;
-    const home = here ? '' : `<button class="wide go alt" data-do="home">🏠 Warp home to Sowerby</button>`;
+    // Travel happens in the world: a campfire takes you home, the Waystone takes you out.
+    const warpNote = s.camps.length
+      ? `<div class="note">🔥 Rest at a campfire to travel home to Sowerby.${warp ? " 🔮 Sowerby's Waystone sends you out to any campfire you've lit." : ' 🔮 Rebuild the <b>Waystone</b> in Sowerby to travel out to them.'}</div>`
+      : '';
     const chapters = QUESTS.map((qq, i) => {
       const st = i < s.quest ? 'done' : i === s.quest ? 'now' : 'later';
       const mark = st === 'done' ? '✓' : st === 'now' ? '▶' : '🔒';
@@ -993,7 +989,7 @@ export class UI {
     }).join('');
     const sides = this.hooks.stories().map((st) => `<div class="zrow ${st.done ? 'done' : ''}"><div class="zart"><span class="emo">${st.icon}</span></div>
       <div class="info"><div class="name">${esc(st.title)}</div><div class="desc">${st.done ? '✓ ' : '▶ '}${esc(st.label)}</div></div></div>`).join('');
-    return `<div class="notebook">${card}${sides ? `<h3>Side stories</h3><div class="zones">${sides}</div>` : ''}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div>${home}<h3>Story</h3><ol class="chapters">${chapters}</ol></div>`;
+    return `<div class="notebook">${card}${sides ? `<h3>Side stories</h3><div class="zones">${sides}</div>` : ''}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div><h3>Story</h3><ol class="chapters">${chapters}</ol></div>`;
   }
 
   private items(s: SaveState): string {
@@ -1270,10 +1266,8 @@ export class UI {
     else if (d.potion) this.hooks.craftPotion(d.potion);
     else if (d.equip) this.hooks.equip(d.equip);
     else if (d.build) this.hooks.build(d.build as ProjectId);
-    else if (d.travel) this.hooks.travel(d.travel as ZoneId);
     else if (d.do === 'close') this.closeMenu();
     else if (d.do === 'drink') this.hooks.drink();
-    else if (d.do === 'home') this.hooks.warpHome();
     else if (d.do === 'mute') this.hooks.toggleMute();
     else if (d.do === 'reset') this.hooks.resetSave();
     else if (d.do === 'report') this.hooks.exportReport('file');

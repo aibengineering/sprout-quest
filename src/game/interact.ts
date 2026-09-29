@@ -8,6 +8,7 @@ import { has } from '../unlocks';
 import type { ObjKind, WorldObj } from '../world';
 import { G, menuCtx, paused, persist, syncWorld } from './context';
 import { challengeFoe, startBattle } from './fights';
+import { travelTo } from './menu';
 import { tryGather } from './gathering';
 import { progressQuests, talkToElder } from './story';
 import { openSawmill, sawmillBuilt } from './stories/bram';
@@ -23,6 +24,20 @@ function rest(respawn: typeof G.save.respawn) {
   G.save.hp = playerStats(G.save).maxHp;
   G.save.respawn = respawn;
   G.audio.play('heal');
+}
+
+/** Sowerby's Waystone: pick a campfire you've lit, and you're there. */
+async function waystone() {
+  const s = G.save, lit = ZONES.filter((z) => s.camps.includes(z.id));
+  const list = lit.length
+    ? lit.map((z) => `<button class="go wide" data-dialog="${z.id}">🔥 ${z.name} <small>· Lv ${z.lv[0]}–${z.lv[1]}</small></button>`).join('')
+    : '<p>No campfires lit yet. Beat a guardian to light the one past its gate.</p>';
+  const r = await paused(() => G.ui.dialog(
+    `<div class="big" style="font-size:22px">🔮 Veyra's Waystone</div><p>Where to?</p><div class="waystone">${list}</div>`,
+    [['close', 'Stay']],
+  ));
+  const z = lit.find((z) => z.id === r);
+  if (z) travelTo(z.id);
 }
 
 const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> = {
@@ -44,6 +59,8 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
       G.ui.toast('🏕 Your cozy tent. You feel rested!');
       return persist();
     }
+    // Veyra's Waystone, once it's rebuilt: out to any campfire you've lit.
+    if (o.project === 'warp' && G.save.build.warp > 0) return waystone();
     // Bram's Sawmill, once it's built: his bench, logs in and planks out.
     if (o.project === 'sawmill' && sawmillBuilt()) return openSawmill();
     openMenu(menuCtx(), 'village', o.project);
@@ -71,13 +88,15 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     else G.mode = 'world';
   },
 
-  camp(o) {
+  // A campfire: rest (your checkpoint), and the way home to Sowerby in a flash.
+  async camp(o) {
     rest(o.zone!);
     persist();
-    if (G.save.build.warp) {
-      G.ui.toast('🔥 Rested. Checkpoint saved!');
-      openMenu(menuCtx(), 'journey');
-    } else G.ui.toast('🔥 Rested by the fire. Checkpoint saved!');
+    const r = await paused(() => G.ui.dialog(
+      `<div class="big" style="font-size:22px">🔥 Campfire</div><p>Rested by the fire. Your checkpoint is saved here.</p>`,
+      [['stay', 'Stay'], ['home', '🏠 Travel to Sowerby']],
+    ));
+    if (r === 'home') travelTo('village');
   },
 
   fountain() {

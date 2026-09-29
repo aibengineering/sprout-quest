@@ -471,7 +471,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
   },
   warp: {
     name: 'Waystone', icon: '🔮',
-    levels: [{ name: 'Waystone', cost: { alphapelt: 1, pine: 4, iron: 3 }, perk: 'Fast travel to any campfire you have lit' }],
+    levels: [{ name: 'Waystone', cost: { alphapelt: 1, pine: 4, iron: 3 }, perk: 'Travel from Sowerby to any campfire you have lit' }],
   },
   // Bram's, once he's moved to Sowerby (his story).
   sawmill: {

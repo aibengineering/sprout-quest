@@ -60,7 +60,7 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'warpplot', icon: '🔮', title: "Veyra's Old Waystone",
-    text: "Ancient ruins by the village hold one of Veyra's Waystones, older than anyone remembers. Rebuild it to travel between campfires!",
+    text: "Ancient ruins by the village hold one of Veyra's Waystones, older than anyone remembers. Rebuild it to travel out to any campfire you've lit!",
     when: (s) => s.bosses.includes('alphawolf'),
   },
   {
