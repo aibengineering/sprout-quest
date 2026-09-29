@@ -816,6 +816,13 @@ body.kbd .drag-hint .keys { display: flex; }
 .talk-name { display: block; font-size: 17px; font-weight: 900; color: #5a3a6a; }
 /* When the action's low on the screen, the dialogue moves up out of its way. */
 #modal.cine.top { align-items: flex-start; padding-top: calc(10vh + var(--safe-t)); padding-bottom: 0; }
+/* With the talk box at the top, a tap anywhere moves on; this says so down where your thumbs are. */
+#modal .tap-next {
+  position: absolute; left: 50%; bottom: calc(10vh + var(--safe-b)); transform: translateX(-50%); padding: 10px 22px;
+  border-radius: 999px; background: rgba(255, 248, 238, 0.95); border: 3px solid var(--outline); font: 700 15px var(--display);
+  color: var(--outline); box-shadow: 0 4px 0 rgba(42, 20, 50, 0.35); animation: tapnext 1.6s ease-in-out infinite; white-space: nowrap;
+}
+@keyframes tapnext { 50% { transform: translateX(-50%) translateY(-3px); } }
 .zrow.done { opacity: 0.75; }
 
 /* ================= Menus as things from the world =================

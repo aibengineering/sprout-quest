@@ -46,6 +46,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "🗺️ Weapon Paths only reveal your next two levels",
       "🎒 Unlock cards step aside for what you're doing, and go once you've looked",
       "📜 Story fights no longer stop on a Victory screen",
+      "💬 Tap anywhere to move story dialogue on",
       "📊 A richer play report",
       "🐛 Fixes: Granny missing on a new game, and the level-up health bar",
     ],

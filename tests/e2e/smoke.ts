@@ -256,6 +256,19 @@ scenario('patch notes: a dot until you read them, from the menu or the title', (
   await closeDialogs(page);
 });
 
+scenario("story dialogue moves on with a tap anywhere, even with the talk box at the top", null, async (page) => {
+  await run(page, `window.__said = g.ui.talk('Granny Clover', 'npc_granny', '👵', 'Hello, dear!', true).then(() => (window.__said = 'done'))`);
+  await waitFor(page, 'the talk box at the top', async () => !!(await page.$('#modal.cine.top:not([hidden]) .tap-next')), 3000);
+  if (SHOTS) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${OUT}talk-top.png` });
+  }
+  // A tap down by the thumbs, nowhere near the box or its button.
+  await page.mouse.click(195, 760);
+  await waitFor(page, 'the line to move on', async () => (await game<string>(page, 'window.__said')) === 'done', 3000);
+  check(!(await page.$('#modal .tap-next')), 'the tap hint stayed behind');
+});
+
 scenario('an unlock card gets out of the way of a fight, and comes back after it', null, async (page) => {
   await run(page, `g.ui.unlockCard({ id: 'bag', icon: '🎒', title: 'Your Bag', text: 'Test', when: () => true })`);
   await waitFor(page, 'the card', async () => !!(await page.$('#unlock-card.show')), 3000);

@@ -311,9 +311,16 @@ export class UI {
       this.armed = true;
     });
     window.addEventListener('keydown', (e) => this.onKey(e), true);
-    // Tapping outside the menu sheet closes it (dialogs still need an explicit choice).
+    // Tapping outside the menu sheet closes it (dialogs still need an explicit choice)…
     this.modal.addEventListener('click', (e) => {
       if (e.target === this.modal && this.menuOpen && this.armed) this.closeMenu();
+      // …but in a story scene, a tap anywhere moves the dialogue on, wherever your thumb is.
+      else if (this.modal.classList.contains('cine') && this.armed && this.resolveDialog && !this.sheet.contains(e.target as Node)) {
+        const r = this.resolveDialog;
+        this.resolveDialog = null;
+        this.modal.hidden = true;
+        r('ok');
+      }
     });
     // Swipe the menu down from its header to dismiss it.
     let startY: number | null = null;
@@ -1379,11 +1386,19 @@ export class UI {
   async talk(name: string, portrait: string, emoji: string, text: string, top = false) {
     this.modal.classList.add('cine');
     this.modal.classList.toggle('top', top);
+    // At the top (so it doesn't cover the action), the way on is still down by your thumbs.
+    const next = top ? document.createElement('div') : null;
+    if (next) {
+      next.className = 'tap-next';
+      next.textContent = 'Tap to continue ▶';
+      this.modal.append(next);
+    }
     const r = await this.dialog(
       `<div class="talk">${icon(portrait, emoji, 'icon lg')}<div><b class="talk-name">${esc(name)}</b><div class="caption-text">${esc(text)}</div></div></div>`,
       [['ok', '▶']],
       'caption',
     );
+    next?.remove();
     this.modal.classList.remove('cine', 'top');
     return r;
   }
