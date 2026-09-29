@@ -217,6 +217,8 @@ scenario('a new game plays through the prologue to Elder Oswin', null, async (pa
   await closeDialogs(page);
   await page.waitForTimeout(500);
   check(await game(page, `g.mode`) === 'world', 'not back in control after the welcome');
+  // Granny Clover is home in Sowerby from the moment you arrive.
+  await waitFor(page, 'Granny Clover at her cottage', async () => game<boolean>(page, `!!g.over.actors.get('granny:granny')`), 3000);
   // Talking to Elder Oswin tells you what to do next, then hands you back the controls.
   await use(`g.over.world.obj('elder')`);
   const said = await closeDialogs(page);

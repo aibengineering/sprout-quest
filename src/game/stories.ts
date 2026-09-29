@@ -78,11 +78,17 @@ export function setUpStories() {
   syncStories();
 }
 
+/** Whether a story's cast is on the map: once it can start (or has), or from the outset for one that's there early. */
+const castOut = (st: Story) => st.available() || stepOf(st.id) > 0 || !!st.castEarly;
+/** Which stories had their cast out at the last sync, to catch one becoming available (Granny, once you reach Sowerby). */
+let castKey = '';
+
 /** Places each story's cast for its current step: new characters appear, gone ones leave, the rest update. */
 export function syncStories() {
   const actors = G.over.actors;
+  castKey = STORIES.map((st) => (castOut(st) ? 1 : 0)).join('');
   for (const st of STORIES) {
-    const cast = st.available() || stepOf(st.id) > 0 || st.castEarly ? st.cast(stepOf(st.id)) : [];
+    const cast = castOut(st) ? st.cast(stepOf(st.id)) : [];
     for (const a of actors.list.filter((a) => a.id.startsWith(`${st.id}:`) && !cast.some((c) => c.id === a.id))) actors.remove(a.id);
     for (const spec of cast) {
       const a = actors.get(spec.id);
@@ -102,6 +108,8 @@ let busy = false;
 /** Advances any story whose current step is done, playing its scene. Returns whether one moved on. */
 export async function checkStories(): Promise<boolean> {
   if (busy) return false;
+  // A story that's just become available brings its cast onto the map, even before its first step.
+  if (STORIES.map((st) => (castOut(st) ? 1 : 0)).join('') !== castKey) syncStories();
   for (const st of STORIES) {
     const i = stepOf(st.id), step = st.steps[i];
     if (!step || !st.available() || !step.done()) continue;

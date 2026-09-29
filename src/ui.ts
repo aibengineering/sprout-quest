@@ -275,6 +275,8 @@ export class UI {
   private mode: 'title' | 'world' | 'battle' | 'none' = 'title';
   private unlockQueue: Unlock[] = [];
   private unlockShowing = false;
+  /** The health bar waits for the level-up's bell during an XP fill (see xpGain). */
+  private hpHeld = false;
   /** The unlock card on screen, to bring back after a fight that interrupts it. */
   private unlockNow: Unlock | null = null;
   private unlockTimer = 0;
@@ -349,6 +351,7 @@ export class UI {
     const card = $('hud').querySelector('.stat') as HTMLElement | null, bar = $('hud-xp');
     if (!card || $('hud').hidden || gained <= 0) return;
     this.xpAnim = true;
+    this.hpHeld = to.lv > from.lv;
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
     card.classList.add('gain');
     const tag = document.createElement('div');
@@ -411,6 +414,7 @@ export class UI {
       // Topped out: a bell, the level ticks over, and the bar starts again from empty.
       this.hooks.sound('ding');
       notch(1, true);
+      this.hpHeld = false;
       card.classList.add('ding');
       $('hud-lv').textContent = String(lv + 1);
       await wait(420 / speed);
@@ -427,6 +431,7 @@ export class UI {
     card.classList.remove('gain');
     bar.style.transition = '';
     this.xpAnim = false;
+    this.hpHeld = false;
     delete this.last.xp;
     delete this.last.lv;
   }
@@ -436,7 +441,8 @@ export class UI {
     const st = playerStats(s);
     const hpText = `${Math.ceil(hp)}/${st.maxHp}`;
     if (!this.xpAnim) this.set('lv', String(s.lv), () => ($('hud-lv').textContent = String(s.lv)));
-    this.set('hp', hpText, () => {
+    // Held during an XP fill that levels you up, so the bigger health bar arrives with the level's bell.
+    if (!this.hpHeld) this.set('hp', hpText, () => {
       $('hud-hptext').textContent = hpText;
       $('hud-hp').style.width = `${(100 * hp) / st.maxHp}%`;
       $('hud-hp').parentElement!.classList.toggle('low', hp / st.maxHp < 0.3);
