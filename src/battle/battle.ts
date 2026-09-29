@@ -8,7 +8,7 @@ import { Fx } from '../fx';
 import type { Input } from '../input';
 import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
-import { MOVESETS, SKILL_DATA, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike } from '../weapons';
+import { BLINK, MOVESETS, RIPOSTE, SKILL_DATA, SUNDER, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
 import { MONSTER_AI, type FoeWorld } from './monsters';
 import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
@@ -54,6 +54,8 @@ export class Battle implements FoeWorld, HitWorld {
     /** Rest after a full combo; seconds until the next strike may start, and how much of that comes after the swing. */
     restT: 0, atkCd: 0, atkGap: 0,
     whirlT: 0, whirlTick: 0, whirlAng: 0,
+    /** Seconds left of a dodge's dodging (for the Riposte), and of the Riposte it earned. */
+    dodging: 0, riposte: 0,
     swing: null as Swing | null,
     combo: 0,
     comboT: 0,
@@ -86,6 +88,8 @@ export class Battle implements FoeWorld, HitWorld {
   /** How many times the player has landed a hit (drives the first-battle tutorial). */
   hits = 0;
   private onceKeys = new Set<number>();
+  /** The strike whose "Riposte!" has been shown (a sweep can hit several foes). */
+  private riposteShown = 0;
   /** Running tallies for the play report. */
   readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0, cooling: 0, rested: 0, lastHitBy: '' };
 
@@ -136,7 +140,7 @@ export class Battle implements FoeWorld, HitWorld {
       x, y, vx: 0, vy: 0, kx: 0, ky: 0,
       r: def.r, z: 0, state: MONSTER_AI[f.kind].start, t: rand(0.3, 1.2), dir: 0, face: 1, orb: Math.atan2(y, x), sub: 0, last: null,
       windup: 0, flash: 0, stun: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
-      burn: 0, burnDmg: 0, burnTick: 0, dotColor: BURN_COLOR, slow: 0, squash: 0, tx: 0, ty: 0, flag: false, minion,
+      burn: 0, burnDmg: 0, burnTick: 0, sunder: 0, dotColor: BURN_COLOR, slow: 0, squash: 0, tx: 0, ty: 0, flag: false, minion,
     };
     this.enemies.push(e);
     return e;
@@ -253,7 +257,7 @@ export class Battle implements FoeWorld, HitWorld {
 
   private updatePlayer(dt: number) {
     const p = this.p, st = this.stats, inp = this.input;
-    p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt;
+    p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt; p.dodging -= dt; p.riposte -= dt;
     p.potionCd -= dt; p.atkBuffer -= dt; p.comboT -= dt; this.runCd -= dt; p.restT -= dt; p.atkCd -= dt;
     if (p.comboT <= 0 && !p.swing) p.combo = 0;
     if (st.regen && p.hp < st.maxHp) {
@@ -296,14 +300,17 @@ export class Battle implements FoeWorld, HitWorld {
 
     if (inp.consume('dodge') && p.dodgeCd <= 0) {
       // Dodging cancels a swing's recovery — but not a committed windup.
-      if (!p.swing || p.swing.t > p.swing.s.windup) {
+      // Blades flow: their dodge cancels a windup too.
+      if (!p.swing || p.swing.t > p.swing.s.windup || this.moves.trick === 'riposte') {
         p.swing = null;
         p.dodgeDir = p.moving ? Math.atan2(a.y, a.x) : p.face + Math.PI;
-        p.dodgeT = 0.2;
         p.iframes = Math.max(p.iframes, 0.32);
+        p.dodging = 0.32;
         p.dodgeCd = 0.7;
         this.log.dodges++;
         this.audio.play('dodge');
+        if (this.moves.trick === 'blink') this.blink(p.dodgeDir);
+        else p.dodgeT = 0.2;
       }
     }
     if (inp.consume('attack')) p.atkBuffer = 0.25;
@@ -342,11 +349,24 @@ export class Battle implements FoeWorld, HitWorld {
     return e ? Math.atan2(e.y - e.r * 0.6 - (this.p.y - 10), e.x - this.p.x) : this.p.face;
   }
 
+  /** Magic's dodge: a short teleport, with a puff of sparkles where you were and where you land. */
+  private blink(dir: number) {
+    const p = this.p, col = this.el.colors;
+    this.fx.burst(p.x, p.y - 12, col[0], 12, 110, { size: 4, star: true, grav: 0, life: 0.4 });
+    const mv = this.arena.move(p.x, p.y, Math.cos(dir) * BLINK, Math.sin(dir) * BLINK, p.r);
+    p.x = mv.x;
+    p.y = mv.y;
+    this.fx.burst(p.x, p.y - 12, col[1], 12, 110, { size: 4, star: true, grav: 0, life: 0.4 });
+    this.rings.push({ x: p.x, y: p.y - 10, r0: 6, r1: 30, t: 0, dur: 0.25, color: '220,200,255', width: 3 });
+  }
+
   private startSwing(s: Strike, skill: boolean, finisher: boolean) {
     const p = this.p;
     const aim = this.aim();
     p.face = aim;
-    p.swing = { s, t: 0, aim, id: ++this.hitCounter, prevAng: null, impacted: false, skill, trail: [], finisher: finisher && !skill };
+    const riposte = !skill && p.riposte > 0;
+    if (riposte) p.riposte = 0;
+    p.swing = { s, t: 0, aim, id: ++this.hitCounter, prevAng: null, impacted: false, skill, trail: [], finisher: finisher && !skill, riposte };
     // The next strike can start this far in (into this one's recovery, or past it at low handling).
     p.atkCd = strikeTime(s, this.handling);
     p.atkGap = Math.max(0, p.atkCd - (s.windup + s.active + s.recover));
@@ -473,12 +493,23 @@ export class Battle implements FoeWorld, HitWorld {
       if (best > half + e.r) continue;
       e.hitId = sw.id;
       const tip = at >= total * (1 - (s.tip ?? 0.3));
-      this.hitEnemy(e, tip ? s.mult : s.mult * (s.graze ?? 0.5), Math.atan2(ey, ex), tip ? s.kb : s.kb * 0.4, tip ? s.stun ?? 0 : 0, sw.id, tip ? s.hitstop : 0.02);
+      const snare = tip && this.moves.trick === 'snare';
+      this.hitEnemy(e, tip ? s.mult : s.mult * (s.graze ?? 0.5), Math.atan2(ey, ex), snare ? 0 : tip ? s.kb : s.kb * 0.4, tip ? s.stun ?? 0 : 0, sw.id, tip ? s.hitstop : 0.02);
+      if (snare) this.snare(e);
       if (tip) {
         this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Crack!', '#ffe07a', 14);
         this.fx.burst(hx + tx, hy + ty, '#ffffff', 6, 160, { size: 2.5, star: true, life: 0.3 });
       }
     }
+  }
+
+  /** A whip's Snare: the crack yanks the foe in toward you, to about half a lash away (guardians barely budge). */
+  private snare(e: Enemy) {
+    const p = this.p, dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
+    // Knockback decays at 8/s, so a push of v carries a foe v/8.
+    const v = 8 * Math.max(0, d - p.r - e.r - 40) * (e.def.boss ? 0.12 : 1);
+    e.kx = (dx / d) * v;
+    e.ky = (dy / d) * v;
   }
 
   /** Hammer impact: damage ring at the head, dust, cracks and a traveling shockwave. */
@@ -613,9 +644,12 @@ export class Battle implements FoeWorld, HitWorld {
       case 'quake':
         this.startSwing({ ...SKILL_DATA.quake.strike, mult: r.mult, stun: r.stun }, true, true);
         break;
-      case 'nova':
-        for (let i = 0; i < r.count; i++) this.shoot(ang + (i / r.count) * TAU, r.sub, SKILL_DATA.nova.size);
-        this.rings.push({ x: p.x, y: p.y - 10, r0: 10, r1: 70, t: 0, dur: 0.3, color: '160,230,255' });
+      case 'scatter':
+        // A fan of bolts where you aim, `size` radians wide.
+        for (let i = 0; i < r.count; i++) this.shoot(ang + (i / (r.count - 1) - 0.5) * r.size, r.sub, SKILL_DATA.scatter.size);
+        this.fx.burst(p.x + Math.cos(ang) * 18, p.y - 12 + Math.sin(ang) * 18, col[0], 10, 160, { size: 4, star: true, grav: 0, life: 0.3 });
+        this.punch = Math.max(this.punch, 0.02);
+        this.shakeAtLeast(4);
         break;
     }
   }
@@ -689,8 +723,19 @@ export class Battle implements FoeWorld, HitWorld {
     if (e.dead) return;
     this.hits++;
     const st = this.stats;
-    const critChance = 0.08 + st.luck * 0.2 + (this.el.crit ?? 0);
-    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult * this.edge(e), critChance);
+    // Blades' Riposte always crits, and hits harder; a sundered foe takes more from everything.
+    const riposte = !!this.p.swing?.riposte && this.p.swing.id === strikeId;
+    const critChance = riposte ? 1 : 0.08 + st.luck * 0.2 + (this.el.crit ?? 0);
+    const boost = (riposte ? RIPOSTE.mult : 1) * (e.sunder > 0 ? SUNDER.mult : 1);
+    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult * boost * this.edge(e), critChance);
+    if (this.moves.trick === 'sunder') {
+      if (e.sunder <= 0) this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Sundered!', '#ffc890', 13);
+      e.sunder = SUNDER.secs;
+    }
+    if (riposte && strikeId !== this.riposteShown) {
+      this.riposteShown = strikeId;
+      this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Riposte!', '#ffe07a', 16);
+    }
     e.hp -= dmg;
     this.log.hits++;
     this.log.dealt += dmg;
@@ -786,7 +831,17 @@ export class Battle implements FoeWorld, HitWorld {
   /** `by` says what hit you ("monster:contact|shot|hazard"), for the play report. */
   private hurtPlayer(atk: number, mult: number, fx: number, fy: number, by: string) {
     const p = this.p;
-    if (p.iframes > 0 || p.dodgeT > 0 || this.endT >= 0) return;
+    if (this.endT >= 0) return;
+    if (p.iframes > 0 || p.dodgeT > 0) {
+      // Blades: dodging through an attack readies a Riposte.
+      if (p.dodging > 0 && this.moves.trick === 'riposte' && p.riposte <= 0) {
+        p.riposte = RIPOSTE.secs;
+        p.dodging = 0;
+        this.fx.text(p.x, p.y - 42, 'Riposte ready!', '#ffe07a', 14);
+        this.audio.play('crit');
+      }
+      return;
+    }
     const { dmg } = calcDamage(atk, this.stats.def, mult, 0.04);
     p.hp -= dmg;
     this.log.taken += dmg;
@@ -838,6 +893,7 @@ export class Battle implements FoeWorld, HitWorld {
     const p = this.p, ai = MONSTER_AI[e.kind];
     e.flash -= dt;
     e.squash = Math.max(0, e.squash - dt);
+    e.sunder -= dt;
     if (e.burn > 0) {
       e.burn -= dt;
       e.burnTick -= dt;

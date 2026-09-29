@@ -119,7 +119,8 @@ export function loadState(): SaveState | null {
   try {
     const raw = localStorage.getItem(slotKey(SAVE_KEY));
     if (!raw) return null;
-    const data = JSON.parse(raw) as Partial<SaveState>;
+    // The Jelly Slingshot became the Jelly Wand in 0.3.1.
+    const data = JSON.parse(raw.replaceAll('"jellysling"', '"jellywand"')) as Partial<SaveState>;
     if (data.version !== 1) return null;
     // Merge onto defaults so newly-added fields and materials are always present.
     const base = newState();

@@ -97,7 +97,7 @@ describe('forge reveals', () => {
     s.build.forge = 1;
     const shown = revealed(s);
     // Monster gear and first tools need no levels; ore gear waits on Mining, ★2+ on the Forge (then handling).
-    for (const id of ['jellywhip', 'jellysling', 'fluffvest', 'axe1', 'pick1']) expect({ id, shown: shown.has(id) }).toEqual({ id, shown: true });
+    for (const id of ['jellywhip', 'jellywand', 'fluffvest', 'axe1', 'pick1']) expect({ id, shown: shown.has(id) }).toEqual({ id, shown: true });
     for (const id of ['stonesword', 'sporewhip', 'pick2', 'ironsword']) expect({ id, shown: shown.has(id) }).toEqual({ id, shown: false });
     expect(levelLock(s, GEAR.stonesword)).toEqual({ kind: 'skill', skill: 'mine', level: 2 });
     expect(levelLock(s, GEAR.sporewhip)).toEqual({ kind: 'forge', level: 2 });

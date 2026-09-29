@@ -8,7 +8,7 @@ import { currentQuest, progress, questNeeds } from './quests';
 import { MASTERY_MAX, PLOT_UNLOCK, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, plotOpen, revealed, skillXpToNext, xpToNext, type Lock } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
-import { MOVESETS, SKILL_LEVELS, comboTime, handlingStep, skillAt } from './weapons';
+import { MOVESETS, SKILL_LEVELS, TRICKS, comboTime, handlingStep, skillAt } from './weapons';
 import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
 import { LOGS_PER_PLANK, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate } from './sawmill';
 import { usingKeyboard } from './input';
@@ -861,6 +861,7 @@ export class UI {
       const sk = skillAt(MOVESETS[k].skill, m.lv), next = handlingNext(k, m.lv);
       return `<div class="mcard row handling"><div class="ico"><span class="emo">${emoji}</span></div><div class="info">
         <div class="name">${STYLE_NAMES[k]} handling <span class="lvl">Lv ${m.lv}</span></div>
+        <div class="desc">🎯 <b>${TRICKS[MOVESETS[k].trick].name}</b>: ${esc(TRICKS[MOVESETS[k].trick].note)}</div>
         <div class="desc">${sk ? `✨ <b>${esc(sk.name)}</b>: ${esc(sk.note)}` : `✨ Skill unlocks at Lv ${SKILL_LEVELS[0]}`} · ${handlingPace(k, m.lv)}</div>
         ${handlingPath(m.lv)}
         <div class="desc">${max ? 'Mastered!' : `${m.xp}/${need} XP${next ? ` · <b>Next:</b> ${esc(next)}` : ''}`}</div>
@@ -1002,7 +1003,7 @@ export class UI {
         • Drag anywhere to move. Walk through <b>tall grass</b> to meet monsters.<br>
         • Follow the 📜 goal at the top of the screen. Elder Oswin has hints!<br>
         • <b>Guardians</b> block the roads. Beat them to open the way and light a 🔥 campfire checkpoint.<br>
-        • In battle: ⚔️ attack the way you last moved (hold to combo), 💨 dodge, ✨ weapon skill, 🧪 potion. Red circles mean danger!<br>
+        • In battle: ⚔️ attack the way you last moved (hold to keep attacking), 💨 dodge, ✨ weapon skill, 🧪 potion. Red circles mean danger!<br>
         • Craft gear at the ⚒ Forge and build up the 🏡 Village for permanent boosts.<br>
         • Craft axes and picks (Forge → Tools) to chop glowing trees and mine glowing rocks. A tool can work the next tier up, slowly.<br>
         • You attack the way you last moved. Winning with a class of weapon trains it; better weapons of that class need it.<br>

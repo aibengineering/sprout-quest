@@ -17,11 +17,17 @@ export const PATCH_NOTES: PatchNote[] = [
   {
     version: '0.3.1',
     date: '2026-09-29',
-    title: 'Specials Earned',
+    title: 'Weapons With Character',
     notes: [
+      "🗡️ Swords are Blades now, and they're the combo class: three quick, flowing strikes. Their trick is the Riposte: dodge through an attack and your next strike is a sure, harder critical hit. Their dodge can cancel a wind-up too.",
+      "🔨 Hammers, whips and magic strike once and rest, so every blow counts and your special weaves in between. Early fights are more deliberate, and weapon handling speeds you up much more on the way to Mastery.",
+      "💥 Hammers Sunder: a slammed foe takes 20% more from your hits for a few seconds, so the next slam or a Quake lands harder.",
+      "🪢 Whips Snare: a crack at the tip yanks the foe in toward you, so nothing keeps its distance.",
+      "🪄 Wands are Magic now. Magic's dodge is a Blink, a short teleport, and its special is Scatter, a shotgun blast of bolts where you aim, instead of a ring all around you.",
+      "🟢 The Jelly Slingshot is now the Jelly Wand. If you had the slingshot, you have the wand.",
       "🌀 Special attacks start small and grow with your weapon handling: Rank I is a quick taste, and each rank adds more, up to a Mastery finisher that really is over the top.",
-      "🪢 The whip's Whirl no longer spins you round three times at the start: Rank I is three quick lashes, and it spins longer, wider and faster on your feet as it ranks up, to a roaming Tempest at Mastery.",
-      "🔨 The hammer's Quake leans on its shockwaves more as it ranks up, and every special hits a crowd about as hard as the others.",
+      "🌪️ The whip's Whirl no longer spins you round three times at the start: Rank I is three quick lashes, and it spins longer, wider and faster on your feet as it ranks up, to a roaming Tempest at Mastery.",
+      "🎯 Your Skills tab shows each weapon class's trick.",
     ],
   },
   {

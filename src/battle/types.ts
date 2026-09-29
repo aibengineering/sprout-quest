@@ -53,6 +53,8 @@ export interface Enemy {
   windup: number;
   flash: number;
   stun: number;
+  /** Seconds left of a hammer's Sunder: it takes more from everything meanwhile. */
+  sunder: number;
   dead: boolean;
   deathT: number;
   seed: number;
@@ -115,6 +117,8 @@ export interface Swing {
   finisher: boolean;
   /** A lash has cracked at the tip (the snap you hear, hit or miss). */
   cracked?: boolean;
+  /** Blades: a Riposte, a sure critical hit after dodging through an attack. */
+  riposte?: boolean;
 }
 
 /** A hammer's traveling shockwave (or the Wyrmbreaker's dragonfire). */

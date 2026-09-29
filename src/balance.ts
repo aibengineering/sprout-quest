@@ -271,8 +271,8 @@ export const MAX_MASTERED_SKILL_AREA = 0.5;
 /** Hunter weapons hit for this share of their tier's gatherer damage: less raw power, but they carry monster effects. */
 export const HUNTER_DPS: Range = [0.75, 0.95];
 /**
- * Hunter wands and slingshots aim lower still: they hit from across the arena, so they never pay the walk-in and the
- * risk a melee weapon does. (The first play report had the Jelly Slingshot ending fights 3× faster, untouched.)
+ * Magic aims lower still: it hits from across the arena, so it never pays the walk-in and the risk a melee weapon does.
+ * (The first play report had the old Jelly Slingshot ending fights 3× faster, untouched.)
  */
 export const RANGED_DPS: Range = [0.6, 0.8];
 /** No hunter weapon out-damages its tier's gatherer weapons in a fight's opening second. */

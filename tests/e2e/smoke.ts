@@ -280,9 +280,9 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
 });
 
 scenario('every weapon waits between strikes, and handling shortens the wait', (g) => {
-  g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellysling');
+  g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellywand');
 }, async (page) => {
-  for (const w of ['stonesword', 'stonehammer', 'jellywhip', 'jellysling']) {
+  for (const w of ['stonesword', 'stonehammer', 'jellywhip', 'jellywand']) {
     const style = GEAR[w].style!;
     const swings: number[] = [];
     for (const lv of [1, 10]) {
@@ -303,6 +303,65 @@ scenario('every weapon waits between strikes, and handling shortens the wait', (
     check(swings[0] <= cap, `${w}: ${swings[0]} swings in 2s at handling Lv 1 (its pace allows ≤${cap})`);
     check(swings[1] > swings[0], `${w}: mastered handling swung ${swings[1]} times, no more than Lv 1's ${swings[0]}`);
   }
+});
+
+scenario("each class has its trick (Riposte, Sunder, Snare, Blink) and its special fires", (g) => {
+  g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellywand');
+}, async (page) => {
+  const fight = async (w: string) => {
+    await run(page, `g.save.equip.weapon = '${w}'; g.save.mastery.${GEAR[w].style}.lv = 10; g.encounter()`);
+    await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 8000);
+    await pinFoes(page);
+  };
+  const special = async (w: string) => {
+    await page.waitForTimeout(1200);
+    await page.keyboard.press('KeyL');
+    await page.waitForTimeout(900);
+    check(await game<number>(page, 'g.battle.log.skills') === 1, `${w}: its special didn't fire`);
+  };
+
+  // Blades: dodge through a blow, and the next strike is a sure crit.
+  await fight('stonesword');
+  await page.keyboard.press('KeyK');
+  await page.waitForTimeout(60);
+  await run(page, `const b = g.battle; b.hurtPlayer(5, 1, b.p.x, b.p.y - 20, 'test')`);
+  check(await game<number>(page, 'g.battle.p.riposte') > 0, 'stonesword: dodging through a blow readied no Riposte');
+  await page.waitForTimeout(300);
+  await pinFoes(page);
+  await page.keyboard.press('KeyJ');
+  await page.waitForTimeout(400);
+  check(await game<number>(page, 'g.battle.log.crits') >= 1, "stonesword: the Riposte didn't crit");
+  await special('stonesword');
+  await winFight(page);
+
+  // Hammer: a slam sunders what it hits.
+  await fight('stonehammer');
+  await page.keyboard.press('KeyJ');
+  await page.waitForTimeout(700);
+  check(await game<boolean>(page, 'g.battle.enemies.some((e) => e.sunder > 0)'), 'stonehammer: the slam sundered nothing');
+  await special('stonehammer');
+  await winFight(page);
+
+  // Whip: a crack at the tip yanks the foe in.
+  await fight('jellywhip');
+  await run(page, `const b = g.battle; for (const e of b.enemies) e.y = b.p.y - 125`);
+  const far = await game<number>(page, 'Math.min(...g.battle.enemies.map((e) => g.battle.p.y - e.y))');
+  await page.keyboard.press('KeyJ');
+  await page.waitForTimeout(900);
+  const near = await game<number>(page, 'Math.min(...g.battle.enemies.map((e) => g.battle.p.y - e.y))');
+  check(near < far - 25, `jellywhip: the crack didn't pull the foe in (${far.toFixed(0)} → ${near.toFixed(0)} away)`);
+  await special('jellywhip');
+  await winFight(page);
+
+  // Magic: the dodge is a teleport.
+  await fight('jellywand');
+  const from = await game<[number, number]>(page, '[g.battle.p.x, g.battle.p.y]');
+  await page.keyboard.press('KeyK');
+  await page.waitForTimeout(30);
+  const to = await game<[number, number]>(page, '[g.battle.p.x, g.battle.p.y]');
+  check(Math.hypot(to[0] - from[0], to[1] - from[1]) > 80, 'jellywand: the dodge didn\'t blink');
+  await special('jellywand');
+  await winFight(page);
 });
 
 // Every monster, in two halves that run side by side.
