@@ -41,7 +41,8 @@ export function install() {
     return;
   }
   document.head.insertAdjacentHTML('beforeend', `<style>${CSS}${LAB_CSS}</style>`);
-  loadXpRate();
+  // The raised XP rate is for dev slots (the tower run, presets, copies); your real save always plays at ×1.
+  if (activeSlot() !== null) loadXpRate();
   addTitleButton();
   // The same panel from inside the game: a row at the top of the menu's More tab.
   G.ui.devRow = {

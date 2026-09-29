@@ -7,6 +7,7 @@ import { GEAR, MAX_POTIONS, STYLE_NAMES } from '../data';
 import { playerStats } from '../rules';
 import { TOWER, checkpointFor, towerSupplies, type TowerFloor } from '../tower';
 import { skillAt, MOVESETS } from '../weapons';
+import { activeSlot } from '../slots';
 import { G, backToWorld, menuCtx, persist, transition } from './context';
 import { startBattle } from './fights';
 
@@ -23,6 +24,8 @@ export function loadXpRate() {
 }
 
 export function setXpRate(n: number) {
+  // Never on your real save (the combat lab and the tower only run in dev slots anyway).
+  if (activeSlot() === null) return;
   G.xpRate = n;
   try {
     localStorage.setItem(RATE, String(n));
