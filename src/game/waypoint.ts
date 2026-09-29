@@ -11,6 +11,8 @@ import { storyTarget } from './stories';
 const front = (o?: { x: number; y: number; w: number; h: number }) => (o ? { x: o.x + o.w / 2, y: o.y + o.h + 0.7 } : null);
 
 export function objective(): { x: number; y: number } | null {
+  // Fainted: the way back to your body comes first.
+  if (G.save.spirit) return G.save.spirit;
   // A side story you're in the middle of leads the way.
   const side = storyTarget();
   if (side) return side;

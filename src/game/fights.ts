@@ -10,11 +10,12 @@ import { afterWin, xpBoost } from '../kitchen';
 import { logEvent } from '../stats';
 import { has } from '../unlocks';
 import type { WorldObj } from '../world';
-import { G, backToWorld, persist, showZoneBanner, syncWorld, transition } from './context';
+import { G, backToWorld, persist, syncWorld, transition } from './context';
 import { cancelGather } from './gathering';
 import { celebrate, leveledUp, lootLines, markLevels, type LevelMark } from './rewards';
 import { progressQuests } from './story';
-import { storyFainted, storyFightExtras } from './stories';
+import { storyFightExtras } from './stories';
+import { faint } from './death';
 import { floorSupplies, towerEnd } from './tower';
 
 /** HP when the current fight began, for the play report. */
@@ -191,16 +192,8 @@ async function onBattleEnd(o: BattleOutcome) {
       void progressQuests();
     });
   } else {
-    await G.ui.result({ win: false, xp: 0, levels: 0, newLv: s.lv, drops: {}, boss, respawn: s.respawn });
-    transition(() => {
-      s.hp = playerStats(s).maxHp;
-      const p = s.respawn === 'village' || s.respawn === 'glade' ? G.world.entryPoint(s.respawn) : G.world.campPoint(s.respawn);
-      G.over.teleport(p.x, p.y);
-      backToWorld();
-      showZoneBanner(G.over.currentZone);
-      // Anyone you were walking home stays behind, at the last checkpoint you reached.
-      storyFainted();
-    });
+    // You wake as a spirit at your last checkpoint, and walk back to your body (death.ts).
+    faint();
   }
 }
 

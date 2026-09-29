@@ -612,9 +612,7 @@ scenario('the play report records fights, waits between strikes, deaths and time
   await waitFor(page, 'the wolf fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`));
   await page.waitForTimeout(1500);
   await run(page, 'g.battle.p.hp = 1; g.battle.p.iframes = 0');
-  await waitFor(page, 'losing', async () => !!(await page.$('#modal:not([hidden]) [data-dialog]')), 15000);
-  await closeDialogs(page);
-  await waitFor(page, 'back on the map', async () => game<boolean>(page, `g.mode === 'world' && !g.battle`), 6000);
+  await waitFor(page, 'back on the map as a spirit', async () => game<boolean>(page, `g.mode === 'world' && !g.battle && !!g.save.spirit`), 20000);
 
   await openMore(page);
   // The full report: a file with the summary, then one line per event.
@@ -846,6 +844,35 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'bramhut').hidden && g.save.flags.includes('bram:stew')`), 'no cabin, or no stew');
 });
 
+scenario('fainting: back as a spirit at the checkpoint, walk to your body to wake, never onto a story fight', null, async (page) => {
+  // A story fight's monsters blocking a spot (Poppy's first pack), with you right up against them.
+  const foe = `g.over.world.objs.find((o) => o.flag === 'poppy:pack1')`;
+  await run(page, `const o = ${foe}; o.hidden = false; g.over.teleport(o.x + o.w + 0.4, o.y + o.h / 2)`);
+  await run(page, `g.fight('wolf', 12, 2)`);
+  await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`));
+  await page.waitForTimeout(1500);
+  await run(page, 'g.battle.p.hp = 1; g.battle.p.iframes = 0');
+  await waitFor(page, 'a spirit at the checkpoint', async () => game<boolean>(page, `g.mode === 'world' && !g.battle && !!g.save.spirit && g.over.currentZone.id === g.save.respawn`), 20000);
+  const gap = `(() => { const o = ${foe}, b = g.save.spirit; return Math.hypot(Math.max(o.x - b.x, 0, b.x - (o.x + o.w)), Math.max(o.y - b.y, 0, b.y - (o.y + o.h + 0.3))); })()`;
+  check(await game<number>(page, gap) >= 1.5, 'your body lies on the story fight');
+  check(await game<boolean>(page, `g.over.objective && Math.hypot(g.over.objective.x - g.save.spirit.x, g.over.objective.y - g.save.spirit.y) < 0.01`), "the waypoint doesn't lead to your body");
+  if (SHOTS) {
+    await run(page, `const b = g.save.spirit; g.over.teleport(b.x + 1.6, b.y)`);
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${OUT}spirit.png` });
+  }
+  // A spirit walks right past the monsters without a fight.
+  await run(page, `const o = ${foe}; g.over.teleport(o.x + o.w + 0.3, o.y + o.h / 2)`);
+  await page.waitForTimeout(800);
+  check(await game<boolean>(page, `g.mode === 'world' && !g.battle`), 'a spirit started a fight');
+  // Your body: you wake at half health, and nothing starts.
+  await run(page, `const b = g.save.spirit; g.over.teleport(b.x, b.y)`);
+  await waitFor(page, 'waking up', async () => game<boolean>(page, `!g.save.spirit`), 5000);
+  check(await game<boolean>(page, `Math.abs(g.save.hp - Math.round(g.battle ? 0 : g.save.hp)) === 0 && g.save.hp > 0`), 'you woke with no health');
+  await page.waitForTimeout(1000);
+  check(await game<boolean>(page, `g.mode === 'world' && !g.battle`), 'waking up dropped you straight into the fight');
+});
+
 scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, and the ambushes still count', (g) => {
   const s = g.save;
   s.lv = 6;
@@ -866,13 +893,15 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`));
   await page.waitForTimeout(1500);
   await run(page, 'g.battle.p.hp = 1; g.battle.p.iframes = 0');
-  await waitFor(page, 'fainting', async () => !!(await page.$('#modal:not([hidden]) [data-dialog]')), 15000);
-  await closeDialogs(page);
-  await waitFor(page, 'waking up in Sowerby', async () => game<boolean>(page, `g.mode === 'world' && !g.battle && g.over.currentZone.id === 'village'`), 8000);
+  // You come back as a spirit in Sowerby, your body left where you fell.
+  await waitFor(page, 'a spirit in Sowerby', async () => game<boolean>(page, `g.mode === 'world' && !g.battle && g.over.currentZone.id === 'village' && !!g.save.spirit`), 20000);
   const b = await bram();
   check(b && !b.follow && Math.hypot(b.x - (78 + 16.5), b.y - 11.6) < 1, `Bram should wait past the first ambush, not follow you home (${JSON.stringify(b)})`);
   check(await game<boolean>(page, `g.save.flags.includes('bram:waiting')`), 'Bram is not waiting');
-  // Walking home without him (or without the second ambush) doesn't finish the escort.
+  // Back to your body to wake up (at half health)…
+  await run(page, `const b = g.save.spirit; g.over.teleport(b.x, b.y)`);
+  await waitFor(page, 'waking up', async () => game<boolean>(page, `!g.save.spirit && g.save.hp > 0`), 5000);
+  // …and walking home without him (or without the second ambush) doesn't finish the escort.
   await run(page, 'g.over.teleport(31.8, 11.4)');
   await page.waitForTimeout(1200);
   check(await game<number>(page, 'g.save.stories.bram') === 6, 'the escort finished without Bram');

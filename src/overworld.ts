@@ -97,6 +97,13 @@ export class Overworld {
     this.roamers.calm = Math.max(this.roamers.calm, seconds);
   }
 
+  /** Waking from a faint: a burst of Veyra's light where you stand. */
+  revived() {
+    const ts = this.ts, x = this.x * ts, y = (this.y - 0.4) * ts;
+    this.fx.burst(x, y, '#fff6c8', 18, ts * 3, { size: ts * 0.08, star: true, grav: -ts * 0.5, life: 0.9 });
+    this.fx.burst(x, y, '#9ad8ff', 12, ts * 2, { size: ts * 0.06, grav: -ts, life: 1.1 });
+  }
+
   /** Turn to face a tree and start chopping it. */
   startChop(o: WorldObj) {
     this.chopping = o;
@@ -149,6 +156,8 @@ export class Overworld {
   /** `roam`: monsters keep moving (and can catch you) even while you can't walk, e.g. while chopping. */
   update(dt: number, input: Input, frozen: boolean, roam = !frozen): WorldEvent {
     this.t += dt;
+    // A spirit walks unseen: nothing notices it, chases it or jumps out at it.
+    if (this.save.spirit) this.roamers.calm = Math.max(this.roamers.calm, 0.5);
     if (roam && this.alert <= 0) {
       const caught = this.roamers.update(dt, this.x, this.y, this.save.wins === 0, repelBelow(this.save));
       if (caught) {
@@ -203,7 +212,7 @@ export class Overworld {
         this.stepAcc -= 1;
         // Goo Jelly: grass whose monsters are all well below you stays quiet.
         const rep = repelBelow(this.save), quiet = rep !== null && this.zone.lv[1] <= rep;
-        if (this.roamers.calm <= 0 && this.zone.monsters.length && !quiet && Math.random() < ENCOUNTER_CHANCE) {
+        if (this.roamers.calm <= 0 && !this.save.spirit && this.zone.monsters.length && !quiet && Math.random() < ENCOUNTER_CHANCE) {
           this.alert = 0.4;
           this.moving = false;
           this.stepAcc = 0;
@@ -315,6 +324,8 @@ export class Overworld {
       items.push({ y: a.y, draw: () => this.drawActor(ctx, a, ts) });
     }
     items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
+    const body = this.save.spirit;
+    if (body) items.push({ y: body.y, draw: () => this.drawBody(ctx, body, ts) });
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
     this.fx.draw(ctx);
@@ -434,9 +445,25 @@ export class Overworld {
     arrow(camX + ex, camY + ey, ang, ts * 0.75 * pulse);
   }
 
+  /** Your body where you fainted: lying on its side, greyed, with a faint glow so you can spot it from afar. */
+  private drawBody(ctx: CanvasRenderingContext2D, b: { x: number; y: number }, ts: number) {
+    const px = b.x * ts, py = b.y * ts, pulse = 0.5 + 0.5 * Math.sin(this.t * 2.5);
+    ctx.save();
+    ctx.globalAlpha = 0.25 + 0.2 * pulse;
+    ctx.fillStyle = '#fff6c8';
+    ctx.beginPath();
+    ctx.ellipse(px, py, ts * 0.7, ts * 0.32, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    shadow(ctx, px, py, ts * 0.35);
+    drawHero(ctx, this.save.equip.armor, px + ts * 0.3, py - ts * 0.05, ts / 1.2, Math.PI / 2, false, 0, { rot: -Math.PI / 2, tint: '#8a90a8', tintAmount: 0.45 }, 'hero-body');
+  }
+
   private drawHero(ctx: CanvasRenderingContext2D, ts: number) {
-    const px = this.x * ts, py = this.y * ts;
-    shadow(ctx, px, py, ts * 0.27);
+    const spirit = !!this.save.spirit;
+    // As a spirit you float a little, see-through and pale blue.
+    const px = this.x * ts, py = this.y * ts - (spirit ? ts * (0.12 + 0.05 * Math.sin(this.t * 3)) : 0);
+    shadow(ctx, px, this.y * ts, ts * (spirit ? 0.18 : 0.27));
     // Your weapon rides on you: swords and hammers strapped across your back, whips and wands at your hip. In 3D it's
     // part of the model (it turns with you); with sprites it's drawn peeking over a shoulder.
     const wpn = GEAR[this.save.equip.weapon];
@@ -451,7 +478,8 @@ export class Overworld {
       if (wf) drawFrame(ctx, wf, px - ts * 0.15, py - ts * 0.36 - bob, ts * 0.47 * size, { rot: -1.05 });
     };
     if (!away) back();
-    if (!drawHero(ctx, this.save.equip.armor, px, py, ts / 1.2, this.face, this.moving, this.t, {}, 'hero', in3d ? held : undefined)) {
+    const look = spirit ? { alpha: 0.55, tint: '#bfe6ff', tintAmount: 0.6 } : {};
+    if (!drawHero(ctx, this.save.equip.armor, px, py, ts / 1.2, this.face, this.moving, this.t, look, 'hero', in3d && !spirit ? held : undefined)) {
       drawPlayer(ctx, px, py, ts * 0.3, {
         t: this.t, moving: this.moving, face: this.face,
         armor: GEAR[this.save.equip.armor]?.color ?? '#6fa8ff',

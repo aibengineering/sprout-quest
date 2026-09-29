@@ -6,6 +6,7 @@ import { drawBattle } from './battle/render';
 import { MAX_POTIONS, MONSTERS, QUESTS, ZONES, zoneById, type MonsterKind, type ZoneId } from './data';
 import { G, busy, menuCtx, persist, showZoneBanner, syncWorld } from './game/context';
 import { canRun, challengeFoe, coachBattle, startBattle, startFieldBattle } from './game/fights';
+import { revive, spirit } from './game/death';
 import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/gathering';
 import { interact } from './game/interact';
 import { menuHooks } from './game/menu';
@@ -112,9 +113,11 @@ function worldFrame(dt: number) {
     ui.closeMenu();
   }
   // Strike a monster that hasn't spotted you yet for a surprise attack.
-  const prey = canAct ? over.roamers.unaware(over.x, over.y) : null;
+  // A spirit (after fainting) can only walk back to its body: nothing to fight, talk to or use on the way.
+  const ghost = spirit();
+  const prey = canAct && !ghost ? over.roamers.unaware(over.x, over.y) : null;
   if (prey && (input.consume('act') || input.consume('attack'))) startFieldBattle(prey, true);
-  else if (canAct && input.consume('act')) void interact();
+  else if (canAct && !ghost && input.consume('act')) void interact();
   if (G.mode === 'title') over.t += dt;
   else {
     const px = over.x, py = over.y;
@@ -123,12 +126,13 @@ function worldFrame(dt: number) {
       movedDist += Math.hypot(over.x - px, over.y - py);
       if (movedDist > 2) s.tips.push('moved');
     }
-    if (canAct) maybeAutoTalk();
+    if (canAct && !ghost) maybeAutoTalk();
     if (ev?.type === 'zone') {
       showZoneBanner(ev.zone);
       if (ev.zone.id === 'village' && !s.flags.includes('village')) void arriveAtVillage();
     }
-    if (canAct && s.flags.includes('sword')) {
+    if (canAct && ghost && s.spirit && Math.hypot(over.x - s.spirit.x, over.y - s.spirit.y) < 0.8) revive();
+    if (canAct && !ghost && s.flags.includes('sword')) {
       // Walking into monsters blocking the way starts the fight.
       const gap = (o: { x: number; y: number; w: number; h: number }) =>
         Math.hypot(Math.max(o.x - over.x, 0, over.x - (o.x + o.w)), Math.max(o.y - over.y, 0, over.y - (o.y + o.h + 0.3)));
@@ -136,10 +140,10 @@ function worldFrame(dt: number) {
       if (foe) challengeFoe(foe);
     }
     tickStories();
-    if (canAct) void checkStories();
+    if (canAct && !ghost) void checkStories();
     if (ev?.type === 'encounter') startFieldBattle(ev.roamer, false);
   }
-  const near = canAct ? over.nearbyObject() : null;
+  const near = canAct && !ghost ? over.nearbyObject() : null;
   // The play report notes when you first walk up to a guardian you haven't beaten.
   if (near?.kind === 'gate' && near.zone) {
     const g = ZONES.find((z) => z.id === near.zone)?.guardian;

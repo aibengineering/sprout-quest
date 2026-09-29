@@ -125,7 +125,10 @@ export function simulate(style: Style, seed = 1, cal = CAL): SimResult {
       xp: win ? xp : 0, weapon: s.equip.weapon, armor: s.equip.armor, cooling: 0, rested: 0, handling: h, critDealt: Math.round(dealt * 0.08 * 0.6 / 1.05), kills: win ? foes.length : 0,
     });
     if (!win) {
+      // Back as a spirit at the checkpoint, then the walk back to your body (you wake at half health).
       rest();
+      spendTime(cal.tripSec, 'walking', z);
+      s.hp = Math.round(stats().maxHp / 2);
       return false;
     }
     s.hp = Math.max(1, hp);
