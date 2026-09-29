@@ -767,39 +767,51 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.flag === 'bram:ambush2').hidden`), 'the second ambush vanished');
 });
 
-scenario("dev builds: the combat lab's Battle Tower climbs floor to floor at a raised XP rate, and leaves the story alone", (g) => {
+scenario('dev builds: a Battle Tower run climbs floor after floor from its camp, in its own slot', (g) => {
   g.lv = 3;
 }, async (page) => {
-  await run(page, 'g.ui.devRow.open()');
-  await page.click('#modal [data-dialog="lab"]');
-  await page.click('#modal [data-dialog="rate:100"]');
-  if (SHOTS) await page.screenshot({ path: `${OUT}combat-lab.png` });
-  await page.selectOption('#lab-floor', '4');
-  await page.click('#modal [data-dialog="climb"]');
-  await waitFor(page, 'floor 4 (the Slime King)', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.setup.foes[0].kind === 'kingslime'`), 10000);
-  await page.waitForTimeout(1500);
-  await endFight(page);
-  // Through the result and level-up screens to the tower's own choice.
-  const cleared = '#modal:not([hidden]) [data-dialog="next"]';
-  await waitFor(page, 'the choice after floor 4', async () => {
-    if (await page.$(cleared)) return true;
+  const camp = '#modal:not([hidden]) .tower-camp';
+  /** Clicks through result and level-up screens until the camp is back. */
+  const toCamp = (what: string) => waitFor(page, what, async () => {
+    if (await page.$(camp)) return true;
     const btn = await page.$('#modal:not([hidden]) .sheet:not(.menu) [data-dialog]:last-of-type');
     if (btn) await btn.click();
     return false;
   }, 30000);
-  check(await game<number>(page, 'g.save.lv') > 6, 'the ×100 XP rate barely levelled you up');
-  check(!(await game<boolean>(page, `g.save.bosses.includes('kingslime')`)), 'beating the Slime King in the tower counted for the story');
-  await page.click(cleared);
-  await waitFor(page, 'floor 5', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.setup.zone.id === 'woods'`), 10000);
-  await page.waitForTimeout(800);
-  await run(page, `g.battle.p.hp = 0`);
-  await waitFor(page, 'back out of the tower', async () => {
-    const btn = await page.$('#modal:not([hidden]) .sheet:not(.menu) [data-dialog]:last-of-type');
-    if (btn) await btn.click();
-    return game<boolean>(page, `g.mode === 'world' && !g.battle`);
-  }, 20000);
-  check(await game<boolean>(page, 'g.save.hp > 0'), "you came out of the tower without your HP back");
-  await run(page, `localStorage.removeItem('sprout-quest-dev-xp-rate')`);
+  const fightFloor = async (n: number) => {
+    await page.click(`${camp} [data-dialog="fight"]`);
+    await waitFor(page, `floor ${n}`, async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 10000);
+  };
+  // Your real save: its progress (switching slots saves where you stand, which is fine).
+  const progress = () => game<string>(page, `(() => { const k = JSON.parse(localStorage.getItem('sprout-quest-save')); return JSON.stringify([k.lv, k.xp, k.equip, k.mats, k.mastery, k.owned]) })()`);
+  const main = await progress();
+  await run(page, 'g.ui.devRow.open()');
+  await page.click('#modal [data-dialog="tower:new"]');
+  await waitFor(page, 'the camp', async () => !!(await page.$(camp)), 30000);
+  check(await game<boolean>(page, `localStorage.getItem('sprout-quest-slot') === 'tower' && g.save.lv === 1 && g.save.equip.weapon === 'twig'`), 'the run should start at Lv 1 with the Twig Sword, in the tower slot');
+  while (!(await page.textContent(`${camp} [data-dialog="rate"]`))?.includes('×25')) await page.click(`${camp} [data-dialog="rate"]`);
+  if (SHOTS) await page.screenshot({ path: `${OUT}tower-camp.png` });
+  // Three floors in a row, levelling up on the way.
+  for (const n of [1, 2, 3]) {
+    await fightFloor(n);
+    await endFight(page);
+    await toCamp(`the camp after floor ${n}`);
+    check(await game<number>(page, 'g.save.tower.floor') === n + 1, `the run didn't move past floor ${n}`);
+  }
+  check(await game<number>(page, 'g.save.lv') > 3, 'three floors at ×25 XP barely levelled you up');
+  check(await game<number>(page, 'g.save.mats.stone') > 0, "the floors' supplies didn't arrive");
+  // The Forge opens over the camp, and the camp comes back when it closes.
+  await page.click(`${camp} [data-dialog="forge"]`);
+  await page.waitForSelector('#modal:not([hidden]) .sheet.menu');
+  await run(page, 'g.ui.closeMenu()');
+  await waitFor(page, 'the camp after the Forge', async () => !!(await page.$(camp)), 5000);
+  // Fainting on the guardian's floor puts you back at the camp to try it again.
+  await fightFloor(4);
+  await run(page, 'g.battle.p.hp = 0');
+  await toCamp('the camp after fainting');
+  check(await game<number>(page, 'g.save.tower.floor') === 4, 'fainting moved the run');
+  check(await progress() === main, 'the tower run changed the main save');
+  await run(page, `localStorage.removeItem('sprout-quest-dev-xp-rate'); localStorage.removeItem('sprout-quest-slot')`);
 });
 
 scenario('dev builds: a preset plays in its own slot, and your real save is untouched', null, async (page) => {

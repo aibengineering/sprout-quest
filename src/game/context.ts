@@ -33,6 +33,8 @@ class GameState {
   ui!: UI;
   /** Every fight's XP is multiplied by this (dev builds can raise it, to try later stages quickly). */
   xpRate = 1;
+  /** Runs once when the menu next closes (the Battle Tower's camp comes back after its Forge and Bag). */
+  afterMenu: (() => void) | null = null;
   /** Iris transition: closes to black, runs `mid`, then opens. */
   trans: { t: number; dur: number; mid: () => void; fired: boolean } | null = null;
   /** The overworld half of the zoom into and out of regular fights. */

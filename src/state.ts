@@ -62,6 +62,8 @@ export interface SaveState {
   forgeLevels?: 5;
   /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */
   echoQueen?: true;
+  /** A Battle Tower run (dev builds, in a slot of its own): the next floor to fight. */
+  tower?: { floor: number };
   /** Recipes you've seen in the Forge; ones revealed since show as new (missing: everything revealed counts as seen). */
   forgeSeen?: string[];
 }

@@ -10,11 +10,16 @@ import { G, persist } from '../game/context';
 import { activeSlot, freezeStorage, setActiveSlot, slotKey } from '../slots';
 import { SAVE_KEY, type SaveState } from '../state';
 import { LOG_KEY, TIME_KEY } from '../stats';
-import { LAB_CSS, lab, loadXpRate } from './lab';
-import { PRESETS } from './presets';
+import { loadXpRate, openCamp } from '../game/tower';
+import { LAB_CSS, lab } from './lab';
+import { PRESETS, towerRun } from './presets';
 
 /** Set across the reload so the game continues without a stop at the title screen. */
 const AUTOPLAY = 'sprout-quest-autoplay';
+/** Set across the reload into the tower's slot, to open its camp once the game is up. */
+const CAMP = 'sprout-quest-camp';
+/** The Battle Tower run's slot. */
+const TOWER_SLOT = 'tower';
 /** Whether the performance readout is showing, per device (off unless you turn it on in the panel). */
 const PERF = 'sprout-quest-dev-perf';
 const perfOn = () => localStorage.getItem(PERF) === '1';
@@ -54,6 +59,14 @@ export function install() {
       if (btns?.hidden || !btn || btn.hidden) return;
       clearInterval(t);
       btn.click();
+    }, 100);
+  }
+  if (sessionStorage.getItem(CAMP)) {
+    sessionStorage.removeItem(CAMP);
+    const t = setInterval(() => {
+      if (G.mode !== 'world' || G.trans || G.ui.isOpen) return;
+      clearInterval(t);
+      void openCamp();
     }, 100);
   }
 }
@@ -113,6 +126,26 @@ function newStory() {
   while (localStorage.getItem(slotKey(SAVE_KEY, `story-${n}`))) n++;
   deleteSlot(`story-${n}`);
   switchTo(`story-${n}`, true);
+}
+
+/** The Battle Tower: a run of its own in the tower slot (a fresh one with `fresh`), opening on its camp. */
+function tower(fresh: boolean) {
+  if (fresh || !localStorage.getItem(slotKey(SAVE_KEY, TOWER_SLOT))) {
+    deleteSlot(TOWER_SLOT);
+    localStorage.setItem(slotKey(SAVE_KEY, TOWER_SLOT), JSON.stringify(towerRun()));
+  }
+  sessionStorage.setItem(CAMP, '1');
+  switchTo(TOWER_SLOT);
+}
+
+/** How far the tower run has got, if there is one. */
+function towerFloorSaved(): number | null {
+  try {
+    const raw = localStorage.getItem(slotKey(SAVE_KEY, TOWER_SLOT));
+    return raw ? (JSON.parse(raw) as SaveState).tower?.floor ?? 1 : null;
+  } catch {
+    return null;
+  }
 }
 
 /** A preset gets its own slot, reset to the preset (with an empty play report) every time you start it. */
@@ -200,13 +233,17 @@ async function inGamePanel() {
   G.mode = 'dialog';
   persist();
   const r = await panel(true);
-  // Switching slots reloads the page, and a fight from the lab takes over; anything else comes back here.
-  if (r !== 'fight' && G.mode === 'dialog') G.mode = was === 'dialog' ? 'world' : was;
+  // Switching slots reloads the page, and the lab can hand over to a fight or the tower's camp; anything else comes
+  // back here.
+  if (r !== 'away' && G.mode === 'dialog') G.mode = was === 'dialog' ? 'world' : was;
   G.input.reset();
 }
 
-/** The panel; in the game, it also leads to the combat lab (which may start a fight: 'fight'). */
-async function panel(inGame = false): Promise<'fight' | void> {
+/**
+ * The panel. In the game it also leads to the combat lab, in any slot but your real save (the lab may hand over to a
+ * fight or the tower's camp: 'away').
+ */
+async function panel(inGame = false): Promise<'away' | void> {
   const active = name(activeSlot());
   const slotRows = slots().map((n) => `
     <div class="dev-row${n === active ? ' on' : ''}">
@@ -225,8 +262,9 @@ async function panel(inGame = false): Promise<'fight' | void> {
      <div class="dev-list">${slotRows}</div>
      <button class="go dev-copy" data-dialog="fresh">🌱 New story in a fresh slot</button>
      <button class="go ghost dev-copy" data-dialog="copy">Copy <b>${esc(active)}</b> to a new slot</button>
-     ${inGame ? `<div class="dev-h">Combat</div>
-     <div class="dev-row"><div class="dev-info"><b>⚔️ Combat lab</b><small>The Battle Tower, any fight, levels, handling, gear and XP rate</small></div>
+     <div class="dev-h">Combat</div>
+     ${towerRow(inGame)}
+     ${inGame && activeSlot() !== null ? `<div class="dev-row"><div class="dev-info"><b>⚔️ Combat lab</b><small>Any fight, levels, handling, gear and XP rate, for <b>${esc(active)}</b></small></div>
        <button class="go" data-dialog="lab">Open</button></div>` : ''}
      <div class="dev-h">Display</div>
      <div class="dev-row"><div class="dev-info"><b>Performance readout</b><small>FPS, frame times and the GPU, at the left edge</small></div>
@@ -240,7 +278,15 @@ async function panel(inGame = false): Promise<'fight' | void> {
   if (act === 'play') switchTo(slotOf(arg));
   else if (act === 'preset') startPreset(arg);
   else if (act === 'fresh') newStory();
-  else if (act === 'lab') return (await lab()) === 'fight' ? 'fight' : panel(inGame);
+  else if (act === 'lab') return (await lab()) === 'away' ? 'away' : panel(inGame);
+  else if (act === 'tower') {
+    // Already in the run: straight to its camp.
+    if (inGame && activeSlot() === TOWER_SLOT && arg !== 'new') {
+      void openCamp();
+      return 'away';
+    }
+    tower(arg === 'new');
+  }
   else if (act === 'perf') {
     localStorage.setItem(PERF, perfOn() ? '0' : '1');
     document.getElementById('dev-perf')!.hidden = !perfOn();
@@ -257,6 +303,15 @@ async function panel(inGame = false): Promise<'fight' | void> {
   }
 }
 
+function towerRow(inGame: boolean) {
+  const floor = towerFloorSaved(), here = inGame && activeSlot() === TOWER_SLOT;
+  return `<div class="dev-row"><div class="dev-info"><b>🗼 Battle Tower</b><small>${
+    floor === null ? 'A run of its own from Lv 1: fight floor by floor, level up, forge and switch weapons at the camp' : `Run in the <b>tower</b> slot, on floor ${floor}`
+  }</small></div>
+    ${floor === null ? '' : `<button class="go" data-dialog="tower">${here ? 'Camp' : 'Continue'}</button>`}
+    <button class="go${floor === null ? '' : ' ghost'}" data-dialog="tower:new">${floor === null ? 'Start' : 'New run'}</button></div>`;
+}
+
 const CSS = `
 #btn-dev { margin-top: 6px; }
 .sheet.dev-panel { max-height: 86vh; overflow-y: auto; }
@@ -270,6 +325,8 @@ const CSS = `
 .dev-info small { font-size: 12px; opacity: 0.75; }
 .dev-row .go { padding: 6px 12px; font-size: 14px; }
 .dev-copy { margin-top: 8px; width: 100%; }
+.tower-camp .tower-acts { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 6px 0 4px; }
+.tower-camp .tower-acts .go { padding: 8px 14px; font-size: 15px; }
 #dev-perf {
   /* Middle of the left edge: over the world or the arena, clear of the HUD, the goal and every button. */
   position: fixed; left: calc(4px + env(safe-area-inset-left)); top: 56%; z-index: 15; max-width: 46vw;

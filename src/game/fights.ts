@@ -15,7 +15,7 @@ import { cancelGather } from './gathering';
 import { celebrate, leveledUp, lootLines, markLevels, type LevelMark } from './rewards';
 import { progressQuests } from './story';
 import { storyFainted, storyFightExtras } from './stories';
-import { climbing, towerEnd } from './tower';
+import { climbing, floorSupplies, towerEnd } from './tower';
 
 /** HP when the current fight began, for the play report. */
 let fightHp = 0;
@@ -138,7 +138,7 @@ async function onBattleEnd(o: BattleOutcome) {
   const b = G.battle!, s = G.save;
   const boss = b.setup.boss;
   // Regular fights swoop straight back out to the map; guardians, the dragon and the prologue keep their fanfare.
-  const quick = !boss && !battleFlag;
+  const quick = !boss && !battleFlag && !climbing();
   if (o.result === 'win' && quick) {
     // quickWin has handed out the rewards already.
     swoopOut();
@@ -201,6 +201,8 @@ async function onBattleEnd(o: BattleOutcome) {
 async function towerFight(o: BattleOutcome, b: Battle) {
   const s = G.save;
   if (o.result === 'win') {
+    // There's nothing to gather in the tower, so each floor hands over some of its tier's wood, stone and ore.
+    mergeDrops(o.drops, floorSupplies());
     const mark = grantWin(o, b);
     persist();
     await G.ui.result({ win: true, xp: o.xp, levels: s.lv - mark.fromLv, newLv: s.lv, drops: o.drops, boss: b.setup.boss });

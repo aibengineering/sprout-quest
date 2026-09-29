@@ -4,17 +4,9 @@ import { CHECKPOINTS } from '../balance';
 import { GEAR, GEAR_ORDER, MONSTERS, STYLE_NAMES, ZONES, forgeLevelFor, type MonsterKind, type Style } from '../data';
 import { G, persist } from '../game/context';
 import { startBattle } from '../game/fights';
-import { climbTower } from '../game/tower';
+import { XP_RATES, openCamp, setFloor, setXpRate } from '../game/tower';
 import { MASTERY_MAX, playerStats } from '../rules';
 import { TOWER, checkpointFor } from '../tower';
-
-/** The XP rate lasts across reloads on this device (dev builds only). */
-const RATE = 'sprout-quest-dev-xp-rate';
-const RATES = [1, 5, 25, 100];
-
-export function loadXpRate() {
-  G.xpRate = Number(localStorage.getItem(RATE)) || 1;
-}
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`);
 const value = (id: string) => (document.getElementById(id) as HTMLSelectElement | HTMLInputElement | null)?.value ?? '';
@@ -50,11 +42,12 @@ function equip(id: string) {
   s.equip.weapon = id;
 }
 
-/** Opens the lab. Resolves once it's closed, or once a fight has started ('fight'). */
-export async function lab(): Promise<'fight' | 'close'> {
+/** Opens the lab. Resolves once it's closed, or once a fight has started ('away'). */
+export async function lab(): Promise<'away' | 'close'> {
   const s = G.save, cls = style(), hand = s.mastery[cls];
   const opt = (v: string | number, label: string, on: boolean) => `<option value="${v}"${on ? ' selected' : ''}>${esc(label)}</option>`;
   const floors = TOWER.map((f) => opt(f.n, `${f.n}. ${f.label} (Lv ${f.foes[0].lv})`, String(f.n) === last.floor)).join('');
+  const inTower = !!s.tower;
   const kits = CHECKPOINTS.filter((c) => c.id !== 'prologue').map((c) => opt(c.id, `${c.label} (Lv ${c.lv})`, false)).join('');
   const weapons = (Object.keys(STYLE_NAMES) as Style[]).map((k) => `<optgroup label="${STYLE_NAMES[k]}">${
     GEAR_ORDER.map((id) => GEAR[id]).filter((g) => g.slot === 'weapon' && g.style === k).map((g) => opt(g.id, `${'★'.repeat(g.tier ?? 0) || '☆'} ${g.name}`, g.id === s.equip.weapon)).join('')
@@ -63,16 +56,16 @@ export async function lab(): Promise<'fight' | 'close'> {
   const r = await G.ui.dialog(
     `<div class="big" style="font-size:22px">⚔️ Combat lab</div>
      <p class="dev-note">Dev builds only. Changes apply to this slot's save.</p>
-     <div class="dev-h">🗼 Battle Tower</div>
+     ${inTower ? `<div class="dev-h">🗼 Skip the run ahead</div>
      <div class="dev-row"><select id="lab-floor">${floors}</select></div>
-     <div class="dev-row lab-btns"><button class="go ghost" data-dialog="kitfloor">Gear up for it</button><button class="go" data-dialog="climb">Climb from here</button></div>
+     <div class="dev-row lab-btns"><button class="go" data-dialog="jump">Jump there, geared up for it</button></div>` : ''}
      <div class="dev-h">You</div>
      <div class="dev-row"><div class="dev-info"><b>Level ${s.lv}</b></div>
        <button class="go ghost" data-dialog="lv:-1">−</button><button class="go ghost" data-dialog="lv:1">+</button></div>
      <div class="dev-row"><div class="dev-info"><b>${STYLE_NAMES[cls]} handling ${hand.lv}</b></div>
        <button class="go ghost" data-dialog="hand:-1">−</button><button class="go ghost" data-dialog="hand:1">+</button></div>
      <div class="dev-row"><div class="dev-info"><b>XP rate ×${G.xpRate}</b><small>Every fight's XP, combat and handling</small></div>
-       ${RATES.map((n) => `<button class="go${n === G.xpRate ? '' : ' ghost'}" data-dialog="rate:${n}">×${n}</button>`).join('')}</div>
+       ${XP_RATES.map((n) => `<button class="go${n === G.xpRate ? '' : ' ghost'}" data-dialog="rate:${n}">×${n}</button>`).join('')}</div>
      <div class="dev-row"><select id="lab-weapon">${weapons}</select><button class="go" data-dialog="weapon">Wield</button></div>
      <div class="dev-row"><select id="lab-kit">${kits}</select><button class="go" data-dialog="kit">Gear up</button></div>
      <div class="dev-h">Any fight</div>
@@ -89,13 +82,11 @@ export async function lab(): Promise<'fight' | 'close'> {
   last.count = value('lab-count') || last.count;
   const [act, arg] = r.split(':');
   switch (act) {
-    case 'climb':
-      persist();
-      climbTower(Number(last.floor));
-      return 'fight';
-    case 'kitfloor':
+    case 'jump':
       gearUp(checkpointFor(TOWER[Number(last.floor) - 1]).id);
-      break;
+      setFloor(Number(last.floor));
+      void openCamp();
+      return 'away';
     case 'kit':
       gearUp(value('lab-kit'));
       break;
@@ -109,13 +100,12 @@ export async function lab(): Promise<'fight' | 'close'> {
       hand.xp = 0;
       break;
     case 'rate':
-      G.xpRate = Number(arg);
-      localStorage.setItem(RATE, arg);
+      setXpRate(Number(arg));
       break;
     case 'weapon':
       equip(value('lab-weapon'));
       break;
-    case 'fight': {
+    case 'away': {
       const kind = last.monster as MonsterKind, def = MONSTERS[kind];
       const zone = ZONES.find((z) => z.monsters.some((m) => m.kind === kind) || z.guardian?.kind === kind) ?? ZONES.find((z) => z.id === 'peak')!;
       const lv = Number(last.lv) || (zone.guardian?.kind === kind ? zone.guardian.lv : kind === 'dragon' ? 20 : zone.lv[0]);
@@ -123,7 +113,7 @@ export async function lab(): Promise<'fight' | 'close'> {
       persist();
       s.hp = playerStats(s).maxHp;
       startBattle(zone, Array.from({ length: n }, () => ({ kind, lv, golden: false })), !!def.boss);
-      return 'fight';
+      return 'away';
     }
     default:
       return 'close';

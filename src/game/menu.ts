@@ -154,5 +154,8 @@ export const menuHooks: UIHooks = {
   menuClosed() {
     if (G.mode === 'dialog') G.mode = 'world';
     G.input.flush();
+    const then = G.afterMenu;
+    G.afterMenu = null;
+    then?.();
   },
 };

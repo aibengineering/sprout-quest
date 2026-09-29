@@ -209,3 +209,19 @@ export const PRESETS: Preset[] = [
     }),
   },
 ];
+
+/**
+ * A fresh Battle Tower run (src/game/tower.ts): Lv 1 with the Twig Sword, standing by the Forge in a finished Sowerby
+ * with the Forge fully built and every gathering skill high enough for any recipe, so the gear you make is limited only
+ * by your level, your handling and the materials the floors hand you.
+ */
+export function towerRun(): SaveState {
+  return base('legend', 'meadow', zoneById('village').x0 + 4.5, 13.5, (s) => {
+    s.quest = QUESTS.length;
+    tools(s, Math.max(...TOOLS.filter((t) => t.skill === 'wood').map((t) => t.tier)), Math.max(...TOOLS.filter((t) => t.skill === 'mine').map((t) => t.tier)));
+    s.skills.wood.lv = s.skills.mine.lv = 10;
+    s.build.forge = PROJECTS.forge.levels.length;
+    for (const m of MAT_ORDER) s.mats[m as MatId] = 0;
+    s.tower = { floor: 1 };
+  });
+}

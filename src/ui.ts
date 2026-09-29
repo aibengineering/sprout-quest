@@ -1342,7 +1342,7 @@ export class UI {
         ${o.levels ? `<div class="lvup">⬆ Level up! Now Lv ${o.newLv}</div>` : ''}
         ${drops ? `<div class="chips">${drops}</div>` : '<p>No materials this time.</p>'}`;
     } else if (o.tower) {
-      html = `<div class="big">Oops! 💫</div><p>You fainted, and tumbled back out of the tower.<br>You're rested and ready to go again!</p>`;
+      html = `<div class="big">Oops! 💫</div><p>You fainted, and tumbled back down to the camp.<br>You're rested and ready to try that floor again!</p>`;
     } else {
       const where = !o.respawn || o.respawn === 'village' ? 'the village' : `the ${ZONES.find((z) => z.id === o.respawn)?.name} campfire`;
       html = `<div class="big">Oops! 💫</div><p>You fainted… a kind friend carried you back to ${esc(where)}.<br>You're rested and ready to go again!</p>`;
