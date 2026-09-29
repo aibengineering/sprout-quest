@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { GEAR, MONSTERS, NODES, TOOLS, ZONES, MASTERY_FOR_TIER } from '../src/data';
-import { CLOVER_PITY, gainMastery, levelLock, revealed, masteryShort, masteryXpToNext, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpEdge, xpToNext } from '../src/rules';
+import { CLOVER_PITY, gainMastery, groupSize, levelLock, revealed, masteryShort, masteryXpToNext, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpEdge, xpToNext } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
 
@@ -59,6 +59,18 @@ describe('rules', () => {
     expect(s.mastery.whip.xp).toBe(8);
     gainMastery(s, 'sword', 4);
     expect(s.mastery.sword.xp).toBe(4);
+  });
+
+  test('groups: mostly one or two; three are rare in the Woods (first-tier gear), commoner later, never in the meadow', () => {
+    const zone = (id: string) => ZONES.find((z) => z.id === id)!;
+    const share3 = (id: string) => {
+      let n = 0;
+      for (let i = 0; i < 1000; i++) if (groupSize(zone(id), () => (i + 0.5) / 1000) === 3) n++;
+      return n / 1000;
+    };
+    expect(share3('meadow')).toBe(0);
+    expect(share3('woods')).toBeCloseTo(0.05, 2);
+    expect(share3('cave')).toBeCloseTo(0.15, 2);
   });
 
   test('better weapons of a class need handling in it, trained by winning with it', () => {

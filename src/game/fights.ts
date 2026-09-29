@@ -5,7 +5,7 @@ import { GEAR, MONSTERS, STYLE_NAMES, ZONES, zoneById, type Zone } from '../data
 import { usingKeyboard } from '../input';
 import { recordKills } from '../quests';
 import type { Roamer } from '../roamers';
-import { gainMastery, gainXp, mergeDrops, playerStats, weightedPick } from '../rules';
+import { gainMastery, gainXp, groupSize, mergeDrops, playerStats, weightedPick } from '../rules';
 import { afterWin, xpBoost } from '../kitchen';
 import { logEvent } from '../stats';
 import { has } from '../unlocks';
@@ -28,8 +28,7 @@ export const canRun = (b: Battle) => !!b.setup.tower || (!b.setup.boss && !battl
 
 /** A random set of monsters from a zone: `n` of them, or 1–3 (for ambushes in the grass). */
 function rollFoes(z: Zone, n?: number): Foe[] {
-  const r = Math.random();
-  n ??= Math.min(z.maxEnemies, r < 0.5 ? 1 : r < 0.85 ? 2 : 3);
+  n ??= groupSize(z);
   return Array.from({ length: n }, () => ({
     kind: weightedPick(z.monsters).kind,
     lv: z.lv[0] + Math.floor(Math.random() * (z.lv[1] - z.lv[0] + 1)),

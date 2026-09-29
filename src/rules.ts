@@ -1,5 +1,5 @@
 // Pure game rules: stats, damage, leveling, drops and crafting. No DOM access, so it's unit-testable.
-import { GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MAX_POTIONS, NODES, POTION_RECIPES, PROJECTS, SKILL_MAX, SLOW_TOOL, TOOLS, forgeLevelFor, type Gear, type Tool, type MatId, type MonsterDef, type NodeKind, type ProjectId, type Recipe, type SkillId, type Style } from './data';
+import { GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MAX_POTIONS, NODES, POTION_RECIPES, PROJECTS, SKILL_MAX, SLOW_TOOL, TOOLS, forgeLevelFor, type Gear, type Tool, type MatId, type MonsterDef, type NodeKind, type ProjectId, type Recipe, type SkillId, type Style, type Zone } from './data';
 import type { SaveState } from './state';
 import { has, type UnlockId } from './unlocks';
 
@@ -218,6 +218,15 @@ export function equip(s: SaveState, id: string): boolean {
   const after = playerStats(s).maxHp;
   s.hp = Math.max(1, Math.min(after, s.hp + (after - before)));
   return true;
+}
+
+/**
+ * How many monsters come at once: usually one, often two, and now and then three (as often as the area's
+ * `trioChance`), never more than the area allows.
+ */
+export function groupSize(z: Zone, rng: Rng = Math.random): number {
+  const r = rng(), trio = z.trioChance ?? 0.15;
+  return Math.min(z.maxEnemies, r < 0.5 ? 1 : r < 1 - trio ? 2 : 3);
 }
 
 export function weightedPick<T extends { w: number }>(items: T[], rng: Rng = Math.random): T {

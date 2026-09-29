@@ -259,6 +259,8 @@ export interface Zone {
   rec: number;
   lv: [number, number];
   maxEnemies: number;
+  /** How often a group is three strong, where three are allowed (default 15%). */
+  trioChance?: number;
   monsters: { kind: MonsterKind; w: number }[];
   theme: Theme;
 }
@@ -279,6 +281,8 @@ export const ZONES: Zone[] = [
   },
   {
     id: 'woods', name: 'Whisper Woods', guardian: { kind: 'kingslime', lv: 5, gate: 'bramble' }, x0: 78, w: 40, rec: 4, lv: [4, 7], maxEnemies: 3,
+    // You meet the Woods on first-tier gear: packs of three are rare here.
+    trioChance: 0.05,
     monsters: [{ kind: 'shroom', w: 3 }, { kind: 'wolf', w: 2.5 }, { kind: 'bunny', w: 0.5 }],
     theme: { ground: '#72ad5e', ground2: '#6aa556', grass: '#3a8a3e', grassTip: '#5aa84a', path: '#cdb88c', obstacle: 'pine', pool: 'water', decor: 'mush', outside: '#3f7a3c' },
   },
