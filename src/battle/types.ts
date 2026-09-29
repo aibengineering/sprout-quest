@@ -27,7 +27,7 @@ export const angDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Mat
 /** Every state a monster's behaviour can be in (each monster uses a few). */
 export type EState =
   | 'idle' | 'hop' | 'windup' | 'charge' | 'move' | 'puff' | 'circle' | 'dash' | 'recover' | 'flutter' | 'swoop' | 'retreat'
-  | 'walk' | 'slam' | 'float' | 'cast' | 'ring' | 'triple' | 'stomp' | 'howl' | 'spikes' | 'shards' | 'screech' | 'dive' | 'bolts';
+  | 'walk' | 'slam' | 'float' | 'cast' | 'ring' | 'triple' | 'stomp' | 'howl' | 'spikes' | 'shards' | 'screech' | 'dive' | 'bolts' | 'exposed';
 
 export interface Enemy {
   kind: MonsterKind;
@@ -53,8 +53,8 @@ export interface Enemy {
   windup: number;
   flash: number;
   stun: number;
-  /** Seconds left of a hammer's Sunder: it takes more from everything meanwhile. */
-  sunder: number;
+  /** Seconds until a monster that dodges your attacks (Impy) can do it again. */
+  evadeCd: number;
   dead: boolean;
   deathT: number;
   seed: number;
@@ -82,6 +82,8 @@ export interface Proj {
   from?: MonsterKind;
   /** Bat bolts swerve toward foes. */
   homing?: boolean;
+  /** Sporecap spores: seconds of poison if it hits you. */
+  poison?: number;
 }
 
 /** Dragonfire left on the ground by the Wyrmbreaker's breath: burns foes that stand in it. */

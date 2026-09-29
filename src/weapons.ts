@@ -49,7 +49,7 @@ export interface Strike {
 
 export type SkillKind = 'spin' | 'whirl' | 'quake' | 'scatter';
 /** The one thing each class does that the others don't. */
-export type Trick = 'riposte' | 'sunder' | 'snare' | 'blink';
+export type Trick = 'riposte' | 'stagger' | 'snare' | 'blink';
 
 export interface Moveset {
   /** Blades chain three strikes; every other class strikes once and rests (see `rest`), weaving its skill in between. */
@@ -115,10 +115,10 @@ export const SKILL_RANKS: Record<SkillKind, SkillRank[]> = {
     rank('Cyclone', 'A huge, stunning spin that recharges faster', { mult: 3.1, size: 1.35, stun: 0.8, cd: 3.5 }),
   ],
   quake: [
-    rank('Quake', 'Slam the ground: 3 shockwaves', { mult: 0.95, count: 3, sub: 0.25, stun: 0.5 }),
-    rank('Quake II', '5 stronger shockwaves', { mult: 1.1, count: 5, sub: 0.6, stun: 0.7 }),
-    rank('Quake III', '6 heavy shockwaves, and a harder slam', { mult: 1.3, count: 6, sub: 1.0, stun: 0.9 }),
-    rank('Earthshaker', '9 shockwaves, and it recharges faster', { mult: 1.6, count: 9, sub: 1.5, stun: 1.0, cd: 3.5 }),
+    rank('Fracture', 'Slam the ground: a fan of 3 rock spikes bursts forward', { mult: 0.95, count: 3, sub: 0.25, stun: 0.5, size: 0.6 }),
+    rank('Fracture II', '5 stronger spikes in a wider fan', { mult: 1.1, count: 5, sub: 0.6, stun: 0.7, size: 0.8 }),
+    rank('Fracture III', '6 heavy spikes, and a harder slam', { mult: 1.3, count: 6, sub: 1.0, stun: 0.9, size: 1.0 }),
+    rank('Earthsplitter', 'A huge fan of 9 spikes, and it recharges faster', { mult: 1.6, count: 9, sub: 1.5, stun: 1.0, size: 1.4, cd: 3.5 }),
   ],
   whirl: [
     rank('Whirl', 'A short spin: three lashes around you', { sub: 0.4, size: 0.85, dur: 0.5, move: 0.4 }),
@@ -155,19 +155,20 @@ export const MOVESETS: Record<Style, Moveset> = {
       { anim: 'thrust', shape: 'line', windup: 0.08, active: 0.12, recover: 0.18, range: 82, size: 30, mult: 1.6, kb: 260, lunge: 34, shake: 5, hitstop: 0.06, move: 0.3 },
     ],
   },
-  // One slow overhead slam at a time, kicking up a short line of rock spikes. Its trick is Sunder: a slammed foe's
-  // armor cracks, and it takes more from everything for a few seconds (so the next slam, or the Quake, lands harder).
+  // One slow, heavy overhead slam at a time that dazes what it hits: land it, then step away and line up the next. Its
+  // trick is Stagger: a slam knocks a monster out of the attack it's winding up and dazes it longer (guardians only
+  // flinch). The special, Fracture, is the one that throws rock spikes, in a fan ahead of you.
   hammer: {
     window: 0.4,
     skill: 'quake',
-    skillName: 'Quake',
+    skillName: 'Fracture',
     size: 1.1,
     rest: 0.5,
-    trick: 'sunder',
+    trick: 'stagger',
     combo: [
       {
-        anim: 'slam', shape: 'circle', windup: 0.32, active: 0.1, recover: 0.34, range: 0, reach: 42, size: 46, mult: 2.35, kb: 340,
-        wave: { range: 75, width: 44, speed: 560, mult: 0.6 }, shake: 12, hitstop: 0.11, move: 0.2, stun: 0.45,
+        anim: 'slam', shape: 'circle', windup: 0.32, active: 0.1, recover: 0.34, range: 0, reach: 42, size: 46, mult: 3.3, kb: 340,
+        shake: 12, hitstop: 0.11, move: 0.2, stun: 0.45,
       },
     ],
   },
@@ -211,12 +212,12 @@ export const CLASS_NOTES: Record<Style, string> = {
 /** What each class's trick does, for the Skills tab. */
 export const TRICKS: Record<Trick, { name: string; note: string }> = {
   riposte: { name: 'Riposte', note: 'Dodge through an attack and your next strike is a sure critical hit' },
-  sunder: { name: 'Sunder', note: 'A slammed foe takes 20% more from your hits for 3 seconds' },
+  stagger: { name: 'Stagger', note: 'A slam knocks a monster out of its attack and dazes it' },
   snare: { name: 'Snare', note: 'A crack at the tip yanks the foe in toward you' },
   blink: { name: 'Blink', note: 'Your dodge is a short teleport' },
 };
-/** Sunder: how much more a slammed foe takes, and for how long. */
-export const SUNDER = { mult: 1.2, secs: 3 };
+/** Stagger: how long a slam dazes a monster it knocks out of its attack (guardians only flinch, see hitEnemy). */
+export const STAGGER = { secs: 1.1 };
 /** Riposte: how long after a dodge through an attack your next strike is a sure crit, and how much harder it hits. */
 export const RIPOSTE = { secs: 1.2, mult: 1.5 };
 /** Blink: how far the teleport goes. */
@@ -254,9 +255,6 @@ export function comboTime(m: Moveset, lv: number): number {
   return m.combo.reduce((a, _, i) => a + stepTime(m, i, lv), 0);
 }
 
-/** A hammer's blows after the first land on a sundered foe (they come well within Sunder's few seconds). */
-const sundered = (m: Moveset, t: number, lv: number) => (m.trick === 'sunder' && hasTrick(lv) && t > 0 ? SUNDER.mult : 1);
-
 /** How long a typical fight lasts: weapons are judged over this window, opening burst included. */
 export const FIGHT_WINDOW = 5;
 
@@ -264,7 +262,7 @@ export const FIGHT_WINDOW = 5;
 export function comboDps(m: Moveset, lv: number): number {
   let t = 0, dmg = 0, i = 0;
   while (t < FIGHT_WINDOW) {
-    dmg += strikeDamage(m.combo[i]) * sundered(m, t, lv);
+    dmg += strikeDamage(m.combo[i]);
     t += stepTime(m, i, lv);
     i = (i + 1) % m.combo.length;
   }
@@ -278,7 +276,7 @@ export const BURST_WINDOW = 1.5;
 export function openingBurst(m: Moveset, lv: number): number {
   let t = 0, dmg = 0, i = 0;
   while (t + m.combo[i].windup <= BURST_WINDOW) {
-    dmg += strikeDamage(m.combo[i]) * sundered(m, t, lv);
+    dmg += strikeDamage(m.combo[i]);
     t += stepTime(m, i, lv);
     i = (i + 1) % m.combo.length;
   }
@@ -289,9 +287,9 @@ export function openingBurst(m: Moveset, lv: number): number {
 export const SKILL_DATA = {
   spin: { anim: 'spin', shape: 'arc', windup: 0.06, active: 0.3, recover: 0.16, range: 90, size: TAU, mult: 1.7, kb: 260, turns: 1.5, shake: 7, hitstop: 0.06, move: 0.6, stun: 0.3 } as Strike,
   quake: {
-    strike: { anim: 'slam', shape: 'circle', windup: 0.36, active: 0.1, recover: 0.42, range: 0, reach: 0, size: 80, mult: 1.8, kb: 360, shake: 16, hitstop: 0.12, move: 0.1, stun: 0.8 } as Strike,
-    /** Shockwaves bursting out in every direction. */
-    waves: { count: 6, range: 100, width: 32, speed: 520, mult: 0.5 },
+    strike: { anim: 'slam', shape: 'circle', windup: 0.36, active: 0.1, recover: 0.42, range: 0, reach: 0, size: 70, mult: 1.8, kb: 360, shake: 16, hitstop: 0.12, move: 0.1, stun: 0.8 } as Strike,
+    /** Fracture's rock spikes, fanning out ahead of you (its rank's `size` is how wide the fan spreads, in radians). */
+    waves: { count: 6, range: 125, width: 28, speed: 520, mult: 0.5 },
   },
   /** The whip's whirl: a lash every `tick` seconds while it spins (how long is its rank's `dur`), out to `radius`. */
   whirl: { tick: 0.16, radius: 80 },

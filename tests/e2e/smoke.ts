@@ -53,7 +53,7 @@ async function boot(seed: Seed) {
 /** A save past the prologue, standing in the meadow, with the Forge built. */
 const base = (g: any) => {
   const s = g.save;
-  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined'] });
+  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined', 'teach:skill:sword', 'teach:skill:hammer', 'teach:skill:whip', 'teach:skill:wand', 'teach:riposte', 'teach:stagger', 'teach:snare', 'teach:blink'] });
   s.build.forge = 1;
   s.pos = { x: 50.5, y: 18 };
   s.unlocked.push('forge', 'bag', 'journal');
@@ -335,6 +335,9 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
     await page.waitForSelector('#hud .stat.gain');
     await page.waitForTimeout(700);
     await page.screenshot({ path: `${OUT}xp-fill.png`, clip: { x: 0, y: 0, width: 390, height: 140 } });
+    await page.waitForSelector('#hud .stat.hand-gain');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}hand-fill.png`, clip: { x: 0, y: 0, width: 390, height: 140 } });
   }
   await waitFor(page, 'the level-up screen', async () => !!(await page.$('#modal:not([hidden]) .lvsheet')));
   // Its stats tick in one by one.
@@ -349,6 +352,8 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
   const screens = await closeDialogs(page);
   check(screens.some((t) => t.includes('Level up!') && t.includes('Max HP')), 'no combat level-up screen');
   check(screens.some((t) => /Whip handling/i.test(t) && t.includes('Spore Whip')), 'whip handling screen did not reveal the Spore Whip');
+  // Weapon handling has its own bar under your XP, showing the weapon's class and handling level.
+  check(await page.textContent('#hud-hlv') === String(await game<number>(page, 'g.save.mastery.whip.lv')), "the handling bar doesn't show your whip handling level");
   check(await game(page, 'g.save.lv') === 5, 'combat level did not go up');
 });
 
@@ -378,7 +383,40 @@ scenario('every weapon waits between strikes, and handling shortens the wait', (
   }
 });
 
-scenario("each class has its trick (Riposte, Sunder, Snare, Blink) and its special fires", (g) => {
+scenario('a newly unlocked move is taught in the next fight: the fight waits for you to try it', (g) => {
+  g.save.mastery.sword = { lv: 3, xp: 0 };
+  // (Past the first two fights' own tutorial.)
+  g.save.wins = 5;
+  g.save.tips = g.save.tips.filter((t: string) => t !== 'teach:skill:sword' && t !== 'teach:riposte');
+}, async (page) => {
+  await run(page, `g.fight('slime', 1, 1)`);
+  await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 8000);
+  await run(page, `const e = g.battle.enemies[0]; e.hp = e.maxHp = 1e6; e.state = 'held'; e.t = 99; e.x = g.battle.p.x + 200`);
+  // The special first: once it's ready, the fight stops and asks for it.
+  await waitFor(page, 'the special lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'skill', 5000);
+  check(/Spin/.test((await page.textContent('#coach')) ?? ''), "the lesson doesn't name the special");
+  const frozen = await game<string>(page, 'JSON.stringify([g.battle.enemies[0].x, g.battle.enemies[0].y, g.battle.p.skillCd])');
+  await page.waitForTimeout(500);
+  check(await game<string>(page, 'JSON.stringify([g.battle.enemies[0].x, g.battle.enemies[0].y, g.battle.p.skillCd])') === frozen && await game<string>(page, 'g.battle.lesson') === 'skill', 'the fight kept going during the lesson');
+  await page.keyboard.press('KeyL');
+  await waitFor(page, 'the special lesson done', async () => game<boolean>(page, `g.save.tips.includes('teach:skill:sword')`), 3000);
+  check(await game<number>(page, 'g.battle.log.skills') >= 1, "pressing the special didn't use it");
+  // The Riposte: a monster winding up next to you…
+  await page.waitForTimeout(600);
+  await run(page, `const b = g.battle, e = b.enemies[0]; e.stun = 0; e.x = b.p.x; e.y = b.p.y - 50; e.windup = 0.8`);
+  await waitFor(page, 'the dodge lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'dodge', 5000);
+  await page.keyboard.press('KeyK');
+  await page.waitForTimeout(60);
+  // …its blow passing through your dodge…
+  await run(page, `const b = g.battle; b.hurtPlayer(5, 1, b.p.x, b.p.y - 20, 'test'); b.enemies[0].windup = 0`);
+  await waitFor(page, 'the riposte lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'attack', 3000);
+  await run(page, `const b = g.battle, e = b.enemies[0]; b.p.dodgeT = 0; e.x = b.p.x; e.y = b.p.y - 50; b.p.face = -Math.PI / 2`);
+  await page.keyboard.press('KeyJ');
+  await waitFor(page, 'the Riposte landing', async () => game<boolean>(page, `g.save.tips.includes('teach:riposte')`), 3000);
+  check(await game<number>(page, 'g.battle.ripostes') >= 1, 'no Riposte landed');
+});
+
+scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its special fires", (g) => {
   g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellywand');
 }, async (page) => {
   const fight = async (w: string) => {
@@ -407,11 +445,12 @@ scenario("each class has its trick (Riposte, Sunder, Snare, Blink) and its speci
   await special('stonesword');
   await winFight(page);
 
-  // Hammer: a slam sunders what it hits.
+  // Hammer: a slam knocks a monster out of the attack it's in the middle of.
   await fight('stonehammer');
+  await run(page, `for (const e of g.battle.enemies) { e.state = 'busy'; e.windup = 1; }`);
   await page.keyboard.press('KeyJ');
   await page.waitForTimeout(700);
-  check(await game<boolean>(page, 'g.battle.enemies.some((e) => e.sunder > 0)'), 'stonehammer: the slam sundered nothing');
+  check(await game<boolean>(page, 'g.battle.enemies.every((e) => e.state !== "busy" && e.windup === 0)'), "stonehammer: the slam didn't stagger the monster out of its attack");
   await special('stonehammer');
   await winFight(page);
 
@@ -435,6 +474,44 @@ scenario("each class has its trick (Riposte, Sunder, Snare, Blink) and its speci
   check(Math.hypot(to[0] - from[0], to[1] - from[1]) > 80, 'jellywand: the dodge didn\'t blink');
   await special('jellywand');
   await winFight(page);
+});
+
+scenario('monster tricks: spores poison, a screech dizzies, stone skin shrugs off hits, Impy dodges, a howl rallies the pack', null, async (page) => {
+  const fight = async (kind: string, lv: number, n: number) => {
+    await run(page, `g.fight('${kind}', ${lv}, ${n})`);
+    await waitFor(page, `the ${kind} fight`, async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 8000);
+    await run(page, `for (const e of g.battle.enemies) { e.hp = e.maxHp = 1e6; }`);
+  };
+  // A spore that lands poisons you, and poison never takes you below 1 HP.
+  await fight('shroom', 5, 1);
+  await run(page, `const b = g.battle, e = b.enemies[0]; b.p.iframes = 0; b.p.hp = 3; b.enemyShoot({ ...e, x: b.p.x, y: b.p.y - 30, z: 0, r: 1 }, Math.PI / 2, 60, 12, '#c08ae0', 0.01, 3)`);
+  await waitFor(page, 'poisoned', async () => game<boolean>(page, 'g.battle.p.poison > 0'), 3000);
+  await page.waitForTimeout(2500);
+  check(await game<number>(page, 'g.battle.p.hp') >= 1, 'poison knocked you out');
+  await winFight(page);
+  // A screech that catches you leaves you dizzy (unless you're mid-dodge).
+  await fight('bat', 9, 1);
+  check(await game<boolean>(page, `(() => { const b = g.battle; b.p.iframes = 0; return b.dizzyAround(b.p.x + 20, b.p.y, 125, 2) && b.p.dizzy > 0; })()`), 'the screech did not dizzy you');
+  await winFight(page);
+  // A Pebblor shrugs off hits while it walks, and is wide open right after its slam.
+  await fight('golem', 9, 1);
+  const hitAs = (state: string) => game<number>(page, `(() => { const b = g.battle, e = b.enemies[0]; e.state = '${state}'; e.t = 9; e.stun = 99; const before = e.hp; b.hitEnemy(e, 1, 0, 0); return before - e.hp; })()`);
+  const walking = await hitAs('walk'), exposed = await hitAs('exposed');
+  check(exposed > walking * 2, `stone skin: ${walking} damage while walking vs ${exposed} exposed`);
+  await winFight(page);
+  // Start an attack right next to an Impy and it blinks out of the way.
+  await fight('imp', 14, 1);
+  await run(page, `const b = g.battle, e = b.enemies[0]; e.stun = 0; e.x = b.p.x; e.y = b.p.y - 50; b.p.face = -Math.PI / 2`);
+  const at = await game<[number, number]>(page, '[g.battle.enemies[0].x, g.battle.enemies[0].y]');
+  await page.keyboard.press('KeyJ');
+  await page.waitForTimeout(200);
+  check(await game<boolean>(page, `(() => { const e = g.battle.enemies[0]; return e.evadeCd > 0 && Math.hypot(e.x - ${at[0]}, e.y - ${at[1]}) > 60; })()`), 'Impy did not dodge the attack');
+  await winFight(page);
+  // A howl hurries the rest of the pack, and brings the howler straight back in.
+  await fight('wolf', 6, 3);
+  await run(page, `const [a, ...rest] = g.battle.enemies; for (const e of g.battle.enemies) e.stun = 0; a.state = 'howl'; a.t = 0.01; for (const o of rest) { o.state = 'circle'; o.t = 5; }`);
+  await page.waitForTimeout(150);
+  check(await game<boolean>(page, `(() => { const [a, ...rest] = g.battle.enemies; return (a.state === 'windup' || a.state === 'dash') && rest.every((o) => o.t <= 0.3 || o.state !== 'circle'); })()`), 'the howl did not rally the pack');
 });
 
 // Every monster, in two halves that run side by side.
@@ -578,9 +655,7 @@ scenario('the play report records fights, waits between strikes, deaths and time
   await waitFor(page, 'the wolf fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`));
   await page.waitForTimeout(1500);
   await run(page, 'g.battle.p.hp = 1; g.battle.p.iframes = 0');
-  await waitFor(page, 'losing', async () => !!(await page.$('#modal:not([hidden]) [data-dialog]')), 15000);
-  await closeDialogs(page);
-  await waitFor(page, 'back on the map', async () => game<boolean>(page, `g.mode === 'world' && !g.battle`), 6000);
+  await waitFor(page, 'back on the map as a spirit', async () => game<boolean>(page, `g.mode === 'world' && !g.battle && !!g.save.spirit`), 20000);
 
   await openMore(page);
   // The full report: a file with the summary, then one line per event.
@@ -812,6 +887,35 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'bramhut').hidden && g.save.flags.includes('bram:stew')`), 'no cabin, or no stew');
 });
 
+scenario('fainting: back as a spirit at the checkpoint, walk to your body to wake, never onto a story fight', null, async (page) => {
+  // A story fight's monsters blocking a spot (Poppy's first pack), with you right up against them.
+  const foe = `g.over.world.objs.find((o) => o.flag === 'poppy:pack1')`;
+  await run(page, `const o = ${foe}; o.hidden = false; g.over.teleport(o.x + o.w + 0.4, o.y + o.h / 2)`);
+  await run(page, `g.fight('wolf', 12, 2)`);
+  await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`));
+  await page.waitForTimeout(1500);
+  await run(page, 'g.battle.p.hp = 1; g.battle.p.iframes = 0');
+  await waitFor(page, 'a spirit at the checkpoint', async () => game<boolean>(page, `g.mode === 'world' && !g.battle && !!g.save.spirit && g.over.currentZone.id === g.save.respawn`), 20000);
+  const gap = `(() => { const o = ${foe}, b = g.save.spirit; return Math.hypot(Math.max(o.x - b.x, 0, b.x - (o.x + o.w)), Math.max(o.y - b.y, 0, b.y - (o.y + o.h + 0.3))); })()`;
+  check(await game<number>(page, gap) >= 1.5, 'your body lies on the story fight');
+  check(await game<boolean>(page, `g.over.objective && Math.hypot(g.over.objective.x - g.save.spirit.x, g.over.objective.y - g.save.spirit.y) < 0.01`), "the waypoint doesn't lead to your body");
+  if (SHOTS) {
+    await run(page, `const b = g.save.spirit; g.over.teleport(b.x + 1.6, b.y)`);
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${OUT}spirit.png` });
+  }
+  // A spirit walks right past the monsters without a fight.
+  await run(page, `const o = ${foe}; g.over.teleport(o.x + o.w + 0.3, o.y + o.h / 2)`);
+  await page.waitForTimeout(800);
+  check(await game<boolean>(page, `g.mode === 'world' && !g.battle`), 'a spirit started a fight');
+  // Your body: you wake at half health, and nothing starts.
+  await run(page, `const b = g.save.spirit; g.over.teleport(b.x, b.y)`);
+  await waitFor(page, 'waking up', async () => game<boolean>(page, `!g.save.spirit`), 5000);
+  check(await game<boolean>(page, `Math.abs(g.save.hp - Math.round(g.battle ? 0 : g.save.hp)) === 0 && g.save.hp > 0`), 'you woke with no health');
+  await page.waitForTimeout(1000);
+  check(await game<boolean>(page, `g.mode === 'world' && !g.battle`), 'waking up dropped you straight into the fight');
+});
+
 scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, and the ambushes still count', (g) => {
   const s = g.save;
   s.lv = 6;
@@ -832,13 +936,15 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`));
   await page.waitForTimeout(1500);
   await run(page, 'g.battle.p.hp = 1; g.battle.p.iframes = 0');
-  await waitFor(page, 'fainting', async () => !!(await page.$('#modal:not([hidden]) [data-dialog]')), 15000);
-  await closeDialogs(page);
-  await waitFor(page, 'waking up in Sowerby', async () => game<boolean>(page, `g.mode === 'world' && !g.battle && g.over.currentZone.id === 'village'`), 8000);
+  // You come back as a spirit in Sowerby, your body left where you fell.
+  await waitFor(page, 'a spirit in Sowerby', async () => game<boolean>(page, `g.mode === 'world' && !g.battle && g.over.currentZone.id === 'village' && !!g.save.spirit`), 20000);
   const b = await bram();
   check(b && !b.follow && Math.hypot(b.x - (78 + 16.5), b.y - 11.6) < 1, `Bram should wait past the first ambush, not follow you home (${JSON.stringify(b)})`);
   check(await game<boolean>(page, `g.save.flags.includes('bram:waiting')`), 'Bram is not waiting');
-  // Walking home without him (or without the second ambush) doesn't finish the escort.
+  // Back to your body to wake up (at half health)…
+  await run(page, `const b = g.save.spirit; g.over.teleport(b.x, b.y)`);
+  await waitFor(page, 'waking up', async () => game<boolean>(page, `!g.save.spirit && g.save.hp > 0`), 5000);
+  // …and walking home without him (or without the second ambush) doesn't finish the escort.
   await run(page, 'g.over.teleport(31.8, 11.4)');
   await page.waitForTimeout(1200);
   check(await game<number>(page, 'g.save.stories.bram') === 6, 'the escort finished without Bram');
@@ -973,6 +1079,7 @@ if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, r
     await page.goto(`${URL_}?preset=poppy-done`);
     await waitFor(page, 'the game', async () => (await game<string>(page, 'g?.mode')) === 'world', 60000);
     await page.waitForTimeout(1500);
+    if (SHOTS) await page.screenshot({ path: `${OUT}3d-map.png` });
     const map = await game<number>(page, 'g.modelStats.renders');
     check(map > 0, 'nothing was rendered in 3D on the map');
     await run(page, `g.fight('bunny', 3, 2)`);

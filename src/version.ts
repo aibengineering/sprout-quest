@@ -36,6 +36,22 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.4',
+    date: '2026-09-29',
+    title: 'Learn the Fight',
+    notes: [
+      "🔨 Hammer slams hit harder and daze, with no more rocks on every swing",
+      "💥 Hammers can Stagger: a slam knocks a monster out of its attack",
+      "🪨 The hammer's special is Fracture: a fan of rock spikes bursts forward",
+      "🎓 A newly unlocked move is taught the first time you can use it",
+      "👻 Fainting now costs a walk back to where you fell",
+      "🐺 Monsters past the meadow have new tricks: learn their tells",
+      "🦇 Flappers screech to dizzy you, and Pebblors shrug off hits until they slam",
+      "⚡ The game loads much faster: its scenery download is a seventh of the size",
+      "🎵 Weapon handling has its own XP bar, with its own sound as it fills",
+    ],
+  },
+  {
     version: '0.3.3',
     date: '2026-09-29',
     title: 'Fights with substance',

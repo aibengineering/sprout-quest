@@ -2,7 +2,7 @@
 // tests/balance.test.ts enforces the targets; `bun run balance` prints the full table while tuning.
 import { ARENA_RX, ARENA_RY } from './arena';
 import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, STYLE_NAMES, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
-import { MOVESETS, SUNDER, comboDps, hasTrick, openingBurst, skillRank, skillShape, stepTime, strikeDamage, strikeShape, tierScale } from './weapons';
+import { MOVESETS, comboDps, openingBurst, skillRank, skillShape, stepTime, strikeDamage, strikeShape, tierScale } from './weapons';
 import { GENTLE_ATK, MONSTER_HP, calcDamage, CATCH_UP, MASTERY_MAX, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, xpEdge, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
@@ -106,9 +106,9 @@ export interface Kill { strikes: number; seconds: number; perStrike: number }
 
 /**
  * Plays out one monster falling to a weapon class, strike by strike, with its real rhythm at a handling level: each
- * strike's multiplier (a whip's crack, a hammer's slam and shockwave, a spread of shots all landing), the average crit,
- * the level gap, and a hammer's Sunder once its ability is unlocked. Seconds count from the first swing to the blow
- * that lands the kill (the walk in isn't counted). Specials are left out: this is the plain attack's fight.
+ * strike's multiplier (a whip's crack, a hammer's slam, a spread of shots all landing), the average crit, and the level
+ * gap. Seconds count from the first swing to the blow that lands the kill (the walk in isn't counted). Specials and
+ * class abilities are left out: this is the plain attack's fight.
  */
 export function killModel(p: PlayerStats, style: Style, handling: number, kind: MonsterKind, lv: number): Kill {
   const m = MOVESETS[style], s = scaleMonster(MONSTERS[kind], lv, false);
@@ -117,7 +117,7 @@ export function killModel(p: PlayerStats, style: Style, handling: number, kind: 
   let hp = s.hp, t = 0, i = 0, n = 0, total = 0;
   while (n < 500) {
     const st = m.combo[i];
-    const d = per(i) * (m.trick === 'sunder' && hasTrick(handling) && n > 0 ? SUNDER.mult : 1);
+    const d = per(i);
     hp -= d;
     total += d;
     n++;

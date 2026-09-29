@@ -37,7 +37,7 @@ async function exportReport(how: 'file' | 'copy') {
 
 export const menuHooks: UIHooks = {
   sound: (s) => G.audio.play(s),
-  sweep: (dur, from, to) => G.audio.sweep(dur, from, to),
+  sweep: (dur, from, to, voice) => G.audio.sweep(dur, from, to, voice),
   /** From an unlock card: open that tab, if you're free on the map. */
   openTab(tab) {
     if (G.mode !== 'world' || G.trans) return;

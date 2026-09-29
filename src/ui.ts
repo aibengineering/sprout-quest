@@ -28,6 +28,24 @@ export interface MenuCtx {
   inVillage: boolean;
 }
 
+/** Weapon handling XP from a win, for the second bar's fill. */
+export interface HandlingGain { style: Style; from: { lv: number; xp: number }; to: { lv: number; xp: number }; gained: number }
+
+interface TrackFill {
+  bar: HTMLElement;
+  track: HTMLElement;
+  need: (lv: number) => number;
+  from: { lv: number; xp: number };
+  to: { lv: number; xp: number };
+  gained: number;
+  unit: string;
+  voice: 'xp' | 'handling';
+  ding: 'ding' | 'handlingDing';
+  /** The level it stops at (handling's Mastery). */
+  max?: number;
+  onLevel: (lv: number) => void;
+}
+
 export interface UIHooks {
   save(): SaveState;
   /** Is something else going on (a fight, gathering, a scene, a transition), so pop-ups should keep out of the way? */
@@ -35,8 +53,8 @@ export interface UIHooks {
   /** Opens a menu tab from the map (an unlock card's "tap to open"). */
   openTab(tab: Tab): void;
   /** Sounds for reward moments: a named effect, or the XP bar's rising tone (seconds, from and to 0–1 up the bar). */
-  sound(s: 'ding' | 'tick' | 'treasure' | 'levelup'): void;
-  sweep(dur: number, from: number, to: number): void;
+  sound(s: 'ding' | 'handlingDing' | 'tick' | 'treasure' | 'levelup'): void;
+  sweep(dur: number, from: number, to: number, voice?: 'xp' | 'handling'): void;
   craftGear(id: string): void;
   craftTool(id: string): void;
   craftPotion(id: string): void;
@@ -369,10 +387,11 @@ export class UI {
 
   /**
    * The XP you just earned, the way Pokémon does it: "+N XP" floats up, the bar fills with a rising tone, and if it
-   * tops out it rings, the level number pops, and it carries on filling from empty. Resolves once it has settled.
+   * tops out it rings, the level number pops, and it carries on filling from empty. Then the same for your weapon
+   * handling, on its own bar with its own warmer voice. Resolves once both have settled.
    */
-  async xpGain(from: { lv: number; xp: number }, to: { lv: number; xp: number }, gained: number) {
-    const card = $('hud').querySelector('.stat') as HTMLElement | null, bar = $('hud-xp');
+  async xpGain(from: { lv: number; xp: number }, to: { lv: number; xp: number }, gained: number, hand?: HandlingGain) {
+    const card = $('hud').querySelector('.stat') as HTMLElement | null;
     if (!card || $('hud').hidden || gained <= 0) return;
     this.xpAnim = true;
     this.hpHeld = to.lv > from.lv;
@@ -384,24 +403,61 @@ export class UI {
     card.append(tag);
     // Let the win's bell ring out first, so the fill's chirps are heard on their own.
     await wait(380);
-    let lv = from.lv, frac = Math.min(1, from.xp / xpToNext(lv));
-    // The "+XP" counts up with the bubbles: each one adds its share of the whole fill, level-ups included.
-    const units = Math.max(0.001, to.lv - from.lv + Math.min(1, to.xp / xpToNext(to.lv)) - frac);
+    await this.fillTrack(card, tag, {
+      bar: $('hud-xp'), track: card.querySelector('.bar.xp') as HTMLElement, need: xpToNext, from, to, gained, unit: 'XP',
+      voice: 'xp', ding: 'ding', onLevel: (lv) => {
+        this.hpHeld = false;
+        $('hud-lv').textContent = String(lv);
+      },
+    });
+    // Then your weapon handling, on its own bar, a little lower and warmer.
+    if (hand && hand.gained > 0) {
+      await wait(180);
+      card.classList.add('hand-gain');
+      tag.classList.add('hand');
+      await this.fillTrack(card, tag, {
+        bar: $('hud-hand'), track: card.querySelector('.bar.hand') as HTMLElement, need: masteryXpToNext, from: hand.from, to: hand.to,
+        gained: hand.gained, unit: CLASS_EMOJI[hand.style], voice: 'handling', ding: 'handlingDing', max: MASTERY_MAX,
+        onLevel: (lv) => ($('hud-hlv').textContent = lv >= MASTERY_MAX ? 'MAX' : String(lv)),
+      });
+      card.classList.remove('hand-gain');
+    }
+    await wait(350);
+    tag.remove();
+    card.classList.remove('gain');
+    this.xpAnim = false;
+    this.hpHeld = false;
+    delete this.last.xp;
+    delete this.last.lv;
+    delete this.last.hand;
+  }
+
+  /**
+   * One bar filling: a notch pops on and a spark jumps off with every bubble you hear, the tag counts up in time, and
+   * each level topped out rings (`ding`), bursts with stars and starts again from empty.
+   */
+  private async fillTrack(card: HTMLElement, tag: HTMLElement, f: TrackFill) {
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const { bar, track, to, gained } = f;
+    const fracOf = (lv: number, xp: number) => (f.max && lv >= f.max ? 1 : Math.min(1, xp / f.need(lv)));
+    let lv = f.from.lv, frac = fracOf(lv, f.from.xp);
+    const end = fracOf(to.lv, to.xp);
+    // The count goes up with the bubbles: each one adds its share of the whole fill, level-ups included.
+    const units = Math.max(0.001, to.lv - lv + end - frac);
     let done = 0;
-    const track = card.querySelector('.bar.xp') as HTMLElement;
-    /** A notch pops onto the bar where it's just filled to, and a spark jumps off it. */
+    tag.textContent = `+0 ${f.unit}`;
     const notch = (at: number, big = false) => {
       // (The card is scaled up a little while it celebrates; positions inside it are unscaled.)
       const c = card.getBoundingClientRect(), b = track.getBoundingClientRect(), k = c.width / card.offsetWidth || 1;
       const x = (b.left - c.left + at * b.width) / k, y = (b.top - c.top) / k, h = b.height / k;
       const n = document.createElement('i');
-      n.className = 'xp-notch';
+      n.className = `xp-notch ${f.voice}`;
       n.style.cssText = `left:${x}px;top:${y}px;height:${h}px`;
       card.append(n);
       const sparks = big ? 8 : 1;
       for (let k = 0; k < sparks; k++) {
         const sp = document.createElement('i');
-        sp.className = 'xp-spark';
+        sp.className = `xp-spark ${f.voice}`;
         const dx = big ? Math.cos((k / sparks) * Math.PI * 2) * 26 : (Math.random() - 0.5) * 14;
         const dy = big ? Math.sin((k / sparks) * Math.PI * 2) * 18 - 6 : -12 - Math.random() * 12;
         sp.style.cssText = `left:${x}px;top:${y + h / 2}px;--dx:${dx}px;--dy:${dy}px`;
@@ -411,20 +467,19 @@ export class UI {
       setTimeout(() => n.remove(), 500);
     };
     // A big jump (a dev build's raised XP rate, say) runs through its levels faster, so it's over in a few seconds.
-    const speed = Math.max(1, (to.lv - from.lv) / 2);
+    const speed = Math.max(1, (to.lv - lv) / 2);
     const fill = async (target: number) => {
       const dur = (0.25 + 0.75 * (target - frac)) / (lv < to.lv ? speed : 1);
       bar.style.transition = `width ${dur}s linear`;
       bar.style.width = `${target * 100}%`;
-      this.hooks.sweep(dur, frac, target);
-      // In time with each bubble: a notch where the bar has reached, and the count ticking up.
+      this.hooks.sweep(dur, frac, target, f.voice);
       const n = xpBloops(dur), start = frac;
       for (let i = 0; i < n; i++) {
         const at = start + ((target - start) * (i + 1)) / n;
         setTimeout(() => {
           notch(at);
           done += (target - start) / n;
-          tag.textContent = `+${Math.min(gained, Math.round((gained * done) / units))} XP`;
+          tag.textContent = `+${Math.min(gained, Math.round((gained * done) / units))} ${f.unit}`;
           tag.classList.remove('tick');
           void tag.offsetWidth;
           tag.classList.add('tick');
@@ -435,35 +490,37 @@ export class UI {
     };
     for (; lv < to.lv; lv++) {
       await fill(1);
-      // Topped out: a bell, the level ticks over, and the bar starts again from empty.
-      this.hooks.sound('ding');
+      // Topped out: a bell, the level ticks over, and the bar starts again from empty (or stays full, mastered).
+      this.hooks.sound(f.ding);
       notch(1, true);
-      this.hpHeld = false;
+      f.onLevel(lv + 1);
       card.classList.add('ding');
-      $('hud-lv').textContent = String(lv + 1);
       await wait(420 / speed);
       card.classList.remove('ding');
+      if (f.max && lv + 1 >= f.max) break;
       bar.style.transition = 'none';
       bar.style.width = '0%';
       frac = 0;
       await wait(60);
     }
-    await fill(Math.min(1, to.xp / xpToNext(to.lv)));
-    tag.textContent = `+${gained} XP`;
-    await wait(350);
-    tag.remove();
-    card.classList.remove('gain');
+    if (!(f.max && to.lv >= f.max)) await fill(end);
+    tag.textContent = `+${gained} ${f.unit}`;
     bar.style.transition = '';
-    this.xpAnim = false;
-    this.hpHeld = false;
-    delete this.last.xp;
-    delete this.last.lv;
   }
 
   hud(hp: number, zoneName: string) {
     this.watchUnlocks();
     const s = this.hooks.save();
     const st = playerStats(s);
+    // Your handling with the weapon in hand, under your XP.
+    const style = GEAR[s.equip.weapon]?.style ?? 'sword', m = s.mastery[style];
+    const handKey = `${style}:${m.lv}:${m.xp}`;
+    if (!this.xpAnim) this.set('hand', handKey, () => {
+      const max = m.lv >= MASTERY_MAX;
+      $('hud-hemo').textContent = CLASS_EMOJI[style];
+      $('hud-hlv').textContent = max ? 'MAX' : String(m.lv);
+      $('hud-hand').style.width = `${max ? 100 : Math.min(100, (100 * m.xp) / masteryXpToNext(m.lv))}%`;
+    });
     const hpText = `${Math.ceil(hp)}/${st.maxHp}`;
     if (!this.xpAnim) this.set('lv', String(s.lv), () => ($('hud-lv').textContent = String(s.lv)));
     // Held during an XP fill that levels you up, so the bigger health bar arrives with the level's bell.

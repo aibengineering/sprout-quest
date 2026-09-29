@@ -15,7 +15,12 @@ export interface FoeWorld {
   readonly fx: Fx;
   play(s: Sfx): void;
   shakeAtLeast(n: number): void;
-  enemyShoot(e: Enemy, ang: number, speed: number, r: number, color: string, mult?: number): void;
+  /** A shot at you; `poison` is seconds of poison if it lands (Sporecap spores). */
+  enemyShoot(e: Enemy, ang: number, speed: number, r: number, color: string, mult?: number, poison?: number): void;
+  /** Everyone in the fight (a Woolf's howl hurries the rest of its pack). */
+  readonly enemies: readonly Enemy[];
+  /** Leaves you dizzy for `secs` if you're within `r` of (x, y) and not mid-dodge (a Flapper's screech). */
+  dizzyAround(x: number, y: number, r: number, secs: number): boolean;
   /** A telegraphed danger zone that goes off after `delay`. */
   hazard(h: Omit<Hazard, 't' | 'done'>): void;
   ring(r: Omit<Ring, 't'>): void;
@@ -34,11 +39,30 @@ export interface Behaviour {
   hops?: boolean;
   /** Hovers: a smaller shadow. */
   flies?: boolean;
+  /** How hard your hits land on it right now (a Pebblor's stone skin halves them; exposed after its slam, more). */
+  takes?(e: Enemy): number;
+  /** Blinks out of the way when you start an attack near it, now and then (Impy). */
+  evades?: boolean;
   /**
    * One step of its plan. `e.t` has already ticked down by `dt`; `dist` and `toP` are the distance and angle to you;
    * `rage` drops from 1 to 0.72 once a guardian is below half health, speeding up its timings.
    */
   think(e: Enemy, w: FoeWorld, dt: number, dist: number, toP: number, rage: number): void;
+}
+
+/** How far a Flapper's screech reaches. */
+const SCREECH_R = 125;
+
+/** Vanishes in a puff and reappears a little way from you (Impy's blink, also how it dodges your attacks). */
+export function blinkAway(e: Enemy, w: FoeWorld) {
+  const p = w.p;
+  w.fx.burst(e.x, e.y - 20, '#c878ff', 12, 100, { size: 4 });
+  const a = Math.random() * TAU, r = rand(150, 190);
+  const to = w.arena.nearestFree(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, e.r + 16);
+  e.x = to.x;
+  e.y = to.y;
+  e.vx = e.vy = 0;
+  w.fx.burst(e.x, e.y - 20, '#c878ff', 12, 100, { size: 4 });
 }
 
 export function moveToward(e: Enemy, ang: number, speed: number) {
@@ -159,7 +183,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
     },
   },
 
-  // Shrooms keep their distance and puff spreads of spores.
+  // Shrooms keep their distance and puff spreads of spores, which poison you if they land.
   shroom: {
     start: 'move', color: '#e8505a', scale: 1.1,
     think(e, w, _dt, dist, toP) {
@@ -174,7 +198,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
         e.windup = 1 - e.t / 0.6;
         if (e.t <= 0) {
           e.windup = 0;
-          for (const s of [-0.3, 0, 0.3]) w.enemyShoot(e, toP + s, 140, 7, '#c08ae0');
+          for (const s of [-0.3, 0, 0.3]) w.enemyShoot(e, toP + s, 140, 7, '#c08ae0', 1, 3);
           w.play('shoot');
           e.state = 'move';
           e.t = rand(1.4, 2.4);
@@ -183,11 +207,23 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
     },
   },
 
-  // Woolfs circle you, then dash through.
+  // Woolfs circle you, then dash through. Now and then one howls after its dash: it comes straight back with a quicker
+  // one, and the rest of the pack hurries in. A howl means dodge again, now.
   wolf: {
     start: 'circle', color: '#9aa4c8', scale: 1.4,
     think(e, w, dt, _dist, toP) {
       const p = w.p;
+      if (e.state === 'howl') {
+        e.vx = e.vy = 0;
+        e.windup = 0.3;
+        if (e.t <= 0) {
+          for (const o of w.enemies) if (o !== e && !o.dead && o.kind === 'wolf' && o.state === 'circle') o.t = Math.min(o.t, 0.3);
+          e.state = 'windup';
+          e.t = 0.28;
+          e.sub = 1;
+        }
+        return;
+      }
       if (e.state === 'circle') {
         e.orb += dt * 0.9 * (Math.sin(e.seed) > 0 ? 1 : -1);
         const tx = p.x + Math.cos(e.orb) * 130, ty = p.y + Math.sin(e.orb) * 130;
@@ -197,10 +233,18 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
         e.vx = e.vy = 0;
         e.windup = 1 - e.t / 0.45;
         if (e.t > 0.12) e.dir = toP;
-        if (e.t <= 0) { e.state = 'dash'; e.t = 0.35; e.windup = 0; moveToward(e, e.dir, e.spd * 4.2); }
+        if (e.t <= 0) { e.state = 'dash'; e.t = 0.35; e.windup = 0; moveToward(e, e.dir, e.spd * (e.sub ? 4.8 : 4.2)); e.sub = 0; }
       } else if (e.state === 'dash') {
         if (e.t <= 0) { e.state = 'recover'; e.t = 0.5; e.vx = e.vy = 0; }
       } else if (e.t <= 0) {
+        if (Math.random() < 0.3) {
+          e.state = 'howl';
+          e.t = 0.55;
+          w.ring({ x: e.x, y: e.y - e.r, r0: 10, r1: 70, dur: 0.5, color: '200,210,255', width: 4 });
+          w.fx.text(e.x, e.y - e.r * 2.6, 'Awoo!', '#d8e0ff', 14);
+          w.play('encounter');
+          return;
+        }
         e.state = 'circle';
         e.t = rand(1.2, 2.2);
         e.orb = Math.atan2(e.y - p.y, e.x - p.x);
@@ -208,7 +252,8 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
     },
   },
 
-  // Bats flutter at a distance, then swoop.
+  // Bats flutter at a distance, then swoop. Sometimes one screeches instead: a ring spreads out from it, and if it
+  // catches you, you're dizzy for a moment. Get out of the ring, or dodge through it.
   bat: {
     start: 'flutter', color: '#7a5ab8', scale: 1.2, flies: true,
     think(e, w, _dt, dist, toP) {
@@ -216,7 +261,22 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
       if (e.state === 'flutter') {
         const wob = Math.sin(w.t * 4 + e.seed) * 1.2;
         moveToward(e, dist < 110 ? toP + Math.PI + wob : toP + wob, e.spd * 0.7);
-        if (e.t <= 0) { e.state = 'windup'; e.t = 0.35; }
+        if (e.t <= 0 && dist < 220 && Math.random() < 0.3) {
+          e.state = 'screech';
+          e.t = 0.8;
+          w.ring({ x: e.x, y: e.y - e.z, r0: 10, r1: SCREECH_R, dur: 0.8, color: '216,200,255', width: 5 });
+        } else if (e.t <= 0) { e.state = 'windup'; e.t = 0.35; }
+      } else if (e.state === 'screech') {
+        e.vx = e.vy = 0;
+        e.windup = 1 - e.t / 0.8;
+        if (e.t <= 0) {
+          e.windup = 0;
+          w.ring({ x: e.x, y: e.y - e.z, r0: SCREECH_R * 0.9, r1: SCREECH_R * 1.1, dur: 0.25, color: '255,255,255', width: 6 });
+          w.dizzyAround(e.x, e.y, SCREECH_R, 2);
+          w.play('shoot');
+          e.state = 'retreat';
+          e.t = 0.6;
+        }
       } else if (e.state === 'windup') {
         e.vx = e.vy = 0;
         e.windup = 1 - e.t / 0.35;
@@ -231,9 +291,11 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
     },
   },
 
-  // Golems plod up and slam the ground around them.
+  // Golems plod up and slam the ground around them. Their stone skin shrugs off half of every hit, except for a moment
+  // after a slam, when they're wide open: bait the slam, then strike.
   golem: {
     start: 'walk', color: '#9aa0b0',
+    takes: (e) => (e.state === 'exposed' ? 1.6 : 0.5),
     think(e, w, _dt, dist, toP) {
       if (e.state === 'walk') {
         moveToward(e, toP, dist > 40 ? e.spd : 0);
@@ -243,16 +305,25 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
           e.vx = e.vy = 0;
           w.hazard({ x: e.x, y: e.y, r: 95, delay: 0.9, atk: e.atk, from: e.kind, mult: 1.3 });
         }
-      } else {
+      } else if (e.state === 'slam') {
         e.windup = 1 - e.t / 1.0;
-        if (e.t <= 0) { e.state = 'walk'; e.t = 1.3; e.windup = 0; }
+        if (e.t <= 0) {
+          e.state = 'exposed';
+          e.t = 1.2;
+          e.windup = 0;
+          w.fx.burst(e.x, e.y - e.r, '#c8ccd8', 10, 90, { size: 4, life: 0.5 });
+        }
+      } else if (e.t <= 0) {
+        e.state = 'walk';
+        e.t = 1.3;
       }
     },
   },
 
-  // Imps float around you, blink away, and cast fireballs (three at a time when strong).
+  // Imps float around you, blink away, and cast fireballs (three at a time when strong). They read your attacks too:
+  // start one near an Imp and it blinks out of the way (every few seconds), so bait the blink, then strike.
   imp: {
-    start: 'float', color: '#e8505a', scale: 1.2, flies: true,
+    start: 'float', color: '#e8505a', scale: 1.2, flies: true, evades: true,
     think(e, w, dt, _dist, toP) {
       const p = w.p;
       e.z = 10;
@@ -262,11 +333,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
         moveToward(e, Math.atan2(ty - e.y, tx - e.x), e.spd * 0.8 * Math.min(1, Math.hypot(tx - e.x, ty - e.y) / 40));
         if (e.t <= 0) {
           if (Math.random() < 0.35) {
-            w.fx.burst(e.x, e.y - 20, '#c878ff', 12, 100, { size: 4 });
-            const a = Math.random() * TAU, r = rand(150, 190);
-            const to = w.arena.nearestFree(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, e.r + 16);
-            e.x = to.x; e.y = to.y;
-            w.fx.burst(e.x, e.y - 20, '#c878ff', 12, 100, { size: 4 });
+            blinkAway(e, w);
             e.t = rand(0.4, 0.7);
           } else {
             e.state = 'cast';

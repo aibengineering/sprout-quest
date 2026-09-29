@@ -1,8 +1,8 @@
 // What you get and what it unlocks: loot rows, level-up screens, and gear the Forge reveals when you reach a level.
 import { GEAR, GEAR_ORDER, MATS, MONSTERS, SKILL_NAMES, STYLE_NAMES, TOOLS, ZONES, type MatId, type SkillId, type Style } from '../data';
-import { playerStats, revealed, type PlayerStats } from '../rules';
+import { masteryXpToNext, playerStats, revealed, type PlayerStats } from '../rules';
 import { logEvent } from '../stats';
-import { handlingGain, icon } from '../ui';
+import { handlingGain as handlingGainText, icon, type HandlingGain } from '../ui';
 import { handlingStep } from '../weapons';
 import { G, paused } from './context';
 
@@ -29,11 +29,18 @@ export function newlyRevealed(before: Set<string>) {
 }
 
 /** Where you stood before a win's XP went in, so the level-up screens can show what changed. */
-export interface LevelMark { fromLv: number; fromXp: number; before: PlayerStats; style: Style; fromHandling: number; shown: Set<string> }
+export interface LevelMark { fromLv: number; fromXp: number; before: PlayerStats; style: Style; fromHandling: number; fromHandlingXp: number; shown: Set<string> }
 
 export function markLevels(style: Style): LevelMark {
   const s = G.save;
-  return { fromLv: s.lv, fromXp: s.xp, before: playerStats(s), style, fromHandling: s.mastery[style].lv, shown: revealed(s) };
+  return { fromLv: s.lv, fromXp: s.xp, before: playerStats(s), style, fromHandling: s.mastery[style].lv, fromHandlingXp: s.mastery[style].xp, shown: revealed(s) };
+}
+
+/** The handling XP a win brought (catch-up included), for its bar to fill: from where you were to where you are. */
+export function handlingGain(m: LevelMark): HandlingGain {
+  const now = G.save.mastery[m.style];
+  const total = (lv: number, xp: number) => Array.from({ length: lv - 1 }, (_, i) => masteryXpToNext(i + 1)).reduce((a, b) => a + b, 0) + xp;
+  return { style: m.style, from: { lv: m.fromHandling, xp: m.fromHandlingXp }, to: { lv: now.lv, xp: now.xp }, gained: total(now.lv, now.xp) - total(m.fromHandling, m.fromHandlingXp) };
 }
 
 export const leveledUp = (m: LevelMark) => G.save.lv > m.fromLv || G.save.mastery[m.style].lv > m.fromHandling;
@@ -49,7 +56,7 @@ export async function celebrate(m: LevelMark) {
   if (lv > m.fromHandling) {
     logEvent(s, { kind: 'level', track: `handling:${m.style}`, lv });
     // What each level gained gives: a skill rank (the big ones) or a step in attack speed.
-    const gains = Array.from({ length: lv - m.fromHandling }, (_, i) => m.fromHandling + 1 + i).map((l) => handlingGain(m.style, l).replace(/^Lv \d+: /, ''));
+    const gains = Array.from({ length: lv - m.fromHandling }, (_, i) => m.fromHandling + 1 + i).map((l) => handlingGainText(m.style, l).replace(/^Lv \d+: /, ''));
     const step = handlingStep(lv), mark = step === 'skill' ? '✨' : step === 'trick' ? '🎯' : '⚡';
     await G.ui.skillUp(`${STYLE_NAMES[m.style]} handling`, lv, mark, `${mark} ${gains.join(' · ')}`, newlyRevealed(m.shown));
   }

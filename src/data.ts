@@ -178,7 +178,7 @@ const GEAR_LIST: Gear[] = [
   // The ★★★★★ legendaries need both, and beat everything else.
   { id: 'twig', name: 'Twig Sword', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 0, fx: 'nature', trail: '#fff6d0', atk: 6, color: '#b98a5a', desc: 'A trusty stick. Pointy-ish.' },
   W('stonesword', 'Stone Sword', 'sword', 1, 8, 'stone', '#b8bcc8', '#f0f0f4', 'A chunky slab of a blade. Honest work.', { stone: 4, bark: 2 }, { mine: 2 }),
-  W('stonehammer', 'Stone Hammer', 'hammer', 1, 10, 'stone', '#9aa0b0', '#e8e0d0', 'Slams kick up little rocks.', { stone: 5, bark: 2 }, { mine: 2 }),
+  W('stonehammer', 'Stone Hammer', 'hammer', 1, 10, 'stone', '#9aa0b0', '#e8e0d0', 'Heavy slams that daze what they hit.', { stone: 5, bark: 2 }, { mine: 2 }),
   W('jellywhip', 'Jelly Whip', 'whip', 1, 9, 'jelly', '#6fdc7a', '#9af0a0', 'Long, wobbly lashes. Sticky goo slows what it hits.', { goo: 6, fluff: 2 }),
   W('jellywand', 'Jelly Wand', 'wand', 1, 7, 'jelly', '#8af09a', '#9af0a0', 'A wobbly wand that flicks gooey blobs. They slow what they hit.', { goo: 5, fluff: 3 }),
   W('coppersword', 'Copper Sword', 'sword', 2, 14, 'metal', '#e8904a', '#ffd0a0', 'Bright and keen.', { copper: 4, bark: 3 }, { mine: 4 }),
@@ -186,7 +186,7 @@ const GEAR_LIST: Gear[] = [
   W('sporewhip', 'Spore Whip', 'whip', 2, 16, 'spore', '#e8505a', '#ffb4b4', 'Every lash leaves a puff of poison spores.', { cap: 6, fang: 2 }),
   W('sporewand', 'Spore Wand', 'wand', 2, 13, 'spore', '#e8505a', '#ffb4b4', 'Shoots spore pods that poison.', { cap: 5, fang: 3 }),
   W('ironsword', 'Iron Sword', 'sword', 3, 22, 'metal', '#c8d4e8', '#ffffff', 'Heavy, true, dependable.', { iron: 5, pine: 3 }, { mine: 6 }),
-  W('ironhammer', 'Iron Hammer', 'hammer', 3, 28, 'metal', '#9aa4b8', '#e8eef8', 'Cracks the ground in a line.', { iron: 6, pine: 3 }, { mine: 6 }),
+  W('ironhammer', 'Iron Hammer', 'hammer', 3, 28, 'metal', '#9aa4b8', '#e8eef8', 'Every slam shakes the ground.', { iron: 6, pine: 3 }, { mine: 6 }),
   W('batwhip', 'Batwing Whip', 'whip', 3, 24, 'bat', '#7a5ab8', '#c8a8ff', 'Hungry lashes: each hit heals you a little.', { wing: 6, core: 1, fang: 2 }),
   W('batwand', 'Bat Wand', 'wand', 3, 20, 'bat', '#7a5ab8', '#c8a8ff', 'Bolts that swerve after foes and drain their life.', { wing: 5, core: 2 }),
   W('crystalsword', 'Crystal Sword', 'sword', 4, 32, 'crystal', '#9ae6ff', '#e0f8ff', 'A crystal edge: lands more critical hits.', { crystal: 5, iron: 3, pine: 2 }, { mine: 8 }),

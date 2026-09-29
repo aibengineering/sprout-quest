@@ -429,8 +429,9 @@ function drawEnemy(b: Battle, ctx: Ctx, e: Enemy) {
       alpha, sx: sxk, sy: syk,
       // Bosses get hit constantly, so their flash is softer to keep them readable.
       flash: e.flash > 0 || (e.dead && alpha > 0.7) ? (e.def.boss && !e.dead ? 0.45 : 1) : 0,
-      tint: e.burn > 0 ? e.dotColor : e.slow > 0 ? '#8af09a' : e.windup > 0.5 ? '#ff4a4a' : undefined,
-      tintAmount: e.burn > 0 ? 0.25 + Math.sin(b.t * 20) * 0.1 : e.slow > 0 ? 0.3 : (e.windup - 0.5) * 0.5,
+      // A Pebblor glows gold while it's open to hits after its slam.
+      tint: e.burn > 0 ? e.dotColor : e.slow > 0 ? '#8af09a' : e.state === 'exposed' ? '#ffe07a' : e.windup > 0.5 ? '#ff4a4a' : undefined,
+      tintAmount: e.burn > 0 ? 0.25 + Math.sin(b.t * 20) * 0.1 : e.slow > 0 ? 0.3 : e.state === 'exposed' ? 0.35 + Math.sin(b.t * 14) * 0.12 : (e.windup - 0.5) * 0.5,
     });
   } else {
     ctx.save();

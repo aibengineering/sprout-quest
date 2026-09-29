@@ -62,6 +62,11 @@ export interface SaveState {
   forgeLevels?: 5;
   /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */
   echoQueen?: true;
+  /**
+   * Fainted: you walk as a spirit from your last checkpoint back to your body, lying here (tile coordinates), and touch it
+   * to wake. Veyra keeps bringing you back (see game/death.ts).
+   */
+  spirit?: { x: number; y: number };
   /** A Battle Tower run (dev builds, in a slot of its own): the next floor to fight. */
   tower?: { floor: number };
   /** Recipes you've seen in the Forge; ones revealed since show as new (missing: everything revealed counts as seen). */

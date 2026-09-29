@@ -10,11 +10,12 @@ import { afterWin, xpBoost } from '../kitchen';
 import { logEvent } from '../stats';
 import { has } from '../unlocks';
 import type { WorldObj } from '../world';
-import { G, backToWorld, persist, showZoneBanner, syncWorld, transition } from './context';
+import { G, backToWorld, persist, syncWorld, transition } from './context';
 import { cancelGather } from './gathering';
-import { celebrate, leveledUp, lootLines, markLevels, type LevelMark } from './rewards';
+import { celebrate, handlingGain, leveledUp, lootLines, markLevels, type LevelMark } from './rewards';
 import { progressQuests } from './story';
-import { storyFainted, storyFightExtras } from './stories';
+import { storyFightExtras } from './stories';
+import { faint } from './death';
 import { floorSupplies, towerEnd } from './tower';
 
 /** HP when the current fight began, for the play report. */
@@ -45,6 +46,7 @@ function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Pa
   G.ui.setMode('battle');
   G.input.reset();
   coachStep = 0;
+  lesson = { step: 0, at: 0, count: 0 };
   if (foes.some((f) => f.golden)) G.ui.toast('✨ A golden monster! Double loot!');
 }
 
@@ -136,7 +138,7 @@ async function quickWin(o: BattleOutcome) {
   }
   G.ui.loot(lootLines(o.drops, [{ n: o.xp, what: STYLE_NAMES[mark.style], emo: '⚔️' }]));
   persist();
-  await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
+  await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp, handlingGain(mark));
   if (leveledUp(mark)) await celebrate(mark);
 }
 
@@ -182,7 +184,7 @@ async function onBattleEnd(o: BattleOutcome) {
     }
     persist();
     await G.ui.result({ win: true, xp: o.xp, levels: s.lv - mark.fromLv, newLv: s.lv, drops: o.drops, boss });
-    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
+    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp, handlingGain(mark));
     await celebrate(mark);
     if (firstClear && gz) await G.ui.roadOpened(MONSTERS[bossKind].name, gz.name, bossKind);
     transition(() => {
@@ -190,16 +192,8 @@ async function onBattleEnd(o: BattleOutcome) {
       void progressQuests();
     });
   } else {
-    await G.ui.result({ win: false, xp: 0, levels: 0, newLv: s.lv, drops: {}, boss, respawn: s.respawn });
-    transition(() => {
-      s.hp = playerStats(s).maxHp;
-      const p = s.respawn === 'village' || s.respawn === 'glade' ? G.world.entryPoint(s.respawn) : G.world.campPoint(s.respawn);
-      G.over.teleport(p.x, p.y);
-      backToWorld();
-      showZoneBanner(G.over.currentZone);
-      // Anyone you were walking home stays behind, at the last checkpoint you reached.
-      storyFainted();
-    });
+    // You wake as a spirit at your last checkpoint, and walk back to your body (death.ts).
+    faint();
   }
 }
 
@@ -212,7 +206,7 @@ async function towerFight(o: BattleOutcome, b: Battle) {
     const mark = grantWin(o, b);
     persist();
     await G.ui.result({ win: true, xp: o.xp, levels: s.lv - mark.fromLv, newLv: s.lv, drops: o.drops, boss: b.setup.boss });
-    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
+    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp, handlingGain(mark));
     await celebrate(mark);
   } else if (o.result === 'lose') {
     await G.ui.result({ win: false, xp: 0, levels: 0, newLv: s.lv, drops: {}, boss: b.setup.boss, tower: true });
@@ -229,6 +223,92 @@ function swoopOut() {
 // ------------------------------------------------------------------ coaching
 
 let coachStep = 0;
+
+/** Where the current lesson has got to, and when that step began (reset with each fight). */
+let lesson = { step: 0, at: 0, count: 0 };
+
+/**
+ * The first fight after a move unlocks teaches it, once: when the moment's right, the fight stops, the coach says what
+ * to press, and it carries on when you do. Then it watches for the move landing; if it didn't (a dodge that missed
+ * the attack, say), it waits for the next chance. Specials first, then each class's ability. Returns whether a lesson
+ * is running (so no other tip shows).
+ */
+function teach(b: Battle): boolean {
+  const s = G.save, ui = G.ui, style = b.weapon.style ?? 'sword';
+  const done = (tip: string) => {
+    s.tips.push(tip);
+    lesson = { step: 0, at: 0, count: 0 };
+    ui.coach(null);
+    return false;
+  };
+  const near = (lo: number, hi: number, winding: boolean) =>
+    b.enemies.some((e) => !e.dead && (!winding || e.windup > 0.3) && Math.hypot(e.x - b.p.x, e.y - b.p.y) - e.r >= lo && Math.hypot(e.x - b.p.x, e.y - b.p.y) - e.r <= hi);
+  // Stop the fight and say what to press; `step` moves on once it's pressed.
+  const pause = (what: 'attack' | 'dodge' | 'skill', text: string, button: string) => {
+    if (lesson.step % 2 === 0) {
+      b.lesson = what;
+      lesson.step++;
+    }
+    if (b.lesson) {
+      ui.coach(text, button);
+      return true;
+    }
+    lesson.step++;
+    lesson.at = b.t;
+    ui.coach(null);
+    return true;
+  };
+
+  // The weapon's special, the first fight after it unlocks.
+  const skillTip = `teach:skill:${style}`;
+  if (b.skillNow && !s.tips.includes(skillTip)) {
+    if (lesson.step === 0 && (b.t < 0.8 || b.skillFrac > 0)) return false;
+    if (lesson.step <= 1) return pause('skill', `New! ${press('L', '✨')} for ${b.skillNow.name}: ${b.skillNow.note.charAt(0).toLowerCase()}${b.skillNow.note.slice(1)}.`, 'btn-skill');
+    return done(skillTip);
+  }
+
+  const trick = b.trick;
+  if (!trick || s.tips.includes(`teach:${trick}`)) return false;
+  const tip = `teach:${trick}`;
+  switch (trick) {
+    case 'riposte':
+      // Dodge through an attack, then strike while the Riposte is ready.
+      if (lesson.step === 0 && !near(0, 150, true)) return false;
+      if (lesson.step <= 1) return pause('dodge', `It's about to attack! ${press('K', '💨')} to dodge right through it.`, 'btn-dodge');
+      if (lesson.step === 2) {
+        if (b.p.riposte > 0 && b.canStrike) return pause('attack', `Riposte ready! ${press('J', '⚔️')} now for a sure critical hit.`, 'btn-attack');
+        if (b.t - lesson.at > 1.2) lesson.step = 0;
+        return false;
+      }
+      if (lesson.step === 3) return pause('attack', `Riposte ready! ${press('J', '⚔️')} now for a sure critical hit.`, 'btn-attack');
+      if (b.ripostes > 0) return done(tip);
+      if (b.t - lesson.at > 1.5) lesson.step = 0;
+      return false;
+    case 'stagger':
+    case 'snare': {
+      // Stagger: slam a monster as it winds up. Snare: crack one at the tip of your reach.
+      const ready = trick === 'stagger' ? near(0, 95, true) : near(80, 125, false);
+      const count = trick === 'stagger' ? b.staggers : b.snares;
+      if (lesson.step === 0) {
+        if (!ready || !b.canStrike) return false;
+        lesson.count = count;
+      }
+      if (lesson.step <= 1) {
+        return pause('attack', trick === 'stagger'
+          ? `It's winding up! ${press('J', '⚔️')}: slam it now to Stagger it out of its attack.`
+          : `It's right at the tip of your whip. ${press('J', '⚔️')}: a crack at the tip Snares it in.`, 'btn-attack');
+      }
+      if (count > lesson.count) return done(tip);
+      if (b.t - lesson.at > 1.5) lesson.step = 0;
+      return false;
+    }
+    case 'blink':
+      if (lesson.step === 0 && !near(0, 150, true)) return false;
+      if (lesson.step <= 1) return pause('dodge', `Incoming! ${press('K', '💨')}: Magic's dodge is a Blink, a short teleport.`, 'btn-dodge');
+      return done(tip);
+  }
+  return false;
+}
 
 /** "Tap ⚔️" on touch screens, "Press J" with a keyboard. */
 const press = (key: string, emoji: string) => (usingKeyboard() ? `Press ${key}` : `Tap ${emoji}`);
@@ -253,10 +333,7 @@ export function coachBattle(b: Battle) {
     }
     return ui.coach(null);
   }
-  if (b.skillNow && !s.tips.includes('coach-skill')) {
-    if (b.skillFrac > 0.5) s.tips.push('coach-skill');
-    return ui.coach(`New! ${press('L', '✨')} for your weapon skill.`, 'btn-skill');
-  }
+  if (teach(b)) return;
   if (has(s, 'bag') && s.potions > 0 && b.p.hp < b.stats.maxHp * 0.4 && !s.tips.includes('coach-potion')) {
     if (b.p.potionCd > 0) s.tips.push('coach-potion');
     return ui.coach(`Low HP! ${press('H', '🧪')} to drink a potion.`, 'btn-potion');
