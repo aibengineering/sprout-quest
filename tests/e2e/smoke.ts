@@ -53,7 +53,7 @@ async function boot(seed: Seed) {
 /** A save past the prologue, standing in the meadow, with the Forge built. */
 const base = (g: any) => {
   const s = g.save;
-  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined'] });
+  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined', 'teach:skill:sword', 'teach:skill:hammer', 'teach:skill:whip', 'teach:skill:wand', 'teach:riposte', 'teach:stagger', 'teach:snare', 'teach:blink'] });
   s.build.forge = 1;
   s.pos = { x: 50.5, y: 18 };
   s.unlocked.push('forge', 'bag', 'journal');
@@ -376,6 +376,39 @@ scenario('every weapon waits between strikes, and handling shortens the wait', (
     check(swings[0] <= cap, `${w}: ${swings[0]} swings in 2s at handling Lv 1 (its pace allows ≤${cap})`);
     check(swings[1] > swings[0], `${w}: mastered handling swung ${swings[1]} times, no more than Lv 1's ${swings[0]}`);
   }
+});
+
+scenario('a newly unlocked move is taught in the next fight: the fight waits for you to try it', (g) => {
+  g.save.mastery.sword = { lv: 3, xp: 0 };
+  // (Past the first two fights' own tutorial.)
+  g.save.wins = 5;
+  g.save.tips = g.save.tips.filter((t: string) => t !== 'teach:skill:sword' && t !== 'teach:riposte');
+}, async (page) => {
+  await run(page, `g.fight('slime', 1, 1)`);
+  await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 8000);
+  await run(page, `const e = g.battle.enemies[0]; e.hp = e.maxHp = 1e6; e.state = 'held'; e.t = 99; e.x = g.battle.p.x + 200`);
+  // The special first: once it's ready, the fight stops and asks for it.
+  await waitFor(page, 'the special lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'skill', 5000);
+  check(/Spin/.test((await page.textContent('#coach')) ?? ''), "the lesson doesn't name the special");
+  const frozen = await game<string>(page, 'JSON.stringify([g.battle.enemies[0].x, g.battle.enemies[0].y, g.battle.p.skillCd])');
+  await page.waitForTimeout(500);
+  check(await game<string>(page, 'JSON.stringify([g.battle.enemies[0].x, g.battle.enemies[0].y, g.battle.p.skillCd])') === frozen && await game<string>(page, 'g.battle.lesson') === 'skill', 'the fight kept going during the lesson');
+  await page.keyboard.press('KeyL');
+  await waitFor(page, 'the special lesson done', async () => game<boolean>(page, `g.save.tips.includes('teach:skill:sword')`), 3000);
+  check(await game<number>(page, 'g.battle.log.skills') >= 1, "pressing the special didn't use it");
+  // The Riposte: a monster winding up next to you…
+  await page.waitForTimeout(600);
+  await run(page, `const b = g.battle, e = b.enemies[0]; e.stun = 0; e.x = b.p.x; e.y = b.p.y - 50; e.windup = 0.8`);
+  await waitFor(page, 'the dodge lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'dodge', 5000);
+  await page.keyboard.press('KeyK');
+  await page.waitForTimeout(60);
+  // …its blow passing through your dodge…
+  await run(page, `const b = g.battle; b.hurtPlayer(5, 1, b.p.x, b.p.y - 20, 'test'); b.enemies[0].windup = 0`);
+  await waitFor(page, 'the riposte lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'attack', 3000);
+  await run(page, `const b = g.battle, e = b.enemies[0]; b.p.dodgeT = 0; e.x = b.p.x; e.y = b.p.y - 50; b.p.face = -Math.PI / 2`);
+  await page.keyboard.press('KeyJ');
+  await waitFor(page, 'the Riposte landing', async () => game<boolean>(page, `g.save.tips.includes('teach:riposte')`), 3000);
+  check(await game<number>(page, 'g.battle.ripostes') >= 1, 'no Riposte landed');
 });
 
 scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its special fires", (g) => {

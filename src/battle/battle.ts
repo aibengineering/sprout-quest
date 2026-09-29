@@ -89,6 +89,15 @@ export class Battle implements FoeWorld, HitWorld {
   private hitCounter = 1;
   /** How many times the player has landed a hit (drives the first-battle tutorial). */
   hits = 0;
+  /**
+   * A lesson's pause (teaching a newly unlocked move, see coachBattle): the fight stands still until you press this.
+   * Other presses meanwhile are dropped.
+   */
+  lesson: 'attack' | 'dodge' | 'skill' | null = null;
+  /** Each class ability landing, for the lessons to see it worked. */
+  ripostes = 0;
+  staggers = 0;
+  snares = 0;
   private onceKeys = new Set<number>();
   /** The strike whose "Riposte!" has been shown (a sweep can hit several foes). */
   private riposteShown = 0;
@@ -160,6 +169,11 @@ export class Battle implements FoeWorld, HitWorld {
     const gap = !p.swing && p.atkGap > 0 ? Math.min(1, Math.max(0, p.atkCd) / p.atkGap) : 0;
     return Math.max(resting, gap);
   }
+  /** Could a strike start this instant (nothing in progress, no wait before the next)? */
+  get canStrike() {
+    const p = this.p;
+    return !p.swing && p.atkCd <= 0 && p.restT <= 0 && p.dodgeT <= 0 && p.whirlT <= 0;
+  }
   get boss(): Enemy | undefined { return this.enemies.find((e) => e.def.boss); }
 
   /** 0 = normal view, 1 = swooped right in on you (the start and end of a regular fight). */
@@ -202,6 +216,13 @@ export class Battle implements FoeWorld, HitWorld {
     if (this.hitstop > 0) {
       this.hitstop -= dt;
       return;
+    }
+    if (this.lesson) {
+      if (!this.input.peek(this.lesson)) {
+        this.input.flush();
+        return;
+      }
+      this.lesson = null;
     }
     this.updatePlayer(dt);
     for (const e of this.enemies) this.updateEnemy(e, dt);
@@ -511,6 +532,7 @@ export class Battle implements FoeWorld, HitWorld {
     const p = this.p, dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
     // Knockback decays at 8/s, so a push of v carries a foe v/8.
     const v = 8 * Math.max(0, d - p.r - e.r - 40) * (e.def.boss ? 0.12 : 1);
+    this.snares++;
     e.kx = (dx / d) * v;
     e.ky = (dy / d) * v;
   }
@@ -734,6 +756,7 @@ export class Battle implements FoeWorld, HitWorld {
     if (this.trick === 'stagger') this.stagger(e);
     if (riposte && strikeId !== this.riposteShown) {
       this.riposteShown = strikeId;
+      this.ripostes++;
       this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Riposte!', '#ffe07a', 16);
     }
     e.hp -= dmg;
@@ -774,7 +797,10 @@ export class Battle implements FoeWorld, HitWorld {
       return;
     }
     const ai = MONSTER_AI[e.kind];
-    if (e.state !== ai.start || e.windup > 0) this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Staggered!', '#ffc890', 14);
+    if (e.state !== ai.start || e.windup > 0) {
+      this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Staggered!', '#ffc890', 14);
+      this.staggers++;
+    }
     e.state = ai.start;
     e.t = 0.4;
     e.windup = 0;

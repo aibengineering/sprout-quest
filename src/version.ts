@@ -43,6 +43,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "🔨 Hammer slams hit harder and daze, with no more rocks on every swing",
       "💥 Hammers can Stagger: a slam knocks a monster out of its attack",
       "🪨 The hammer's special is Fracture: a fan of rock spikes bursts forward",
+      "🎓 A newly unlocked move is taught the first time you can use it",
     ],
   },
   {
