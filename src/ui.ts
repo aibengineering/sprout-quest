@@ -53,7 +53,7 @@ export interface UIHooks {
   /** Opens a menu tab from the map (an unlock card's "tap to open"). */
   openTab(tab: Tab): void;
   /** Sounds for reward moments: a named effect, or the XP bar's rising tone (seconds, from and to 0–1 up the bar). */
-  sound(s: 'ding' | 'handlingDing' | 'tick' | 'treasure' | 'levelup'): void;
+  sound(s: 'ding' | 'handlingDing' | 'tick' | 'treasure' | 'keyItem' | 'levelup'): void;
   sweep(dur: number, from: number, to: number, voice?: 'xp' | 'handling'): void;
   craftGear(id: string): void;
   craftTool(id: string): void;
@@ -1463,8 +1463,9 @@ export class UI {
     return r;
   }
 
-  itemFound(id: string, name: string, text: string, emoji = '🗡️', heading = 'You found') {
-    this.hooks.sound('treasure');
+  /** Something found or given. A key item (the Twig Sword, Granny's boots, story items) gets the key item fanfare. */
+  itemFound(id: string, name: string, text: string, emoji = '🗡️', heading = 'You found', key = false) {
+    this.hooks.sound(key ? 'keyItem' : 'treasure');
     return this.dialog(
       `${ribbon(heading)}${stage(icon(id, emoji, 'icon xxl'))}
        <div class="big">${esc(name)}!</div><p>${esc(text)}</p>`,
@@ -1546,7 +1547,7 @@ export class UI {
     this.hooks.sound('treasure');
     return this.dialog(
       `${ribbon('The road is open!')}${stage(bossIcon(kind, 'icon xl'), 'small')}
-       <p>${esc(bossName)} steps aside. <b>${esc(zoneName)}</b> awaits, and a 🔥 campfire checkpoint has been lit just past the gate.</p>`,
+       <p>${esc(bossName)} steps aside. <b>${esc(zoneName)}</b> awaits, with an old campfire just past the gate to light.</p>`,
       [['ok', 'Onward!']],
       'celebrate',
     );

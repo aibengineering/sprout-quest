@@ -12,6 +12,9 @@ export type Sfx =
   | 'ding' | 'tick' | 'treasure'
   // Weapon handling's bar has its own voice: the same bell, a fourth lower and warmer.
   | 'handlingDing'
+  // Something important in the story (the Twig Sword, Granny's boots): a climb that resolves into a held bright
+  // chord, the way Zelda marks a key item. And a campfire caught alight: a whoosh, a warm rise, a soft chord.
+  | 'keyItem' | 'kindle'
   // A regular win: a quick bright bell, leaving room for the XP fill right after it (guardians keep the full jingle).
   | 'win';
 
@@ -155,6 +158,24 @@ export class Audio {
       case 'tick': this.tone(1320, 0.05, 'square', 0.06); break;
       case 'win': this.tone(1319, 0.14, 'triangle', 0.2); this.tone(1976, 0.3, 'triangle', 0.18, undefined, 0.08); this.tone(3951, 0.2, 'sine', 0.03, undefined, 0.1); break;
       case 'treasure': notes([659, 784, 1047, 1319], 0.07, 'triangle', 0.16); this.tone(1568, 0.5, 'sine', 0.1, undefined, 0.3); break;
+      case 'keyItem': {
+        // Four rising semitones, each a little longer, straining upward…
+        [784, 831, 880, 932].forEach((f, i) => this.tone(f, 0.13 + i * 0.02, 'square', 0.08, undefined, i * 0.13));
+        // …then a bright B major chord that rings out, with a sparkle over the top.
+        for (const f of [988, 1245, 1480, 1976]) this.tone(f, 1.1, 'triangle', 0.1, undefined, 0.56);
+        this.tone(494, 1.1, 'square', 0.05, undefined, 0.56);
+        [2960, 3951].forEach((f, i) => this.tone(f, 0.35, 'sine', 0.035, undefined, 0.62 + i * 0.12));
+        break;
+      }
+      case 'kindle':
+        // The flame catching: a soft rushing whoosh…
+        this.noise(0.35, 0.18, 900);
+        // …a warm rise…
+        [392, 523, 659, 784].forEach((f, i) => this.tone(f, 0.22, 'triangle', 0.13, undefined, 0.18 + i * 0.12));
+        // …and a gentle chord that settles, like sitting down by the fire.
+        for (const f of [523, 659, 784, 1047]) this.tone(f, 1.3, 'sine', 0.08, undefined, 0.72);
+        this.tone(2093, 0.4, 'sine', 0.025, undefined, 0.8);
+        break;
     }
   }
 }

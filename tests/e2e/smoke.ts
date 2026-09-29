@@ -479,7 +479,6 @@ scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its spec
 scenario('travel: a campfire takes you home to Sowerby, and the Waystone takes you back out', (g) => {
   g.save.lv = 8;
   g.save.bosses.push('kingslime', 'alphawolf');
-  g.save.camps.push('woods');
   g.save.visited.push('meadow', 'woods');
   g.save.build.warp = 1;
 }, async (page) => {
@@ -493,8 +492,15 @@ scenario('travel: a campfire takes you home to Sowerby, and the Waystone takes y
   await run(page, `g.ui.openMenu({ atForge: false, inVillage: false }, 'journey')`);
   check(!(await page.$('#modal [data-travel], #modal [data-do="home"]')), 'the Journal still has warp buttons');
   await run(page, 'g.ui.closeMenu()');
-  // Rest at the Woods campfire, then home.
-  await use(`g.over.world.objs.find((o) => o.kind === 'camp' && o.zone === 'woods')`);
+  // Beating the Slime King opened the road, but its campfire waits, cold, for you to light it.
+  const camp = `g.over.world.objs.find((o) => o.kind === 'camp' && o.zone === 'woods')`;
+  check(await game<boolean>(page, `!${camp}.hidden && ${camp}.label === 'Light'`), "the Woods campfire isn't there, cold, to light");
+  await use(camp);
+  await waitFor(page, 'the campfire lit', async () => game<boolean>(page, `g.save.camps.includes('woods') && ${camp}.label === 'Rest'`), 3000);
+  check(await game<string>(page, 'g.save.respawn') === 'woods', "lighting the campfire didn't make it your checkpoint");
+  // Rest there, then home.
+  await page.waitForTimeout(500);
+  await use(camp);
   await page.click('#modal:not([hidden]) [data-dialog="home"]', { timeout: 5000 });
   await waitFor(page, 'home in Sowerby', async () => game<boolean>(page, `g.mode === 'world' && g.over.currentZone.id === 'village'`), 8000);
   check(await game<string>(page, 'g.save.respawn') === 'woods', "resting at the campfire didn't save your checkpoint there");

@@ -97,6 +97,17 @@ export class Overworld {
     this.roamers.calm = Math.max(this.roamers.calm, seconds);
   }
 
+  /** A campfire catching alight: a burst of flame and sparks, and its glow swelling in. */
+  kindle(o: WorldObj) {
+    const ts = this.ts, x = (o.x + o.w / 2) * ts, y = (o.y + o.h - 0.3) * ts;
+    this.fx.burst(x, y, '#ffb03a', 24, ts * 3.5, { size: ts * 0.1, grav: -ts * 1.2, life: 0.9 });
+    this.fx.burst(x, y, '#ff6a2a', 14, ts * 2.5, { size: ts * 0.08, grav: -ts * 2, life: 0.7 });
+    this.fx.burst(x, y - ts * 0.3, '#fff6c8', 10, ts * 3, { size: ts * 0.06, star: true, grav: -ts * 0.4, life: 1.1 });
+    this.kindledAt[o.zone!] = this.t;
+  }
+  /** When each campfire was lit (for its glow swelling in). */
+  private kindledAt: Record<string, number> = {};
+
   /** Waking from a faint: a burst of Veyra's light where you stand. */
   revived() {
     const ts = this.ts, x = this.x * ts, y = (this.y - 0.4) * ts;
@@ -996,10 +1007,13 @@ export class Overworld {
     // Model origins sit in the middle of their footprint; push them back so their fronts line up with the collision box.
     const ax = o.x * ts + w / 2, ay = (o.y + o.h) * ts - spec.back * ts;
     if (o.kind !== 'sign' && o.kind !== 'camp') shadow(ctx, ax, ay, w * (o.kind === 'statue' ? 0.6 : 0.52), 0.2);
-    if (o.kind === 'camp') {
+    // A campfire you haven't lit yet is a cold pile of logs: no glow, no embers.
+    const cold = o.kind === 'camp' && !this.save.camps.includes(o.zone!);
+    if (o.kind === 'camp' && !cold) {
+      const swell = Math.min(1, (this.t - (this.kindledAt[o.zone!] ?? -9)) / 1.2);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = `rgba(255,150,60,${0.16 + Math.sin(this.t * 9) * 0.04})`;
+      ctx.fillStyle = `rgba(255,150,60,${(0.16 + Math.sin(this.t * 9) * 0.04) * swell})`;
       ctx.beginPath();
       ctx.ellipse(ax, ay - ts * 0.1, ts * 1.1, ts * 0.7, 0, 0, TAU);
       ctx.fill();
@@ -1008,7 +1022,7 @@ export class Overworld {
     // Each campfire has one of Veyra's little shrine stones beside it (the Waystone answers them).
     const stone = o.kind === 'camp' && frame('env/waystone');
     if (stone) drawFrame(ctx, stone, ax + ts * 0.75, ay - ts * 0.25, unit);
-    drawFrame(ctx, sprite, ax, ay, unit);
+    drawFrame(ctx, sprite, ax, ay, unit, cold ? { tint: '#4a4058', tintAmount: 0.55 } : {});
     const top = ay - sprite.ay * (unit / sprite.ppu);
     switch (o.kind) {
       case 'forge': {
@@ -1028,6 +1042,12 @@ export class Overworld {
         this.nameTag(ctx, "💧 Veyra's Spring", ax, top, ts);
         break;
       case 'camp':
+        // Cold: a faint glint now and then, to draw you over to light it.
+        if (cold) {
+          if (Math.random() < 0.04) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.4, ay - ts * 0.3, '#fff6c8', 1, ts * 0.3, { size: ts * 0.05, star: true, grav: -ts * 0.3, life: 0.8 });
+          this.nameTag(ctx, '🔥 Old campfire', ax, top, ts);
+          break;
+        }
         if (Math.random() < 0.3) this.fx.burst(ax + (Math.random() - 0.5) * ts * 0.3, ay - ts * 0.35, Math.random() < 0.5 ? '#ffb03a' : '#ff7a2a', 1, ts * 0.4, { size: ts * 0.06, grav: -ts * 1.5, life: 0.7 });
         break;
       case 'plot': {

@@ -69,7 +69,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
   elder: () => talkToElder(),
 
   async pickup() {
-    await paused(() => G.ui.itemFound('twig', 'Twig Sword', "It's just a stick… but it feels right in your hand."));
+    await paused(() => G.ui.itemFound('twig', 'Twig Sword', "It's just a stick… but it feels right in your hand.", '🗡️', 'You found', true));
     G.save.flags.push('sword');
     syncWorld();
     persist();
@@ -88,8 +88,19 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     else G.mode = 'world';
   },
 
-  // A campfire: rest (your checkpoint), and the way home to Sowerby in a flash.
+  // A campfire: rest (your checkpoint), and the way home to Sowerby in a flash. The first time, you light it.
   async camp(o) {
+    const s = G.save;
+    if (!s.camps.includes(o.zone!)) {
+      s.camps.push(o.zone!);
+      rest(o.zone!);
+      G.over.kindle(o);
+      G.audio.play('kindle');
+      G.ui.banner('🔥 Campfire lit', `${zoneById(o.zone!).name}: your checkpoint, and a way home`);
+      syncWorld();
+      persist();
+      return;
+    }
     rest(o.zone!);
     persist();
     const r = await paused(() => G.ui.dialog(

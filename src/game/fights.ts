@@ -176,11 +176,7 @@ async function onBattleEnd(o: BattleOutcome) {
     const gz = ZONES.find((z) => z.guardian?.kind === bossKind);
     if (firstClear) {
       s.bosses.push(bossKind);
-      // Beating a guardian opens its road and lights the campfire checkpoint beyond it.
-      if (gz && !s.camps.includes(gz.id)) {
-        s.camps.push(gz.id);
-        s.respawn = gz.id;
-      }
+      // Beating a guardian opens its road; the old campfire past the gate is yours to light (interact.ts).
       syncWorld();
     }
     persist();

@@ -51,7 +51,7 @@ function askFavour() {
     await say(GRANNY, "Would you take him this pie? Cherry. It's his favourite.");
     G.save.flags.push('bram:pie');
     persist();
-    await G.ui.itemFound('pie', "Granny's Cherry Pie", "Still warm. For Bram, at his logging camp in the north-west of Whisper Woods.", '🥧', 'Granny gave you');
+    await G.ui.itemFound('pie', "Granny's Cherry Pie", "Still warm. For Bram, at his logging camp in the north-west of Whisper Woods.", '🥧', 'Granny gave you', true);
   });
 }
 
