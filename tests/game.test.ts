@@ -38,6 +38,13 @@ describe('rules', () => {
     expect(playerStats(s).atk).toBe(atkBefore - GEAR.twig.atk! + GEAR.jellywhip.atk!);
   });
 
+  test("handling isn't raised by the prologue and the first fight in the meadow", () => {
+    const s = newState();
+    const xp = [scaleMonster(MONSTERS.slime, 1, false).xp, scaleMonster(MONSTERS.bunny, 1, false).xp, scaleMonster(MONSTERS.slime, 3, false).xp, scaleMonster(MONSTERS.bunny, 3, false).xp];
+    for (const n of xp) gainMastery(s, 'sword', n);
+    expect(s.mastery.sword.lv).toBe(1);
+  });
+
   test('better weapons of a class need handling in it, trained by winning with it', () => {
     const s = newState();
     for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 99;

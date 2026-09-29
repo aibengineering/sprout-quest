@@ -28,6 +28,8 @@ export const PATCH_NOTES: PatchNote[] = [
       "🌀 Special attacks start small and grow with your weapon handling: Rank I is a quick taste, and each rank adds more, up to a Mastery finisher that really is over the top.",
       "🌪️ The whip's Whirl no longer spins you round three times at the start: Rank I is three quick lashes, and it spins longer, wider and faster on your feet as it ranks up, to a roaming Tempest at Mastery.",
       "🎯 Your Skills tab shows each weapon class's trick.",
+      "🎒 A \"New unlocked\" card no longer sits over a fight you walk straight into: it steps aside and comes back after.",
+      "⚔️ Weapon handling levels a little slower, so your first fights don't rush it up.",
       "🪓 Bram is at his old logging camp from the first time you find it, grumbling at you to go away, instead of only turning up once Granny has a pie for him.",
     ],
   },

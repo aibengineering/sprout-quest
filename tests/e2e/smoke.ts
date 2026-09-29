@@ -250,11 +250,21 @@ scenario('patch notes: a dot until you read them, from the menu or the title', (
   await closeDialogs(page);
 });
 
+scenario('an unlock card gets out of the way of a fight, and comes back after it', null, async (page) => {
+  await run(page, `g.ui.unlockCard({ id: 'bag', icon: '🎒', title: 'Your Bag', text: 'Test', when: () => true })`);
+  await waitFor(page, 'the card', async () => !!(await page.$('#unlock-card.show')), 3000);
+  await run(page, 'g.encounter()');
+  await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle'`), 8000);
+  await waitFor(page, 'the card to go', async () => game<boolean>(page, `document.getElementById('unlock-card').hidden`), 3000);
+  await winFight(page);
+  await waitFor(page, 'the card again', async () => !!(await page.$('#unlock-card.show')), 5000);
+});
+
 scenario('winning a fight levels you up and reveals new gear (and the quest tracker counts materials)', (g) => {
   Object.assign(g.save, { lv: 4, xp: 108 });
   g.save.owned.push('jellywhip');
   g.save.equip.weapon = 'jellywhip';
-  g.save.mastery.whip.xp = 28;
+  g.save.mastery.whip.xp = 43; // 2 short of handling Lv 2 (rules.ts masteryXpToNext)
   // ★★ gear needs the Smithy.
   g.save.build.forge = 2;
 }, async (page) => {

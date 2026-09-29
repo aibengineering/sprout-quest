@@ -228,6 +228,8 @@ export class UI {
   private mode: 'title' | 'world' | 'battle' | 'none' = 'title';
   private unlockQueue: Unlock[] = [];
   private unlockShowing = false;
+  /** The unlock card on screen, to bring back after a fight that interrupts it. */
+  private unlockNow: Unlock | null = null;
   private unlockTimer = 0;
   private focus: string | undefined;
   private ctx: MenuCtx = { atForge: false, inVillage: false };
@@ -464,6 +466,7 @@ export class UI {
       return;
     }
     const u = this.unlockQueue.shift()!;
+    this.unlockNow = u;
     const tab = UI.UNLOCK_TAB[u.id];
     this.unlockShowing = true;
     el.hidden = false;
@@ -525,6 +528,13 @@ export class UI {
 
   setMode(mode: 'title' | 'world' | 'battle' | 'none') {
     this.mode = mode;
+    // A fight (walking straight into a monster, say) puts the card away, to show again afterwards.
+    if (mode !== 'world' && this.unlockShowing && this.unlockNow) {
+      window.clearTimeout(this.unlockTimer);
+      this.unlockQueue.unshift(this.unlockNow);
+      this.unlockNow = null;
+      this.nextUnlock();
+    }
     // Unlock cards held back during a fight come out once you're back on the map.
     if (mode === 'world' && this.unlockQueue.length && !this.unlockShowing) window.setTimeout(() => this.nextUnlock(), 600);
     $('title').hidden = mode !== 'title';

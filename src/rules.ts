@@ -282,8 +282,9 @@ export function toolPower(toolTier: number, nodeTier: number): number {
 
 export const MASTERY_MAX = 10;
 
+/** Handling XP for the next level. The prologue and your first few fights don't raise it; a weapon earns its skill. */
 export function masteryXpToNext(lv: number): number {
-  return 30 * lv;
+  return 45 * lv;
 }
 
 /** Winning with a class of weapon trains it. Returns how many levels were gained. */
