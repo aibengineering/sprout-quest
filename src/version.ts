@@ -15,6 +15,28 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.1',
+    date: '2026-09-29',
+    title: 'Weapons With Character',
+    notes: [
+      "🗡️ Swords are Blades now, and they're the combo class: three quick, flowing strikes. Their ability is the Riposte: dodge through an attack and your next strike is a sure, harder critical hit. Their dodge can cancel a wind-up too.",
+      "🔨 Hammers, whips and magic strike once and rest, so every blow counts and your special weaves in between. Early fights are more deliberate, and weapon handling speeds you up about twice over on the way to Mastery.",
+      "💥 Hammers Sunder: a slammed foe takes 20% more from your hits for a few seconds, so the next slam or a Quake lands harder.",
+      "🪢 Whips Snare: a crack at the tip yanks the foe in toward you, so nothing keeps its distance.",
+      "🪄 Wands are Magic now. Magic's dodge is a Blink, a short teleport, and its special is Scatter, a shotgun blast of bolts where you aim, instead of a ring all around you.",
+      "🟢 The Jelly Slingshot is now the Jelly Wand. If you had the slingshot, you have the wand.",
+      "🌀 Special attacks start small and grow with your weapon handling: Rank I is a quick taste, and each rank adds more, up to a Mastery finisher that really is over the top. Every class's special hits about as hard as the others, one foe or a crowd.",
+      "🌪️ The whip's Whirl no longer spins you round three times at the start: Rank I is three quick lashes, and it spins longer, wider and faster on your feet as it ranks up, to a roaming Tempest at Mastery.",
+      "🗺️ Every weapon class has a Path to explore (Bag → Skills → Path): all ten handling levels, what each brings, the weapons it lets you wield, and how close you are to the next.",
+      "🎯 Handling is a journey now, paced to the whole adventure: your first fight in the meadow unlocks your weapon's special, its class ability (Riposte, Sunder, Snare or Blink) comes next, each tier of weapons' handling arrives about as you reach it, and Mastery is waiting around the Emberwyrm.",
+      "📚 A class below your best one trains twice as fast, so once you've mastered one weapon, learning the next is quicker.",
+      "⭐ Levelling is slower, and XP pays best for a fair fight: monsters at or above your level give the most, and ones you've outgrown settle to a lower base rate. Following the story, you'll meet each guardian a little under its level; farm longer if you want an easy fight.",
+      "✨ The XP bar sparkles as it fills: a notch pops onto the bar with every bubble you hear, sparks fly off it, the +XP counts up in time, and a level-up bursts with stars.",
+      "🎒 A \"New unlocked\" card no longer sits over a fight you walk straight into: it steps aside and comes back after.",
+      "🪓 Bram is at his old logging camp from the first time you find it, grumbling at you to go away, instead of only turning up once Granny has a pie for him.",
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-09-28',
     title: 'Tales of Sowerby',

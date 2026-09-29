@@ -3,7 +3,7 @@
 import { ARENA_RX, ARENA_RY } from './arena';
 import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
 import { MOVESETS, comboDps, openingBurst, skillRank, skillShape, strikeShape, tierScale } from './weapons';
-import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, type PlayerStats } from './rules';
+import { GENTLE_ATK, MONSTER_HP, calcDamage, CATCH_UP, MASTERY_MAX, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, xpEdge, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
 import { LOGS_PER_PLANK } from './sawmill';
@@ -62,7 +62,7 @@ export const CHECKPOINTS: Checkpoint[] = [
   },
   // By the dragon you've outleveled the bottom of Ember Peak, so only the fight at the top of the zone needs to stay tense.
   {
-    id: 'dragon', label: 'Emberwyrm', lv: 18, weapon: 'emberblade', armor: 'magmamail', charm: 'impring', training: 3, home: 3, zone: 'peak', hitsToKill: [1, 4], hitsToDie: [5, 40],
+    id: 'dragon', label: 'Emberwyrm', lv: 17, weapon: 'emberblade', armor: 'magmamail', charm: 'impring', training: 3, home: 3, zone: 'peak', hitsToKill: [1, 4], hitsToDie: [5, 40],
     boss: { kind: 'dragon', lv: 20, hitsToKill: [25, 60], hitsToDie: [3, 10] },
   },
 ];
@@ -98,13 +98,18 @@ export function zoneMatchups(c: Checkpoint): Matchup[] {
   return zone.monsters.flatMap((m) => lvs.map((lv) => matchup(p, m.kind, lv)));
 }
 
-/** Average kills in the zone (weighted by spawn odds, at mid zone level) to gain one level from the checkpoint. */
+/**
+ * Average kills in the zone (weighted by spawn odds) to gain one level from the checkpoint, fighting where it pays best
+ * (XP falls off for monsters you've outgrown and rises for ones above you, see xpEdge).
+ */
 export function killsPerLevel(c: Checkpoint): number | null {
   const zone = ZONES.find((z) => z.id === c.zone)!;
   if (c.foes || !zone.monsters.length) return null;
-  const lv = Math.round((zone.lv[0] + zone.lv[1]) / 2);
   const total = zone.monsters.reduce((a, m) => a + m.w, 0);
-  const xp = zone.monsters.reduce((a, m) => a + (m.w / total) * scaleMonster(MONSTERS[m.kind], lv, false).xp, 0);
+  const perKill = (lv: number) => zone.monsters.reduce((a, m) => a + (m.w / total) * scaleMonster(MONSTERS[m.kind], lv, false).xp * xpEdge(c.lv, lv), 0);
+  // The best-paying level in the zone, up to two above yours.
+  let xp = 0;
+  for (let lv = zone.lv[0]; lv <= Math.min(zone.lv[1], Math.max(zone.lv[0], c.lv + 2)); lv++) xp = Math.max(xp, perKill(lv));
   return xpToNext(c.lv) / xp;
 }
 
@@ -271,8 +276,8 @@ export const MAX_MASTERED_SKILL_AREA = 0.5;
 /** Hunter weapons hit for this share of their tier's gatherer damage: less raw power, but they carry monster effects. */
 export const HUNTER_DPS: Range = [0.75, 0.95];
 /**
- * Hunter wands and slingshots aim lower still: they hit from across the arena, so they never pay the walk-in and the
- * risk a melee weapon does. (The first play report had the Jelly Slingshot ending fights 3× faster, untouched.)
+ * Magic aims lower still: it hits from across the arena, so it never pays the walk-in and the risk a melee weapon does.
+ * (The first play report had the old Jelly Slingshot ending fights 3× faster, untouched.)
  */
 export const RANGED_DPS: Range = [0.6, 0.8];
 /** No hunter weapon out-damages its tier's gatherer weapons in a fight's opening second. */
@@ -320,14 +325,65 @@ export function dpsVsGatherers(key: 'dps' | 'burst' = 'dps'): Record<string, num
 
 /** The zone you're fighting in while working toward each weapon tier (★2 in the meadow, ★3 in the woods…). */
 const TIER_ZONE: ZoneId[] = ['meadow', 'meadow', 'meadow', 'woods', 'cave', 'hollow'];
-/** Switching to a new class at any tier costs at most this many minutes of fighting to handle it well enough. */
-export const MAX_HANDLING_MINUTES = 10;
+/**
+ * Switching to a new class at any tier costs at most this many minutes of fighting to handle it well enough: a real
+ * commitment late in the game (handling is paced to the whole story), but never a restart.
+ */
+export const MAX_HANDLING_MINUTES = 20;
 
-/** Minutes of fighting (at mid zone level) to train a fresh class up to what a weapon tier needs. */
+/**
+ * How many regular fights a natural playthrough has in each area before moving on: its quests and story fights, the
+ * grass ambushes and roamers met walking back and forth, and a little farming for gear. An estimate (from the map's
+ * size, the 6% ambush chance per grass tile, and each area's errands), not yet measured; the play report's per-area
+ * summary gives the real count. When quests change how much you walk an area, update this and re-run `bun run
+ * balance`: the progression tests say what drifted. See docs/balance.md.
+ */
+export const EXPECTED_FIGHTS: Partial<Record<ZoneId, number>> = { meadow: 40, woods: 40, cave: 40, hollow: 40, peak: 40 };
+/** A light playthrough (skipping grass and side stories) and a heavy one (farming), as shares of EXPECTED_FIGHTS. */
+export const LIGHT_RUN = 0.6;
+export const HEAVY_RUN = 1.5;
+
+/**
+ * Handling with one weapon through a playthrough: each area's expected fights (times `scale`) of one to three of its
+ * monsters (at every level in its range), each guardian, then the Emberwyrm. Your level and handling at the end of each
+ * area, and at the dragon.
+ */
+export function oneWeaponRun(scale = 1): Record<string, { lv: number; handling: number }> {
+  let lv = 1, xp = 0, h = 1, hx = 0;
+  const out: Record<string, { lv: number; handling: number }> = {};
+  const gain = (kind: MonsterKind, mlv: number) => {
+    const g = Math.round(scaleMonster(MONSTERS[kind], mlv, false).xp * xpEdge(lv, mlv));
+    xp += g;
+    hx += g;
+    while (xp >= xpToNext(lv)) { xp -= xpToNext(lv); lv++; }
+    while (h < MASTERY_MAX && hx >= masteryXpToNext(h)) { hx -= masteryXpToNext(h); h++; }
+  };
+  gain('slime', 1);
+  gain('bunny', 1);
+  const areas = ZONES.filter((z) => z.monsters.length);
+  areas.forEach((z, i) => {
+    const fights = Math.round((EXPECTED_FIGHTS[z.id] ?? 0) * scale);
+    for (let f = 0; f < fights; f++) {
+      const n = Math.min(z.maxEnemies, 1 + (f % 3 === 2 ? 2 : f % 2));
+      for (let j = 0; j < n; j++) gain(z.monsters[(f + j) % z.monsters.length].kind, z.lv[0] + ((f * 3 + j) % (z.lv[1] - z.lv[0] + 1)));
+    }
+    out[z.id] = { lv, handling: h };
+    const g = areas[i + 1]?.guardian;
+    if (g) gain(g.kind, g.lv);
+  });
+  gain('dragon', 20);
+  out.dragon = { lv, handling: h };
+  return out;
+}
+
+/**
+ * Minutes of fighting (at mid zone level) to train a fresh class up to what a weapon tier needs, while another class
+ * you've trained further makes it quicker (CATCH_UP).
+ */
 export function minutesToHandle(tier: number): number {
   const need = MASTERY_FOR_TIER[tier] ?? 0;
   let xp = 0;
-  for (let lv = 1; lv < need; lv++) xp += masteryXpToNext(lv);
+  for (let lv = 1; lv < need; lv++) xp += masteryXpToNext(lv) / CATCH_UP;
   const z = ZONES.find((z) => z.id === TIER_ZONE[tier])!;
   const lv = Math.round((z.lv[0] + z.lv[1]) / 2);
   const total = z.monsters.reduce((a, m) => a + m.w, 0);
@@ -399,6 +455,15 @@ export function report(): string {
       w.skillMult.toFixed(1),
     ]));
   }
+  out.push('\nProgression with one weapon (Lv / handling at the end of each area; see EXPECTED_FIGHTS, docs/balance.md)');
+  const areas = ZONES.filter((z) => z.monsters.length);
+  out.push(`  ${'run'.padEnd(16)} ${areas.map((z) => z.id.padStart(8)).join('')}  ${'dragon'.padStart(8)}`);
+  for (const [label, k] of [[`light ×${LIGHT_RUN}`, LIGHT_RUN], ['natural', 1], [`heavy ×${HEAVY_RUN}`, HEAVY_RUN]] as const) {
+    const run = oneWeaponRun(k), cell = (id: string) => `${run[id].lv}/${run[id].handling}`.padStart(8);
+    out.push(`  ${label.padEnd(16)} ${areas.map((z) => cell(z.id)).join('')}  ${cell('dragon')}`);
+  }
+  out.push(`  expected fights: ${areas.map((z) => `${z.id} ${EXPECTED_FIGHTS[z.id] ?? 0}`).join(', ')}`);
+  out.push(`  handling each weapon tier needs: ${[2, 3, 4, 5].map((t) => `★${t} ${MASTERY_FOR_TIER[t]}`).join(', ')}; guardians: ${areas.slice(1).map((z) => `${MONSTERS[z.guardian!.kind].name} Lv ${z.guardian!.lv}`).join(', ')}, Emberwyrm Lv 20`);
   out.push(`\nWeapon handling: switching to a fresh class costs ${[2, 3, 4, 5].map((t) => `★${t} ~${minutesToHandle(t).toFixed(1)} min`).join(', ')} of fighting (target ≤${MAX_HANDLING_MINUTES})`);
   return out.join('\n');
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { GEAR, MONSTERS, NODES, TOOLS, ZONES, MASTERY_FOR_TIER } from '../src/data';
-import { CLOVER_PITY, gainMastery, levelLock, revealed, masteryShort, masteryXpToNext, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpToNext } from '../src/rules';
+import { CLOVER_PITY, gainMastery, levelLock, revealed, masteryShort, masteryXpToNext, calcDamage, cloverPity, craftGear, craftPotion, equip, gainXp, playerStats, rollDrops, scaleMonster, xpEdge, xpToNext } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
 
@@ -36,6 +36,29 @@ describe('rules', () => {
     expect(craftGear(s, 'jellywhip')).toBe('owned');
     expect(equip(s, 'jellywhip')).toBe(true);
     expect(playerStats(s).atk).toBe(atkBefore - GEAR.twig.atk! + GEAR.jellywhip.atk!);
+  });
+
+  test('handling reaches Lv 2 (the weapon skill) on your first meadow fight, not in the prologue, then climbs slowly', () => {
+    const s = newState();
+    const xp = (kind: 'slime' | 'bunny', lv: number) => Math.round(scaleMonster(MONSTERS[kind], lv, false).xp * xpEdge(1, lv));
+    gainMastery(s, 'sword', xp('slime', 1));
+    gainMastery(s, 'sword', xp('bunny', 1));
+    expect(s.mastery.sword.lv).toBe(1);
+    // The weakest first fight in the meadow still gets there.
+    gainMastery(s, 'sword', Math.min(xp('slime', 1), xp('bunny', 1)));
+    expect(s.mastery.sword.lv).toBe(2);
+    // …and the next level takes a good few more.
+    for (let i = 0; i < 8; i++) gainMastery(s, 'sword', xp('slime', 2));
+    expect(s.mastery.sword.lv).toBe(2);
+  });
+
+  test('a class below your best trains twice as fast: mastering one weapon makes the next quicker to learn', () => {
+    const s = newState();
+    s.mastery.sword.lv = 6;
+    gainMastery(s, 'whip', 4);
+    expect(s.mastery.whip.xp).toBe(8);
+    gainMastery(s, 'sword', 4);
+    expect(s.mastery.sword.xp).toBe(4);
   });
 
   test('better weapons of a class need handling in it, trained by winning with it', () => {
@@ -97,7 +120,7 @@ describe('forge reveals', () => {
     s.build.forge = 1;
     const shown = revealed(s);
     // Monster gear and first tools need no levels; ore gear waits on Mining, ★2+ on the Forge (then handling).
-    for (const id of ['jellywhip', 'jellysling', 'fluffvest', 'axe1', 'pick1']) expect({ id, shown: shown.has(id) }).toEqual({ id, shown: true });
+    for (const id of ['jellywhip', 'jellywand', 'fluffvest', 'axe1', 'pick1']) expect({ id, shown: shown.has(id) }).toEqual({ id, shown: true });
     for (const id of ['stonesword', 'sporewhip', 'pick2', 'ironsword']) expect({ id, shown: shown.has(id) }).toEqual({ id, shown: false });
     expect(levelLock(s, GEAR.stonesword)).toEqual({ kind: 'skill', skill: 'mine', level: 2 });
     expect(levelLock(s, GEAR.sporewhip)).toEqual({ kind: 'forge', level: 2 });

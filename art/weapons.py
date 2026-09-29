@@ -125,20 +125,16 @@ def whip(root, color, trim, grip='#6a3a4a', flame=False):
         cone((0.44, 0, -0.34), 0.05, 0.16, toon('#ffb03a', emit=0.8), root, rot=(math.pi, 0, 0), seg=8, line=0)
 
 
-def slingshot(root, color, band):
-    handle(root, 0.36, '#8a5a8a', r=0.04, wraps=2, wrap=band)
-    for s in (-1, 1):
-        cylinder((0.36, 0, 0.1 * s), 0.035, 0.3, toon(color), root, rot=(0, math.pi / 2 - 0.55 * s, 0), seg=10, line=0.014)
-        sphere((0.48, 0, 0.18 * s), 0.045, toon(color), root, line=0.01)
-    cylinder((0.47, 0.02, 0), 0.016, 0.36, toon(band), root, seg=8, line=0)
-    sphere((0.4, -0.02, 0), 0.07, toon('#8af09a', rim=0.4), root, line=0.012)
-
-
 def wand(root, stick, kind):
     cylinder((0.3, 0, 0), 0.03, 0.8, toon(stick), root, rot=X, seg=10, line=0.014, r2=0.022)
     torus((0.68, 0, 0), 0.04, 0.015, toon(GOLD), root, rot=X, line=0.008)
     head = empty('head', root, (0.82, 0, 0))
-    if kind == 'spore':
+    if kind == 'jelly':
+        # A wobbly blob of jelly on a stick, with a shine and a drip.
+        sphere((0.04, 0, 0), (0.15, 0.14, 0.13), toon('#6fdc7a', rim=0.4), head, seg=16, line=0.014)
+        sphere((0.08, -0.07, 0.06), 0.035, toon('#ffffff', emit=0.4), head, line=0)
+        sphere((-0.02, 0, -0.14), 0.04, toon('#6fdc7a', rim=0.4), head, line=0.008)
+    elif kind == 'spore':
         from lib import lathe
         lathe([(0.0001, 0.14), (0.12, 0.12), (0.18, 0.04), (0.18, -0.02), (0.0001, -0.02)], toon('#e8505a'), head, seg=20, rot=(0, math.pi / 2, 0))
         for a in range(4):
@@ -180,7 +176,7 @@ WEAPONS = {
     'batwhip': (lambda r: whip(r, '#7a5ab8', '#ff6a8a', '#3a2a4a'), 0.9),
     'glimmerwhip': (lambda r: whip(r, '#c8b0ff', '#fff6c8', '#4a3a6a'), 0.9),
     'dragontail': (lambda r: whip(r, '#c83a3a', GOLD, '#3a1a1a', flame=True), 0.95),
-    'jellysling': (lambda r: slingshot(r, '#6fdc7a', '#ffb4c8'), 1.0),
+    'jellywand': (lambda r: wand(r, '#8a5a8a', 'jelly'), 1.25),
     'sporewand': (lambda r: wand(r, '#6a4a3a', 'spore'), 1.3),
     'batwand': (lambda r: wand(r, '#3a2a4a', 'bat'), 1.3),
     'glimmerwand': (lambda r: wand(r, '#6b4a8a', 'glimmer'), 1.3),

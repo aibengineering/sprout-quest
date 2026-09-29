@@ -134,9 +134,9 @@ export const MONSTERS: Record<MonsterKind, MonsterDef> = {
 };
 
 export type Slot = 'weapon' | 'armor' | 'charm';
-/** Weapon classes. Swords and hammers are the gatherer lines; whips and wands (and slingshots) the hunter lines. */
+/** Weapon classes. Blades and hammers are the gatherer lines; whips and magic the hunter lines. */
 export type Style = 'sword' | 'hammer' | 'whip' | 'wand';
-export const STYLE_NAMES: Record<Style, string> = { sword: 'Sword', hammer: 'Hammer', whip: 'Whip', wand: 'Wand' };
+export const STYLE_NAMES: Record<Style, string> = { sword: 'Blades', hammer: 'Hammer', whip: 'Whip', wand: 'Magic' };
 /**
  * What a weapon (or its shots) does on hit. Gatherer metals are plain; monster weapons carry their monster's trick:
  * jelly slows, spores poison, bat drains life, glimmer chains to a second foe, fire burns, dragon burns and bursts.
@@ -180,7 +180,7 @@ const GEAR_LIST: Gear[] = [
   W('stonesword', 'Stone Sword', 'sword', 1, 8, 'stone', '#b8bcc8', '#f0f0f4', 'A chunky slab of a blade. Honest work.', { stone: 4, bark: 2 }, { mine: 2 }),
   W('stonehammer', 'Stone Hammer', 'hammer', 1, 10, 'stone', '#9aa0b0', '#e8e0d0', 'Slams kick up little rocks.', { stone: 5, bark: 2 }, { mine: 2 }),
   W('jellywhip', 'Jelly Whip', 'whip', 1, 9, 'jelly', '#6fdc7a', '#9af0a0', 'Long, wobbly lashes. Sticky goo slows what it hits.', { goo: 6, fluff: 2 }),
-  W('jellysling', 'Jelly Slingshot', 'wand', 1, 7, 'jelly', '#8af09a', '#9af0a0', 'Flings gooey blobs that slow what they hit.', { goo: 5, fluff: 3 }),
+  W('jellywand', 'Jelly Wand', 'wand', 1, 7, 'jelly', '#8af09a', '#9af0a0', 'A wobbly wand that flicks gooey blobs. They slow what they hit.', { goo: 5, fluff: 3 }),
   W('coppersword', 'Copper Sword', 'sword', 2, 14, 'metal', '#e8904a', '#ffd0a0', 'Bright and keen.', { copper: 4, bark: 3 }, { mine: 4 }),
   W('copperhammer', 'Copper Hammer', 'hammer', 2, 18, 'metal', '#d8783a', '#ffc890', 'Rings like a bell on every slam.', { copper: 5, pine: 3 }, { mine: 4 }),
   W('sporewhip', 'Spore Whip', 'whip', 2, 16, 'spore', '#e8505a', '#ffb4b4', 'Every lash leaves a puff of poison spores.', { cap: 6, fang: 2 }),

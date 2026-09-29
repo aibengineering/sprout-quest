@@ -50,8 +50,8 @@ export async function celebrate(m: LevelMark) {
     logEvent(s, { kind: 'level', track: `handling:${m.style}`, lv });
     // What each level gained gives: a skill rank (the big ones) or a step in attack speed.
     const gains = Array.from({ length: lv - m.fromHandling }, (_, i) => m.fromHandling + 1 + i).map((l) => handlingGain(m.style, l).replace(/^Lv \d+: /, ''));
-    const skill = handlingStep(lv) === 'skill';
-    await G.ui.skillUp(`${STYLE_NAMES[m.style]} handling`, lv, skill ? '✨' : '⚡', `${skill ? '✨ ' : '⚡ '}${gains.join(' · ')}`, newlyRevealed(m.shown));
+    const step = handlingStep(lv), mark = step === 'skill' ? '✨' : step === 'trick' ? '🎯' : '⚡';
+    await G.ui.skillUp(`${STYLE_NAMES[m.style]} handling`, lv, mark, `${mark} ${gains.join(' · ')}`, newlyRevealed(m.shown));
   }
 }
 
@@ -70,6 +70,6 @@ function readyFor(from: number, to: number): string[] {
     if (g && !G.save.bosses.includes(g.kind) && g.lv > from && g.lv <= to) out.push(`Strong enough for the ${MONSTERS[g.kind].name} (Lv ${g.lv}) guarding ${z.name}!`);
     if (z.monsters.length && z.rec > from && z.rec <= to) out.push(`${z.name} (monsters Lv ${z.lv[0]}–${z.lv[1]}) is your speed now.`);
   }
-  if (from < 18 && to >= 18) out.push('Ready to face the Emberwyrm (Lv 20)? Bring potions!');
+  if (from < 17 && to >= 17) out.push('Ready to face the Emberwyrm (Lv 20)? Bring potions!');
   return out;
 }

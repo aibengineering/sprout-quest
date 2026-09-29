@@ -1,14 +1,15 @@
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
+import { xpBloops } from './audio';
 import {
-  GEAR, GEAR_ORDER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
+  GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
   STYLE_NAMES, TOOLS, ZONES, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
 } from './data';
 import { currentQuest, progress, questNeeds } from './quests';
 import { MASTERY_MAX, PLOT_UNLOCK, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, plotOpen, revealed, skillXpToNext, xpToNext, type Lock } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
-import { MOVESETS, SKILL_LEVELS, comboTime, handlingStep, skillAt } from './weapons';
+import { CLASS_NOTES, MOVESETS, SKILL_LEVELS, TRICKS, TRICK_LEVEL, comboTime, handlingStep, skillAt } from './weapons';
 import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
 import { LOGS_PER_PLANK, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate } from './sawmill';
 import { usingKeyboard } from './input';
@@ -162,13 +163,54 @@ export function paceGain(style: Style, lv: number): number {
   return Math.round((comboTime(m, 1) / comboTime(m, lv) - 1) * 100);
 }
 
-/** The ten-level handling path as pips: ✨ for a skill rank, ⚡ for a speed step, the ones you've reached lit. */
+const STEP_ICON = { skill: '✨', trick: '🎯', speed: '⚡' } as const;
+const CLASS_EMOJI: Record<Style, string> = { sword: '🗡️', hammer: '🔨', whip: '〰️', wand: '🪄' };
+
+/** The ten-level handling path as pips: ✨ a skill rank, 🎯 the class's trick, ⚡ a speed step, the ones you've reached lit. */
 function handlingPath(lv: number): string {
   const pips = Array.from({ length: MASTERY_MAX }, (_, i) => {
     const at = i + 1, step = handlingStep(at);
-    return `<i class="${at <= lv ? 'on' : ''} ${step ?? 'start'}" title="Lv ${at}">${step === 'skill' ? '✨' : step === 'speed' ? '⚡' : '•'}</i>`;
+    return `<i class="${at <= lv ? 'on' : ''} ${step ?? 'start'}" title="Lv ${at}">${step ? STEP_ICON[step] : '•'}</i>`;
   }).join('');
   return `<div class="hpath">${pips}</div>`;
+}
+
+/** The weapon of a class that a handling level lets you wield, if one does. */
+function weaponAt(style: Style, lv: number) {
+  const tier = MASTERY_FOR_TIER.findIndex((need, t) => t > 1 && need === lv);
+  return tier > 1 ? GEAR_ORDER.map((id) => GEAR[id]).find((g) => g.slot === 'weapon' && g.style === style && g.tier === tier) : undefined;
+}
+
+/**
+ * A class's whole handling path, to explore: a tab per class, then every level from picking it up to Mastery, what each
+ * gives, what you've got, and how far you are toward the next.
+ */
+function handlingTree(s: SaveState, style: Style): string {
+  const tabs = (Object.keys(STYLE_NAMES) as Style[]).map((k) =>
+    `<button class="htab${k === style ? ' on' : ''}" data-pick="hpath:${k}"><span class="emo">${CLASS_EMOJI[k]}</span>${STYLE_NAMES[k]}<small>Lv ${s.mastery[k].lv}</small></button>`).join('');
+  const m = s.mastery[style], max = m.lv >= MASTERY_MAX, need = masteryXpToNext(m.lv);
+  const moves = MOVESETS[style];
+  const nodes = Array.from({ length: MASTERY_MAX }, (_, i) => {
+    const at = i + 1, step = handlingStep(at);
+    const state = at <= m.lv ? 'done' : at === m.lv + 1 ? 'next' : 'locked';
+    let title: string, note: string;
+    if (!step) [title, note] = [`${STYLE_NAMES[style]}`, CLASS_NOTES[style]];
+    else if (step === 'skill') {
+      const sk = skillAt(moves.skill, at)!;
+      [title, note] = [sk.name, sk.note];
+    } else if (step === 'trick') [title, note] = [TRICKS[moves.trick].name, TRICKS[moves.trick].note];
+    else [title, note] = ['Faster attacks', `${paceGain(style, at) - paceGain(style, at - 1)}% quicker (${paceGain(style, at)}% in all)`];
+    const w = weaponAt(style, at);
+    const tag = w ? `<span class="htag">${icon(w.id, w.icon, 'icon sm')} Can wield the ${esc(w.name)} ${'★'.repeat(w.tier ?? 0)}</span>` : '';
+    const progress = state === 'next' ? `<div class="pbar"><i style="width:${(100 * m.xp) / need}%"></i></div><small class="hxp">${m.xp}/${need} XP</small>` : '';
+    return `<li class="hnode ${state} ${step ?? 'start'}"><span class="hdot">${step ? STEP_ICON[step] : CLASS_EMOJI[style]}</span>
+      <div class="htext"><div class="hlv">Lv ${at}${at === MASTERY_MAX ? ' · Mastery' : ''}${state === 'done' ? ' ✓' : ''}</div><b>${esc(title)}</b><small>${esc(note)}</small>${tag}${progress}</div></li>`;
+  }).join('');
+  return `<div class="htree">
+    <div class="htabs">${tabs}</div>
+    <p class="sub">${max ? `${STYLE_NAMES[style]} mastered!` : `${STYLE_NAMES[style]} handling Lv ${m.lv}. Win fights with a ${STYLE_NAMES[style].toLowerCase()} weapon to train it.`}</p>
+    <ol class="hnodes">${nodes}</ol>
+    <button class="go ghost hback" data-pick="hpath:">‹ Back to Skills</button></div>`;
 }
 
 /** What the next handling level brings, in words. */
@@ -179,9 +221,14 @@ export function handlingNext(style: Style, lv: number): string | null {
 
 /** What reaching a handling level gives you, in words ("Spin II: wider, and harder", "attacks 12% faster"). */
 export function handlingGain(style: Style, lv: number): string {
+  const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
   if (handlingStep(lv) === 'skill') {
     const sk = skillAt(MOVESETS[style].skill, lv)!;
-    return `Lv ${lv}: ${sk.name} (${sk.note.charAt(0).toLowerCase()}${sk.note.slice(1)})`;
+    return `Lv ${lv}: ${sk.name} (${lower(sk.note)})`;
+  }
+  if (handlingStep(lv) === 'trick') {
+    const t = TRICKS[MOVESETS[style].trick];
+    return `Lv ${lv}: ${t.name} (${lower(t.note)})`;
   }
   return `Lv ${lv}: attacks ${paceGain(style, lv) - paceGain(style, lv - 1)}% faster`;
 }
@@ -228,6 +275,8 @@ export class UI {
   private mode: 'title' | 'world' | 'battle' | 'none' = 'title';
   private unlockQueue: Unlock[] = [];
   private unlockShowing = false;
+  /** The unlock card on screen, to bring back after a fight that interrupts it. */
+  private unlockNow: Unlock | null = null;
   private unlockTimer = 0;
   private focus: string | undefined;
   private ctx: MenuCtx = { atForge: false, inVillage: false };
@@ -304,16 +353,56 @@ export class UI {
     card.classList.add('gain');
     const tag = document.createElement('div');
     tag.className = 'xp-float';
-    tag.textContent = `+${gained} XP`;
+    tag.textContent = '+0 XP';
     card.append(tag);
     // Let the win's bell ring out first, so the fill's chirps are heard on their own.
     await wait(380);
     let lv = from.lv, frac = Math.min(1, from.xp / xpToNext(lv));
+    // The "+XP" counts up with the bubbles: each one adds its share of the whole fill, level-ups included.
+    const units = Math.max(0.001, to.lv - from.lv + Math.min(1, to.xp / xpToNext(to.lv)) - frac);
+    let done = 0;
+    const track = card.querySelector('.bar.xp') as HTMLElement;
+    /** A notch pops onto the bar where it's just filled to, and a spark jumps off it. */
+    const notch = (at: number, big = false) => {
+      // (The card is scaled up a little while it celebrates; positions inside it are unscaled.)
+      const c = card.getBoundingClientRect(), b = track.getBoundingClientRect(), k = c.width / card.offsetWidth || 1;
+      const x = (b.left - c.left + at * b.width) / k, y = (b.top - c.top) / k, h = b.height / k;
+      const n = document.createElement('i');
+      n.className = 'xp-notch';
+      n.style.cssText = `left:${x}px;top:${y}px;height:${h}px`;
+      card.append(n);
+      const sparks = big ? 8 : 1;
+      for (let k = 0; k < sparks; k++) {
+        const sp = document.createElement('i');
+        sp.className = 'xp-spark';
+        const dx = big ? Math.cos((k / sparks) * Math.PI * 2) * 26 : (Math.random() - 0.5) * 14;
+        const dy = big ? Math.sin((k / sparks) * Math.PI * 2) * 18 - 6 : -12 - Math.random() * 12;
+        sp.style.cssText = `left:${x}px;top:${y + h / 2}px;--dx:${dx}px;--dy:${dy}px`;
+        card.append(sp);
+        setTimeout(() => sp.remove(), 600);
+      }
+      setTimeout(() => n.remove(), 500);
+    };
+    // A big jump (a dev build's raised XP rate, say) runs through its levels faster, so it's over in a few seconds.
+    const speed = Math.max(1, (to.lv - from.lv) / 2);
     const fill = async (target: number) => {
-      const dur = 0.25 + 0.75 * (target - frac);
+      const dur = (0.25 + 0.75 * (target - frac)) / (lv < to.lv ? speed : 1);
       bar.style.transition = `width ${dur}s linear`;
       bar.style.width = `${target * 100}%`;
       this.hooks.sweep(dur, frac, target);
+      // In time with each bubble: a notch where the bar has reached, and the count ticking up.
+      const n = xpBloops(dur), start = frac;
+      for (let i = 0; i < n; i++) {
+        const at = start + ((target - start) * (i + 1)) / n;
+        setTimeout(() => {
+          notch(at);
+          done += (target - start) / n;
+          tag.textContent = `+${Math.min(gained, Math.round((gained * done) / units))} XP`;
+          tag.classList.remove('tick');
+          void tag.offsetWidth;
+          tag.classList.add('tick');
+        }, 10 + (i * dur * 1000) / n);
+      }
       await wait(dur * 1000);
       frac = target;
     };
@@ -321,9 +410,10 @@ export class UI {
       await fill(1);
       // Topped out: a bell, the level ticks over, and the bar starts again from empty.
       this.hooks.sound('ding');
+      notch(1, true);
       card.classList.add('ding');
       $('hud-lv').textContent = String(lv + 1);
-      await wait(420);
+      await wait(420 / speed);
       card.classList.remove('ding');
       bar.style.transition = 'none';
       bar.style.width = '0%';
@@ -331,6 +421,7 @@ export class UI {
       await wait(60);
     }
     await fill(Math.min(1, to.xp / xpToNext(to.lv)));
+    tag.textContent = `+${gained} XP`;
     await wait(350);
     tag.remove();
     card.classList.remove('gain');
@@ -447,9 +538,9 @@ export class UI {
   }
 
   /** The tab each unlock opens when you tap its card (the weapon skill lives in fights, so it has none). */
-  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', sawmill: 'village', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
+  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', trick: 'items', sawmill: 'village', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
   /** The corner button that leads there, which bounces while its card is up. */
-  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag' };
+  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', trick: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag' };
 
   private nextUnlock() {
     const el = $('unlock-card');
@@ -462,6 +553,7 @@ export class UI {
       return;
     }
     const u = this.unlockQueue.shift()!;
+    this.unlockNow = u;
     const tab = UI.UNLOCK_TAB[u.id];
     this.unlockShowing = true;
     el.hidden = false;
@@ -473,7 +565,7 @@ export class UI {
       el.onclick = null;
       window.clearTimeout(this.unlockTimer);
       // Mending happens on the Bag's Skills page.
-      if (u.id === 'mend') this.sub.items = 'skills';
+      if (u.id === 'mend' || u.id === 'trick') this.sub.items = 'skills';
       this.hooks.openTab(tab);
       this.nextUnlock();
     } : null;
@@ -523,6 +615,13 @@ export class UI {
 
   setMode(mode: 'title' | 'world' | 'battle' | 'none') {
     this.mode = mode;
+    // A fight (walking straight into a monster, say) puts the card away, to show again afterwards.
+    if (mode !== 'world' && this.unlockShowing && this.unlockNow) {
+      window.clearTimeout(this.unlockTimer);
+      this.unlockQueue.unshift(this.unlockNow);
+      this.unlockNow = null;
+      this.nextUnlock();
+    }
     // Unlock cards held back during a fight come out once you're back on the map.
     if (mode === 'world' && this.unlockQueue.length && !this.unlockShowing) window.setTimeout(() => this.nextUnlock(), 600);
     $('title').hidden = mode !== 'title';
@@ -644,6 +743,7 @@ export class UI {
   openMenu(ctx: MenuCtx, tab?: Tab, focus?: string) {
     this.ctx = ctx;
     if (tab) this.tab = tab;
+    delete this.pick.hpath;
     if (!this.tabOpen(this.tab)) this.tab = (['items', 'journey', 'forge', 'village'] as Tab[]).find((t) => this.tabOpen(t)) ?? 'settings';
     this.focus = focus;
     this.menuOpen = true;
@@ -834,6 +934,8 @@ export class UI {
   }
 
   private skills(s: SaveState): string {
+    // A class's handling path, when you've opened one.
+    if (this.pick.hpath) return handlingTree(s, this.pick.hpath as Style);
     // Hidden until you own a tool, so new players aren't shown a skill they can't use yet.
     const rows = (Object.keys(SKILL_NAMES) as SkillId[]).filter((k) => s.tools[k] > 0).map((k) => {
       const sk = s.skills[k];
@@ -857,14 +959,16 @@ export class UI {
     const style = GEAR[s.equip.weapon]?.style;
     const handling = (Object.keys(STYLE_NAMES) as Style[]).filter((k) => k === style || s.mastery[k].lv > 1 || s.mastery[k].xp > 0).map((k) => {
       const m = s.mastery[k], max = m.lv >= MASTERY_MAX, need = masteryXpToNext(m.lv);
-      const emoji = { sword: '🗡️', hammer: '🔨', whip: '〰️', wand: '🪄' }[k];
+      const emoji = CLASS_EMOJI[k];
       const sk = skillAt(MOVESETS[k].skill, m.lv), next = handlingNext(k, m.lv);
       return `<div class="mcard row handling"><div class="ico"><span class="emo">${emoji}</span></div><div class="info">
         <div class="name">${STYLE_NAMES[k]} handling <span class="lvl">Lv ${m.lv}</span></div>
+        <div class="desc">🎯 <b>${TRICKS[MOVESETS[k].trick].name}</b>${m.lv >= TRICK_LEVEL ? `: ${esc(TRICKS[MOVESETS[k].trick].note)}` : ` unlocks at Lv ${TRICK_LEVEL}`}</div>
         <div class="desc">${sk ? `✨ <b>${esc(sk.name)}</b>: ${esc(sk.note)}` : `✨ Skill unlocks at Lv ${SKILL_LEVELS[0]}`} · ${handlingPace(k, m.lv)}</div>
         ${handlingPath(m.lv)}
         <div class="desc">${max ? 'Mastered!' : `${m.xp}/${need} XP${next ? ` · <b>Next:</b> ${esc(next)}` : ''}`}</div>
-        <div class="pbar"><i style="width:${max ? 100 : (100 * m.xp) / need}%"></i></div></div></div>`;
+        <div class="pbar"><i style="width:${max ? 100 : (100 * m.xp) / need}%"></i></div></div>
+        <button class="go ghost hopen" data-pick="hpath:${k}">Path ›</button></div>`;
     }).join('');
     const PERKS: Record<string, [string, string, string]> = { trailboots: ['trailboots', 'Trail Boots', 'From Granny Clover: walk 25% faster outside of fights.'] };
     const perks = s.perks.filter((p) => PERKS[p]).map((p) => {
@@ -1002,7 +1106,7 @@ export class UI {
         • Drag anywhere to move. Walk through <b>tall grass</b> to meet monsters.<br>
         • Follow the 📜 goal at the top of the screen. Elder Oswin has hints!<br>
         • <b>Guardians</b> block the roads. Beat them to open the way and light a 🔥 campfire checkpoint.<br>
-        • In battle: ⚔️ attack the way you last moved (hold to combo), 💨 dodge, ✨ weapon skill, 🧪 potion. Red circles mean danger!<br>
+        • In battle: ⚔️ attack the way you last moved (hold to keep attacking), 💨 dodge, ✨ weapon skill, 🧪 potion. Red circles mean danger!<br>
         • Craft gear at the ⚒ Forge and build up the 🏡 Village for permanent boosts.<br>
         • Craft axes and picks (Forge → Tools) to chop glowing trees and mine glowing rocks. A tool can work the next tier up, slowly.<br>
         • You attack the way you last moved. Winning with a class of weapon trains it; better weapons of that class need it.<br>
@@ -1330,7 +1434,7 @@ export class UI {
     );
   }
 
-  result(o: { win: boolean; xp: number; levels: number; newLv: number; drops: Partial<Record<MatId, number>>; boss: boolean; respawn?: string }) {
+  result(o: { win: boolean; xp: number; levels: number; newLv: number; drops: Partial<Record<MatId, number>>; boss: boolean; respawn?: string; tower?: boolean }) {
     let html: string;
     if (o.win) {
       const drops = Object.entries(o.drops).map(([m, n]) => `<span class="chip ok">${icon(m, MATS[m as MatId].icon, 'icon sm')} ${esc(MATS[m as MatId].name)} ×${n}</span>`).join('');
@@ -1338,6 +1442,8 @@ export class UI {
         <div class="sub">+${o.xp} XP</div>
         ${o.levels ? `<div class="lvup">⬆ Level up! Now Lv ${o.newLv}</div>` : ''}
         ${drops ? `<div class="chips">${drops}</div>` : '<p>No materials this time.</p>'}`;
+    } else if (o.tower) {
+      html = `<div class="big">Oops! 💫</div><p>You fainted, and tumbled back down to the camp.<br>You're rested and ready to try that floor again!</p>`;
     } else {
       const where = !o.respawn || o.respawn === 'village' ? 'the village' : `the ${ZONES.find((z) => z.id === o.respawn)?.name} campfire`;
       html = `<div class="big">Oops! 💫</div><p>You fainted… a kind friend carried you back to ${esc(where)}.<br>You're rested and ready to go again!</p>`;

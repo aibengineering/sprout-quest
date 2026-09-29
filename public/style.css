@@ -1019,6 +1019,29 @@ body.kbd .drag-hint .keys { display: flex; }
   animation: xpfloat 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 @keyframes xpfloat { from { transform: translateY(14px) scale(0.5); opacity: 0; } }
+.xp-float.tick { animation: xptick 0.12s ease-out; }
+@keyframes xptick { 50% { transform: scale(1.12); } }
+/* Each bubble of the fill: a bright notch pops onto the bar where it's reached, and a spark jumps off it. */
+.xp-notch {
+  position: absolute; width: 3px; margin-left: -1.5px; border-radius: 2px; pointer-events: none; z-index: 2;
+  background: #fff; box-shadow: 0 0 6px #fff6c0, 0 0 10px #ffd24a;
+  animation: xpnotch 0.45s ease-out forwards;
+}
+@keyframes xpnotch {
+  0% { transform: scaleY(0.2); opacity: 1; }
+  30% { transform: scaleY(1.9); opacity: 1; }
+  100% { transform: scaleY(1); opacity: 0; }
+}
+.xp-spark {
+  position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; pointer-events: none; z-index: 2;
+  background: #ffe07a; border: 1px solid #fff; transform: rotate(45deg); border-radius: 1px;
+  animation: xpspark 0.55s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+}
+@keyframes xpspark {
+  0% { transform: translate(0, 0) rotate(45deg) scale(0.4); opacity: 1; }
+  40% { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) rotate(225deg) scale(1); opacity: 0; }
+}
 
 /* ================= Celebrations =================
    Every reward (level up, item found, new gear, quest done, road open) shares one look: a ribbon banner, the prize
@@ -1179,3 +1202,43 @@ body.kbd .drag-hint .keys { display: flex; }
 .hpath i.skill { background: rgba(255, 196, 58, 0.18); }
 .hpath i.on { filter: none; opacity: 1; background: #fff2a8; box-shadow: inset 0 -2px 0 #e8c060; }
 .hpath i.on.skill { background: #ffd35a; }
+.hpath i.trick { background: rgba(120, 190, 255, 0.2); }
+.hpath i.on.trick { background: #a8dcff; }
+.mcard.handling .hopen { align-self: center; padding: 6px 10px; font-size: 13px; }
+
+/* ================= A class's handling path, to explore =================
+   Tabs for the four classes, then the ten levels as a trail of nodes: reached ones lit and ticked, the next one with
+   your progress toward it, the rest waiting. */
+.htabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+.htab {
+  display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px; border-radius: 12px; cursor: pointer;
+  border: 2px solid rgba(74, 42, 90, 0.15); background: rgba(255, 255, 255, 0.5); font: 700 12px var(--body, inherit); color: var(--outline);
+}
+.htab .emo { font-size: 20px; }
+.htab small { font-size: 10px; opacity: 0.7; }
+.htab.on { background: #fff2a8; border-color: #e8c060; box-shadow: inset 0 -3px 0 #e8c060; }
+.hnodes { list-style: none; margin: 0; padding: 0 0 0 4px; position: relative; }
+/* The trail joining the nodes. */
+.hnodes::before { content: ''; position: absolute; left: 21px; top: 20px; bottom: 20px; width: 4px; border-radius: 2px; background: rgba(74, 42, 90, 0.12); }
+.hnode { position: relative; display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; }
+.hdot {
+  flex: none; position: relative; z-index: 1; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
+  font-size: 17px; background: #efe4ec; border: 3px solid rgba(74, 42, 90, 0.18); filter: grayscale(1); opacity: 0.6;
+}
+.hnode.skill .hdot { width: 40px; height: 40px; margin-left: -2px; }
+.htext { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 6px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.35); opacity: 0.65; }
+.htext b { font-size: 15px; }
+.htext small { font-size: 12px; opacity: 0.8; }
+.hlv { font-size: 11px; font-weight: 800; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.4px; }
+.htag { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; font-weight: 700; color: #8a5a20; }
+.htag .icon.sm { width: 18px; height: 18px; }
+.hnode.done .hdot { filter: none; opacity: 1; background: #fff2a8; border-color: #e8c060; }
+.hnode.done.skill .hdot { background: #ffd35a; }
+.hnode.done.trick .hdot { background: #a8dcff; border-color: #6ab0e8; }
+.hnode.done .htext { opacity: 1; background: rgba(255, 255, 255, 0.7); }
+.hnode.next .hdot { filter: none; opacity: 1; border-color: #ffb627; animation: hnext 1.4s ease-in-out infinite; }
+.hnode.next .htext { opacity: 1; background: #fff; box-shadow: 0 0 0 2px #ffd24a; }
+.hnode.next .pbar { margin-top: 6px; }
+.hxp { font-size: 11px; opacity: 0.7; }
+@keyframes hnext { 50% { box-shadow: 0 0 0 5px rgba(255, 182, 39, 0.3); } }
+.hback { margin-top: 10px; width: 100%; }

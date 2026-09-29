@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { GEAR, MONSTERS, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
+import { MASTERY_FOR_TIER, GEAR, ZONES, MONSTERS, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
 import { MOVESETS, SKILL_LEVELS, SKILL_RANKS, comboTime, handlingStep, skillShape, tierScale, type SkillKind } from '../src/weapons';
 import { ARENA_AREA } from '../src/balance';
 import {
-  CHECKPOINTS, HUNTER_DPS, RANGED_DPS, MAX_HUNTER_BURST, dpsBand, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_MASTERED_SKILL_AREA, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
+  CHECKPOINTS, HUNTER_DPS, RANGED_DPS, MAX_HUNTER_BURST, dpsBand, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, oneWeaponRun, HEAVY_RUN, LIGHT_RUN, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_MASTERED_SKILL_AREA, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
   zoneMatchups, type Range,
 } from '../src/balance';
 
@@ -108,8 +108,9 @@ describe('balance', () => {
     expect(off).toEqual([]);
   });
 
-  test('handling: the skill unlocks at Lv 2 and ranks up at 5, 8 and 10; the levels between speed up your attacks', () => {
+  test("handling: the skill unlocks at Lv 2 and ranks up at 5, 8 and 10, the class's trick comes at 3, and the levels between speed up your attacks", () => {
     expect(SKILL_LEVELS).toEqual([2, 5, 8, 10]);
+    expect(handlingStep(3)).toBe('trick');
     for (let lv = 2; lv <= 10; lv++) expect(handlingStep(lv)).not.toBeNull();
     const sword = MOVESETS.sword;
     // Speed only moves on speed levels, and every one of them is a real step.
@@ -134,6 +135,48 @@ describe('balance', () => {
       const a = skillShape(MOVESETS[g.style!].skill, tierScale(g.tier ?? 0), 4).area / ARENA_AREA;
       if (a > MAX_MASTERED_SKILL_AREA) off.push(`${g.name}: a mastered skill covers ${(a * 100).toFixed(0)}% of the arena`);
     }
+    expect(off).toEqual([]);
+  });
+
+  test("skills: in a crowd, no close-in skill (Spin, Quake, Whirl) outdoes the others' average by more than 30% at any rank, and Rank I stays small", () => {
+    // Crowd value: damage × the ground it lands on (the whirl counts every lash). Nova's bolts fly off one per enemy, so it's left out.
+    const kinds: SkillKind[] = ['spin', 'quake', 'whirl'];
+    const off: string[] = [];
+    for (let r = 1; r <= 4; r++) {
+      const crowd = kinds.map((k) => skillShape(k, 1, r).crowd), mean = crowd.reduce((a, b) => a + b, 0) / crowd.length;
+      kinds.forEach((k, i) => { if (crowd[i] > mean * 1.3) off.push(`${k} rank ${r}: ${(crowd[i] / mean).toFixed(2)}× the average crowd damage`); });
+    }
+    for (const k of Object.keys(SKILL_RANKS) as SkillKind[]) {
+      const one = skillShape(k, 1, 1).mult, four = skillShape(k, 1, 4).mult;
+      if (one > 1.4) off.push(`${k} rank I hits ${one.toFixed(2)}×`);
+      if (four < one * 2.2) off.push(`${k} Mastery is only ${(four / one).toFixed(2)}× rank I`);
+    }
+    expect(off).toEqual([]);
+  });
+
+  test("one weapon through the story: handling 3 by the Slime King, each tier's handling just as you reach it, Mastery around the Emberwyrm", () => {
+    const run = oneWeaponRun(), h = (id: string) => run[id].handling;
+    expect({ meadow: h('meadow') }).toEqual({ meadow: 3 });
+    expect(h('woods')).toBeGreaterThanOrEqual(MASTERY_FOR_TIER[3]);
+    expect(h('woods')).toBeLessThanOrEqual(5);
+    expect(h('cave')).toBeGreaterThanOrEqual(MASTERY_FOR_TIER[4]);
+    expect(h('cave')).toBeLessThanOrEqual(7);
+    expect(h('hollow')).toBeLessThan(MASTERY_FOR_TIER[5] + 1);
+    expect(h('peak')).toBeGreaterThanOrEqual(MASTERY_FOR_TIER[5]);
+    expect(h('peak')).toBeLessThan(10);
+    expect(h('dragon')).toBe(10);
+    // A lighter playthrough isn't mastered by the end; a heavy one is, sooner.
+    expect(oneWeaponRun(LIGHT_RUN).dragon.handling).toBeLessThan(10);
+    expect(oneWeaponRun(HEAVY_RUN).peak.handling).toBe(10);
+  });
+
+  test('a natural playthrough meets each guardian about at its level: at most one over, at most two under', () => {
+    const run = oneWeaponRun(), areas = ZONES.filter((z) => z.monsters.length), off: string[] = [];
+    areas.forEach((z, i) => {
+      const g = areas[i + 1]?.guardian ?? { kind: 'dragon', lv: 20 };
+      const gap = run[z.id].lv - g.lv;
+      if (gap > 1 || gap < -2) off.push(`Lv ${run[z.id].lv} leaving ${z.id} for ${g.kind} (Lv ${g.lv})`);
+    });
     expect(off).toEqual([]);
   });
 

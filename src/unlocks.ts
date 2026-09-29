@@ -3,7 +3,7 @@
 import { QUESTS, TOOLS } from './data';
 import type { SaveState } from './state';
 
-export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'forge' | 'village' | 'plots' | 'warpplot' | 'kitchen' | 'sawmill';
+export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'trick' | 'forge' | 'village' | 'plots' | 'warpplot' | 'kitchen' | 'sawmill';
 
 export interface Unlock {
   id: UnlockId;
@@ -37,6 +37,11 @@ export const UNLOCKS: Unlock[] = [
     id: 'skill', icon: '✨', title: 'Weapon Skill', key: 'L',
     text: 'Your weapon handling unlocked its special move: tap ✨ in battle. It grows stronger as your handling improves.',
     when: (s) => Object.values(s.mastery).some((m) => m.lv >= 2),
+  },
+  {
+    id: 'trick', icon: '🎯', title: 'Class Ability',
+    text: "Every weapon class has an ability of its own, and yours just unlocked. Open a class's Path in your Bag's Skills page to see everything its handling brings.",
+    when: (s) => Object.values(s.mastery).some((m) => m.lv >= 3),
   },
   {
     id: 'forge', icon: '⚒', title: 'The Forge',

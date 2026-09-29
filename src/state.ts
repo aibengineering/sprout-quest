@@ -62,6 +62,8 @@ export interface SaveState {
   forgeLevels?: 5;
   /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */
   echoQueen?: true;
+  /** A Battle Tower run (dev builds, in a slot of its own): the next floor to fight. */
+  tower?: { floor: number };
   /** Recipes you've seen in the Forge; ones revealed since show as new (missing: everything revealed counts as seen). */
   forgeSeen?: string[];
 }
@@ -119,7 +121,8 @@ export function loadState(): SaveState | null {
   try {
     const raw = localStorage.getItem(slotKey(SAVE_KEY));
     if (!raw) return null;
-    const data = JSON.parse(raw) as Partial<SaveState>;
+    // The Jelly Slingshot became the Jelly Wand in 0.3.1.
+    const data = JSON.parse(raw.replaceAll('"jellysling"', '"jellywand"')) as Partial<SaveState>;
     if (data.version !== 1) return null;
     // Merge onto defaults so newly-added fields and materials are always present.
     const base = newState();

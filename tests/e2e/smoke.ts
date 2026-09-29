@@ -250,11 +250,41 @@ scenario('patch notes: a dot until you read them, from the menu or the title', (
   await closeDialogs(page);
 });
 
+scenario('an unlock card gets out of the way of a fight, and comes back after it', null, async (page) => {
+  await run(page, `g.ui.unlockCard({ id: 'bag', icon: '🎒', title: 'Your Bag', text: 'Test', when: () => true })`);
+  await waitFor(page, 'the card', async () => !!(await page.$('#unlock-card.show')), 3000);
+  await run(page, 'g.encounter()');
+  await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle'`), 8000);
+  await waitFor(page, 'the card to go', async () => game<boolean>(page, `document.getElementById('unlock-card').hidden`), 3000);
+  await winFight(page);
+  await waitFor(page, 'the card again', async () => !!(await page.$('#unlock-card.show')), 5000);
+});
+
+scenario("a weapon class's handling path: every level, what it brings, and where you are", (g) => {
+  g.save.mastery.sword = { lv: 3, xp: 40 };
+}, async (page) => {
+  await run(page, `g.ui.openMenu({ atForge: false, inVillage: true }, 'items')`);
+  await page.click('#modal [data-sub="items:skills"]');
+  await page.click('#modal [data-pick="hpath:sword"]');
+  const nodes = page.locator('#modal .hnode');
+  check(await nodes.count() === 10, 'the path should show all ten levels');
+  check(await page.locator('#modal .hnode.done').count() === 3, 'Lv 1–3 should be ticked off');
+  check(/Riposte/.test((await page.locator('#modal .hnode.trick').textContent()) ?? ''), "the Blades' trick isn't on its path");
+  check(/Copper Sword/.test((await page.locator('#modal .htree').textContent()) ?? ''), 'the path should say which weapons it lets you wield');
+  check(/40\/680 XP/.test((await page.locator('#modal .hnode.next').textContent()) ?? ''), 'the next level should show your progress');
+  if (SHOTS) await page.screenshot({ path: `${OUT}handling-path.png` });
+  // Any class's path, trained or not.
+  await page.click('#modal [data-pick="hpath:wand"]');
+  check(/Blink/.test((await page.locator('#modal .htree').textContent()) ?? ''), "Magic's path doesn't show Blink");
+  await page.click('#modal [data-pick="hpath:"]');
+  check(!(await page.$('#modal .htree')), "Back didn't return to the Skills page");
+});
+
 scenario('winning a fight levels you up and reveals new gear (and the quest tracker counts materials)', (g) => {
   Object.assign(g.save, { lv: 4, xp: 108 });
   g.save.owned.push('jellywhip');
   g.save.equip.weapon = 'jellywhip';
-  g.save.mastery.whip.xp = 28;
+  g.save.mastery.whip.xp = 8; // 2 short of handling Lv 2 (rules.ts masteryXpToNext)
   // ★★ gear needs the Smithy.
   g.save.build.forge = 2;
 }, async (page) => {
@@ -265,6 +295,11 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
   await page.waitForTimeout(900);
   await pinFoes(page, 1);
   await page.keyboard.press('KeyJ');
+  if (SHOTS) {
+    await page.waitForSelector('#hud .stat.gain');
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${OUT}xp-fill.png`, clip: { x: 0, y: 0, width: 390, height: 140 } });
+  }
   await waitFor(page, 'the level-up screen', async () => !!(await page.$('#modal:not([hidden]) .lvsheet')));
   // Loot and XP stack on the right, clear of the quest tracker.
   const pill = await page.locator('#quest-pill').boundingBox(), rows = await page.locator('#loot .lrow').all();
@@ -280,9 +315,9 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
 });
 
 scenario('every weapon waits between strikes, and handling shortens the wait', (g) => {
-  g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellysling');
+  g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellywand');
 }, async (page) => {
-  for (const w of ['stonesword', 'stonehammer', 'jellywhip', 'jellysling']) {
+  for (const w of ['stonesword', 'stonehammer', 'jellywhip', 'jellywand']) {
     const style = GEAR[w].style!;
     const swings: number[] = [];
     for (const lv of [1, 10]) {
@@ -303,6 +338,65 @@ scenario('every weapon waits between strikes, and handling shortens the wait', (
     check(swings[0] <= cap, `${w}: ${swings[0]} swings in 2s at handling Lv 1 (its pace allows ≤${cap})`);
     check(swings[1] > swings[0], `${w}: mastered handling swung ${swings[1]} times, no more than Lv 1's ${swings[0]}`);
   }
+});
+
+scenario("each class has its trick (Riposte, Sunder, Snare, Blink) and its special fires", (g) => {
+  g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellywand');
+}, async (page) => {
+  const fight = async (w: string) => {
+    await run(page, `g.save.equip.weapon = '${w}'; g.save.mastery.${GEAR[w].style}.lv = 10; g.encounter()`);
+    await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 8000);
+    await pinFoes(page);
+  };
+  const special = async (w: string) => {
+    await page.waitForTimeout(1200);
+    await page.keyboard.press('KeyL');
+    await page.waitForTimeout(900);
+    check(await game<number>(page, 'g.battle.log.skills') === 1, `${w}: its special didn't fire`);
+  };
+
+  // Blades: dodge through a blow, and the next strike is a sure crit.
+  await fight('stonesword');
+  await page.keyboard.press('KeyK');
+  await page.waitForTimeout(60);
+  await run(page, `const b = g.battle; b.hurtPlayer(5, 1, b.p.x, b.p.y - 20, 'test')`);
+  check(await game<number>(page, 'g.battle.p.riposte') > 0, 'stonesword: dodging through a blow readied no Riposte');
+  await page.waitForTimeout(300);
+  await pinFoes(page);
+  await page.keyboard.press('KeyJ');
+  await page.waitForTimeout(400);
+  check(await game<number>(page, 'g.battle.log.crits') >= 1, "stonesword: the Riposte didn't crit");
+  await special('stonesword');
+  await winFight(page);
+
+  // Hammer: a slam sunders what it hits.
+  await fight('stonehammer');
+  await page.keyboard.press('KeyJ');
+  await page.waitForTimeout(700);
+  check(await game<boolean>(page, 'g.battle.enemies.some((e) => e.sunder > 0)'), 'stonehammer: the slam sundered nothing');
+  await special('stonehammer');
+  await winFight(page);
+
+  // Whip: a crack at the tip yanks the foe in.
+  await fight('jellywhip');
+  await run(page, `const b = g.battle; for (const e of b.enemies) e.y = b.p.y - 125`);
+  const far = await game<number>(page, 'Math.min(...g.battle.enemies.map((e) => g.battle.p.y - e.y))');
+  await page.keyboard.press('KeyJ');
+  await page.waitForTimeout(900);
+  const near = await game<number>(page, 'Math.min(...g.battle.enemies.map((e) => g.battle.p.y - e.y))');
+  check(near < far - 25, `jellywhip: the crack didn't pull the foe in (${far.toFixed(0)} → ${near.toFixed(0)} away)`);
+  await special('jellywhip');
+  await winFight(page);
+
+  // Magic: the dodge is a teleport.
+  await fight('jellywand');
+  const from = await game<[number, number]>(page, '[g.battle.p.x, g.battle.p.y]');
+  await page.keyboard.press('KeyK');
+  await page.waitForTimeout(30);
+  const to = await game<[number, number]>(page, '[g.battle.p.x, g.battle.p.y]');
+  check(Math.hypot(to[0] - from[0], to[1] - from[1]) > 80, 'jellywand: the dodge didn\'t blink');
+  await special('jellywand');
+  await winFight(page);
 });
 
 // Every monster, in two halves that run side by side.
@@ -577,6 +671,11 @@ scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   check(await game<boolean>(page, `g.save.perks.includes('trailboots') && g.over.actors.get('poppy:poppy').look.name === 'poppy_hug'`), 'no hug, or no boots');
 });
 
+scenario("Bram is at his camp before his story starts, and won't give you the time of day", null, async (page) => {
+  check(await game<boolean>(page, `!g.save.bosses.includes('kingslime') && !!g.over.actors.get('bram:bram')`), "Bram isn't at his camp before his story");
+  check(await game<string>(page, `g.over.actors.get('bram:bram').mood`) === '😤', "Bram isn't grumpy yet");
+});
+
 scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns his stew", (g) => {
   const s = g.save;
   s.lv = 6;
@@ -706,6 +805,60 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   await closeDialogs(page);
   await waitFor(page, 'Bram following again', async () => !!(await bram())?.follow);
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.flag === 'bram:ambush2').hidden`), 'the second ambush vanished');
+});
+
+scenario('dev builds: a Battle Tower run climbs floor after floor from its camp, in its own slot', (g) => {
+  g.lv = 3;
+}, async (page) => {
+  const camp = '#modal:not([hidden]) .tower-camp';
+  /** Clicks through result and level-up screens until the camp is back. */
+  const toCamp = (what: string) => waitFor(page, what, async () => {
+    if (await page.$(camp)) return true;
+    const btn = await page.$('#modal:not([hidden]) .sheet:not(.menu) [data-dialog]:last-of-type');
+    if (btn) await btn.click();
+    return false;
+  }, 30000);
+  const fightFloor = async (n: number) => {
+    await page.click(`${camp} [data-dialog="fight"]`);
+    await waitFor(page, `floor ${n}`, async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 10000);
+  };
+  // Your real save: its progress (switching slots saves where you stand, which is fine).
+  const progress = () => game<string>(page, `(() => { const k = JSON.parse(localStorage.getItem('sprout-quest-save')); return JSON.stringify([k.lv, k.xp, k.equip, k.mats, k.mastery, k.owned]) })()`);
+  const main = await progress();
+  await run(page, 'g.ui.devRow.open()');
+  await page.click('#modal [data-dialog="tower:new"]');
+  await waitFor(page, 'the camp', async () => !!(await page.$(camp)), 30000);
+  check(await game<boolean>(page, `localStorage.getItem('sprout-quest-slot') === 'tower' && g.save.lv === 1 && g.save.equip.weapon === 'twig'`), 'the run should start at Lv 1 with the Twig Sword, in the tower slot');
+  while (!(await page.textContent(`${camp} [data-dialog="rate"]`))?.includes('×25')) await page.click(`${camp} [data-dialog="rate"]`);
+  if (SHOTS) await page.screenshot({ path: `${OUT}tower-camp.png` });
+  // Three floors in a row, levelling up on the way.
+  for (const n of [1, 2, 3]) {
+    await fightFloor(n);
+    await endFight(page);
+    await toCamp(`the camp after floor ${n}`);
+    check(await game<number>(page, 'g.save.tower.floor') === n + 1, `the run didn't move past floor ${n}`);
+  }
+  check(await game<number>(page, 'g.save.lv') > 3, 'three floors at ×25 XP barely levelled you up');
+  check(await game<number>(page, 'g.save.mats.stone') > 0, "the floors' supplies didn't arrive");
+  // The Forge opens over the camp, and the camp comes back when it closes.
+  await page.click(`${camp} [data-dialog="forge"]`);
+  await page.waitForSelector('#modal:not([hidden]) .sheet.menu');
+  await run(page, 'g.ui.closeMenu()');
+  await waitFor(page, 'the camp after the Forge', async () => !!(await page.$(camp)), 5000);
+  // Fainting on the guardian's floor puts you back at the camp to try it again.
+  await fightFloor(4);
+  await run(page, 'g.battle.p.hp = 0');
+  await toCamp('the camp after fainting');
+  check(await game<number>(page, 'g.save.tower.floor') === 4, 'fainting moved the run');
+  check(await progress() === main, 'the tower run changed the main save');
+  // Out of the tower, an ordinary fight pays out as usual (an early build left every later fight giving nothing).
+  await page.click(`${camp} [data-dialog="rest"]`);
+  const xp0 = await game<number>(page, 'g.save.lv * 100000 + g.save.xp');
+  await run(page, `g.encounter('meadow')`);
+  await waitFor(page, 'an ordinary fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 10000);
+  await winFight(page);
+  check(await game<number>(page, 'g.save.lv * 100000 + g.save.xp') > xp0, 'an ordinary fight after the tower gave no XP');
+  await run(page, `localStorage.removeItem('sprout-quest-dev-xp-rate'); localStorage.removeItem('sprout-quest-slot')`);
 });
 
 scenario('dev builds: a preset plays in its own slot, and your real save is untouched', null, async (page) => {

@@ -32,6 +32,8 @@ export interface Story {
   steps: StoryStep[];
   /** Who's on the map at a step (the step count once the story's finished). Ids start with the story's id. */
   cast: (step: number) => ActorSpec[];
+  /** Its first step's cast is on the map before the story can start (Bram at his camp, who won't talk to you yet). */
+  castEarly?: boolean;
   /** Monster groups this story places on the map; each shows only at its step (see WorldObj.story). */
   objs: WorldObj[];
   /** Extra setup for one of its fights (by flag), such as someone watching from the edge. */
@@ -80,7 +82,7 @@ export function setUpStories() {
 export function syncStories() {
   const actors = G.over.actors;
   for (const st of STORIES) {
-    const cast = st.available() || stepOf(st.id) > 0 ? st.cast(stepOf(st.id)) : [];
+    const cast = st.available() || stepOf(st.id) > 0 || st.castEarly ? st.cast(stepOf(st.id)) : [];
     for (const a of actors.list.filter((a) => a.id.startsWith(`${st.id}:`) && !cast.some((c) => c.id === a.id))) actors.remove(a.id);
     for (const spec of cast) {
       const a = actors.get(spec.id);
