@@ -378,7 +378,7 @@ scenario('every weapon waits between strikes, and handling shortens the wait', (
   }
 });
 
-scenario("each class has its trick (Riposte, Sunder, Snare, Blink) and its special fires", (g) => {
+scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its special fires", (g) => {
   g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellywand');
 }, async (page) => {
   const fight = async (w: string) => {
@@ -407,11 +407,12 @@ scenario("each class has its trick (Riposte, Sunder, Snare, Blink) and its speci
   await special('stonesword');
   await winFight(page);
 
-  // Hammer: a slam sunders what it hits.
+  // Hammer: a slam knocks a monster out of the attack it's in the middle of.
   await fight('stonehammer');
+  await run(page, `for (const e of g.battle.enemies) { e.state = 'busy'; e.windup = 1; }`);
   await page.keyboard.press('KeyJ');
   await page.waitForTimeout(700);
-  check(await game<boolean>(page, 'g.battle.enemies.some((e) => e.sunder > 0)'), 'stonehammer: the slam sundered nothing');
+  check(await game<boolean>(page, 'g.battle.enemies.every((e) => e.state !== "busy" && e.windup === 0)'), "stonehammer: the slam didn't stagger the monster out of its attack");
   await special('stonehammer');
   await winFight(page);
 

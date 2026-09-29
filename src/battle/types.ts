@@ -53,8 +53,6 @@ export interface Enemy {
   windup: number;
   flash: number;
   stun: number;
-  /** Seconds left of a hammer's Sunder: it takes more from everything meanwhile. */
-  sunder: number;
   dead: boolean;
   deathT: number;
   seed: number;

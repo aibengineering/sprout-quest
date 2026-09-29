@@ -36,6 +36,16 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.4',
+    date: '2026-09-29',
+    title: 'Heavier hammers',
+    notes: [
+      "🔨 Hammer slams hit harder and daze, with no more rocks on every swing",
+      "💥 Hammers can Stagger: a slam knocks a monster out of its attack",
+      "🪨 The hammer's special is Fracture: a fan of rock spikes bursts forward",
+    ],
+  },
+  {
     version: '0.3.3',
     date: '2026-09-29',
     title: 'Fights with substance',

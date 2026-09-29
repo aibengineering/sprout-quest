@@ -8,7 +8,7 @@ import { Fx } from '../fx';
 import type { Input } from '../input';
 import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, xpEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
-import { BLINK, MOVESETS, RIPOSTE, SKILL_DATA, SUNDER, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
+import { BLINK, MOVESETS, RIPOSTE, SKILL_DATA, STAGGER, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
 import { MONSTER_AI, type FoeWorld } from './monsters';
 import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
@@ -143,7 +143,7 @@ export class Battle implements FoeWorld, HitWorld {
       x, y, vx: 0, vy: 0, kx: 0, ky: 0,
       r: def.r, z: 0, state: MONSTER_AI[f.kind].start, t: rand(0.3, 1.2), dir: 0, face: 1, orb: Math.atan2(y, x), sub: 0, last: null,
       windup: 0, flash: 0, stun: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
-      burn: 0, burnDmg: 0, burnTick: 0, sunder: 0, dotColor: BURN_COLOR, slow: 0, squash: 0, tx: 0, ty: 0, flag: false, minion,
+      burn: 0, burnDmg: 0, burnTick: 0, dotColor: BURN_COLOR, slow: 0, squash: 0, tx: 0, ty: 0, flag: false, minion,
     };
     this.enemies.push(e);
     return e;
@@ -547,10 +547,10 @@ export class Battle implements FoeWorld, HitWorld {
       }
     }
     if (sw.skill) {
-      // Quake: shockwaves burst out in every direction.
-      const q = SKILL_DATA.quake.waves, n = this.skillNow?.count ?? q.count;
+      // Fracture: rock spikes burst out in a fan ahead of you, as wide as the rank allows.
+      const q = SKILL_DATA.quake.waves, n = this.skillNow?.count ?? q.count, fan = this.skillNow?.size ?? 0.8;
       for (let i = 0; i < n; i++) {
-        const dir = sw.aim + (i / n) * TAU;
+        const dir = sw.aim + (n > 1 ? (i / (n - 1) - 0.5) * fan : 0);
         this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: this.skillNow?.sub ?? q.mult, id: ++this.hitCounter, spikeAt: 0 });
       }
     }
@@ -727,15 +727,11 @@ export class Battle implements FoeWorld, HitWorld {
     if (e.dead) return;
     this.hits++;
     const st = this.stats;
-    // Blades' Riposte always crits, and hits harder; a sundered foe takes more from everything.
+    // Blades' Riposte always crits, and hits harder.
     const riposte = !!this.p.swing?.riposte && this.p.swing.id === strikeId;
     const critChance = riposte ? 1 : 0.08 + st.luck * 0.2 + (this.el.crit ?? 0);
-    const boost = (riposte ? RIPOSTE.mult : 1) * (e.sunder > 0 ? SUNDER.mult : 1);
-    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult * boost * this.edge(e), critChance);
-    if (this.trick === 'sunder') {
-      if (e.sunder <= 0) this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Sundered!', '#ffc890', 13);
-      e.sunder = SUNDER.secs;
-    }
+    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult * (riposte ? RIPOSTE.mult : 1) * this.edge(e), critChance);
+    if (this.trick === 'stagger') this.stagger(e);
     if (riposte && strikeId !== this.riposteShown) {
       this.riposteShown = strikeId;
       this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Riposte!', '#ffe07a', 16);
@@ -766,6 +762,25 @@ export class Battle implements FoeWorld, HitWorld {
     this.hitstop = Math.max(this.hitstop, hitstop * (crit ? 1.4 : 1));
     this.shakeAtLeast((crit ? 5 : 3) * (heavy ? 1.6 : 1) * (1 + this.tier * 0.08));
     if (e.hp <= 0) this.kill(e);
+  }
+
+  /**
+   * A hammer's Stagger: the slam knocks a monster out of whatever attack it was winding up or in the middle of, back to
+   * square one, and dazes it (a guardian only flinches). Set up the next slam, or step back out of reach.
+   */
+  private stagger(e: Enemy) {
+    if (e.def.boss) {
+      e.stun = Math.max(e.stun, STAGGER.secs * 0.3);
+      return;
+    }
+    const ai = MONSTER_AI[e.kind];
+    if (e.state !== ai.start || e.windup > 0) this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Staggered!', '#ffc890', 14);
+    e.state = ai.start;
+    e.t = 0.4;
+    e.windup = 0;
+    e.vx = e.vy = 0;
+    e.z = 0;
+    e.stun = Math.max(e.stun, STAGGER.secs);
   }
 
   /** Glimmer weapons: a spark leaps from the foe you hit to the nearest other one. */
@@ -900,7 +915,6 @@ export class Battle implements FoeWorld, HitWorld {
     const p = this.p, ai = MONSTER_AI[e.kind];
     e.flash -= dt;
     e.squash = Math.max(0, e.squash - dt);
-    e.sunder -= dt;
     if (e.burn > 0) {
       e.burn -= dt;
       e.burnTick -= dt;
