@@ -36,6 +36,14 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.2',
+    date: '2026-09-29',
+    title: 'Short and sweet',
+    notes: [
+      "📰 Shorter, snappier patch notes",
+    ],
+  },
+  {
     version: '0.3.1',
     date: '2026-09-29',
     title: "Weapons With Character",
