@@ -332,11 +332,23 @@ const TIER_ZONE: ZoneId[] = ['meadow', 'meadow', 'meadow', 'woods', 'cave', 'hol
 export const MAX_HANDLING_MINUTES = 20;
 
 /**
- * Handling with one weapon through a natural playthrough: `perArea` fights of one to three of each area's monsters
- * (at every level in its range), each guardian, then the Emberwyrm. Where you stand at the end of each area, and at the
- * dragon.
+ * How many regular fights a natural playthrough has in each area before moving on: its quests and story fights, the
+ * grass ambushes and roamers met walking back and forth, and a little farming for gear. An estimate (from the map's
+ * size, the 6% ambush chance per grass tile, and each area's errands), not yet measured; the play report's per-area
+ * summary gives the real count. When quests change how much you walk an area, update this and re-run `bun run
+ * balance`: the progression tests say what drifted. See docs/balance.md.
  */
-export function oneWeaponRun(perArea = 40): Record<string, { lv: number; handling: number }> {
+export const EXPECTED_FIGHTS: Partial<Record<ZoneId, number>> = { meadow: 40, woods: 40, cave: 40, hollow: 40, peak: 40 };
+/** A light playthrough (skipping grass and side stories) and a heavy one (farming), as shares of EXPECTED_FIGHTS. */
+export const LIGHT_RUN = 0.6;
+export const HEAVY_RUN = 1.5;
+
+/**
+ * Handling with one weapon through a playthrough: each area's expected fights (times `scale`) of one to three of its
+ * monsters (at every level in its range), each guardian, then the Emberwyrm. Your level and handling at the end of each
+ * area, and at the dragon.
+ */
+export function oneWeaponRun(scale = 1): Record<string, { lv: number; handling: number }> {
   let lv = 1, xp = 0, h = 1, hx = 0;
   const out: Record<string, { lv: number; handling: number }> = {};
   const gain = (kind: MonsterKind, mlv: number) => {
@@ -350,7 +362,8 @@ export function oneWeaponRun(perArea = 40): Record<string, { lv: number; handlin
   gain('bunny', 1);
   const areas = ZONES.filter((z) => z.monsters.length);
   areas.forEach((z, i) => {
-    for (let f = 0; f < perArea; f++) {
+    const fights = Math.round((EXPECTED_FIGHTS[z.id] ?? 0) * scale);
+    for (let f = 0; f < fights; f++) {
       const n = Math.min(z.maxEnemies, 1 + (f % 3 === 2 ? 2 : f % 2));
       for (let j = 0; j < n; j++) gain(z.monsters[(f + j) % z.monsters.length].kind, z.lv[0] + ((f * 3 + j) % (z.lv[1] - z.lv[0] + 1)));
     }
@@ -442,6 +455,15 @@ export function report(): string {
       w.skillMult.toFixed(1),
     ]));
   }
+  out.push('\nProgression with one weapon (Lv / handling at the end of each area; see EXPECTED_FIGHTS, docs/balance.md)');
+  const areas = ZONES.filter((z) => z.monsters.length);
+  out.push(`  ${'run'.padEnd(16)} ${areas.map((z) => z.id.padStart(8)).join('')}  ${'dragon'.padStart(8)}`);
+  for (const [label, k] of [[`light ×${LIGHT_RUN}`, LIGHT_RUN], ['natural', 1], [`heavy ×${HEAVY_RUN}`, HEAVY_RUN]] as const) {
+    const run = oneWeaponRun(k), cell = (id: string) => `${run[id].lv}/${run[id].handling}`.padStart(8);
+    out.push(`  ${label.padEnd(16)} ${areas.map((z) => cell(z.id)).join('')}  ${cell('dragon')}`);
+  }
+  out.push(`  expected fights: ${areas.map((z) => `${z.id} ${EXPECTED_FIGHTS[z.id] ?? 0}`).join(', ')}`);
+  out.push(`  handling each weapon tier needs: ${[2, 3, 4, 5].map((t) => `★${t} ${MASTERY_FOR_TIER[t]}`).join(', ')}; guardians: ${areas.slice(1).map((z) => `${MONSTERS[z.guardian!.kind].name} Lv ${z.guardian!.lv}`).join(', ')}, Emberwyrm Lv 20`);
   out.push(`\nWeapon handling: switching to a fresh class costs ${[2, 3, 4, 5].map((t) => `★${t} ~${minutesToHandle(t).toFixed(1)} min`).join(', ')} of fighting (target ≤${MAX_HANDLING_MINUTES})`);
   return out.join('\n');
 }

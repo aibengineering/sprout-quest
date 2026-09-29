@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { MASTERY_FOR_TIER, GEAR, MONSTERS, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
+import { MASTERY_FOR_TIER, GEAR, ZONES, MONSTERS, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
 import { MOVESETS, SKILL_LEVELS, SKILL_RANKS, comboTime, handlingStep, skillShape, tierScale, type SkillKind } from '../src/weapons';
 import { ARENA_AREA } from '../src/balance';
 import {
-  CHECKPOINTS, HUNTER_DPS, RANGED_DPS, MAX_HUNTER_BURST, dpsBand, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, oneWeaponRun, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_MASTERED_SKILL_AREA, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
+  CHECKPOINTS, HUNTER_DPS, RANGED_DPS, MAX_HUNTER_BURST, dpsBand, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, oneWeaponRun, HEAVY_RUN, LIGHT_RUN, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_MASTERED_SKILL_AREA, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
   zoneMatchups, type Range,
 } from '../src/balance';
 
@@ -155,7 +155,7 @@ describe('balance', () => {
   });
 
   test("one weapon through the story: handling 3 by the Slime King, each tier's handling just as you reach it, Mastery around the Emberwyrm", () => {
-    const run = oneWeaponRun(40), h = (id: string) => run[id].handling;
+    const run = oneWeaponRun(), h = (id: string) => run[id].handling;
     expect({ meadow: h('meadow') }).toEqual({ meadow: 3 });
     expect(h('woods')).toBeGreaterThanOrEqual(MASTERY_FOR_TIER[3]);
     expect(h('woods')).toBeLessThanOrEqual(5);
@@ -166,8 +166,18 @@ describe('balance', () => {
     expect(h('peak')).toBeLessThan(10);
     expect(h('dragon')).toBe(10);
     // A lighter playthrough isn't mastered by the end; a heavy one is, sooner.
-    expect(oneWeaponRun(25).dragon.handling).toBeLessThan(10);
-    expect(oneWeaponRun(60).peak.handling).toBe(10);
+    expect(oneWeaponRun(LIGHT_RUN).dragon.handling).toBeLessThan(10);
+    expect(oneWeaponRun(HEAVY_RUN).peak.handling).toBe(10);
+  });
+
+  test('a natural playthrough meets each guardian about at its level: at most one over, at most two under', () => {
+    const run = oneWeaponRun(), areas = ZONES.filter((z) => z.monsters.length), off: string[] = [];
+    areas.forEach((z, i) => {
+      const g = areas[i + 1]?.guardian ?? { kind: 'dragon', lv: 20 };
+      const gap = run[z.id].lv - g.lv;
+      if (gap > 1 || gap < -2) off.push(`Lv ${run[z.id].lv} leaving ${z.id} for ${g.kind} (Lv ${g.lv})`);
+    });
+    expect(off).toEqual([]);
   });
 
   test('every weapon class has a weapon at every tier, and switching to a new class never costs long to train up', () => {

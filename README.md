@@ -217,11 +217,13 @@ you hit), and a weapon at every tier from ★ to ★★★★★:
   drain life, glimmer sparks chain to a second foe. Ranged wands aim lower still, since they never walk into danger.
   The ★★★★★ legendaries need both tracks' materials: the Ember Blade, Dragontail Whip, Wyrmfire Wand and the
   Wyrmbreaker, a war hammer whose slam breathes a fan of dragonfire that leaves the ground burning.
-- **Weapon handling**: winning with a class levels its handling, and better weapons of that class need it, so
-  sticking with a class pays off.
-- **Balance**: `bun run balance` measures every weapon over a typical fight from full stamina (sustained damage and
-  opening burst against its tier, reach and area as a share of the arena, skill coverage), and the tests keep each
-  within its track's band.
+- **Weapon handling**: winning with a class levels its handling, and better weapons of that class need it. Each class
+  has a ten-level path (Bag → Skills → Path): its special at Lv 2, its own ability at Lv 3, faster attacks and
+  stronger specials after, paced so one weapon masters around the Emberwyrm.
+- **Balance**: `bun run balance` measures every weapon over a typical fight (sustained damage and opening burst
+  against its tier, reach and area as a share of the arena, skill coverage) and prints the expected progression
+  through the story. The tests keep each within its targets. What the targets are, what they assume about how many
+  fights each area has, and how to re-tune them: [docs/balance.md](docs/balance.md).
 
 ## Gathering and crafting
 
@@ -306,7 +308,7 @@ if the atlas can't load either. Dev builds show a performance readout (fps, fram
   and the fall, cracks and the break) and `src/particles.ts` the chips, dust, sparks, leaves and loot
 - `src/stats.ts`: the play report log
 - `src/balance.ts`: balance targets for fights, pacing, weapons and the material economy; `bun run balance` prints
-  them, `tests/balance.test.ts` enforces them
+  them, `tests/balance.test.ts` enforces them, and [docs/balance.md](docs/balance.md) explains them
 - `src/assets.ts`, `src/sprites.ts`: sprite atlas loading and drawing, and the procedural fallbacks
 - `src/ui.ts`, `public/`: DOM HUD, menus, styles
 - `src/slots.ts`: which save slot is in use (always the main one in the published game)
