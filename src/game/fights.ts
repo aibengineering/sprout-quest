@@ -26,10 +26,10 @@ let battleFlag: string | undefined;
 /** Regular fights let you run; guardians and scripted fights don't. Battle Tower fights always let you back to the camp. */
 export const canRun = (b: Battle) => !!b.setup.tower || (!b.setup.boss && !battleFlag && G.save.flags.includes('village'));
 
-/** A random set of monsters from a zone (for ambushes in the grass). */
-function rollFoes(z: Zone): Foe[] {
+/** A random set of monsters from a zone: `n` of them, or 1–3 (for ambushes in the grass). */
+function rollFoes(z: Zone, n?: number): Foe[] {
   const r = Math.random();
-  const n = Math.min(z.maxEnemies, r < 0.5 ? 1 : r < 0.85 ? 2 : 3);
+  n ??= Math.min(z.maxEnemies, r < 0.5 ? 1 : r < 0.85 ? 2 : 3);
   return Array.from({ length: n }, () => ({
     kind: weightedPick(z.monsters).kind,
     lv: z.lv[0] + Math.floor(Math.random() * (z.lv[1] - z.lv[0] + 1)),
@@ -57,7 +57,8 @@ function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Pa
 export function startFieldBattle(r: Roamer | null, ambush: boolean) {
   const zone = r ? zoneById(r.zone) : G.over.currentZone;
   const foes: Foe[] = r
-    ? [{ kind: r.kind, lv: r.lv, golden: r.golden }, ...rollFoes(zone).slice(0, r.extra).map((f) => ({ ...f, golden: false }))]
+    // A roaming group brings exactly the friends its "×N" promised.
+    ? [{ kind: r.kind, lv: r.lv, golden: r.golden }, ...rollFoes(zone, r.extra).map((f) => ({ ...f, golden: false }))]
     : rollFoes(zone);
   if (r) G.over.roamers.remove(r);
   cancelGather();

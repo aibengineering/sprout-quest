@@ -476,6 +476,19 @@ scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its spec
   await winFight(page);
 });
 
+scenario('a roaming group marked ×3 brings all three to the fight', (g) => {
+  g.save.lv = 6;
+}, async (page) => {
+  await run(page, `g.warp('woods')`);
+  await waitFor(page, 'roamers in the Woods', async () => game<boolean>(page, `g.over.roamers.list.some((r) => r.zone === 'woods')`), 5000);
+  await run(page, `window.__r = g.over.roamers.list.find((r) => r.zone === 'woods'); window.__r.extra = 2`);
+  await waitFor(page, 'bumping into it', async () => {
+    await run(page, `if (g.mode === 'world') { window.__r.x = g.over.x; window.__r.y = g.over.y; }`);
+    return game<boolean>(page, `g.mode === 'battle' && !!g.battle`);
+  }, 10000);
+  check(await game<number>(page, 'g.battle.setup.foes.length') === 3, `a ×3 group came as ${await game<number>(page, 'g.battle.setup.foes.length')}`);
+});
+
 scenario('monster tricks: spores poison, a screech dizzies, stone skin shrugs off hits, Impy dodges, a howl rallies the pack', null, async (page) => {
   const fight = async (kind: string, lv: number, n: number) => {
     await run(page, `g.fight('${kind}', ${lv}, ${n})`);
