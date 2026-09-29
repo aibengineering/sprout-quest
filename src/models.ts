@@ -262,8 +262,11 @@ camera.lookAt(0, 0, 0);
 camera.updateMatrixWorld();
 const sun = new DirectionalLight(0xffffff, 1);
 
-/** Can this browser do WebGL at all? Checked quietly first, since three.js logs errors when it can't. */
-function webglAvailable() {
+/**
+ * Can this browser do WebGL at all? Checked quietly first, since three.js logs errors when it can't. The game needs it:
+ * every character is a 3D model (their sprites aren't shipped).
+ */
+export function webglAvailable() {
   try {
     const c = document.createElement('canvas');
     return !!(c.getContext('webgl2') ?? c.getContext('webgl'));

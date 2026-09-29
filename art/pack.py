@@ -25,7 +25,15 @@ def load(path):
     return px
 
 
-def save(px, path, quality=90):
+# Characters (the hero, villagers and monsters) are 3D models in the game (art/models.py), so their rendered sprites
+# stay in art/out as reference but aren't shipped. Everything shipped is squeezed hard: flat cel-shaded art hides WebP
+# artefacts well.
+NOT_SHIPPED = ('hero/', 'mon/', 'npc/')
+ATLAS_QUALITY = 78
+ICON_QUALITY = 85
+
+
+def save(px, path, quality=ATLAS_QUALITY):
     h, w = px.shape[:2]
     im = bpy.data.images.new('pack', w, h, alpha=True)
     im.pixels = px[::-1].ravel()
@@ -59,9 +67,11 @@ def main():
     os.makedirs(os.path.join(DEST, 'icons'), exist_ok=True)
     frames, sprites = {}, []
     for e in entries:
+        if e['name'].startswith(NOT_SHIPPED):
+            continue
         px = load(e['file'])
         if e['name'].startswith('icon/'):
-            save(px, os.path.join(DEST, 'icons', e['name'][5:] + '.webp'), quality=92)
+            save(px, os.path.join(DEST, 'icons', e['name'][5:] + '.webp'), quality=ICON_QUALITY)
             continue
         cut, x0, y0 = trim(px)
         sprites.append((e, cut, e['ax'] - x0, e['ay'] - y0))

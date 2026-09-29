@@ -47,6 +47,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "👻 Fainting now costs a walk back to where you fell",
       "🐺 Monsters past the meadow have new tricks: learn their tells",
       "🦇 Flappers screech to dizzy you, and Pebblors shrug off hits until they slam",
+      "⚡ The game loads much faster: its scenery download is a seventh of the size",
     ],
   },
   {

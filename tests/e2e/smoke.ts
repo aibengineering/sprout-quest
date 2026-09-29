@@ -1074,6 +1074,7 @@ if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, r
     await page.goto(`${URL_}?preset=poppy-done`);
     await waitFor(page, 'the game', async () => (await game<string>(page, 'g?.mode')) === 'world', 60000);
     await page.waitForTimeout(1500);
+    if (SHOTS) await page.screenshot({ path: `${OUT}3d-map.png` });
     const map = await game<number>(page, 'g.modelStats.renders');
     check(map > 0, 'nothing was rendered in 3D on the map');
     await run(page, `g.fight('bunny', 3, 2)`);

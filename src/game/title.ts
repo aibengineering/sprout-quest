@@ -1,7 +1,7 @@
 // The title screen: loading with real progress, then Continue / New Game.
 import { loadAssets, preloadIcons } from '../assets';
 import { GEAR, MONSTERS, QUESTS } from '../data';
-import { loadModels } from '../models';
+import { loadModels, webglAvailable } from '../models';
 import { playerStats } from '../rules';
 import { clearLog, logEvent } from '../stats';
 import { clearState, loadState, newState, saveState } from '../state';
@@ -25,6 +25,13 @@ export async function boot() {
     text.textContent = msg;
   };
   fill.parentElement!.classList.remove('waiting');
+  // Every character is a 3D model, so without WebGL there's no game to play: say so plainly and stop here. (Automated
+  // test browsers run the game's logic without 3D to stay fast; one e2e scenario checks the 3D drawing.)
+  if (!webglAvailable() && !navigator.webdriver) {
+    show(0, "Sprout Quest needs 3D graphics (WebGL), which this browser has turned off. Try another browser, or switch on hardware acceleration.");
+    fill.parentElement!.classList.add('failed');
+    return;
+  }
   // The page's own loader filled the first fifth downloading this code.
   show(0.2, 'Fetching monsters and scenery…');
   const mb = (n: number) => (n / 1048576).toFixed(1);
