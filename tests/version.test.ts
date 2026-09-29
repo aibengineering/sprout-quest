@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import pkg from '../package.json';
 import { newerThan } from '../src/semver';
-import { PATCH_NOTES, VERSION } from '../src/version';
+import { NOTE_STYLE, PATCH_NOTES, VERSION, noteProblems } from '../src/version';
 
 describe('version and patch notes', () => {
   test('package.json, VERSION and the newest patch notes agree', () => {
@@ -73,5 +73,9 @@ describe('version and patch notes', () => {
     fresh.build.forge = 2;
     saveState(fresh);
     expect(loadState()!.build.forge).toBe(2);
+  });
+
+  test(`every release's notes are snappy: one line each (≤${NOTE_STYLE.maxLength} characters, one sentence), and not too many`, () => {
+    expect(PATCH_NOTES.flatMap(noteProblems)).toEqual([]);
   });
 });

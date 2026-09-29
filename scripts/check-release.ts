@@ -4,7 +4,7 @@
 import { $ } from 'bun';
 import pkg from '../package.json';
 import { newerThan } from '../src/semver';
-import { PATCH_NOTES } from '../src/version';
+import { PATCH_NOTES, noteProblems } from '../src/version';
 import { changedFiles, touchesGame } from './changes';
 
 const base = process.argv[2] ?? 'origin/main';
@@ -28,6 +28,7 @@ if (newest?.version !== version) {
 } else {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(newest.date)) problems.push(`The ${version} patch notes need a date as YYYY-MM-DD (got "${newest.date}").`);
   if (!newest.title.trim()) problems.push(`The ${version} patch notes need a title.`);
+  problems.push(...noteProblems(newest));
   if (!newest.notes.length || newest.notes.some((n) => !n.trim())) problems.push(`The ${version} patch notes need at least one note, and no empty ones.`);
 }
 
