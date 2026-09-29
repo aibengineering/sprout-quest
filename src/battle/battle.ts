@@ -8,7 +8,7 @@ import { Fx } from '../fx';
 import type { Input } from '../input';
 import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, xpEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
-import { BLINK, MOVESETS, RIPOSTE, SKILL_DATA, SUNDER, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike } from '../weapons';
+import { BLINK, MOVESETS, RIPOSTE, SKILL_DATA, SUNDER, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
 import { MONSTER_AI, type FoeWorld } from './monsters';
 import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
@@ -46,6 +46,8 @@ export class Battle implements FoeWorld, HitWorld {
   private readonly pace: { chain: number; rest: number };
   /** Your weapon's skill at your handling level (null until handling Lv 2). */
   readonly skillNow: SkillRank | null;
+  /** Your class's trick (null until handling Lv 3). */
+  readonly trick: Trick | null;
   readonly p = {
     x: 0, y: 120, vx: 0, vy: 0, kx: 0, ky: 0, r: 12,
     hp: 0, face: -Math.PI / 2, moving: false,
@@ -111,6 +113,7 @@ export class Battle implements FoeWorld, HitWorld {
     this.handling = save.mastery[this.weapon.style ?? 'sword']?.lv ?? 1;
     this.pace = pace(this.handling);
     this.skillNow = skillAt(this.moves.skill, this.handling);
+    this.trick = hasTrick(this.handling) ? this.moves.trick : null;
     // Regular fights swoop in and get going at once; bosses keep their dramatic "Boss battle!" beat.
     this.intro = this.dramatic ? 1.2 : ZOOM_T + 0.1;
     const n = setup.foes.length;
@@ -301,7 +304,7 @@ export class Battle implements FoeWorld, HitWorld {
     if (inp.consume('dodge') && p.dodgeCd <= 0) {
       // Dodging cancels a swing's recovery — but not a committed windup.
       // Blades flow: their dodge cancels a windup too.
-      if (!p.swing || p.swing.t > p.swing.s.windup || this.moves.trick === 'riposte') {
+      if (!p.swing || p.swing.t > p.swing.s.windup || this.trick === 'riposte') {
         p.swing = null;
         p.dodgeDir = p.moving ? Math.atan2(a.y, a.x) : p.face + Math.PI;
         p.iframes = Math.max(p.iframes, 0.32);
@@ -309,7 +312,7 @@ export class Battle implements FoeWorld, HitWorld {
         p.dodgeCd = 0.7;
         this.log.dodges++;
         this.audio.play('dodge');
-        if (this.moves.trick === 'blink') this.blink(p.dodgeDir);
+        if (this.trick === 'blink') this.blink(p.dodgeDir);
         else p.dodgeT = 0.2;
       }
     }
@@ -493,7 +496,7 @@ export class Battle implements FoeWorld, HitWorld {
       if (best > half + e.r) continue;
       e.hitId = sw.id;
       const tip = at >= total * (1 - (s.tip ?? 0.3));
-      const snare = tip && this.moves.trick === 'snare';
+      const snare = tip && this.trick === 'snare';
       this.hitEnemy(e, tip ? s.mult : s.mult * (s.graze ?? 0.5), Math.atan2(ey, ex), snare ? 0 : tip ? s.kb : s.kb * 0.4, tip ? s.stun ?? 0 : 0, sw.id, tip ? s.hitstop : 0.02);
       if (snare) this.snare(e);
       if (tip) {
@@ -728,7 +731,7 @@ export class Battle implements FoeWorld, HitWorld {
     const critChance = riposte ? 1 : 0.08 + st.luck * 0.2 + (this.el.crit ?? 0);
     const boost = (riposte ? RIPOSTE.mult : 1) * (e.sunder > 0 ? SUNDER.mult : 1);
     const { dmg, crit } = calcDamage(st.atk, e.dfn, mult * boost * this.edge(e), critChance);
-    if (this.moves.trick === 'sunder') {
+    if (this.trick === 'sunder') {
       if (e.sunder <= 0) this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Sundered!', '#ffc890', 13);
       e.sunder = SUNDER.secs;
     }
@@ -834,7 +837,7 @@ export class Battle implements FoeWorld, HitWorld {
     if (this.endT >= 0) return;
     if (p.iframes > 0 || p.dodgeT > 0) {
       // Blades: dodging through an attack readies a Riposte.
-      if (p.dodging > 0 && this.moves.trick === 'riposte' && p.riposte <= 0) {
+      if (p.dodging > 0 && this.trick === 'riposte' && p.riposte <= 0) {
         p.riposte = RIPOSTE.secs;
         p.dodging = 0;
         this.fx.text(p.x, p.y - 42, 'Riposte ready!', '#ffe07a', 14);

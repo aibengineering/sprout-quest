@@ -79,15 +79,21 @@ export function pace(lv: number) {
 
 /**
  * The handling path, the same for every class of weapon: its skill unlocks at Lv 2 and grows a rank at 5, 8 and 10
- * (Mastery); every level in between is a step up in attack speed. So each level gives something you can feel, and the
- * skill levels are the big ones.
+ * (Mastery), the class's own trick (Riposte, Sunder, Snare, Blink) comes at Lv 3, and every other level is a step up
+ * in attack speed. So each level gives something you can feel, one thing at a time, and the skill levels are the big
+ * ones.
  */
 export const SKILL_LEVELS = [2, 5, 8, 10];
-export const SPEED_LEVELS = [3, 4, 6, 7, 9];
+export const TRICK_LEVEL = 3;
+export const SPEED_LEVELS = [4, 6, 7, 9];
+/** Whether your class's trick is unlocked at a handling level. */
+export const hasTrick = (lv: number) => lv >= TRICK_LEVEL;
 /** Your skill's rank at a handling level: 0 (locked) to 4 (Mastery). */
 export const skillRank = (lv: number) => SKILL_LEVELS.filter((l) => lv >= l).length;
-/** What a handling level gives: its skill rank if it's a skill level, else an attack speed step (none at Lv 1). */
-export const handlingStep = (lv: number): 'skill' | 'speed' | null => (SKILL_LEVELS.includes(lv) ? 'skill' : SPEED_LEVELS.includes(lv) ? 'speed' : null);
+export type HandlingStep = 'skill' | 'trick' | 'speed';
+/** What a handling level gives: a skill rank, the class's trick, or an attack speed step (nothing at Lv 1). */
+export const handlingStep = (lv: number): HandlingStep | null =>
+  SKILL_LEVELS.includes(lv) ? 'skill' : lv === TRICK_LEVEL ? 'trick' : SPEED_LEVELS.includes(lv) ? 'speed' : null;
 
 /**
  * Each skill at each rank (I–IV). `mult` is the main hit, `size` scales its reach, `count` is how many waves or bolts,
@@ -194,6 +200,14 @@ export const MOVESETS: Record<Style, Moveset> = {
   },
 };
 
+/** Each class in a line, for the start of its handling path. */
+export const CLASS_NOTES: Record<Style, string> = {
+  sword: 'Three quick strikes in a flowing combo',
+  hammer: 'One heavy slam at a time, with a shockwave',
+  whip: 'One long lash at a time: crack it with the tip',
+  wand: 'One bolt at a time, from anywhere in the arena',
+};
+
 /** What each class's trick does, for the Skills tab. */
 export const TRICKS: Record<Trick, { name: string; note: string }> = {
   riposte: { name: 'Riposte', note: 'Dodge through an attack and your next strike is a sure critical hit' },
@@ -241,7 +255,7 @@ export function comboTime(m: Moveset, lv: number): number {
 }
 
 /** A hammer's blows after the first land on a sundered foe (they come well within Sunder's few seconds). */
-const sundered = (m: Moveset, t: number) => (m.trick === 'sunder' && t > 0 ? SUNDER.mult : 1);
+const sundered = (m: Moveset, t: number, lv: number) => (m.trick === 'sunder' && hasTrick(lv) && t > 0 ? SUNDER.mult : 1);
 
 /** How long a typical fight lasts: weapons are judged over this window, opening burst included. */
 export const FIGHT_WINDOW = 5;
@@ -250,7 +264,7 @@ export const FIGHT_WINDOW = 5;
 export function comboDps(m: Moveset, lv: number): number {
   let t = 0, dmg = 0, i = 0;
   while (t < FIGHT_WINDOW) {
-    dmg += strikeDamage(m.combo[i]) * sundered(m, t);
+    dmg += strikeDamage(m.combo[i]) * sundered(m, t, lv);
     t += stepTime(m, i, lv);
     i = (i + 1) % m.combo.length;
   }
@@ -264,7 +278,7 @@ export const BURST_WINDOW = 1.5;
 export function openingBurst(m: Moveset, lv: number): number {
   let t = 0, dmg = 0, i = 0;
   while (t + m.combo[i].windup <= BURST_WINDOW) {
-    dmg += strikeDamage(m.combo[i]) * sundered(m, t);
+    dmg += strikeDamage(m.combo[i]) * sundered(m, t, lv);
     t += stepTime(m, i, lv);
     i = (i + 1) % m.combo.length;
   }

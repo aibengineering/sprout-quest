@@ -50,8 +50,8 @@ export async function celebrate(m: LevelMark) {
     logEvent(s, { kind: 'level', track: `handling:${m.style}`, lv });
     // What each level gained gives: a skill rank (the big ones) or a step in attack speed.
     const gains = Array.from({ length: lv - m.fromHandling }, (_, i) => m.fromHandling + 1 + i).map((l) => handlingGain(m.style, l).replace(/^Lv \d+: /, ''));
-    const skill = handlingStep(lv) === 'skill';
-    await G.ui.skillUp(`${STYLE_NAMES[m.style]} handling`, lv, skill ? '✨' : '⚡', `${skill ? '✨ ' : '⚡ '}${gains.join(' · ')}`, newlyRevealed(m.shown));
+    const step = handlingStep(lv), mark = step === 'skill' ? '✨' : step === 'trick' ? '🎯' : '⚡';
+    await G.ui.skillUp(`${STYLE_NAMES[m.style]} handling`, lv, mark, `${mark} ${gains.join(' · ')}`, newlyRevealed(m.shown));
   }
 }
 

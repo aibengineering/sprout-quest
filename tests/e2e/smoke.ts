@@ -260,6 +260,26 @@ scenario('an unlock card gets out of the way of a fight, and comes back after it
   await waitFor(page, 'the card again', async () => !!(await page.$('#unlock-card.show')), 5000);
 });
 
+scenario("a weapon class's handling path: every level, what it brings, and where you are", (g) => {
+  g.save.mastery.sword = { lv: 3, xp: 40 };
+}, async (page) => {
+  await run(page, `g.ui.openMenu({ atForge: false, inVillage: true }, 'items')`);
+  await page.click('#modal [data-sub="items:skills"]');
+  await page.click('#modal [data-pick="hpath:sword"]');
+  const nodes = page.locator('#modal .hnode');
+  check(await nodes.count() === 10, 'the path should show all ten levels');
+  check(await page.locator('#modal .hnode.done').count() === 3, 'Lv 1–3 should be ticked off');
+  check(/Riposte/.test((await page.locator('#modal .hnode.trick').textContent()) ?? ''), "the Blades' trick isn't on its path");
+  check(/Copper Sword/.test((await page.locator('#modal .htree').textContent()) ?? ''), 'the path should say which weapons it lets you wield');
+  check(/40\/135 XP/.test((await page.locator('#modal .hnode.next').textContent()) ?? ''), 'the next level should show your progress');
+  if (SHOTS) await page.screenshot({ path: `${OUT}handling-path.png` });
+  // Any class's path, trained or not.
+  await page.click('#modal [data-pick="hpath:wand"]');
+  check(/Blink/.test((await page.locator('#modal .htree').textContent()) ?? ''), "Magic's path doesn't show Blink");
+  await page.click('#modal [data-pick="hpath:"]');
+  check(!(await page.$('#modal .htree')), "Back didn't return to the Skills page");
+});
+
 scenario('winning a fight levels you up and reveals new gear (and the quest tracker counts materials)', (g) => {
   Object.assign(g.save, { lv: 4, xp: 108 });
   g.save.owned.push('jellywhip');

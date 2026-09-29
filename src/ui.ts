@@ -2,14 +2,14 @@
 import { iconUrl } from './assets';
 import { xpBloops } from './audio';
 import {
-  GEAR, GEAR_ORDER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
+  GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
   STYLE_NAMES, TOOLS, ZONES, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
 } from './data';
 import { currentQuest, progress, questNeeds } from './quests';
 import { MASTERY_MAX, PLOT_UNLOCK, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, plotOpen, revealed, skillXpToNext, xpToNext, type Lock } from './rules';
 import type { SaveState } from './state';
 import type { Unlock, UnlockId } from './unlocks';
-import { MOVESETS, SKILL_LEVELS, TRICKS, comboTime, handlingStep, skillAt } from './weapons';
+import { CLASS_NOTES, MOVESETS, SKILL_LEVELS, TRICKS, TRICK_LEVEL, comboTime, handlingStep, skillAt } from './weapons';
 import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
 import { LOGS_PER_PLANK, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate } from './sawmill';
 import { usingKeyboard } from './input';
@@ -163,13 +163,54 @@ export function paceGain(style: Style, lv: number): number {
   return Math.round((comboTime(m, 1) / comboTime(m, lv) - 1) * 100);
 }
 
-/** The ten-level handling path as pips: ✨ for a skill rank, ⚡ for a speed step, the ones you've reached lit. */
+const STEP_ICON = { skill: '✨', trick: '🎯', speed: '⚡' } as const;
+const CLASS_EMOJI: Record<Style, string> = { sword: '🗡️', hammer: '🔨', whip: '〰️', wand: '🪄' };
+
+/** The ten-level handling path as pips: ✨ a skill rank, 🎯 the class's trick, ⚡ a speed step, the ones you've reached lit. */
 function handlingPath(lv: number): string {
   const pips = Array.from({ length: MASTERY_MAX }, (_, i) => {
     const at = i + 1, step = handlingStep(at);
-    return `<i class="${at <= lv ? 'on' : ''} ${step ?? 'start'}" title="Lv ${at}">${step === 'skill' ? '✨' : step === 'speed' ? '⚡' : '•'}</i>`;
+    return `<i class="${at <= lv ? 'on' : ''} ${step ?? 'start'}" title="Lv ${at}">${step ? STEP_ICON[step] : '•'}</i>`;
   }).join('');
   return `<div class="hpath">${pips}</div>`;
+}
+
+/** The weapon of a class that a handling level lets you wield, if one does. */
+function weaponAt(style: Style, lv: number) {
+  const tier = MASTERY_FOR_TIER.findIndex((need, t) => t > 1 && need === lv);
+  return tier > 1 ? GEAR_ORDER.map((id) => GEAR[id]).find((g) => g.slot === 'weapon' && g.style === style && g.tier === tier) : undefined;
+}
+
+/**
+ * A class's whole handling path, to explore: a tab per class, then every level from picking it up to Mastery, what each
+ * gives, what you've got, and how far you are toward the next.
+ */
+function handlingTree(s: SaveState, style: Style): string {
+  const tabs = (Object.keys(STYLE_NAMES) as Style[]).map((k) =>
+    `<button class="htab${k === style ? ' on' : ''}" data-pick="hpath:${k}"><span class="emo">${CLASS_EMOJI[k]}</span>${STYLE_NAMES[k]}<small>Lv ${s.mastery[k].lv}</small></button>`).join('');
+  const m = s.mastery[style], max = m.lv >= MASTERY_MAX, need = masteryXpToNext(m.lv);
+  const moves = MOVESETS[style];
+  const nodes = Array.from({ length: MASTERY_MAX }, (_, i) => {
+    const at = i + 1, step = handlingStep(at);
+    const state = at <= m.lv ? 'done' : at === m.lv + 1 ? 'next' : 'locked';
+    let title: string, note: string;
+    if (!step) [title, note] = [`${STYLE_NAMES[style]}`, CLASS_NOTES[style]];
+    else if (step === 'skill') {
+      const sk = skillAt(moves.skill, at)!;
+      [title, note] = [sk.name, sk.note];
+    } else if (step === 'trick') [title, note] = [TRICKS[moves.trick].name, TRICKS[moves.trick].note];
+    else [title, note] = ['Faster attacks', `${paceGain(style, at) - paceGain(style, at - 1)}% quicker (${paceGain(style, at)}% in all)`];
+    const w = weaponAt(style, at);
+    const tag = w ? `<span class="htag">${icon(w.id, w.icon, 'icon sm')} Can wield the ${esc(w.name)} ${'★'.repeat(w.tier ?? 0)}</span>` : '';
+    const progress = state === 'next' ? `<div class="pbar"><i style="width:${(100 * m.xp) / need}%"></i></div><small class="hxp">${m.xp}/${need} XP</small>` : '';
+    return `<li class="hnode ${state} ${step ?? 'start'}"><span class="hdot">${step ? STEP_ICON[step] : CLASS_EMOJI[style]}</span>
+      <div class="htext"><div class="hlv">Lv ${at}${at === MASTERY_MAX ? ' · Mastery' : ''}${state === 'done' ? ' ✓' : ''}</div><b>${esc(title)}</b><small>${esc(note)}</small>${tag}${progress}</div></li>`;
+  }).join('');
+  return `<div class="htree">
+    <div class="htabs">${tabs}</div>
+    <p class="sub">${max ? `${STYLE_NAMES[style]} mastered!` : `${STYLE_NAMES[style]} handling Lv ${m.lv}. Win fights with a ${STYLE_NAMES[style].toLowerCase()} weapon to train it.`}</p>
+    <ol class="hnodes">${nodes}</ol>
+    <button class="go ghost hback" data-pick="hpath:">‹ Back to Skills</button></div>`;
 }
 
 /** What the next handling level brings, in words. */
@@ -180,9 +221,14 @@ export function handlingNext(style: Style, lv: number): string | null {
 
 /** What reaching a handling level gives you, in words ("Spin II: wider, and harder", "attacks 12% faster"). */
 export function handlingGain(style: Style, lv: number): string {
+  const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
   if (handlingStep(lv) === 'skill') {
     const sk = skillAt(MOVESETS[style].skill, lv)!;
-    return `Lv ${lv}: ${sk.name} (${sk.note.charAt(0).toLowerCase()}${sk.note.slice(1)})`;
+    return `Lv ${lv}: ${sk.name} (${lower(sk.note)})`;
+  }
+  if (handlingStep(lv) === 'trick') {
+    const t = TRICKS[MOVESETS[style].trick];
+    return `Lv ${lv}: ${t.name} (${lower(t.note)})`;
   }
   return `Lv ${lv}: attacks ${paceGain(style, lv) - paceGain(style, lv - 1)}% faster`;
 }
@@ -492,9 +538,9 @@ export class UI {
   }
 
   /** The tab each unlock opens when you tap its card (the weapon skill lives in fights, so it has none). */
-  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', sawmill: 'village', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
+  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', trick: 'items', sawmill: 'village', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
   /** The corner button that leads there, which bounces while its card is up. */
-  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag' };
+  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', trick: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag' };
 
   private nextUnlock() {
     const el = $('unlock-card');
@@ -519,7 +565,7 @@ export class UI {
       el.onclick = null;
       window.clearTimeout(this.unlockTimer);
       // Mending happens on the Bag's Skills page.
-      if (u.id === 'mend') this.sub.items = 'skills';
+      if (u.id === 'mend' || u.id === 'trick') this.sub.items = 'skills';
       this.hooks.openTab(tab);
       this.nextUnlock();
     } : null;
@@ -697,6 +743,7 @@ export class UI {
   openMenu(ctx: MenuCtx, tab?: Tab, focus?: string) {
     this.ctx = ctx;
     if (tab) this.tab = tab;
+    delete this.pick.hpath;
     if (!this.tabOpen(this.tab)) this.tab = (['items', 'journey', 'forge', 'village'] as Tab[]).find((t) => this.tabOpen(t)) ?? 'settings';
     this.focus = focus;
     this.menuOpen = true;
@@ -887,6 +934,8 @@ export class UI {
   }
 
   private skills(s: SaveState): string {
+    // A class's handling path, when you've opened one.
+    if (this.pick.hpath) return handlingTree(s, this.pick.hpath as Style);
     // Hidden until you own a tool, so new players aren't shown a skill they can't use yet.
     const rows = (Object.keys(SKILL_NAMES) as SkillId[]).filter((k) => s.tools[k] > 0).map((k) => {
       const sk = s.skills[k];
@@ -910,15 +959,16 @@ export class UI {
     const style = GEAR[s.equip.weapon]?.style;
     const handling = (Object.keys(STYLE_NAMES) as Style[]).filter((k) => k === style || s.mastery[k].lv > 1 || s.mastery[k].xp > 0).map((k) => {
       const m = s.mastery[k], max = m.lv >= MASTERY_MAX, need = masteryXpToNext(m.lv);
-      const emoji = { sword: '🗡️', hammer: '🔨', whip: '〰️', wand: '🪄' }[k];
+      const emoji = CLASS_EMOJI[k];
       const sk = skillAt(MOVESETS[k].skill, m.lv), next = handlingNext(k, m.lv);
       return `<div class="mcard row handling"><div class="ico"><span class="emo">${emoji}</span></div><div class="info">
         <div class="name">${STYLE_NAMES[k]} handling <span class="lvl">Lv ${m.lv}</span></div>
-        <div class="desc">🎯 <b>${TRICKS[MOVESETS[k].trick].name}</b>: ${esc(TRICKS[MOVESETS[k].trick].note)}</div>
+        <div class="desc">🎯 <b>${TRICKS[MOVESETS[k].trick].name}</b>${m.lv >= TRICK_LEVEL ? `: ${esc(TRICKS[MOVESETS[k].trick].note)}` : ` unlocks at Lv ${TRICK_LEVEL}`}</div>
         <div class="desc">${sk ? `✨ <b>${esc(sk.name)}</b>: ${esc(sk.note)}` : `✨ Skill unlocks at Lv ${SKILL_LEVELS[0]}`} · ${handlingPace(k, m.lv)}</div>
         ${handlingPath(m.lv)}
         <div class="desc">${max ? 'Mastered!' : `${m.xp}/${need} XP${next ? ` · <b>Next:</b> ${esc(next)}` : ''}`}</div>
-        <div class="pbar"><i style="width:${max ? 100 : (100 * m.xp) / need}%"></i></div></div></div>`;
+        <div class="pbar"><i style="width:${max ? 100 : (100 * m.xp) / need}%"></i></div></div>
+        <button class="go ghost hopen" data-pick="hpath:${k}">Path ›</button></div>`;
     }).join('');
     const PERKS: Record<string, [string, string, string]> = { trailboots: ['trailboots', 'Trail Boots', 'From Granny Clover: walk 25% faster outside of fights.'] };
     const perks = s.perks.filter((p) => PERKS[p]).map((p) => {

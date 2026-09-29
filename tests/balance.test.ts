@@ -108,8 +108,9 @@ describe('balance', () => {
     expect(off).toEqual([]);
   });
 
-  test('handling: the skill unlocks at Lv 2 and ranks up at 5, 8 and 10; the levels between speed up your attacks', () => {
+  test("handling: the skill unlocks at Lv 2 and ranks up at 5, 8 and 10, the class's trick comes at 3, and the levels between speed up your attacks", () => {
     expect(SKILL_LEVELS).toEqual([2, 5, 8, 10]);
+    expect(handlingStep(3)).toBe('trick');
     for (let lv = 2; lv <= 10; lv++) expect(handlingStep(lv)).not.toBeNull();
     const sword = MOVESETS.sword;
     // Speed only moves on speed levels, and every one of them is a real step.
