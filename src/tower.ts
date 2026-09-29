@@ -44,18 +44,16 @@ export const TOWER: TowerFloor[] = (() => {
   return floors.map((f, i) => ({ ...f, n: i + 1 }));
 })();
 
-/** The balance checkpoint for a floor's area: the level and gear the game expects you to have there. */
+/**
+ * The balance checkpoint for a floor: the level and gear the game expects you to have there. A guardian's is the one
+ * the balance model tunes that guardian against; a regular floor's is its area's.
+ */
 export function checkpointFor(f: TowerFloor): Checkpoint {
-  const zone: ZoneId = f.boss && f.foes[0].kind !== 'dragon' ? previousArea(f.zone.id) : f.zone.id;
-  if (f.foes[0].kind === 'dragon') return CHECKPOINTS.find((c) => c.id === 'dragon')!;
-  return [...CHECKPOINTS].reverse().find((c) => c.zone === zone && c.id !== 'dragon') ?? CHECKPOINTS[1];
-}
-
-/** A guardian is fought with the gear of the area before its gate. */
-function previousArea(id: ZoneId): ZoneId {
-  const areas = ZONES.filter((z) => z.monsters.length);
-  const i = areas.findIndex((z) => z.id === id);
-  return areas[Math.max(0, i - 1)].id;
+  if (f.boss) {
+    const c = CHECKPOINTS.find((c) => c.boss?.kind === f.foes[0].kind);
+    if (c) return c;
+  }
+  return [...CHECKPOINTS].reverse().find((c) => c.zone === f.zone.id && c.id !== 'dragon') ?? CHECKPOINTS[1];
 }
 
 const gathered = (m: string) => Object.values(NODES).some((n) => n.mat === m);
