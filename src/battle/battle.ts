@@ -93,7 +93,7 @@ export class Battle implements FoeWorld, HitWorld {
   /** The strike whose "Riposte!" has been shown (a sweep can hit several foes). */
   private riposteShown = 0;
   /** Running tallies for the play report. */
-  readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0, cooling: 0, rested: 0, lastHitBy: '' };
+  readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0, critDealt: 0, cooling: 0, rested: 0, lastHitBy: '' };
 
   constructor(
     readonly setup: BattleSetup,
@@ -742,7 +742,10 @@ export class Battle implements FoeWorld, HitWorld {
     e.hp -= dmg;
     this.log.hits++;
     this.log.dealt += dmg;
-    if (crit) this.log.crits++;
+    if (crit) {
+      this.log.crits++;
+      this.log.critDealt += dmg;
+    }
     e.flash = 0.12;
     e.squash = 0.18;
     const kbk = e.def.boss ? 0.12 : 1;

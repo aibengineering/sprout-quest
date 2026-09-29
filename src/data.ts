@@ -176,7 +176,7 @@ const GEAR_LIST: Gear[] = [
   // Weapons. Gatherer lines (swords, hammers) are forged from each area's ore: a little more power, plain swings.
   // Hunter lines (whips, wands) come from monsters: a little less power, plus the monster's trick.
   // The ★★★★★ legendaries need both, and beat everything else.
-  { id: 'twig', name: 'Twig Sword', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 0, fx: 'nature', trail: '#fff6d0', atk: 3, color: '#b98a5a', desc: 'A trusty stick. Pointy-ish.' },
+  { id: 'twig', name: 'Twig Sword', slot: 'weapon', icon: '🗡️', style: 'sword', tier: 0, fx: 'nature', trail: '#fff6d0', atk: 6, color: '#b98a5a', desc: 'A trusty stick. Pointy-ish.' },
   W('stonesword', 'Stone Sword', 'sword', 1, 8, 'stone', '#b8bcc8', '#f0f0f4', 'A chunky slab of a blade. Honest work.', { stone: 4, bark: 2 }, { mine: 2 }),
   W('stonehammer', 'Stone Hammer', 'hammer', 1, 10, 'stone', '#9aa0b0', '#e8e0d0', 'Slams kick up little rocks.', { stone: 5, bark: 2 }, { mine: 2 }),
   W('jellywhip', 'Jelly Whip', 'whip', 1, 9, 'jelly', '#6fdc7a', '#9af0a0', 'Long, wobbly lashes. Sticky goo slows what it hits.', { goo: 6, fluff: 2 }),
@@ -199,16 +199,16 @@ const GEAR_LIST: Gear[] = [
   W('wyrmfire', 'Wyrmfire Wand', 'wand', 5, 64, 'dragon', '#ff5a4a', '#ffd35a', 'Hurls fireballs that burst into dragonfire.', { scale: 2, horn: 4, ember: 6, crystal: 3 }, { mine: 8 }),
   // Armor
   { id: 'tunic', name: 'Cozy Tunic', slot: 'armor', icon: '👕', def: 1, color: '#6fa8ff', desc: 'Smells like home.' },
-  { id: 'fluffvest', name: 'Fluffy Vest', slot: 'armor', icon: '🧥', tier: 1, def: 3, hp: 6, color: '#fff1e6', desc: 'Soft and bouncy.', recipe: { fluff: 6, goo: 2 } },
-  { id: 'barkvest', name: 'Timber Vest', slot: 'armor', icon: '🪵', tier: 1, def: 4, hp: 6, color: '#9a6a44', desc: 'Sturdy oak and stone buttons.', needs: { wood: 2 }, recipe: { bark: 6, stone: 3 } },
-  { id: 'shroomhood', name: 'Shroom Hood', slot: 'armor', icon: '🥋', tier: 2, def: 6, hp: 12, color: '#e8505a', desc: 'Spotty and stylish.', recipe: { cap: 6, fang: 2 } },
-  { id: 'coppermail', name: 'Copper Mail', slot: 'armor', icon: '🟠', tier: 2, def: 8, hp: 12, color: '#e8904a', desc: 'Warm, bright and clanky.', needs: { mine: 4 }, recipe: { copper: 6, stone: 4 } },
-  { id: 'batcloak', name: 'Bat Cloak', slot: 'armor', icon: '🧣', tier: 3, def: 10, hp: 10, spd: 12, color: '#7a5ab8', desc: 'Swoosh! +speed.', recipe: { wing: 6, fang: 3 } },
-  { id: 'ironplate', name: 'Iron Plate', slot: 'armor', icon: '🛡️', tier: 3, def: 14, hp: 18, color: '#aab4c8', desc: 'Heavy, honest iron.', needs: { mine: 6 }, recipe: { iron: 8, pine: 3 } },
-  { id: 'glimmershawl', name: 'Glimmer Shawl', slot: 'armor', icon: '🧣', tier: 4, def: 15, hp: 22, regen: 1, color: '#c8b0ff', desc: 'Shimmers, and slowly heals you in battle.', recipe: { glimmer: 6, wing: 3, core: 1 } },
-  { id: 'crystalmail', name: 'Crystal Mail', slot: 'armor', icon: '🛡️', tier: 4, def: 18, hp: 24, color: '#8ad8f0', desc: 'Shiny and tough.', needs: { mine: 8 }, recipe: { crystal: 8, iron: 4 } },
-  { id: 'magmamail', name: 'Magma Mail', slot: 'armor', icon: '🦺', tier: 5, def: 24, hp: 34, color: '#e8703a', desc: 'Toasty protection.', needs: { mine: 8 }, recipe: { ember: 8, horn: 3, crystal: 4, iron: 4 } },
-  { id: 'dragonmail', name: 'Dragon Mail', slot: 'armor', icon: '🐲', tier: 5, def: 30, hp: 50, color: '#c83a3a', desc: 'The ultimate cozy armor.', needs: { wood: 8, mine: 8 }, recipe: { scale: 3, ember: 4, crystal: 4, iron: 6 } },
+  { id: 'fluffvest', name: 'Fluffy Vest', slot: 'armor', icon: '🧥', tier: 1, def: 3, hp: 6, color: '#fff1e6', desc: 'Soft and bouncy.', recipe: { fluff: 12, goo: 4 } },
+  { id: 'barkvest', name: 'Timber Vest', slot: 'armor', icon: '🪵', tier: 1, def: 4, hp: 6, color: '#9a6a44', desc: 'Sturdy oak and stone buttons.', needs: { wood: 2 }, recipe: { bark: 12, stone: 6 } },
+  { id: 'shroomhood', name: 'Shroom Hood', slot: 'armor', icon: '🥋', tier: 2, def: 6, hp: 12, color: '#e8505a', desc: 'Spotty and stylish.', recipe: { cap: 12, fang: 4 } },
+  { id: 'coppermail', name: 'Copper Mail', slot: 'armor', icon: '🟠', tier: 2, def: 8, hp: 12, color: '#e8904a', desc: 'Warm, bright and clanky.', needs: { mine: 4 }, recipe: { copper: 12, stone: 8 } },
+  { id: 'batcloak', name: 'Bat Cloak', slot: 'armor', icon: '🧣', tier: 3, def: 10, hp: 10, spd: 12, color: '#7a5ab8', desc: 'Swoosh! +speed.', recipe: { wing: 12, fang: 6 } },
+  { id: 'ironplate', name: 'Iron Plate', slot: 'armor', icon: '🛡️', tier: 3, def: 14, hp: 18, color: '#aab4c8', desc: 'Heavy, honest iron.', needs: { mine: 6 }, recipe: { iron: 8, copper: 6, stone: 6, pine: 3 } },
+  { id: 'glimmershawl', name: 'Glimmer Shawl', slot: 'armor', icon: '🧣', tier: 4, def: 15, hp: 22, regen: 1, color: '#c8b0ff', desc: 'Shimmers, and slowly heals you in battle.', recipe: { glimmer: 12, wing: 6, core: 1 } },
+  { id: 'crystalmail', name: 'Crystal Mail', slot: 'armor', icon: '🛡️', tier: 4, def: 18, hp: 24, color: '#8ad8f0', desc: 'Shiny and tough.', needs: { mine: 8 }, recipe: { crystal: 14, iron: 4, stone: 6 } },
+  { id: 'magmamail', name: 'Magma Mail', slot: 'armor', icon: '🦺', tier: 5, def: 24, hp: 34, color: '#e8703a', desc: 'Toasty protection.', needs: { mine: 8 }, recipe: { ember: 14, horn: 4, crystal: 6, iron: 4 } },
+  { id: 'dragonmail', name: 'Dragon Mail', slot: 'armor', icon: '🐲', tier: 5, def: 30, hp: 50, color: '#c83a3a', desc: 'The ultimate cozy armor.', needs: { wood: 8, mine: 8 }, recipe: { scale: 4, ember: 8, crystal: 6, iron: 6 } },
   // Charms
   { id: 'clovercharm', name: 'Clover Charm', slot: 'charm', icon: '🍀', tier: 1, luck: 0.25, desc: '+25% luck: more drops & crits.', recipe: { clover: 3, goo: 3 } },
   { id: 'toothcharm', name: 'Tooth Necklace', slot: 'charm', icon: '📿', tier: 2, atk: 4, desc: '+4 attack. Rawr.', recipe: { fang: 4, cap: 2 } },

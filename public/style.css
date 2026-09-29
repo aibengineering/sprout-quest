@@ -1242,3 +1242,5 @@ body.kbd .drag-hint .keys { display: flex; }
 .hxp { font-size: 11px; opacity: 0.7; }
 @keyframes hnext { 50% { box-shadow: 0 0 0 5px rgba(255, 182, 39, 0.3); } }
 .hback { margin-top: 10px; width: 100%; }
+.hnode.secret .htext b { letter-spacing: 2px; }
+.hnode.secret .htext { font-style: italic; }

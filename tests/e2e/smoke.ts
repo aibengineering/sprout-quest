@@ -289,6 +289,9 @@ scenario("a weapon class's handling path: every level, what it brings, and where
   check(/Riposte/.test((await page.locator('#modal .hnode.trick').textContent()) ?? ''), "the Blades' trick isn't on its path");
   check(/Copper Sword/.test((await page.locator('#modal .htree').textContent()) ?? ''), 'the path should say which weapons it lets you wield');
   check(/40\/680 XP/.test((await page.locator('#modal .hnode.next').textContent()) ?? ''), 'the next level should show your progress');
+  // Only the next two levels say what they bring; the rest are a mystery.
+  check(await page.locator('#modal .hnode.secret').count() === 5, 'Lv 6–10 should be shrouded');
+  check(!/Cyclone/.test((await page.locator('#modal .htree').textContent()) ?? ''), 'the Mastery finisher shows before you get close');
   if (SHOTS) await page.screenshot({ path: `${OUT}handling-path.png` });
   // Any class's path, trained or not.
   await page.click('#modal [data-pick="hpath:wand"]');
@@ -580,6 +583,12 @@ scenario('the play report records fights, waits between strikes, deaths and time
   check(/^wolf:(contact|shot)$/.test(loss?.by ?? ''), `the loss does not say what got you (${loss?.by})`);
   check(s.time.totalMinutes.fighting > 0 && s.time.totalMinutes.walking > 0 && s.time.byZone.meadow, 'no time split');
   check(s.fightsByWeapon.stonesword?.avgCoolingSec > 0, 'no per-weapon pace summary');
+  // How each kill went, time per menu screen, and the story as chapters.
+  const sw = s.fightsByWeapon.stonesword;
+  check(sw.avgDamagePerHit > 0 && sw.strikesPerKill > 0 && sw.secondsPerKill > 0 && 'critShare' in sw && sw.actionsPerKill > 0, 'no per-kill numbers in the report');
+  check(fight.cols.includes('kills') && fight.cols.includes('critDealt'), 'fights do not record kills and crit damage');
+  check(s.time.menusByScreen && Object.keys(s.time.menusByScreen).length > 0, 'no menu time per screen');
+  check(Array.isArray(s.storyline), 'no storyline in the report');
 
   // The summary copies to the clipboard, small enough to paste, both with the clipboard API and without it (http).
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);

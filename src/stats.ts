@@ -17,6 +17,8 @@ export type LogEvent =
       dealt: number; taken: number; hpStart: number; hpEnd: number; maxHp: number; xp: number; weapon: string; armor: string;
       /** Seconds spent wanting to attack while waiting between strikes, or resting after a combo; weapon handling level. */
       cooling: number; rested: number; handling: number;
+      /** Damage from critical hits (part of `dealt`), and how many monsters fell. */
+      critDealt?: number; kills?: number;
       /** On a loss: what landed the last hit ("monster:contact|shot|hazard"). */
       killedBy?: string;
     }
@@ -25,6 +27,8 @@ export type LogEvent =
   | { kind: 'craft'; id: string }
   | { kind: 'build'; id: string; lv: number }
   | { kind: 'quest'; id: string }
+  /** The first time you walk up to a guardian's gate: when you were ready to take it on, whenever you actually did. */
+  | { kind: 'reached'; id: string }
   | { kind: 'session'; action: 'start' | 'new' };
 
 /** Every event also records when it happened: wall time, and play time (seconds actually spent playing). */
@@ -50,11 +54,22 @@ export function logEvent(save: SaveState, e: LogEvent) {
   }
 }
 
+/** Guardians already marked as reached this session (so the log isn't read every frame). */
+let reached: Set<string> | null = null;
+
+/** Notes the first time you walk up to a guardian's gate (once per save). */
+export function noteReached(save: SaveState, id: string) {
+  reached ??= new Set(load().filter((e): e is Of<'reached'> => e.kind === 'reached').map((e) => e.id));
+  if (reached.has(id)) return;
+  reached.add(id);
+  logEvent(save, { kind: 'reached', id });
+}
+
 // ------------------------------------------------------------------ time per area and activity
 
 /** What you're doing, for the time split: walking the map, fighting, gathering, or in menus and popups. */
 export type Activity = 'walking' | 'fighting' | 'gathering' | 'menus';
-type TimeLog = Record<string, Partial<Record<Activity, number>>>;
+type TimeLog = Record<string, Record<string, number>>;
 
 let time: TimeLog | null = null;
 let unsaved = 0;
@@ -70,8 +85,11 @@ function loadTime(): TimeLog {
   return time;
 }
 
+/** Time in menus and popups is also split by screen ("menu:items", "dialogs"…) under this pseudo-area. */
+export const SCREENS = '(screens)';
+
 /** Adds `dt` seconds of `activity` in `zone`; written to storage every few seconds (and by flushTime). */
-export function trackTime(zone: string, activity: Activity, dt: number) {
+export function trackTime(zone: string, activity: Activity | string, dt: number) {
   const t = loadTime();
   const z = (t[zone] ??= {});
   z[activity] = (z[activity] ?? 0) + dt;
@@ -118,6 +136,14 @@ function fightStats(fs: Of<'fight'>[]) {
     avgPotions: avg(fs.map((f) => f.potions)), avgLv: avg(fs.map((f) => f.lv)),
     // Pace: how long you were kept waiting per fight, and at what handling.
     avgCoolingSec: avg(fs.map((f) => f.cooling ?? 0)), avgRestedSec: avg(fs.map((f) => f.rested ?? 0)), avgHandling: avg(fs.map((f) => f.handling ?? 1)),
+    // How much each kill took: damage per landed hit, strikes and seconds per monster, what share of damage was crits,
+    // and everything you did per kill (strikes, specials, dodges, potions).
+    avgDamagePerHit: avg(fs.map((f) => f.dealt / Math.max(1, f.hits))),
+    strikesPerKill: avg(fs.map((f) => f.swings / Math.max(1, f.kills ?? f.foes.length))),
+    secondsPerKill: avg(fs.map((f) => f.seconds / Math.max(1, f.kills ?? f.foes.length))),
+    critShare: avg(fs.map((f) => (f.critDealt ?? 0) / Math.max(1, f.dealt))),
+    avgDodges: avg(fs.map((f) => f.dodges)),
+    actionsPerKill: avg(fs.map((f) => (f.swings + f.skills + f.dodges + f.potions) / Math.max(1, f.kills ?? f.foes.length))),
   };
 }
 
@@ -144,18 +170,20 @@ function toolTimeline(crafts: Of<'craft'>[]) {
   });
 }
 
-/** Minutes per area per activity, plus totals. */
+/** Minutes per area per activity, plus totals, and the menu time split by screen. */
 function timeSplit() {
-  const t = loadTime(), total: Partial<Record<Activity, number>> = {};
-  const byZone: Record<string, Partial<Record<Activity, number>>> = {};
+  const t = loadTime(), total: Record<string, number> = {};
+  const byZone: Record<string, Record<string, number>> = {};
+  const menusByScreen = Object.fromEntries(Object.entries(t[SCREENS] ?? {}).map(([k, v]) => [k, minutes(v)]));
   for (const [zone, acts] of Object.entries(t)) {
+    if (zone === SCREENS) continue;
     byZone[zone] = {};
-    for (const [a, secs] of Object.entries(acts) as [Activity, number][]) {
+    for (const [a, secs] of Object.entries(acts)) {
       byZone[zone][a] = minutes(secs);
       total[a] = (total[a] ?? 0) + secs;
     }
   }
-  return { totalMinutes: Object.fromEntries(Object.entries(total).map(([a, s]) => [a, minutes(s)])), byZone };
+  return { totalMinutes: Object.fromEntries(Object.entries(total).map(([a, s]) => [a, minutes(s)])), menusByScreen, byZone };
 }
 
 /** The summary: small enough to paste into a chat. Per-area fights, weapons, gathering, time, deaths and timelines. */
@@ -187,8 +215,38 @@ export function buildSummary(save: SaveState) {
       levelTimeline: events.filter((e): e is Of<'level'> => e.kind === 'level').map((e) => ({ track: e.track, lv: e.lv, playMinutes: at(e) })),
       crafted: crafts.map((e) => ({ id: e.id, playMinutes: at(e) })),
       quests: events.filter((e): e is Of<'quest'> => e.kind === 'quest').map((e) => ({ id: e.id, playMinutes: at(e) })),
+      storyline: storyline(events),
     },
   };
+}
+
+/**
+ * The playthrough as the story's chapters: each quest from when the last one finished to when it did, with the fights,
+ * levels and handling in between, what you crafted, and (for a guardian) when you first walked up to it. The gap
+ * between reaching a guardian and beating it is the extra levelling you chose to do first.
+ */
+export function storyline(events: Stamped[]) {
+  const quests = events.filter((e): e is Of<'quest'> => e.kind === 'quest');
+  const handling = (upTo: number) => {
+    const h: Record<string, number> = {};
+    for (const e of events) if (e.kind === 'level' && e.track.startsWith('handling:') && e.play <= upTo) h[e.track.slice(9)] = e.lv;
+    return h;
+  };
+  let from = 0, lvFrom = 1;
+  return quests.map((q) => {
+    const within = (e: Stamped) => e.play > from && e.play <= q.play;
+    const fights = events.filter((e): e is Of<'fight'> => e.kind === 'fight' && within(e));
+    const reach = events.find((e): e is Of<'reached'> => e.kind === 'reached' && within(e));
+    const row = {
+      id: q.id, startMinutes: minutes(from), doneMinutes: minutes(q.play), minutes: minutes(q.play - from),
+      fights: fights.length, deaths: fights.filter((f) => f.result === 'lose').length, lvFrom, lvTo: q.lv, handling: handling(q.play),
+      crafted: events.filter((e): e is Of<'craft'> => e.kind === 'craft' && within(e)).map((e) => e.id),
+      ...(reach ? { reachedGuardianAt: minutes(reach.play), lvWhenReached: reach.lv, fightsAfterReaching: fights.filter((f) => f.play > reach.play).length - 1 } : {}),
+    };
+    from = q.play;
+    lvFrom = q.lv;
+    return row;
+  });
 }
 
 /** The raw events as one table per kind (column names once, then a row per event). */

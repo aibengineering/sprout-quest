@@ -183,9 +183,12 @@ function weaponAt(style: Style, lv: number) {
   return tier > 1 ? GEAR_ORDER.map((id) => GEAR[id]).find((g) => g.slot === 'weapon' && g.style === style && g.tier === tier) : undefined;
 }
 
+/** How far ahead a handling path shows what's coming; levels beyond are a mystery until you get closer. */
+const PATH_REVEAL = 2;
+
 /**
  * A class's whole handling path, to explore: a tab per class, then every level from picking it up to Mastery, what each
- * gives, what you've got, and how far you are toward the next.
+ * gives, what you've got, and how far you are toward the next. Only the next couple of levels say what they bring.
  */
 function handlingTree(s: SaveState, style: Style): string {
   const tabs = (Object.keys(STYLE_NAMES) as Style[]).map((k) =>
@@ -202,6 +205,11 @@ function handlingTree(s: SaveState, style: Style): string {
       [title, note] = [sk.name, sk.note];
     } else if (step === 'trick') [title, note] = [TRICKS[moves.trick].name, TRICKS[moves.trick].note];
     else [title, note] = ['Faster attacks', `${paceGain(style, at) - paceGain(style, at - 1)}% quicker (${paceGain(style, at)}% in all)`];
+    // Further ahead than the next couple of levels: just that something's waiting there.
+    if (at > m.lv + PATH_REVEAL) {
+      return `<li class="hnode locked secret"><span class="hdot">❔</span>
+        <div class="htext"><div class="hlv">Lv ${at}${at === MASTERY_MAX ? ' · Mastery' : ''}</div><b>???</b><small>Train closer to find out</small></div></li>`;
+    }
     const w = weaponAt(style, at);
     const tag = w ? `<span class="htag">${icon(w.id, w.icon, 'icon sm')} Can wield the ${esc(w.name)} ${'★'.repeat(w.tier ?? 0)}</span>` : '';
     const progress = state === 'next' ? `<div class="pbar"><i style="width:${(100 * m.xp) / need}%"></i></div><small class="hxp">${m.xp}/${need} XP</small>` : '';
@@ -329,6 +337,11 @@ export class UI {
     };
     this.sheet.addEventListener('pointerup', endSwipe);
     this.sheet.addEventListener('pointercancel', endSwipe);
+  }
+
+  /** The menu tab that's open, if the menu is (for the play report's time per screen). */
+  get openTab(): Tab | null {
+    return this.menuOpen ? this.tab : null;
   }
 
   get isOpen() {

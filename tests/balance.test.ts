@@ -3,7 +3,7 @@ import { MASTERY_FOR_TIER, GEAR, ZONES, MONSTERS, SKILL_MAX, TOOLS, forgeLevelFo
 import { MOVESETS, SKILL_LEVELS, SKILL_RANKS, comboTime, handlingStep, skillShape, tierScale, type SkillKind } from '../src/weapons';
 import { ARENA_AREA } from '../src/balance';
 import {
-  CHECKPOINTS, HUNTER_DPS, RANGED_DPS, MAX_HUNTER_BURST, dpsBand, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, oneWeaponRun, HEAVY_RUN, LIGHT_RUN, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_MASTERED_SKILL_AREA, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
+  CHECKPOINTS, HUNTER_DPS, RANGED_DPS, MAX_HUNTER_BURST, dpsBand, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, oneWeaponRun, HEAVY_RUN, LIGHT_RUN, atLevelKills, CLASS_STRIKES, MAX_KILL_SECONDS, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_MASTERED_SKILL_AREA, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
   zoneMatchups, type Range,
 } from '../src/balance';
 
@@ -12,10 +12,18 @@ const within = (v: number, [lo, hi]: Range) => v >= lo && v <= hi;
 
 describe('balance', () => {
   for (const c of CHECKPOINTS) {
-    test(`${c.label}: regular fights take ${c.hitsToKill.join('–')} swings and ${c.hitsToDie.join('–')} hits to lose`, () => {
+    test(`${c.label}: regular fights take ${c.hitsToDie.join('–')} hits to lose${c.hitsToKill ? ` and ${c.hitsToKill.join('–')} swings to win` : ''}`, () => {
       const off = zoneMatchups(c)
-        .filter((m) => !within(m.hitsToKill, c.hitsToKill) || !within(m.hitsToDie, c.hitsToDie))
+        .filter((m) => (c.hitsToKill && !within(m.hitsToKill, c.hitsToKill)) || !within(m.hitsToDie, c.hitsToDie))
         .map((m) => `${m.name} lv${m.lv}: ${m.hitsToKill} swings to kill, ${m.hitsToDie} hits to die`);
+      expect(off).toEqual([]);
+    });
+
+    const kills = atLevelKills(c);
+    if (kills.length) test(`${c.label}: a fair fight is a real exchange with every class (Blades ${CLASS_STRIKES.sword.join('–')} strikes, Hammer and Whip ${CLASS_STRIKES.whip.join('–')}, Magic ${CLASS_STRIKES.wand.join('–')}), over within ${MAX_KILL_SECONDS}s`, () => {
+      const off = kills
+        .filter((k) => !within(k.kill.strikes, CLASS_STRIKES[k.style]) || k.kill.seconds > MAX_KILL_SECONDS)
+        .map((k) => `${k.weapon} vs ${k.kind} lv${k.lv}: ${k.kill.strikes} strikes, ${k.kill.seconds.toFixed(1)}s`);
       expect(off).toEqual([]);
     });
 

@@ -15,7 +15,7 @@ import { boot, setUpTitle } from './game/title';
 import { objective } from './game/waypoint';
 import { trackInputDevice, usingKeyboard, type Input } from './input';
 import { UI } from './ui';
-import { flushTime, trackTime, type Activity } from './stats';
+import { SCREENS, flushTime, noteReached, trackTime, type Activity } from './stats';
 import { mealTick } from './kitchen';
 import { has } from './unlocks';
 
@@ -140,6 +140,11 @@ function worldFrame(dt: number) {
     if (ev?.type === 'encounter') startFieldBattle(ev.roamer, false);
   }
   const near = canAct ? over.nearbyObject() : null;
+  // The play report notes when you first walk up to a guardian you haven't beaten.
+  if (near?.kind === 'gate' && near.zone) {
+    const g = ZONES.find((z) => z.id === near.zone)?.guardian;
+    if (g && !s.bosses.includes(g.kind)) noteReached(s, g.kind);
+  }
   ui.setAction(G.mode === 'gather' && chop ? gatherVerb() : prey ? 'Attack!' : near ? near.label : null);
   over.objective = G.mode === 'world' ? objective() : null;
   over.keyHints = usingKeyboard();
@@ -207,6 +212,8 @@ function frame(now: number) {
     // Granny's meals count down while you play (on the map, fighting, chopping), not while you're in a menu.
     if (G.mode === 'world' || G.mode === 'battle' || G.mode === 'gather') mealTick(G.save, dt);
     trackTime(G.battle?.setup.zone.id ?? G.over.currentZone.id, ACTIVITY[G.mode], dt);
+    // Which menu screen (or other popup) the menu time went to.
+    if (G.mode === 'dialog') trackTime(SCREENS, G.ui.openTab ? `menu:${G.ui.openTab}` : 'dialogs', dt);
   }
   // A fight on the map can end inside update() and hand straight back to the overworld, so hold on to it for this frame.
   const b = G.battle;

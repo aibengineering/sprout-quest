@@ -101,6 +101,7 @@ function logFight(o: BattleOutcome, b: Battle) {
     dodges: o.log.dodges, potions: o.log.potions, dealt: o.log.dealt, taken: o.log.taken, hpStart: fightHp, hpEnd: Math.max(0, Math.round(o.hp)),
     maxHp: b.stats.maxHp, xp: o.xp, weapon: s.equip.weapon, armor: s.equip.armor,
     cooling: Math.round(o.log.cooling * 10) / 10, rested: Math.round(o.log.rested * 10) / 10, handling: b.handling,
+    critDealt: o.log.critDealt, kills: o.defeated.length,
     ...(o.result === 'lose' ? { killedBy: o.log.lastHitBy } : {}),
   });
 }

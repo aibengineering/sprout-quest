@@ -243,11 +243,11 @@ export function strikeShape(s: Strike, reach: number): { reach: number; area: nu
 }
 
 /** One strike's damage multiplier on a target in front of you: its shockwave hits it too, and every pellet of a spread lands (as it does point-blank). */
-const strikeDamage = (s: Strike) => (s.shape === 'shot' ? s.mult * (s.shots?.length ?? 1) : s.mult) + (s.wave?.mult ?? 0);
+export const strikeDamage = (s: Strike) => (s.shape === 'shot' ? s.mult * (s.shots?.length ?? 1) : s.mult) + (s.wave?.mult ?? 0);
 /** Seconds from starting a strike until the next can start, at a handling level. */
 export const strikeTime = (s: Strike, lv: number) => s.windup + s.active + s.recover * pace(lv).chain;
 /** A strike's time, plus the rest after it if it ends the combo. */
-const stepTime = (m: Moveset, i: number, lv: number) => strikeTime(m.combo[i], lv) + (i === m.combo.length - 1 ? m.rest * pace(lv).rest : 0);
+export const stepTime = (m: Moveset, i: number, lv: number) => strikeTime(m.combo[i], lv) + (i === m.combo.length - 1 ? m.rest * pace(lv).rest : 0);
 
 /** Seconds per full combo, chaining each strike as early as handling allows, plus the rest after it. */
 export function comboTime(m: Moveset, lv: number): number {

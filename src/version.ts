@@ -36,6 +36,21 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.3',
+    date: '2026-09-29',
+    title: 'Fights with substance',
+    notes: [
+      "⚔️ Fights have more substance: monsters take a few real blows",
+      "🪵 The Twig Sword hits a little harder",
+      "🛡️ Armor costs about twice as much to craft",
+      "🗺️ Weapon Paths only reveal your next two levels",
+      "🎒 Unlock cards keep out of the way of anything you start",
+      "📜 Story fights no longer stop on a Victory screen",
+      "📊 A richer play report",
+      "🐛 Fixes: Granny missing on a new game, and the level-up health bar",
+    ],
+  },
+  {
     version: '0.3.2',
     date: '2026-09-29',
     title: 'Short and sweet',
