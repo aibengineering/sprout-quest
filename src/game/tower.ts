@@ -34,10 +34,6 @@ export function setXpRate(n: number) {
   }
 }
 
-/** True while a tower floor's fight is on. */
-let fighting = false;
-export const climbing = () => fighting;
-
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`);
 
 /** The floor you're on in this save's run (1-based; past the top once it's beaten). */
@@ -109,8 +105,8 @@ export async function openCamp(): Promise<void> {
 function fight() {
   const f = current()!;
   G.save.hp = playerStats(G.save).maxHp;
-  fighting = true;
-  startBattle(f.zone, f.foes.map((x) => ({ ...x, golden: false })), f.boss);
+  // The fight itself carries its floor, so nothing outside it can be mistaken for a tower fight.
+  startBattle(f.zone, f.foes.map((x) => ({ ...x, golden: false })), f.boss, undefined, { tower: f.n });
 }
 
 /** The wood, stone and ore the floor being fought hands over when it's won (fights.ts adds them to the drops). */
@@ -121,7 +117,6 @@ export const floorSupplies = () => {
 
 /** After a tower fight's result screens: up a floor if you won, then back to the camp either way. */
 export async function towerEnd(o: BattleOutcome) {
-  fighting = false;
   if (o.result === 'win') {
     setFloor(towerFloor() + 1);
     if (!current()) await G.ui.message('🗼 The top of the tower!', 'You beat every floor, the Emberwyrm included.');

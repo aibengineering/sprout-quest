@@ -816,6 +816,13 @@ scenario('dev builds: a Battle Tower run climbs floor after floor from its camp,
   await toCamp('the camp after fainting');
   check(await game<number>(page, 'g.save.tower.floor') === 4, 'fainting moved the run');
   check(await progress() === main, 'the tower run changed the main save');
+  // Out of the tower, an ordinary fight pays out as usual (an early build left every later fight giving nothing).
+  await page.click(`${camp} [data-dialog="rest"]`);
+  const xp0 = await game<number>(page, 'g.save.lv * 100000 + g.save.xp');
+  await run(page, `g.encounter('meadow')`);
+  await waitFor(page, 'an ordinary fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 10000);
+  await winFight(page);
+  check(await game<number>(page, 'g.save.lv * 100000 + g.save.xp') > xp0, 'an ordinary fight after the tower gave no XP');
   await run(page, `localStorage.removeItem('sprout-quest-dev-xp-rate'); localStorage.removeItem('sprout-quest-slot')`);
 });
 

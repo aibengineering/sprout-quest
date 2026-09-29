@@ -15,7 +15,7 @@ import { cancelGather } from './gathering';
 import { celebrate, leveledUp, lootLines, markLevels, type LevelMark } from './rewards';
 import { progressQuests } from './story';
 import { storyFainted, storyFightExtras } from './stories';
-import { climbing, floorSupplies, towerEnd } from './tower';
+import { floorSupplies, towerEnd } from './tower';
 
 /** HP when the current fight began, for the play report. */
 let fightHp = 0;
@@ -40,7 +40,7 @@ function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Pa
   G.battle = new Battle({ zone, foes, boss, ambush, ...extra }, G.save, G.input, G.audio, onBattleEnd);
   // Regular fights: loot, the XP fill and any level-ups come the moment the last foe falls, then the swoop out. (The
   // Battle Tower's fights end on a result screen, with the next floor after it.)
-  if (!boss && !battleFlag && !climbing()) G.battle.onWin = quickWin;
+  if (!boss && !battleFlag && !extra.tower) G.battle.onWin = quickWin;
   G.mode = 'battle';
   G.ui.setMode('battle');
   G.input.reset();
@@ -118,7 +118,7 @@ function grantWin(o: BattleOutcome, b: Battle): LevelMark {
   gainXp(s, o.xp);
   mergeDrops(s.mats, o.drops);
   gainMastery(s, mark.style, o.xp);
-  if (!b.setup.boss && !climbing()) recordKills(s, b.setup.zone.id, o.defeated.length);
+  if (!b.setup.boss && !b.setup.tower) recordKills(s, b.setup.zone.id, o.defeated.length);
   return mark;
 }
 
@@ -138,7 +138,7 @@ async function onBattleEnd(o: BattleOutcome) {
   const b = G.battle!, s = G.save;
   const boss = b.setup.boss;
   // Regular fights swoop straight back out to the map; guardians, the dragon and the prologue keep their fanfare.
-  const quick = !boss && !battleFlag && !climbing();
+  const quick = !boss && !battleFlag && !b.setup.tower;
   if (o.result === 'win' && quick) {
     // quickWin has handed out the rewards already.
     swoopOut();
@@ -148,7 +148,7 @@ async function onBattleEnd(o: BattleOutcome) {
   }
   G.mode = 'dialog';
   logFight(o, b);
-  if (climbing()) return towerFight(o, b);
+  if (b.setup.tower) return towerFight(o, b);
   if (o.result === 'run') {
     s.hp = o.hp;
     if (quick) swoopOut();

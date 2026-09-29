@@ -137,6 +137,8 @@ export interface BattleSetup {
   ambush?: boolean;
   /** Someone watching from the arena's edge (e.g. Poppy, hiding while you fight for her): their sprite and feeling. */
   bystander?: { look: string; mood: string };
+  /** A Battle Tower floor (its number): the fight ends at the tower's camp, and never touches the story. */
+  tower?: number;
 }
 
 export interface BattleOutcome {
