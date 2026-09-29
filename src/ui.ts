@@ -30,6 +30,8 @@ export interface MenuCtx {
 
 export interface UIHooks {
   save(): SaveState;
+  /** Is something else going on (a fight, gathering, a scene, a transition), so pop-ups should keep out of the way? */
+  busy(): boolean;
   /** Opens a menu tab from the map (an unlock card's "tap to open"). */
   openTab(tab: Tab): void;
   /** Sounds for reward moments: a named effect, or the XP bar's rising tone (seconds, from and to 0–1 up the bar). */
@@ -277,8 +279,10 @@ export class UI {
   private unlockShowing = false;
   /** The health bar waits for the level-up's bell during an XP fill (see xpGain). */
   private hpHeld = false;
-  /** The unlock card on screen, to bring back after a fight that interrupts it. */
+  /** The unlock card on screen, to bring back if something cuts it off before you could read it. */
   private unlockNow: Unlock | null = null;
+  private unlockShownAt = 0;
+  private unlockWait = 0;
   private unlockTimer = 0;
   private focus: string | undefined;
   private ctx: MenuCtx = { atForge: false, inVillage: false };
@@ -437,6 +441,7 @@ export class UI {
   }
 
   hud(hp: number, zoneName: string) {
+    this.watchUnlocks();
     const s = this.hooks.save();
     const st = playerStats(s);
     const hpText = `${Math.ceil(hp)}/${st.maxHp}`;
@@ -548,11 +553,35 @@ export class UI {
   /** The corner button that leads there, which bounces while its card is up. */
   private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', trick: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag' };
 
+  /** Is anything going on that an unlock card shouldn't sit over: a fight, a menu or dialog, gathering, a scene? */
+  private get popupsBlocked() {
+    return this.mode !== 'world' || this.menuOpen || !this.modal.hidden || this.hooks.busy();
+  }
+
+  /**
+   * Checked every frame: whatever you start (a fight, a menu, chopping, a scene) puts an unlock card away. One cut off
+   * before you could read it comes back once you're free again; waiting cards come out then too.
+   */
+  private watchUnlocks() {
+    const blocked = this.popupsBlocked;
+    if (this.unlockShowing && blocked) {
+      window.clearTimeout(this.unlockTimer);
+      if (this.unlockNow && performance.now() - this.unlockShownAt < 2000) this.unlockQueue.unshift(this.unlockNow);
+      this.unlockNow = null;
+      this.nextUnlock();
+    } else if (!this.unlockShowing && !blocked && this.unlockQueue.length && !this.unlockWait) {
+      this.unlockWait = window.setTimeout(() => {
+        this.unlockWait = 0;
+        if (!this.unlockShowing) this.nextUnlock();
+      }, 600);
+    }
+  }
+
   private nextUnlock() {
     const el = $('unlock-card');
     document.querySelectorAll('.dock-btn.beckon').forEach((b) => b.classList.remove('beckon'));
-    // Not over a fight or a popup: wait for the map (setMode picks it back up).
-    if (!this.unlockQueue.length || this.mode !== 'world') {
+    // Not over a fight, a menu or anything else going on: watchUnlocks brings it out once you're free.
+    if (!this.unlockQueue.length || this.popupsBlocked) {
       this.unlockShowing = false;
       el.classList.remove('show');
       window.setTimeout(() => { if (!this.unlockShowing) el.hidden = true; }, 300);
@@ -560,6 +589,7 @@ export class UI {
     }
     const u = this.unlockQueue.shift()!;
     this.unlockNow = u;
+    this.unlockShownAt = performance.now();
     const tab = UI.UNLOCK_TAB[u.id];
     this.unlockShowing = true;
     el.hidden = false;
@@ -621,15 +651,6 @@ export class UI {
 
   setMode(mode: 'title' | 'world' | 'battle' | 'none') {
     this.mode = mode;
-    // A fight (walking straight into a monster, say) puts the card away, to show again afterwards.
-    if (mode !== 'world' && this.unlockShowing && this.unlockNow) {
-      window.clearTimeout(this.unlockTimer);
-      this.unlockQueue.unshift(this.unlockNow);
-      this.unlockNow = null;
-      this.nextUnlock();
-    }
-    // Unlock cards held back during a fight come out once you're back on the map.
-    if (mode === 'world' && this.unlockQueue.length && !this.unlockShowing) window.setTimeout(() => this.nextUnlock(), 600);
     $('title').hidden = mode !== 'title';
     $('hud').hidden = mode === 'title' || mode === 'none';
     $('ctl-world').hidden = mode !== 'world';

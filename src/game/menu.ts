@@ -46,6 +46,7 @@ export const menuHooks: UIHooks = {
     G.ui.openMenu(menuCtx(), tab);
   },
   save: () => G.save,
+  busy: () => G.mode !== 'world' || !!G.trans || !!G.swoop,
 
   async craftGear(id) {
     const s = G.save, g = GEAR[id];

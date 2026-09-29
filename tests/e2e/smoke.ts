@@ -264,6 +264,17 @@ scenario('an unlock card gets out of the way of a fight, and comes back after it
   await waitFor(page, 'the card to go', async () => game<boolean>(page, `document.getElementById('unlock-card').hidden`), 3000);
   await winFight(page);
   await waitFor(page, 'the card again', async () => !!(await page.$('#unlock-card.show')), 5000);
+  // Opening a menu (or chopping, or a scene: anything that isn't walking about) puts it away too.
+  await page.keyboard.press('KeyB');
+  await waitFor(page, 'the Bag', async () => !!(await page.$('#modal:not([hidden]) .sheet.menu')), 3000);
+  await waitFor(page, 'the card to go for the menu', async () => game<boolean>(page, `document.getElementById('unlock-card').hidden`), 3000);
+  await run(page, `g.ui.closeMenu()`);
+  // A card still waiting doesn't come out over a dialog either.
+  await run(page, `g.ui.unlockCard({ id: 'journal', icon: '📜', title: 'Journal', text: 'Test', when: () => true }); void g.ui.message('Hi', 'A dialog')`);
+  await page.waitForTimeout(1500);
+  check(await game<boolean>(page, `document.getElementById('unlock-card').hidden`), 'an unlock card came out over a dialog');
+  await closeDialogs(page);
+  await waitFor(page, 'the cards once free', async () => !!(await page.$('#unlock-card.show')), 5000);
 });
 
 scenario("a weapon class's handling path: every level, what it brings, and where you are", (g) => {
