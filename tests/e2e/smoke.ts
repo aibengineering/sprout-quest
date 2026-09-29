@@ -636,6 +636,11 @@ scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   check(await game<boolean>(page, `g.save.perks.includes('trailboots') && g.over.actors.get('poppy:poppy').look.name === 'poppy_hug'`), 'no hug, or no boots');
 });
 
+scenario("Bram is at his camp before his story starts, and won't give you the time of day", null, async (page) => {
+  check(await game<boolean>(page, `!g.save.bosses.includes('kingslime') && !!g.over.actors.get('bram:bram')`), "Bram isn't at his camp before his story");
+  check(await game<string>(page, `g.over.actors.get('bram:bram').mood`) === '😤', "Bram isn't grumpy yet");
+});
+
 scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns his stew", (g) => {
   const s = g.save;
   s.lv = 6;

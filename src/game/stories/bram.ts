@@ -92,6 +92,8 @@ export const BRAM_STORY: Story = {
   title: "Bram's Sawmill",
   icon: '🪓',
   available: () => G.save.bosses.includes('kingslime') && (G.save.stories.poppy ?? 0) >= 6,
+  // He's at his camp from the start, grumbling; he only warms up once Granny sends you with a pie.
+  castEarly: true,
   objs: [WAVE1, WAVE2, SCAR, AMBUSH1, AMBUSH2],
   fight: (flag) => {
     if (flag === 'bram:scar') return { bystander: { look: 'npc/bram_hurt', mood: '😖' } };
