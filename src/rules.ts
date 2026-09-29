@@ -293,18 +293,24 @@ export function toolPower(toolTier: number, nodeTier: number): number {
 export const MASTERY_MAX = 10;
 
 /**
- * Handling XP for the next level. Lv 2 (your weapon's skill) comes with your first fight in the meadow, just past the
- * prologue's two; after that it's a steady climb.
+ * Handling XP from each level to the next, paced to the story with one weapon (about 40 fights an area): Lv 2 (the
+ * skill) with your first meadow fight, 3 (the class's trick) around the Slime King, 4 late in the Woods, 6 at the end of
+ * the Cavern and 8 on Ember Peak (each just as its tier of weapons needs it), and Mastery around the Emberwyrm. Later
+ * monsters give far more XP, so the later levels cost more to keep each one a real milestone.
  */
+export const HANDLING_XP = [10, 160, 680, 850, 900, 1100, 1400, 1400, 1500];
 export function masteryXpToNext(lv: number): number {
-  return lv === 1 ? 10 : 45 * lv;
+  return HANDLING_XP[lv - 1] ?? Infinity;
 }
+/** Training a class below your best one goes this much faster: mastering one weapon makes the next quicker to learn. */
+export const CATCH_UP = 2;
 
 /** Winning with a class of weapon trains it. Returns how many levels were gained. */
 export function gainMastery(s: SaveState, style: Style, xp: number): number {
   const m = s.mastery[style];
   if (m.lv >= MASTERY_MAX) return 0;
-  m.xp += xp;
+  const best = Math.max(...Object.values(s.mastery).map((o) => o.lv));
+  m.xp += m.lv < best ? xp * CATCH_UP : xp;
   let gained = 0;
   while (m.lv < MASTERY_MAX && m.xp >= masteryXpToNext(m.lv)) {
     m.xp -= masteryXpToNext(m.lv);

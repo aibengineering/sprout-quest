@@ -271,7 +271,7 @@ scenario("a weapon class's handling path: every level, what it brings, and where
   check(await page.locator('#modal .hnode.done').count() === 3, 'Lv 1–3 should be ticked off');
   check(/Riposte/.test((await page.locator('#modal .hnode.trick').textContent()) ?? ''), "the Blades' trick isn't on its path");
   check(/Copper Sword/.test((await page.locator('#modal .htree').textContent()) ?? ''), 'the path should say which weapons it lets you wield');
-  check(/40\/135 XP/.test((await page.locator('#modal .hnode.next').textContent()) ?? ''), 'the next level should show your progress');
+  check(/40\/680 XP/.test((await page.locator('#modal .hnode.next').textContent()) ?? ''), 'the next level should show your progress');
   if (SHOTS) await page.screenshot({ path: `${OUT}handling-path.png` });
   // Any class's path, trained or not.
   await page.click('#modal [data-pick="hpath:wand"]');

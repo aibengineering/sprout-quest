@@ -3,7 +3,7 @@
 import { ARENA_RX, ARENA_RY } from './arena';
 import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
 import { MOVESETS, comboDps, openingBurst, skillRank, skillShape, strikeShape, tierScale } from './weapons';
-import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, xpEdge, type PlayerStats } from './rules';
+import { GENTLE_ATK, MONSTER_HP, calcDamage, CATCH_UP, MASTERY_MAX, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, xpEdge, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
 import { LOGS_PER_PLANK } from './sawmill';
@@ -325,14 +325,52 @@ export function dpsVsGatherers(key: 'dps' | 'burst' = 'dps'): Record<string, num
 
 /** The zone you're fighting in while working toward each weapon tier (★2 in the meadow, ★3 in the woods…). */
 const TIER_ZONE: ZoneId[] = ['meadow', 'meadow', 'meadow', 'woods', 'cave', 'hollow'];
-/** Switching to a new class at any tier costs at most this many minutes of fighting to handle it well enough. */
-export const MAX_HANDLING_MINUTES = 10;
+/**
+ * Switching to a new class at any tier costs at most this many minutes of fighting to handle it well enough: a real
+ * commitment late in the game (handling is paced to the whole story), but never a restart.
+ */
+export const MAX_HANDLING_MINUTES = 20;
 
-/** Minutes of fighting (at mid zone level) to train a fresh class up to what a weapon tier needs. */
+/**
+ * Handling with one weapon through a natural playthrough: `perArea` fights of one to three of each area's monsters
+ * (at every level in its range), each guardian, then the Emberwyrm. Where you stand at the end of each area, and at the
+ * dragon.
+ */
+export function oneWeaponRun(perArea = 40): Record<string, { lv: number; handling: number }> {
+  let lv = 1, xp = 0, h = 1, hx = 0;
+  const out: Record<string, { lv: number; handling: number }> = {};
+  const gain = (kind: MonsterKind, mlv: number) => {
+    const g = Math.round(scaleMonster(MONSTERS[kind], mlv, false).xp * xpEdge(lv, mlv));
+    xp += g;
+    hx += g;
+    while (xp >= xpToNext(lv)) { xp -= xpToNext(lv); lv++; }
+    while (h < MASTERY_MAX && hx >= masteryXpToNext(h)) { hx -= masteryXpToNext(h); h++; }
+  };
+  gain('slime', 1);
+  gain('bunny', 1);
+  const areas = ZONES.filter((z) => z.monsters.length);
+  areas.forEach((z, i) => {
+    for (let f = 0; f < perArea; f++) {
+      const n = Math.min(z.maxEnemies, 1 + (f % 3 === 2 ? 2 : f % 2));
+      for (let j = 0; j < n; j++) gain(z.monsters[(f + j) % z.monsters.length].kind, z.lv[0] + ((f * 3 + j) % (z.lv[1] - z.lv[0] + 1)));
+    }
+    out[z.id] = { lv, handling: h };
+    const g = areas[i + 1]?.guardian;
+    if (g) gain(g.kind, g.lv);
+  });
+  gain('dragon', 20);
+  out.dragon = { lv, handling: h };
+  return out;
+}
+
+/**
+ * Minutes of fighting (at mid zone level) to train a fresh class up to what a weapon tier needs, while another class
+ * you've trained further makes it quicker (CATCH_UP).
+ */
 export function minutesToHandle(tier: number): number {
   const need = MASTERY_FOR_TIER[tier] ?? 0;
   let xp = 0;
-  for (let lv = 1; lv < need; lv++) xp += masteryXpToNext(lv);
+  for (let lv = 1; lv < need; lv++) xp += masteryXpToNext(lv) / CATCH_UP;
   const z = ZONES.find((z) => z.id === TIER_ZONE[tier])!;
   const lv = Math.round((z.lv[0] + z.lv[1]) / 2);
   const total = z.monsters.reduce((a, m) => a + m.w, 0);

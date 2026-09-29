@@ -52,6 +52,15 @@ describe('rules', () => {
     expect(s.mastery.sword.lv).toBe(2);
   });
 
+  test('a class below your best trains twice as fast: mastering one weapon makes the next quicker to learn', () => {
+    const s = newState();
+    s.mastery.sword.lv = 6;
+    gainMastery(s, 'whip', 4);
+    expect(s.mastery.whip.xp).toBe(8);
+    gainMastery(s, 'sword', 4);
+    expect(s.mastery.sword.xp).toBe(4);
+  });
+
   test('better weapons of a class need handling in it, trained by winning with it', () => {
     const s = newState();
     for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 99;
