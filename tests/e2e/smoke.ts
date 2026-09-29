@@ -335,6 +335,9 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
     await page.waitForSelector('#hud .stat.gain');
     await page.waitForTimeout(700);
     await page.screenshot({ path: `${OUT}xp-fill.png`, clip: { x: 0, y: 0, width: 390, height: 140 } });
+    await page.waitForSelector('#hud .stat.hand-gain');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}hand-fill.png`, clip: { x: 0, y: 0, width: 390, height: 140 } });
   }
   await waitFor(page, 'the level-up screen', async () => !!(await page.$('#modal:not([hidden]) .lvsheet')));
   // Its stats tick in one by one.
@@ -349,6 +352,8 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
   const screens = await closeDialogs(page);
   check(screens.some((t) => t.includes('Level up!') && t.includes('Max HP')), 'no combat level-up screen');
   check(screens.some((t) => /Whip handling/i.test(t) && t.includes('Spore Whip')), 'whip handling screen did not reveal the Spore Whip');
+  // Weapon handling has its own bar under your XP, showing the weapon's class and handling level.
+  check(await page.textContent('#hud-hlv') === String(await game<number>(page, 'g.save.mastery.whip.lv')), "the handling bar doesn't show your whip handling level");
   check(await game(page, 'g.save.lv') === 5, 'combat level did not go up');
 });
 

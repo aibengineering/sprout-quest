@@ -10,6 +10,8 @@ export type Sfx =
   | 'crack'
   // Rewards: a bell as the XP bar tops out (a level), a tick per stat that grows, and a treasure's little fanfare.
   | 'ding' | 'tick' | 'treasure'
+  // Weapon handling's bar has its own voice: the same bell, a fourth lower and warmer.
+  | 'handlingDing'
   // A regular win: a quick bright bell, leaving room for the XP fill right after it (guardians keep the full jingle).
   | 'win';
 
@@ -74,13 +76,15 @@ export class Audio {
    * pitch, with no buzzy square tone under it. The pitch follows the bar (slow at the bottom, racing near the top,
    * which builds anticipation), and it gets louder as the bar fills.
    */
-  sweep(dur: number, from: number, to: number) {
+  sweep(dur: number, from: number, to: number, voice: 'xp' | 'handling' = 'xp') {
     if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
     const t0 = this.ctx.currentTime + 0.01;
     const n = xpBloops(dur), step = dur / n;
+    // Weapon handling's fill: a fourth lower, with a warmer, woodier triangle tone, so the two bars sound apart.
+    const [k, wave] = voice === 'handling' ? [0.75, 'triangle' as const] : [1, 'sine' as const];
     for (let i = 0; i < n; i++) {
       const a = from + ((to - from) * i) / n, b = from + ((to - from) * (i + 1)) / n;
-      this.chirp(xpPitch(a) * 1.5, xpPitch(b) * 2, 0.05, 'sine', 0.07 + 0.07 * b, t0 + i * step);
+      this.chirp(xpPitch(a) * 1.5 * k, xpPitch(b) * 2 * k, 0.05, wave, (0.07 + 0.07 * b) * (voice === 'handling' ? 1.2 : 1), t0 + i * step);
     }
   }
 
@@ -104,15 +108,15 @@ export class Audio {
    * The bar topping out: Pokémon's bell is two voices a fourth apart, each flicking up through two grace notes
    * (a frame each) before it rings. Here in C: C-E-G under E-G-C, ringing on G and C, with a shimmer on top.
    */
-  private bell() {
+  private bell(pitch = 1) {
     const t0 = this.ctx!.currentTime + 0.005, f = 1 / 60;
     [[1047, 1319, 1568], [1319, 1568, 2093]].forEach((voice, v) =>
       voice.forEach((hz, k) => {
         const last = k === voice.length - 1;
-        this.chirp(hz, hz, last ? 0.34 : f, 'square', v ? 0.07 : 0.09, t0 + k * f, last ? 0.02 : 1);
-        if (last) this.chirp(hz, hz, 0.6, 'triangle', 0.12, t0 + k * f);
+        this.chirp(hz * pitch, hz * pitch, last ? 0.34 : f, 'square', v ? 0.07 : 0.09, t0 + k * f, last ? 0.02 : 1);
+        if (last) this.chirp(hz * pitch, hz * pitch, 0.6, 'triangle', 0.12, t0 + k * f);
       }));
-    this.chirp(4186, 4186, 0.25, 'sine', 0.025, t0 + 0.06);
+    this.chirp(4186 * pitch, 4186 * pitch, 0.25, 'sine', 0.025, t0 + 0.06);
   }
 
   play(s: Sfx) {
@@ -147,6 +151,7 @@ export class Audio {
       case 'pickup': notes([988, 1319], 0.05, 'square', 0.07); break;
       case 'crack': this.noise(0.035, 0.55, 7000); this.tone(2400, 0.025, 'square', 0.08, 1200); break;
       case 'ding': this.bell(); break;
+      case 'handlingDing': this.bell(0.75); break;
       case 'tick': this.tone(1320, 0.05, 'square', 0.06); break;
       case 'win': this.tone(1319, 0.14, 'triangle', 0.2); this.tone(1976, 0.3, 'triangle', 0.18, undefined, 0.08); this.tone(3951, 0.2, 'sine', 0.03, undefined, 0.1); break;
       case 'treasure': notes([659, 784, 1047, 1319], 0.07, 'triangle', 0.16); this.tone(1568, 0.5, 'sine', 0.1, undefined, 0.3); break;

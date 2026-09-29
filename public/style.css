@@ -1027,6 +1027,17 @@ body.kbd .drag-hint .keys { display: flex; }
 }
 @keyframes xpfloat { from { transform: translateY(14px) scale(0.5); opacity: 0; } }
 .xp-float.tick { animation: xptick 0.12s ease-out; }
+/* Weapon handling's own bar under your XP: its class, the bar, its level. Teal, to tell it apart. */
+.hand-row { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+.hand-row .hemo { font-size: 11px; line-height: 1; }
+.hand-row .hlv { font: 700 10px var(--display); color: #2a8a8a; min-width: 14px; text-align: right; }
+.bar.hand { flex: 1; height: 5px; }
+.bar.hand i { background: linear-gradient(#8ae8e0, #3ab8b0); }
+.stat.hand-gain .bar.hand { height: 9px; transition: height 0.2s; }
+.stat.hand-gain .bar.hand i { background: linear-gradient(#c8fff8, #4ad8c8); box-shadow: 0 0 8px #6ae8d8; }
+.xp-float.hand { color: #8af0e0; }
+.xp-notch.handling { box-shadow: 0 0 6px #d0fff8, 0 0 10px #4ad8c8; }
+.xp-spark.handling { background: #8af0e0; }
 @keyframes xptick { 50% { transform: scale(1.12); } }
 /* Each bubble of the fill: a bright notch pops onto the bar where it's reached, and a spark jumps off it. */
 .xp-notch {

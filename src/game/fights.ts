@@ -12,7 +12,7 @@ import { has } from '../unlocks';
 import type { WorldObj } from '../world';
 import { G, backToWorld, persist, syncWorld, transition } from './context';
 import { cancelGather } from './gathering';
-import { celebrate, leveledUp, lootLines, markLevels, type LevelMark } from './rewards';
+import { celebrate, handlingGain, leveledUp, lootLines, markLevels, type LevelMark } from './rewards';
 import { progressQuests } from './story';
 import { storyFightExtras } from './stories';
 import { faint } from './death';
@@ -138,7 +138,7 @@ async function quickWin(o: BattleOutcome) {
   }
   G.ui.loot(lootLines(o.drops, [{ n: o.xp, what: STYLE_NAMES[mark.style], emo: '⚔️' }]));
   persist();
-  await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
+  await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp, handlingGain(mark));
   if (leveledUp(mark)) await celebrate(mark);
 }
 
@@ -184,7 +184,7 @@ async function onBattleEnd(o: BattleOutcome) {
     }
     persist();
     await G.ui.result({ win: true, xp: o.xp, levels: s.lv - mark.fromLv, newLv: s.lv, drops: o.drops, boss });
-    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
+    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp, handlingGain(mark));
     await celebrate(mark);
     if (firstClear && gz) await G.ui.roadOpened(MONSTERS[bossKind].name, gz.name, bossKind);
     transition(() => {
@@ -206,7 +206,7 @@ async function towerFight(o: BattleOutcome, b: Battle) {
     const mark = grantWin(o, b);
     persist();
     await G.ui.result({ win: true, xp: o.xp, levels: s.lv - mark.fromLv, newLv: s.lv, drops: o.drops, boss: b.setup.boss });
-    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
+    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp, handlingGain(mark));
     await celebrate(mark);
   } else if (o.result === 'lose') {
     await G.ui.result({ win: false, xp: 0, levels: 0, newLv: s.lv, drops: {}, boss: b.setup.boss, tower: true });
