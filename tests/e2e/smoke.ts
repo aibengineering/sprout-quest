@@ -182,7 +182,9 @@ scenario('a new game plays through the prologue to Elder Oswin', null, async (pa
     await waitFor(page, `the ${flag} fight`, async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`), 4000);
     await page.waitForTimeout(1300);
     await endFight(page);
-    await waitFor(page, `the ${flag} result`, async () => !!(await page.$('#modal:not([hidden]) [data-dialog]')), 5000);
+    // Story fights end like any other: the XP fills in as the last foe falls, with no result screen to tap through.
+    await waitFor(page, `the ${flag} XP`, async () => !!(await page.$('#hud .stat.gain')), 5000);
+    check(!(await page.$('#modal:not([hidden]) .result .big')), `the ${flag} fight stopped on a result screen`);
     await closeDialogs(page);
     // Back on the map, the next step's caption may already be up: read it.
     await waitFor(page, 'back on the map', async () => game<boolean>(page, `!g.battle`), 5000);
@@ -200,6 +202,8 @@ scenario('a new game plays through the prologue to Elder Oswin', null, async (pa
       await waitFor(page, 'the Bag to close', async () => game<boolean>(page, `g.mode === 'world'`), 3000);
     }
   }
+  // The prologue's two fights don't unlock the weapon's special: the first fight in the meadow does.
+  check(await game<number>(page, 'g.save.mastery.sword.lv') === 1, 'handling went up in the prologue');
   // Walking into the village plays Elder Oswin's welcome tour.
   await closeDialogs(page);
   // Stand just outside and walk in (teleporting straight in wouldn't count as arriving).
@@ -283,7 +287,7 @@ scenario("a weapon class's handling path: every level, what it brings, and where
 });
 
 scenario('winning a fight levels you up and reveals new gear (and the quest tracker counts materials)', (g) => {
-  Object.assign(g.save, { lv: 4, xp: 108 });
+  Object.assign(g.save, { lv: 4, xp: 109 }); // 2 short of Lv 5: even a slime you've outgrown gives 2
   g.save.owned.push('jellywhip');
   g.save.equip.weapon = 'jellywhip';
   g.save.mastery.whip.xp = 8; // 2 short of handling Lv 2 (rules.ts masteryXpToNext)
@@ -303,6 +307,8 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
     await page.screenshot({ path: `${OUT}xp-fill.png`, clip: { x: 0, y: 0, width: 390, height: 140 } });
   }
   await waitFor(page, 'the level-up screen', async () => !!(await page.$('#modal:not([hidden]) .lvsheet')));
+  // Its stats tick in one by one.
+  await waitFor(page, "the level-up's stats", async () => /Max HP/.test((await page.textContent('#modal .sheet')) ?? ''), 5000);
   // Loot and XP stack on the right, clear of the quest tracker.
   const pill = await page.locator('#quest-pill').boundingBox(), rows = await page.locator('#loot .lrow').all();
   check(rows.length > 0, 'no loot rows');
@@ -860,6 +866,11 @@ scenario('dev builds: a Battle Tower run climbs floor after floor from its camp,
   await waitFor(page, 'an ordinary fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 10000);
   await winFight(page);
   check(await game<number>(page, 'g.save.lv * 100000 + g.save.xp') > xp0, 'an ordinary fight after the tower gave no XP');
+  // The tower's XP rate stays in the tower: a story slot (a fresh playthrough in a dev build) plays at ×1.
+  await run(page, `localStorage.setItem('sprout-quest-slot', 'story-9')`);
+  await page.reload();
+  await page.waitForSelector('.title-btns:not([hidden])');
+  check(await game<number>(page, 'g.xpRate') === 1, "the tower's XP rate leaked into a story slot");
   await run(page, `localStorage.removeItem('sprout-quest-dev-xp-rate'); localStorage.removeItem('sprout-quest-slot')`);
 });
 

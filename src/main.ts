@@ -243,6 +243,7 @@ requestAnimationFrame(frame);
   get over() { return G.over; },
   get chop() { return chop; },
   get modelStats() { return modelStats; },
+  get xpRate() { return G.xpRate; },
   set zoom(z: number) { debugZoom = z; },
   /** A regular grass encounter right here (or in `zone`). */
   encounter(zone?: ZoneId) {

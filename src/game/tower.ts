@@ -11,11 +11,19 @@ import { activeSlot } from '../slots';
 import { G, backToWorld, menuCtx, persist, transition } from './context';
 import { startBattle } from './fights';
 
+/** The Battle Tower run's save slot. The raised XP rate only ever applies there. */
+export const TOWER_SLOT = 'tower';
+
 /** The XP rate lasts across reloads on this device. */
 const RATE = 'sprout-quest-dev-xp-rate';
 export const XP_RATES = [1, 5, 25, 100];
 
 export function loadXpRate() {
+  // Every other save, story slots made for a fresh playthrough included, always plays at ×1.
+  if (activeSlot() !== TOWER_SLOT) {
+    G.xpRate = 1;
+    return;
+  }
   try {
     G.xpRate = Number(localStorage.getItem(RATE)) || 1;
   } catch {
@@ -24,8 +32,8 @@ export function loadXpRate() {
 }
 
 export function setXpRate(n: number) {
-  // Never on your real save (the combat lab and the tower only run in dev slots anyway).
-  if (activeSlot() === null) return;
+  // Only in the tower run: never your real save, and never a story slot.
+  if (activeSlot() !== TOWER_SLOT) return;
   G.xpRate = n;
   try {
     localStorage.setItem(RATE, String(n));

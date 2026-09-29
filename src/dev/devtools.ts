@@ -10,7 +10,7 @@ import { G, persist } from '../game/context';
 import { activeSlot, freezeStorage, setActiveSlot, slotKey } from '../slots';
 import { SAVE_KEY, type SaveState } from '../state';
 import { LOG_KEY, TIME_KEY } from '../stats';
-import { loadXpRate, openCamp } from '../game/tower';
+import { TOWER_SLOT, loadXpRate, openCamp } from '../game/tower';
 import { LAB_CSS, lab } from './lab';
 import { PRESETS, towerRun } from './presets';
 
@@ -18,8 +18,6 @@ import { PRESETS, towerRun } from './presets';
 const AUTOPLAY = 'sprout-quest-autoplay';
 /** Set across the reload into the tower's slot, to open its camp once the game is up. */
 const CAMP = 'sprout-quest-camp';
-/** The Battle Tower run's slot. */
-const TOWER_SLOT = 'tower';
 /** Whether the performance readout is showing, per device (off unless you turn it on in the panel). */
 const PERF = 'sprout-quest-dev-perf';
 const perfOn = () => localStorage.getItem(PERF) === '1';
@@ -41,8 +39,8 @@ export function install() {
     return;
   }
   document.head.insertAdjacentHTML('beforeend', `<style>${CSS}${LAB_CSS}</style>`);
-  // The raised XP rate is for dev slots (the tower run, presets, copies); your real save always plays at ×1.
-  if (activeSlot() !== null) loadXpRate();
+  // The raised XP rate is for the tower run only; every other save plays at ×1.
+  loadXpRate();
   addTitleButton();
   // The same panel from inside the game: a row at the top of the menu's More tab.
   G.ui.devRow = {

@@ -38,9 +38,9 @@ function rollFoes(z: Zone): Foe[] {
 
 function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Partial<BattleSetup> = {}) {
   G.battle = new Battle({ zone, foes, boss, ambush, ...extra }, G.save, G.input, G.audio, onBattleEnd);
-  // Regular fights: loot, the XP fill and any level-ups come the moment the last foe falls, then the swoop out. (The
-  // Battle Tower's fights end on a result screen, with the next floor after it.)
-  if (!boss && !battleFlag && !extra.tower) G.battle.onWin = quickWin;
+  // Regular and story fights: loot, the XP fill and any level-ups come the moment the last foe falls, then the swoop
+  // out. (Guardians keep their fanfare, and the Battle Tower's fights end on a result screen before the next floor.)
+  if (!boss && !extra.tower) G.battle.onWin = quickWin;
   G.mode = 'battle';
   G.ui.setMode('battle');
   G.input.reset();
@@ -128,6 +128,11 @@ async function quickWin(o: BattleOutcome) {
   G.mode = 'dialog';
   logFight(o, b);
   const mark = grantWin(o, b);
+  // A story fight (the prologue's, a pack in a side story) clears its way.
+  if (battleFlag && !s.flags.includes(battleFlag)) {
+    s.flags.push(battleFlag);
+    syncWorld();
+  }
   G.ui.loot(lootLines(o.drops, [{ n: o.xp, what: STYLE_NAMES[mark.style], emo: '⚔️' }]));
   persist();
   await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
@@ -137,8 +142,8 @@ async function quickWin(o: BattleOutcome) {
 async function onBattleEnd(o: BattleOutcome) {
   const b = G.battle!, s = G.save;
   const boss = b.setup.boss;
-  // Regular fights swoop straight back out to the map; guardians, the dragon and the prologue keep their fanfare.
-  const quick = !boss && !battleFlag && !b.setup.tower;
+  // Regular and story fights swoop straight back out to the map; guardians and the dragon keep their fanfare.
+  const quick = !boss && !b.setup.tower;
   if (o.result === 'win' && quick) {
     // quickWin has handed out the rewards already.
     swoopOut();

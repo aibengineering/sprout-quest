@@ -64,8 +64,8 @@ export async function lab(): Promise<'away' | 'close'> {
        <button class="go ghost" data-dialog="lv:-1">−</button><button class="go ghost" data-dialog="lv:1">+</button></div>
      <div class="dev-row"><div class="dev-info"><b>${STYLE_NAMES[cls]} handling ${hand.lv}</b></div>
        <button class="go ghost" data-dialog="hand:-1">−</button><button class="go ghost" data-dialog="hand:1">+</button></div>
-     <div class="dev-row"><div class="dev-info"><b>XP rate ×${G.xpRate}</b><small>Every fight's XP, combat and handling</small></div>
-       ${XP_RATES.map((n) => `<button class="go${n === G.xpRate ? '' : ' ghost'}" data-dialog="rate:${n}">×${n}</button>`).join('')}</div>
+     ${inTower ? `<div class="dev-row"><div class="dev-info"><b>XP rate ×${G.xpRate}</b><small>Every fight's XP in the tower run</small></div>
+       ${XP_RATES.map((n) => `<button class="go${n === G.xpRate ? '' : ' ghost'}" data-dialog="rate:${n}">×${n}</button>`).join('')}</div>` : ''}
      <div class="dev-row"><select id="lab-weapon">${weapons}</select><button class="go" data-dialog="weapon">Wield</button></div>
      <div class="dev-row"><select id="lab-kit">${kits}</select><button class="go" data-dialog="kit">Gear up</button></div>
      <div class="dev-h">Any fight</div>
