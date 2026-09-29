@@ -273,7 +273,8 @@ export class Battle implements FoeWorld, HitWorld {
       // Heavy weapons root you while they swing; recovery lets you move again.
       speed *= sw.t < sw.s.windup + sw.s.active ? sw.s.move : 0.5 + sw.s.move * 0.5;
     }
-    if (p.whirlT > 0) speed *= 0.75;
+    // Whirling slows you down (less so as the skill ranks up).
+    if (p.whirlT > 0) speed *= this.skillNow?.move || 0.5;
     if (p.dodgeT > 0) {
       p.dodgeT -= dt;
       p.vx = Math.cos(p.dodgeDir) * speed * 3;
@@ -605,7 +606,7 @@ export class Battle implements FoeWorld, HitWorld {
         }
         break;
       case 'whirl':
-        p.whirlT = SKILL_DATA.whirl.dur;
+        p.whirlT = r.dur;
         p.whirlTick = 0;
         p.whirlAng = ang;
         break;

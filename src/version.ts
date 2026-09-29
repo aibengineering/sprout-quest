@@ -15,6 +15,16 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.1',
+    date: '2026-09-29',
+    title: 'Specials Earned',
+    notes: [
+      "🌀 Special attacks start small and grow with your weapon handling: Rank I is a quick taste, and each rank adds more, up to a Mastery finisher that really is over the top.",
+      "🪢 The whip's Whirl no longer spins you round three times at the start: Rank I is three quick lashes, and it spins longer, wider and faster on your feet as it ranks up, to a roaming Tempest at Mastery.",
+      "🔨 The hammer's Quake leans on its shockwaves more as it ranks up, and every special hits a crowd about as hard as the others.",
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-09-28',
     title: 'Tales of Sowerby',

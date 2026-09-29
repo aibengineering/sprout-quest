@@ -137,6 +137,22 @@ describe('balance', () => {
     expect(off).toEqual([]);
   });
 
+  test("skills: in a crowd, no close-in skill (Spin, Quake, Whirl) outdoes the others' average by more than 30% at any rank, and Rank I stays small", () => {
+    // Crowd value: damage × the ground it lands on (the whirl counts every lash). Nova's bolts fly off one per enemy, so it's left out.
+    const kinds: SkillKind[] = ['spin', 'quake', 'whirl'];
+    const off: string[] = [];
+    for (let r = 1; r <= 4; r++) {
+      const crowd = kinds.map((k) => skillShape(k, 1, r).crowd), mean = crowd.reduce((a, b) => a + b, 0) / crowd.length;
+      kinds.forEach((k, i) => { if (crowd[i] > mean * 1.3) off.push(`${k} rank ${r}: ${(crowd[i] / mean).toFixed(2)}× the average crowd damage`); });
+    }
+    for (const k of Object.keys(SKILL_RANKS) as SkillKind[]) {
+      const one = skillShape(k, 1, 1).mult, four = skillShape(k, 1, 4).mult;
+      if (one > 1.4) off.push(`${k} rank I hits ${one.toFixed(2)}×`);
+      if (four < one * 2.2) off.push(`${k} Mastery is only ${(four / one).toFixed(2)}× rank I`);
+    }
+    expect(off).toEqual([]);
+  });
+
   test('every weapon class has a weapon at every tier, and switching to a new class never costs long to train up', () => {
     const weapons = Object.values(GEAR).filter((g) => g.slot === 'weapon' && g.recipe);
     for (const style of ['sword', 'hammer', 'whip', 'wand'] as const)
