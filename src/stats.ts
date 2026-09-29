@@ -2,6 +2,7 @@
 // kept in their own localStorage entries (so they never bloat the save) and exportable from the More tab.
 import { GEAR, NODES, TOOLS } from './data';
 import { slotKey, storageFrozen } from './slots';
+import { VERSION } from './version';
 import type { SaveState } from './state';
 
 /** Where the log and time split live (per save slot, see slots.ts). */
@@ -71,7 +72,7 @@ export function noteReached(save: SaveState, id: string) {
 
 /** What you're doing, for the time split: walking the map, fighting, gathering, or in menus and popups. */
 export type Activity = 'walking' | 'fighting' | 'gathering' | 'menus';
-type TimeLog = Record<string, Record<string, number>>;
+export type TimeLog = Record<string, Record<string, number>>;
 
 let time: TimeLog | null = null;
 let unsaved = 0;
@@ -173,8 +174,8 @@ function toolTimeline(crafts: Of<'craft'>[]) {
 }
 
 /** Minutes per area per activity, plus totals, and the menu time split by screen. */
-function timeSplit() {
-  const t = loadTime(), total: Record<string, number> = {};
+function timeSplit(t: TimeLog = loadTime()) {
+  const total: Record<string, number> = {};
   const byZone: Record<string, Record<string, number>> = {};
   const menusByScreen = Object.fromEntries(Object.entries(t[SCREENS] ?? {}).map(([k, v]) => [k, minutes(v)]));
   for (const [zone, acts] of Object.entries(t)) {
@@ -189,8 +190,10 @@ function timeSplit() {
 }
 
 /** The summary: small enough to paste into a chat. Per-area fights, weapons, gathering, time, deaths and timelines. */
-export function buildSummary(save: SaveState) {
-  const events = load();
+export const buildSummary = (save: SaveState) => summarize(save, load(), loadTime());
+
+/** The summary of any events and time split (the simulator in sim/ builds its report with this too). */
+export function summarize(save: SaveState, events: Stamped[], t: TimeLog) {
   const fights = events.filter((e): e is Of<'fight'> => e.kind === 'fight');
   const gathers = events.filter((e): e is Of<'gather'> => e.kind === 'gather');
   const crafts = events.filter((e): e is Of<'craft'> => e.kind === 'craft');
@@ -198,6 +201,7 @@ export function buildSummary(save: SaveState) {
   const map = <T, U>(o: Record<string, T>, f: (v: T) => U) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, f(v)]));
   return {
     game: 'Sprout Quest',
+    version: VERSION,
     exported: new Date().toISOString(),
     playMinutes: minutes(save.playtime),
     now: {
@@ -206,7 +210,7 @@ export function buildSummary(save: SaveState) {
     },
     summary: {
       fights: fights.length, deaths: fights.filter((f) => f.result === 'lose').length, gathers: gathers.length,
-      time: timeSplit(),
+      time: timeSplit(t),
       fightsByZone: map(byKey(fights, (f) => `${f.zone}${f.boss ? ' (boss)' : ''}`), fightStats),
       fightsByWeapon: map(byKey(fights.filter((f) => !f.boss), (f) => f.weapon), fightStats),
       // Battle Tower runs (dev builds): each floor fought, first climbs and training alike.

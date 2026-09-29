@@ -101,6 +101,8 @@ bun run build --dev    # the same, with the dev tools (save slots and presets, s
 bun test               # rules, balance, story, routes and map tests
 bun run typecheck
 bun run balance        # prints the balance model: fights, pacing, the material economy, every weapon
+bun run sim            # a simulated playthrough (test tooling, see sim/README.md)
+bun run sim:compare -- <report.json>   # a real play report against the simulated playthroughs
 bun run e2e            # plays the real game in headless Chromium (add --shots for screenshots in tests/e2e/out/)
 ```
 

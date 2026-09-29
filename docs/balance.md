@@ -8,6 +8,8 @@ changes. The numbers themselves live in code, so this page explains the targets 
 - `tests/balance.test.ts` enforces the targets. If a change breaks one, the test name says which intent it broke.
 - The in-game play report (More → Play report) is the real-play check on the model. When they disagree, the report
   wins, and the model's assumptions get fixed, not just its numbers.
+- The playthrough simulator ([sim/](../sim/README.md)) plays the story with the model and lines its runs up against a
+  real report (`bun run sim:compare -- <report.json>`). That tells a wrong model apart from wrong targets.
 
 ## The intent
 
