@@ -45,6 +45,8 @@ export const PATCH_NOTES: PatchNote[] = [
       "🪨 The hammer's special is Fracture: a fan of rock spikes bursts forward",
       "🎓 A newly unlocked move is taught the first time you can use it",
       "👻 Fainting now costs a walk back to where you fell",
+      "🐺 Monsters past the meadow have new tricks: learn their tells",
+      "🦇 Flappers screech to dizzy you, and Pebblors shrug off hits until they slam",
     ],
   },
   {

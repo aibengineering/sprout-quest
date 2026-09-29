@@ -10,7 +10,7 @@ import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, xpEdge, cloverPity, merg
 import type { SaveState } from '../state';
 import { BLINK, MOVESETS, RIPOSTE, SKILL_DATA, STAGGER, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
-import { MONSTER_AI, type FoeWorld } from './monsters';
+import { MONSTER_AI, blinkAway, type FoeWorld } from './monsters';
 import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
 import {
   AIM_ASSIST, SKILL_CD, TAU, ZOOM_T, angDiff, clamp01, easeInOut, easeOut, rand,
@@ -56,6 +56,8 @@ export class Battle implements FoeWorld, HitWorld {
     /** Rest after a full combo; seconds until the next strike may start, and how much of that comes after the swing. */
     restT: 0, atkCd: 0, atkGap: 0,
     whirlT: 0, whirlTick: 0, whirlAng: 0,
+    /** Seconds left poisoned (Sporecap spores), and until its next hurt; seconds left dizzy (a Flapper's screech). */
+    poison: 0, poisonTick: 0, dizzy: 0,
     /** Seconds left of a dodge's dodging (for the Riposte), and of the Riposte it earned. */
     dodging: 0, riposte: 0,
     swing: null as Swing | null,
@@ -101,6 +103,8 @@ export class Battle implements FoeWorld, HitWorld {
   private onceKeys = new Set<number>();
   /** The strike whose "Riposte!" has been shown (a sweep can hit several foes). */
   private riposteShown = 0;
+  /** …and whose "Clang!" or "Exposed!". */
+  private clangShown = 0;
   /** Running tallies for the play report. */
   readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0, critDealt: 0, cooling: 0, rested: 0, lastHitBy: '' };
 
@@ -151,7 +155,7 @@ export class Battle implements FoeWorld, HitWorld {
       hp: s.hp, maxHp: s.hp, atk: Math.round((f.gentle ? s.atk * GENTLE_ATK : s.atk) * levelEdge(f.lv, this.stats.lv)), dfn: s.def, xp: Math.round(s.xp * xpEdge(this.stats.lv, f.lv)), spd: def.spd * (f.golden ? 1.1 : 1),
       x, y, vx: 0, vy: 0, kx: 0, ky: 0,
       r: def.r, z: 0, state: MONSTER_AI[f.kind].start, t: rand(0.3, 1.2), dir: 0, face: 1, orb: Math.atan2(y, x), sub: 0, last: null,
-      windup: 0, flash: 0, stun: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
+      windup: 0, flash: 0, stun: 0, evadeCd: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
       burn: 0, burnDmg: 0, burnTick: 0, dotColor: BURN_COLOR, slow: 0, squash: 0, tx: 0, ty: 0, flag: false, minion,
     };
     this.enemies.push(e);
@@ -270,18 +274,49 @@ export class Battle implements FoeWorld, HitWorld {
     }
   }
 
-  enemyShoot(e: Enemy, ang: number, speed: number, r: number, color: string, mult = 1) {
+  enemyShoot(e: Enemy, ang: number, speed: number, r: number, color: string, mult = 1, poison = 0) {
     this.projs.push({
       x: e.x + Math.cos(ang) * e.r, y: e.y - e.r * 0.8 - e.z + Math.sin(ang) * e.r,
       vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, r, atk: e.atk, mult, owner: 'e', life: 3, color, from: e.kind,
+      ...(poison ? { poison } : {}),
     });
+  }
+
+  dizzyAround(x: number, y: number, r: number, secs: number): boolean {
+    const p = this.p;
+    if (Math.hypot(p.x - x, p.y - y) > r || p.iframes > 0 || p.dodgeT > 0 || this.endT >= 0) return false;
+    p.dizzy = Math.max(p.dizzy, secs);
+    this.fx.text(p.x, p.y - 48, 'Dizzy!', '#d8c8ff', 16);
+    return true;
+  }
+
+  /** Poisoned for `secs`: a small hurt every so often, which never takes you below 1 HP. */
+  private poisonPlayer(secs: number) {
+    const p = this.p;
+    if (p.poison <= 0) this.fx.text(p.x, p.y - 48, 'Poisoned!', '#b8f08a', 15);
+    p.poison = Math.max(p.poison, secs);
   }
 
   // ---------------------------------------------------------------- player
 
   private updatePlayer(dt: number) {
     const p = this.p, st = this.stats, inp = this.input;
-    p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt; p.dodging -= dt; p.riposte -= dt;
+    p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt; p.dodging -= dt; p.riposte -= dt; p.dizzy -= dt;
+    if (p.poison > 0) {
+      p.poison -= dt;
+      p.poisonTick -= dt;
+      if (p.poisonTick <= 0) {
+        p.poisonTick = 0.6;
+        const dmg = Math.min(Math.max(1, Math.round(st.maxHp * 0.02)), Math.max(0, Math.ceil(p.hp) - 1));
+        if (dmg > 0) {
+          p.hp -= dmg;
+          this.log.taken += dmg;
+          this.fx.text(p.x + rand(-8, 8), p.y - 40, `-${dmg}`, '#b8f08a', 13);
+        }
+        this.fx.burst(p.x, p.y - 20, '#b8f08a', 3, 50, { size: 3, grav: -60, life: 0.5 });
+      }
+    }
+    if (p.dizzy > 0 && Math.random() < 0.15) this.fx.burst(p.x + rand(-10, 10), p.y - 44, '#fff6a0', 1, 30, { star: true, size: 4, grav: 0, life: 0.5 });
     p.potionCd -= dt; p.atkBuffer -= dt; p.comboT -= dt; this.runCd -= dt; p.restT -= dt; p.atkCd -= dt;
     if (p.comboT <= 0 && !p.swing) p.combo = 0;
     if (st.regen && p.hp < st.maxHp) {
@@ -291,7 +326,10 @@ export class Battle implements FoeWorld, HitWorld {
         p.regenAcc %= 1;
       }
     }
-    const a = inp.axis();
+    const raw = inp.axis();
+    // Dizzy: your steering wobbles away from where you push.
+    const wob = p.dizzy > 0 ? Math.sin(this.t * 2.6) * 1.3 : 0;
+    const a = wob ? { x: raw.x * Math.cos(wob) - raw.y * Math.sin(wob), y: raw.x * Math.sin(wob) + raw.y * Math.cos(wob) } : raw;
     p.moving = Math.hypot(a.x, a.y) > 0.1;
     const busy = !!p.swing || p.whirlT > 0;
     if (p.moving && !busy) p.face = Math.atan2(a.y, a.x);
@@ -390,6 +428,12 @@ export class Battle implements FoeWorld, HitWorld {
     p.face = aim;
     const riposte = !skill && p.riposte > 0;
     if (riposte) p.riposte = 0;
+    // Monsters that read your attacks (Impy) blink out of the way as you start one near them, now and then.
+    for (const e of this.enemies) {
+      if (e.dead || e.stun > 0 || e.evadeCd > 0 || !MONSTER_AI[e.kind].evades || Math.hypot(e.x - p.x, e.y - p.y) > 170) continue;
+      blinkAway(e, this);
+      e.evadeCd = 5;
+    }
     p.swing = { s, t: 0, aim, id: ++this.hitCounter, prevAng: null, impacted: false, skill, trail: [], finisher: finisher && !skill, riposte };
     // The next strike can start this far in (into this one's recovery, or past it at low handling).
     p.atkCd = strikeTime(s, this.handling);
@@ -752,7 +796,16 @@ export class Battle implements FoeWorld, HitWorld {
     // Blades' Riposte always crits, and hits harder.
     const riposte = !!this.p.swing?.riposte && this.p.swing.id === strikeId;
     const critChance = riposte ? 1 : 0.08 + st.luck * 0.2 + (this.el.crit ?? 0);
-    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult * (riposte ? RIPOSTE.mult : 1) * this.edge(e), critChance);
+    // Some monsters shrug off hits at times and are wide open at others (a Pebblor's stone skin, then its slam).
+    const takes = MONSTER_AI[e.kind].takes?.(e) ?? 1;
+    if (takes < 1 && strikeId !== this.clangShown) {
+      this.clangShown = strikeId;
+      this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Clang!', '#c8ccd8', 13);
+    } else if (takes > 1 && strikeId !== this.clangShown) {
+      this.clangShown = strikeId;
+      this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Exposed!', '#ffe07a', 14);
+    }
+    const { dmg, crit } = calcDamage(st.atk, e.dfn, mult * takes * (riposte ? RIPOSTE.mult : 1) * this.edge(e), critChance);
     if (this.trick === 'stagger') this.stagger(e);
     if (riposte && strikeId !== this.riposteShown) {
       this.riposteShown = strikeId;
@@ -877,9 +930,10 @@ export class Battle implements FoeWorld, HitWorld {
   }
 
   /** `by` says what hit you ("monster:contact|shot|hazard"), for the play report. */
-  private hurtPlayer(atk: number, mult: number, fx: number, fy: number, by: string) {
+  /** Returns whether it landed (not dodged, not during your moment of safety after a hit). */
+  private hurtPlayer(atk: number, mult: number, fx: number, fy: number, by: string): boolean {
     const p = this.p;
-    if (this.endT >= 0) return;
+    if (this.endT >= 0) return false;
     if (p.iframes > 0 || p.dodgeT > 0) {
       // Blades: dodging through an attack readies a Riposte.
       if (p.dodging > 0 && this.trick === 'riposte' && p.riposte <= 0) {
@@ -888,7 +942,7 @@ export class Battle implements FoeWorld, HitWorld {
         this.fx.text(p.x, p.y - 42, 'Riposte ready!', '#ffe07a', 14);
         this.audio.play('crit');
       }
-      return;
+      return false;
     }
     const { dmg } = calcDamage(atk, this.stats.def, mult, 0.04);
     p.hp -= dmg;
@@ -906,6 +960,7 @@ export class Battle implements FoeWorld, HitWorld {
     this.shakeAtLeast(7);
     this.hitstop = 0.05;
     if (p.hp <= 0) p.hp = 0;
+    return true;
   }
 
   private finish(o: BattleOutcome, delay: number) {
@@ -940,6 +995,7 @@ export class Battle implements FoeWorld, HitWorld {
     if (e.dead) return;
     const p = this.p, ai = MONSTER_AI[e.kind];
     e.flash -= dt;
+    e.evadeCd -= dt;
     e.squash = Math.max(0, e.squash - dt);
     if (e.burn > 0) {
       e.burn -= dt;
@@ -1046,7 +1102,7 @@ export class Battle implements FoeWorld, HitWorld {
       if (pr.owner === 'e') {
         if (Math.hypot(pr.x - p.x, pr.y - (p.y - 10)) < pr.r + p.r) {
           if (p.iframes <= 0 && p.dodgeT <= 0) {
-            this.hurtPlayer(pr.atk, pr.mult, pr.x, pr.y, `${pr.from ?? '?'}:shot`);
+            if (this.hurtPlayer(pr.atk, pr.mult, pr.x, pr.y, `${pr.from ?? '?'}:shot`) && pr.poison) this.poisonPlayer(pr.poison);
             pr.life = 0;
           }
         }

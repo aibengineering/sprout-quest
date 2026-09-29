@@ -124,3 +124,7 @@ tests pick it up automatically from the zone list.
 - Leaving Glimmer Hollow, a natural run is one level over the Crystal King (15 against 14). That's within the test's
   tolerance, but the Hollow is the most generous area.
 - Story fights (Poppy's and Bram's) aren't modelled separately. They're folded into each area's 40.
+- Monsters' tricks aren't in the kill model: Woolf howls, Sporecap poison, Flapper screeches, Pebblor stone skin
+  (half damage while it walks, 1.6× while it's open after a slam, about 12% slower on average if you hit whenever you
+  can) and Impy dodging your attacks. They're meant to reward learning each monster, so real fights with a monster you
+  haven't figured out yet will run longer than the model says.

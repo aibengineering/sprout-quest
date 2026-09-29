@@ -471,6 +471,44 @@ scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its spec
   await winFight(page);
 });
 
+scenario('monster tricks: spores poison, a screech dizzies, stone skin shrugs off hits, Impy dodges, a howl rallies the pack', null, async (page) => {
+  const fight = async (kind: string, lv: number, n: number) => {
+    await run(page, `g.fight('${kind}', ${lv}, ${n})`);
+    await waitFor(page, `the ${kind} fight`, async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 8000);
+    await run(page, `for (const e of g.battle.enemies) { e.hp = e.maxHp = 1e6; }`);
+  };
+  // A spore that lands poisons you, and poison never takes you below 1 HP.
+  await fight('shroom', 5, 1);
+  await run(page, `const b = g.battle, e = b.enemies[0]; b.p.iframes = 0; b.p.hp = 3; b.enemyShoot({ ...e, x: b.p.x, y: b.p.y - 30, z: 0, r: 1 }, Math.PI / 2, 60, 12, '#c08ae0', 0.01, 3)`);
+  await waitFor(page, 'poisoned', async () => game<boolean>(page, 'g.battle.p.poison > 0'), 3000);
+  await page.waitForTimeout(2500);
+  check(await game<number>(page, 'g.battle.p.hp') >= 1, 'poison knocked you out');
+  await winFight(page);
+  // A screech that catches you leaves you dizzy (unless you're mid-dodge).
+  await fight('bat', 9, 1);
+  check(await game<boolean>(page, `(() => { const b = g.battle; b.p.iframes = 0; return b.dizzyAround(b.p.x + 20, b.p.y, 125, 2) && b.p.dizzy > 0; })()`), 'the screech did not dizzy you');
+  await winFight(page);
+  // A Pebblor shrugs off hits while it walks, and is wide open right after its slam.
+  await fight('golem', 9, 1);
+  const hitAs = (state: string) => game<number>(page, `(() => { const b = g.battle, e = b.enemies[0]; e.state = '${state}'; e.t = 9; e.stun = 99; const before = e.hp; b.hitEnemy(e, 1, 0, 0); return before - e.hp; })()`);
+  const walking = await hitAs('walk'), exposed = await hitAs('exposed');
+  check(exposed > walking * 2, `stone skin: ${walking} damage while walking vs ${exposed} exposed`);
+  await winFight(page);
+  // Start an attack right next to an Impy and it blinks out of the way.
+  await fight('imp', 14, 1);
+  await run(page, `const b = g.battle, e = b.enemies[0]; e.stun = 0; e.x = b.p.x; e.y = b.p.y - 50; b.p.face = -Math.PI / 2`);
+  const at = await game<[number, number]>(page, '[g.battle.enemies[0].x, g.battle.enemies[0].y]');
+  await page.keyboard.press('KeyJ');
+  await page.waitForTimeout(200);
+  check(await game<boolean>(page, `(() => { const e = g.battle.enemies[0]; return e.evadeCd > 0 && Math.hypot(e.x - ${at[0]}, e.y - ${at[1]}) > 60; })()`), 'Impy did not dodge the attack');
+  await winFight(page);
+  // A howl hurries the rest of the pack, and brings the howler straight back in.
+  await fight('wolf', 6, 3);
+  await run(page, `const [a, ...rest] = g.battle.enemies; for (const e of g.battle.enemies) e.stun = 0; a.state = 'howl'; a.t = 0.01; for (const o of rest) { o.state = 'circle'; o.t = 5; }`);
+  await page.waitForTimeout(150);
+  check(await game<boolean>(page, `(() => { const [a, ...rest] = g.battle.enemies; return (a.state === 'windup' || a.state === 'dash') && rest.every((o) => o.t <= 0.3 || o.state !== 'circle'); })()`), 'the howl did not rally the pack');
+});
+
 // Every monster, in two halves that run side by side.
 const KINDS = Object.keys(MONSTERS);
 for (const [half, kinds] of [['1/2', KINDS.slice(0, KINDS.length / 2)], ['2/2', KINDS.slice(KINDS.length / 2)]] as const) scenario(`every monster fights (and is drawn) without errors, ${half}`, (g) => {
