@@ -767,6 +767,41 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.flag === 'bram:ambush2').hidden`), 'the second ambush vanished');
 });
 
+scenario("dev builds: the combat lab's Battle Tower climbs floor to floor at a raised XP rate, and leaves the story alone", (g) => {
+  g.lv = 3;
+}, async (page) => {
+  await run(page, 'g.ui.devRow.open()');
+  await page.click('#modal [data-dialog="lab"]');
+  await page.click('#modal [data-dialog="rate:100"]');
+  if (SHOTS) await page.screenshot({ path: `${OUT}combat-lab.png` });
+  await page.selectOption('#lab-floor', '4');
+  await page.click('#modal [data-dialog="climb"]');
+  await waitFor(page, 'floor 4 (the Slime King)', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.setup.foes[0].kind === 'kingslime'`), 10000);
+  await page.waitForTimeout(1500);
+  await endFight(page);
+  // Through the result and level-up screens to the tower's own choice.
+  const cleared = '#modal:not([hidden]) [data-dialog="next"]';
+  await waitFor(page, 'the choice after floor 4', async () => {
+    if (await page.$(cleared)) return true;
+    const btn = await page.$('#modal:not([hidden]) .sheet:not(.menu) [data-dialog]:last-of-type');
+    if (btn) await btn.click();
+    return false;
+  }, 30000);
+  check(await game<number>(page, 'g.save.lv') > 6, 'the ×100 XP rate barely levelled you up');
+  check(!(await game<boolean>(page, `g.save.bosses.includes('kingslime')`)), 'beating the Slime King in the tower counted for the story');
+  await page.click(cleared);
+  await waitFor(page, 'floor 5', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.setup.zone.id === 'woods'`), 10000);
+  await page.waitForTimeout(800);
+  await run(page, `g.battle.p.hp = 0`);
+  await waitFor(page, 'back out of the tower', async () => {
+    const btn = await page.$('#modal:not([hidden]) .sheet:not(.menu) [data-dialog]:last-of-type');
+    if (btn) await btn.click();
+    return game<boolean>(page, `g.mode === 'world' && !g.battle`);
+  }, 20000);
+  check(await game<boolean>(page, 'g.save.hp > 0'), "you came out of the tower without your HP back");
+  await run(page, `localStorage.removeItem('sprout-quest-dev-xp-rate')`);
+});
+
 scenario('dev builds: a preset plays in its own slot, and your real save is untouched', null, async (page) => {
   const url = page.url().split('?')[0];
   await page.goto(`${url}?preset=poppy-chase`);

@@ -15,6 +15,7 @@ import { cancelGather } from './gathering';
 import { celebrate, leveledUp, lootLines, markLevels, type LevelMark } from './rewards';
 import { progressQuests } from './story';
 import { storyFainted, storyFightExtras } from './stories';
+import { climbing, towerEnd } from './tower';
 
 /** HP when the current fight began, for the play report. */
 let fightHp = 0;
@@ -37,8 +38,9 @@ function rollFoes(z: Zone): Foe[] {
 
 function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Partial<BattleSetup> = {}) {
   G.battle = new Battle({ zone, foes, boss, ambush, ...extra }, G.save, G.input, G.audio, onBattleEnd);
-  // Regular fights: loot, the XP fill and any level-ups come the moment the last foe falls, then the swoop out.
-  if (!boss && !battleFlag) G.battle.onWin = quickWin;
+  // Regular fights: loot, the XP fill and any level-ups come the moment the last foe falls, then the swoop out. (The
+  // Battle Tower's fights end on a result screen, with the next floor after it.)
+  if (!boss && !battleFlag && !climbing()) G.battle.onWin = quickWin;
   G.mode = 'battle';
   G.ui.setMode('battle');
   G.input.reset();
@@ -110,13 +112,13 @@ function grantWin(o: BattleOutcome, b: Battle): LevelMark {
   s.hp = o.hp;
   s.wins++;
   // Granny's cooking: Fluff Pancakes add XP, Clover Tea heals a little after the win.
-  o.xp = Math.round(o.xp * xpBoost(s));
+  o.xp = Math.round(o.xp * xpBoost(s) * G.xpRate);
   const healed = afterWin(s, playerStats(s).maxHp);
   if (healed > 0) G.ui.toast(`🍵 Clover Tea: +${healed} HP`);
   gainXp(s, o.xp);
   mergeDrops(s.mats, o.drops);
   gainMastery(s, mark.style, o.xp);
-  if (!b.setup.boss) recordKills(s, b.setup.zone.id, o.defeated.length);
+  if (!b.setup.boss && !climbing()) recordKills(s, b.setup.zone.id, o.defeated.length);
   return mark;
 }
 
@@ -146,6 +148,7 @@ async function onBattleEnd(o: BattleOutcome) {
   }
   G.mode = 'dialog';
   logFight(o, b);
+  if (climbing()) return towerFight(o, b);
   if (o.result === 'run') {
     s.hp = o.hp;
     if (quick) swoopOut();
@@ -192,6 +195,21 @@ async function onBattleEnd(o: BattleOutcome) {
       storyFainted();
     });
   }
+}
+
+/** A Battle Tower fight: its rewards and result screens, but no story (no guardian beaten, no road opened). */
+async function towerFight(o: BattleOutcome, b: Battle) {
+  const s = G.save;
+  if (o.result === 'win') {
+    const mark = grantWin(o, b);
+    persist();
+    await G.ui.result({ win: true, xp: o.xp, levels: s.lv - mark.fromLv, newLv: s.lv, drops: o.drops, boss: b.setup.boss });
+    await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
+    await celebrate(mark);
+  } else if (o.result === 'lose') {
+    await G.ui.result({ win: false, xp: 0, levels: 0, newLv: s.lv, drops: {}, boss: b.setup.boss, tower: true });
+  }
+  await towerEnd(o);
 }
 
 /** Back to the map from a regular fight: it zooms out from close on you as the white fades. */

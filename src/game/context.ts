@@ -31,6 +31,8 @@ class GameState {
   mode: Mode = 'title';
   /** Set once at startup (main.ts), since the UI's hooks call back into the flow modules. */
   ui!: UI;
+  /** Every fight's XP is multiplied by this (dev builds can raise it, to try later stages quickly). */
+  xpRate = 1;
   /** Iris transition: closes to black, runs `mid`, then opens. */
   trans: { t: number; dur: number; mid: () => void; fired: boolean } | null = null;
   /** The overworld half of the zoom into and out of regular fights. */

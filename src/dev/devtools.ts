@@ -10,6 +10,7 @@ import { G, persist } from '../game/context';
 import { activeSlot, freezeStorage, setActiveSlot, slotKey } from '../slots';
 import { SAVE_KEY, type SaveState } from '../state';
 import { LOG_KEY, TIME_KEY } from '../stats';
+import { LAB_CSS, lab, loadXpRate } from './lab';
 import { PRESETS } from './presets';
 
 /** Set across the reload so the game continues without a stop at the title screen. */
@@ -34,7 +35,8 @@ export function install() {
     else switchTo(slotOf(slot || MAIN));
     return;
   }
-  document.head.insertAdjacentHTML('beforeend', `<style>${CSS}</style>`);
+  document.head.insertAdjacentHTML('beforeend', `<style>${CSS}${LAB_CSS}</style>`);
+  loadXpRate();
   addTitleButton();
   // The same panel from inside the game: a row at the top of the menu's More tab.
   G.ui.devRow = {
@@ -197,13 +199,14 @@ async function inGamePanel() {
   const was = G.mode;
   G.mode = 'dialog';
   persist();
-  await panel();
-  // Switching slots reloads the page; anything else comes back here.
-  if (G.mode === 'dialog') G.mode = was === 'dialog' ? 'world' : was;
+  const r = await panel(true);
+  // Switching slots reloads the page, and a fight from the lab takes over; anything else comes back here.
+  if (r !== 'fight' && G.mode === 'dialog') G.mode = was === 'dialog' ? 'world' : was;
   G.input.reset();
 }
 
-async function panel() {
+/** The panel; in the game, it also leads to the combat lab (which may start a fight: 'fight'). */
+async function panel(inGame = false): Promise<'fight' | void> {
   const active = name(activeSlot());
   const slotRows = slots().map((n) => `
     <div class="dev-row${n === active ? ' on' : ''}">
@@ -222,6 +225,9 @@ async function panel() {
      <div class="dev-list">${slotRows}</div>
      <button class="go dev-copy" data-dialog="fresh">🌱 New story in a fresh slot</button>
      <button class="go ghost dev-copy" data-dialog="copy">Copy <b>${esc(active)}</b> to a new slot</button>
+     ${inGame ? `<div class="dev-h">Combat</div>
+     <div class="dev-row"><div class="dev-info"><b>⚔️ Combat lab</b><small>The Battle Tower, any fight, levels, handling, gear and XP rate</small></div>
+       <button class="go" data-dialog="lab">Open</button></div>` : ''}
      <div class="dev-h">Display</div>
      <div class="dev-row"><div class="dev-info"><b>Performance readout</b><small>FPS, frame times and the GPU, at the left edge</small></div>
        <button class="go${perfOn() ? '' : ' ghost'}" data-dialog="perf">${perfOn() ? 'Shown' : 'Hidden'}</button></div>
@@ -234,19 +240,20 @@ async function panel() {
   if (act === 'play') switchTo(slotOf(arg));
   else if (act === 'preset') startPreset(arg);
   else if (act === 'fresh') newStory();
+  else if (act === 'lab') return (await lab()) === 'fight' ? 'fight' : panel(inGame);
   else if (act === 'perf') {
     localStorage.setItem(PERF, perfOn() ? '0' : '1');
     document.getElementById('dev-perf')!.hidden = !perfOn();
-    return panel();
+    return panel(inGame);
   }
   else if (act === 'del') {
     deleteSlot(arg);
-    void panel();
+    return panel(inGame);
   } else if (act === 'copy') {
     let n = 1;
     while (localStorage.getItem(slotKey(SAVE_KEY, `copy-${n}`))) n++;
     copySlot(activeSlot(), `copy-${n}`);
-    void panel();
+    return panel(inGame);
   }
 }
 

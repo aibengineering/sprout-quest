@@ -309,8 +309,10 @@ export class UI {
     // Let the win's bell ring out first, so the fill's chirps are heard on their own.
     await wait(380);
     let lv = from.lv, frac = Math.min(1, from.xp / xpToNext(lv));
+    // A big jump (a dev build's raised XP rate, say) runs through its levels faster, so it's over in a few seconds.
+    const speed = Math.max(1, (to.lv - from.lv) / 2);
     const fill = async (target: number) => {
-      const dur = 0.25 + 0.75 * (target - frac);
+      const dur = (0.25 + 0.75 * (target - frac)) / (lv < to.lv ? speed : 1);
       bar.style.transition = `width ${dur}s linear`;
       bar.style.width = `${target * 100}%`;
       this.hooks.sweep(dur, frac, target);
@@ -323,7 +325,7 @@ export class UI {
       this.hooks.sound('ding');
       card.classList.add('ding');
       $('hud-lv').textContent = String(lv + 1);
-      await wait(420);
+      await wait(420 / speed);
       card.classList.remove('ding');
       bar.style.transition = 'none';
       bar.style.width = '0%';
@@ -1331,7 +1333,7 @@ export class UI {
     );
   }
 
-  result(o: { win: boolean; xp: number; levels: number; newLv: number; drops: Partial<Record<MatId, number>>; boss: boolean; respawn?: string }) {
+  result(o: { win: boolean; xp: number; levels: number; newLv: number; drops: Partial<Record<MatId, number>>; boss: boolean; respawn?: string; tower?: boolean }) {
     let html: string;
     if (o.win) {
       const drops = Object.entries(o.drops).map(([m, n]) => `<span class="chip ok">${icon(m, MATS[m as MatId].icon, 'icon sm')} ${esc(MATS[m as MatId].name)} ×${n}</span>`).join('');
@@ -1339,6 +1341,8 @@ export class UI {
         <div class="sub">+${o.xp} XP</div>
         ${o.levels ? `<div class="lvup">⬆ Level up! Now Lv ${o.newLv}</div>` : ''}
         ${drops ? `<div class="chips">${drops}</div>` : '<p>No materials this time.</p>'}`;
+    } else if (o.tower) {
+      html = `<div class="big">Oops! 💫</div><p>You fainted, and tumbled back out of the tower.<br>You're rested and ready to go again!</p>`;
     } else {
       const where = !o.respawn || o.respawn === 'village' ? 'the village' : `the ${ZONES.find((z) => z.id === o.respawn)?.name} campfire`;
       html = `<div class="big">Oops! 💫</div><p>You fainted… a kind friend carried you back to ${esc(where)}.<br>You're rested and ready to go again!</p>`;
