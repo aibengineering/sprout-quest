@@ -38,7 +38,7 @@ export const PATCH_NOTES: PatchNote[] = [
   {
     version: '0.3.4',
     date: '2026-09-29',
-    title: 'Heavier hammers',
+    title: 'Learn the Fight',
     notes: [
       "🔨 Hammer slams hit harder and daze, with no more rocks on every swing",
       "💥 Hammers can Stagger: a slam knocks a monster out of its attack",
