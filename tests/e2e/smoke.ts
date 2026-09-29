@@ -842,7 +842,8 @@ scenario('dev builds: a Battle Tower run climbs floor after floor from its camp,
   /** Clicks through result and level-up screens until the camp is back. */
   const toCamp = (what: string) => waitFor(page, what, async () => {
     if (await page.$(camp)) return true;
-    const btn = await page.$('#modal:not([hidden]) .sheet:not(.menu) [data-dialog]:last-of-type');
+    // (Never the camp's own buttons: it may have just opened.)
+    const btn = await page.$('#modal:not([hidden]) .sheet:not(.menu):not(.tower-camp) [data-dialog]:last-of-type');
     if (btn) await btn.click();
     return false;
   }, 30000);
@@ -873,6 +874,25 @@ scenario('dev builds: a Battle Tower run climbs floor after floor from its camp,
   await page.waitForSelector('#modal:not([hidden]) .sheet.menu');
   await run(page, 'g.ui.closeMenu()');
   await waitFor(page, 'the camp after the Forge', async () => !!(await page.$(camp)), 5000);
+  // The camp says what the next floor (the Slime King) expects, ticked against you.
+  check(/Suggested:.*Lv 3|Suggested:.*Lv \d/.test((await page.textContent(`${camp} .tower-ready`)) ?? ''), "the camp doesn't say what the next floor expects");
+  if (SHOTS) await page.screenshot({ path: `${OUT}tower-camp-guardian.png` });
+  // Training on a cleared floor: its fight and drops, but the run stays where it is.
+  await page.selectOption('#tower-floor', '1');
+  await page.click(`${camp} [data-dialog="train"]`);
+  await waitFor(page, 'the training fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.setup.tower === 1 && g.battle.intro <= 0`), 10000);
+  await endFight(page);
+  await toCamp('the camp after training');
+  check(await game<number>(page, 'g.save.tower.floor') === 4, 'training moved the run');
+  // Any tower fight can be run from, guardians included, straight back to the camp.
+  await fightFloor(4);
+  await waitFor(page, 'getting away', async () => {
+    await page.keyboard.press('KeyR');
+    await page.waitForTimeout(250);
+    return game<boolean>(page, `!g.battle || g.battle.outcome?.result === 'run'`);
+  }, 8000);
+  await toCamp('the camp after running from the Slime King');
+  check(await game<number>(page, 'g.save.tower.floor') === 4, 'running moved the run');
   // Fainting on the guardian's floor puts you back at the camp to try it again.
   await fightFloor(4);
   await run(page, 'g.battle.p.hp = 0');

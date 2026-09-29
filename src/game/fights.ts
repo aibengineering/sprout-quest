@@ -22,8 +22,8 @@ let fightHp = 0;
 /** The story flag a scripted fight sets when won (the prologue's blocking monsters). */
 let battleFlag: string | undefined;
 
-/** Regular fights let you run; guardians and scripted fights don't. */
-export const canRun = (b: Battle) => !b.setup.boss && !battleFlag && G.save.flags.includes('village');
+/** Regular fights let you run; guardians and scripted fights don't. Battle Tower fights always let you back to the camp. */
+export const canRun = (b: Battle) => !!b.setup.tower || (!b.setup.boss && !battleFlag && G.save.flags.includes('village'));
 
 /** A random set of monsters from a zone (for ambushes in the grass). */
 function rollFoes(z: Zone): Foe[] {
@@ -208,7 +208,7 @@ async function towerFight(o: BattleOutcome, b: Battle) {
   const s = G.save;
   if (o.result === 'win') {
     // There's nothing to gather in the tower, so each floor hands over some of its tier's wood, stone and ore.
-    mergeDrops(o.drops, floorSupplies());
+    mergeDrops(o.drops, floorSupplies(b.setup.tower!));
     const mark = grantWin(o, b);
     persist();
     await G.ui.result({ win: true, xp: o.xp, levels: s.lv - mark.fromLv, newLv: s.lv, drops: o.drops, boss: b.setup.boss });
@@ -217,7 +217,7 @@ async function towerFight(o: BattleOutcome, b: Battle) {
   } else if (o.result === 'lose') {
     await G.ui.result({ win: false, xp: 0, levels: 0, newLv: s.lv, drops: {}, boss: b.setup.boss, tower: true });
   }
-  await towerEnd(o);
+  await towerEnd(o, b.setup.tower!);
 }
 
 /** Back to the map from a regular fight: it zooms out from close on you as the white fades. */

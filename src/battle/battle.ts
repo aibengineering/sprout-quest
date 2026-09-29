@@ -708,12 +708,13 @@ export class Battle implements FoeWorld, HitWorld {
 
   private tryRun() {
     const p = this.p;
-    if (this.setup.boss) {
+    if (this.setup.boss && !this.setup.tower) {
       this.fx.text(p.x, p.y - 40, "Can't run!", '#ffd0d0', 14);
       return;
     }
     if (this.runCd > 0) return;
-    if (Math.random() < 0.7) {
+    // Out of a Battle Tower fight you always get back to the camp, guardians included.
+    if (this.setup.tower || Math.random() < 0.7) {
       this.fx.text(p.x, p.y - 40, 'Got away!', '#ffffff', 16);
       this.finish({ result: 'run', hp: p.hp, xp: 0, drops: {}, defeated: [], log: this.log }, 0.5);
     } else {

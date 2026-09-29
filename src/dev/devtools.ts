@@ -326,6 +326,13 @@ const CSS = `
 .dev-copy { margin-top: 8px; width: 100%; }
 .tower-camp .tower-acts { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 6px 0 4px; }
 .tower-camp .tower-acts .go { padding: 8px 14px; font-size: 15px; }
+.tower-camp .tower-ready { margin: 2px 0 6px; font-size: 13px; }
+.tower-camp .tower-ready span { display: inline-block; margin: 0 4px; font-weight: 700; }
+.tower-camp .tower-ready .ok { color: #3a9a4a; }
+.tower-camp .tower-ready .no { color: #d0503a; }
+.tower-camp .tower-train { display: flex; gap: 6px; align-items: center; justify-content: center; margin: 4px 0 6px; }
+.tower-camp .tower-train select { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 6px; border-radius: 10px; border: 2px solid rgba(90, 58, 106, 0.25); background: #fff; }
+.tower-camp .tower-train .go { padding: 6px 10px; font-size: 13px; }
 #dev-perf {
   /* Middle of the left edge: over the world or the arena, clear of the HUD, the goal and every button. */
   position: fixed; left: calc(4px + env(safe-area-inset-left)); top: 56%; z-index: 15; max-width: 46vw;
