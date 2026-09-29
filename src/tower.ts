@@ -2,7 +2,7 @@
 // or gather. For now it's a dev tool for trying the combat at any stage (see src/dev/devtools.ts); it's shaped so it can
 // grow into post-game content with its own rewards.
 import { CHECKPOINTS, type Checkpoint } from './balance';
-import { GEAR, MONSTERS, NODES, ZONES, type MatId, type MonsterKind, type Zone, type ZoneId } from './data';
+import { GEAR, MATS, MONSTERS, NODES, ZONES, type MatId, type MonsterKind, type Zone, type ZoneId } from './data';
 
 export interface TowerFloor {
   /** 1-based. */
@@ -44,36 +44,41 @@ export const TOWER: TowerFloor[] = (() => {
   return floors.map((f, i) => ({ ...f, n: i + 1 }));
 })();
 
-/** The balance checkpoint for a floor's area: the level and gear the game expects you to have there. */
+/**
+ * The balance checkpoint for a floor: the level and gear the game expects you to have there. A guardian's is the one
+ * the balance model tunes that guardian against; a regular floor's is its area's.
+ */
 export function checkpointFor(f: TowerFloor): Checkpoint {
-  const zone: ZoneId = f.boss && f.foes[0].kind !== 'dragon' ? previousArea(f.zone.id) : f.zone.id;
-  if (f.foes[0].kind === 'dragon') return CHECKPOINTS.find((c) => c.id === 'dragon')!;
-  return [...CHECKPOINTS].reverse().find((c) => c.zone === zone && c.id !== 'dragon') ?? CHECKPOINTS[1];
-}
-
-/** A guardian is fought with the gear of the area before its gate. */
-function previousArea(id: ZoneId): ZoneId {
-  const areas = ZONES.filter((z) => z.monsters.length);
-  const i = areas.findIndex((z) => z.id === id);
-  return areas[Math.max(0, i - 1)].id;
+  if (f.boss) {
+    const c = CHECKPOINTS.find((c) => c.boss?.kind === f.foes[0].kind);
+    if (c) return c;
+  }
+  return [...CHECKPOINTS].reverse().find((c) => c.zone === f.zone.id && c.id !== 'dragon') ?? CHECKPOINTS[1];
 }
 
 const gathered = (m: string) => Object.values(NODES).some((n) => n.mat === m);
+/** A guardian's trophy comes from beating it, not from a crate. */
+const trophy = (m: string) => MATS[m as MatId].where.startsWith('Trophy');
 
 /**
- * What a cleared floor hands you besides the monsters' drops: the wood, stone and ore its tier's weapons and armor are
- * made of (there's nothing to gather in the tower). An area's four floors bring enough for a weapon and a suit of
- * armor from its tier, whichever you choose.
+ * What a floor hands you besides the monsters' drops. The first time you clear it, a crate: the materials its tier's
+ * weapons and armor are made of, monster drops and wood, stone and ore alike, so an area's four floors bring enough for
+ * any one weapon and one suit of armor from its tier without farming. Replaying a cleared floor to train gives just the
+ * wood, stone and ore (there's nothing to gather in the tower); the monsters' own drops cover the rest.
  */
-export function towerSupplies(f: TowerFloor): Partial<Record<MatId, number>> {
+export function towerSupplies(f: TowerFloor, firstClear = true): Partial<Record<MatId, number>> {
   const out: Partial<Record<MatId, number>> = {};
   for (const slot of ['weapon', 'armor'] as const) {
     const need: Partial<Record<MatId, number>> = {};
     for (const g of Object.values(GEAR)) {
       if (g.slot !== slot || g.tier !== f.tier || !g.recipe) continue;
-      for (const [m, n] of Object.entries(g.recipe) as [MatId, number][]) if (gathered(m)) need[m] = Math.max(need[m] ?? 0, n);
+      for (const [m, n] of Object.entries(g.recipe) as [MatId, number][]) {
+        if (trophy(m) || (!firstClear && !gathered(m))) continue;
+        need[m] = Math.max(need[m] ?? 0, n);
+      }
     }
-    for (const [m, n] of Object.entries(need) as [MatId, number][]) out[m] = (out[m] ?? 0) + Math.ceil(n / (PER_ZONE + 1));
+    const share = firstClear ? PER_ZONE + 1 : (PER_ZONE + 1) * 2;
+    for (const [m, n] of Object.entries(need) as [MatId, number][]) out[m] = (out[m] ?? 0) + Math.ceil(n / share);
   }
   return out;
 }

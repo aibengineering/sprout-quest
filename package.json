@@ -1,7 +1,7 @@
 {
   "name": "sprout-quest",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.3.3",
   "type": "module",
   "scripts": {
     "dev": "bun run server.ts",
@@ -10,7 +10,10 @@
     "balance": "bun run src/balance.ts",
     "typecheck": "tsc --noEmit",
     "art": "bash art/build.sh",
-    "e2e": "bun run tests/e2e/smoke.ts"
+    "e2e": "bun run tests/e2e/smoke.ts",
+    "sim": "bun run sim/simulate.ts",
+    "sim:compare": "bun run sim/compare.ts",
+    "sim:smoke": "bun run sim/smoke.ts"
   },
   "devDependencies": {
     "@fontsource-variable/fredoka": "^5.3.0",

@@ -22,8 +22,8 @@ let fightHp = 0;
 /** The story flag a scripted fight sets when won (the prologue's blocking monsters). */
 let battleFlag: string | undefined;
 
-/** Regular fights let you run; guardians and scripted fights don't. */
-export const canRun = (b: Battle) => !b.setup.boss && !battleFlag && G.save.flags.includes('village');
+/** Regular fights let you run; guardians and scripted fights don't. Battle Tower fights always let you back to the camp. */
+export const canRun = (b: Battle) => !!b.setup.tower || (!b.setup.boss && !battleFlag && G.save.flags.includes('village'));
 
 /** A random set of monsters from a zone (for ambushes in the grass). */
 function rollFoes(z: Zone): Foe[] {
@@ -38,9 +38,9 @@ function rollFoes(z: Zone): Foe[] {
 
 function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Partial<BattleSetup> = {}) {
   G.battle = new Battle({ zone, foes, boss, ambush, ...extra }, G.save, G.input, G.audio, onBattleEnd);
-  // Regular fights: loot, the XP fill and any level-ups come the moment the last foe falls, then the swoop out. (The
-  // Battle Tower's fights end on a result screen, with the next floor after it.)
-  if (!boss && !battleFlag && !extra.tower) G.battle.onWin = quickWin;
+  // Regular and story fights: loot, the XP fill and any level-ups come the moment the last foe falls, then the swoop
+  // out. (Guardians keep their fanfare, and the Battle Tower's fights end on a result screen before the next floor.)
+  if (!boss && !extra.tower) G.battle.onWin = quickWin;
   G.mode = 'battle';
   G.ui.setMode('battle');
   G.input.reset();
@@ -101,6 +101,7 @@ function logFight(o: BattleOutcome, b: Battle) {
     dodges: o.log.dodges, potions: o.log.potions, dealt: o.log.dealt, taken: o.log.taken, hpStart: fightHp, hpEnd: Math.max(0, Math.round(o.hp)),
     maxHp: b.stats.maxHp, xp: o.xp, weapon: s.equip.weapon, armor: s.equip.armor,
     cooling: Math.round(o.log.cooling * 10) / 10, rested: Math.round(o.log.rested * 10) / 10, handling: b.handling,
+    critDealt: o.log.critDealt, kills: o.defeated.length, ...(b.setup.tower ? { tower: b.setup.tower } : {}),
     ...(o.result === 'lose' ? { killedBy: o.log.lastHitBy } : {}),
   });
 }
@@ -128,6 +129,11 @@ async function quickWin(o: BattleOutcome) {
   G.mode = 'dialog';
   logFight(o, b);
   const mark = grantWin(o, b);
+  // A story fight (the prologue's, a pack in a side story) clears its way.
+  if (battleFlag && !s.flags.includes(battleFlag)) {
+    s.flags.push(battleFlag);
+    syncWorld();
+  }
   G.ui.loot(lootLines(o.drops, [{ n: o.xp, what: STYLE_NAMES[mark.style], emo: '⚔️' }]));
   persist();
   await G.ui.xpGain({ lv: mark.fromLv, xp: mark.fromXp }, { lv: s.lv, xp: s.xp }, o.xp);
@@ -137,8 +143,8 @@ async function quickWin(o: BattleOutcome) {
 async function onBattleEnd(o: BattleOutcome) {
   const b = G.battle!, s = G.save;
   const boss = b.setup.boss;
-  // Regular fights swoop straight back out to the map; guardians, the dragon and the prologue keep their fanfare.
-  const quick = !boss && !battleFlag && !b.setup.tower;
+  // Regular and story fights swoop straight back out to the map; guardians and the dragon keep their fanfare.
+  const quick = !boss && !b.setup.tower;
   if (o.result === 'win' && quick) {
     // quickWin has handed out the rewards already.
     swoopOut();
@@ -202,7 +208,7 @@ async function towerFight(o: BattleOutcome, b: Battle) {
   const s = G.save;
   if (o.result === 'win') {
     // There's nothing to gather in the tower, so each floor hands over some of its tier's wood, stone and ore.
-    mergeDrops(o.drops, floorSupplies());
+    mergeDrops(o.drops, floorSupplies(b.setup.tower!));
     const mark = grantWin(o, b);
     persist();
     await G.ui.result({ win: true, xp: o.xp, levels: s.lv - mark.fromLv, newLv: s.lv, drops: o.drops, boss: b.setup.boss });
@@ -211,7 +217,7 @@ async function towerFight(o: BattleOutcome, b: Battle) {
   } else if (o.result === 'lose') {
     await G.ui.result({ win: false, xp: 0, levels: 0, newLv: s.lv, drops: {}, boss: b.setup.boss, tower: true });
   }
-  await towerEnd(o);
+  await towerEnd(o, b.setup.tower!);
 }
 
 /** Back to the map from a regular fight: it zooms out from close on you as the white fades. */

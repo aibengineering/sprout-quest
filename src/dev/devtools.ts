@@ -3,6 +3,7 @@
 //
 //   ?preset=poppy-chase   start that preset (in its own slot, reset to the preset each time)
 //   ?slot=copy-1          switch to a slot (?slot=main for your real save)
+//   ?tower&floor=8&…      a Battle Tower run at that point, in the tower slot (see towerLink.ts for the settings)
 //
 // Switching reloads the page into the slot and continues straight into the game.
 import { QUESTS, zoneAtX } from '../data';
@@ -10,16 +11,15 @@ import { G, persist } from '../game/context';
 import { activeSlot, freezeStorage, setActiveSlot, slotKey } from '../slots';
 import { SAVE_KEY, type SaveState } from '../state';
 import { LOG_KEY, TIME_KEY } from '../stats';
-import { loadXpRate, openCamp } from '../game/tower';
+import { TOWER_SLOT, XP_RATES, XP_RATE_KEY, loadXpRate, openCamp } from '../game/tower';
 import { LAB_CSS, lab } from './lab';
 import { PRESETS, towerRun } from './presets';
+import { towerSaveFromLink } from './towerLink';
 
 /** Set across the reload so the game continues without a stop at the title screen. */
 const AUTOPLAY = 'sprout-quest-autoplay';
 /** Set across the reload into the tower's slot, to open its camp once the game is up. */
 const CAMP = 'sprout-quest-camp';
-/** The Battle Tower run's slot. */
-const TOWER_SLOT = 'tower';
 /** Whether the performance readout is showing, per device (off unless you turn it on in the panel). */
 const PERF = 'sprout-quest-dev-perf';
 const perfOn = () => localStorage.getItem(PERF) === '1';
@@ -32,6 +32,18 @@ const slotOf = (name: string) => (name === MAIN ? null : name);
 export function install() {
   const url = new URL(location.href);
   const preset = url.searchParams.get('preset'), slot = url.searchParams.get('slot');
+  if (url.searchParams.has('tower')) {
+    // A link into the tower at a set point: a fresh run built from it, opening on its camp.
+    const save = towerSaveFromLink(url.searchParams);
+    const xp = Number(url.searchParams.get('xp'));
+    history.replaceState(null, '', url.pathname);
+    deleteSlot(TOWER_SLOT);
+    localStorage.setItem(slotKey(SAVE_KEY, TOWER_SLOT), JSON.stringify(save));
+    localStorage.setItem(XP_RATE_KEY, String(XP_RATES.includes(xp) ? xp : 1));
+    sessionStorage.setItem(CAMP, '1');
+    switchTo(TOWER_SLOT);
+    return;
+  }
   if (preset || slot !== null) {
     url.searchParams.delete('preset');
     url.searchParams.delete('slot');
@@ -41,8 +53,8 @@ export function install() {
     return;
   }
   document.head.insertAdjacentHTML('beforeend', `<style>${CSS}${LAB_CSS}</style>`);
-  // The raised XP rate is for dev slots (the tower run, presets, copies); your real save always plays at ×1.
-  if (activeSlot() !== null) loadXpRate();
+  // The raised XP rate is for the tower run only; every other save plays at ×1.
+  loadXpRate();
   addTitleButton();
   // The same panel from inside the game: a row at the top of the menu's More tab.
   G.ui.devRow = {
@@ -328,6 +340,13 @@ const CSS = `
 .dev-copy { margin-top: 8px; width: 100%; }
 .tower-camp .tower-acts { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 6px 0 4px; }
 .tower-camp .tower-acts .go { padding: 8px 14px; font-size: 15px; }
+.tower-camp .tower-ready { margin: 2px 0 6px; font-size: 13px; }
+.tower-camp .tower-ready span { display: inline-block; margin: 0 4px; font-weight: 700; }
+.tower-camp .tower-ready .ok { color: #3a9a4a; }
+.tower-camp .tower-ready .no { color: #d0503a; }
+.tower-camp .tower-train { display: flex; gap: 6px; align-items: center; justify-content: center; margin: 4px 0 6px; }
+.tower-camp .tower-train select { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 6px; border-radius: 10px; border: 2px solid rgba(90, 58, 106, 0.25); background: #fff; }
+.tower-camp .tower-train .go { padding: 6px 10px; font-size: 13px; }
 #dev-perf {
   /* Middle of the left edge: over the world or the arena, clear of the HUD, the goal and every button. */
   position: fixed; left: calc(4px + env(safe-area-inset-left)); top: 56%; z-index: 15; max-width: 46vw;

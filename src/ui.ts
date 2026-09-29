@@ -30,6 +30,8 @@ export interface MenuCtx {
 
 export interface UIHooks {
   save(): SaveState;
+  /** Is something else going on (a fight, gathering, a scene, a transition), so pop-ups should keep out of the way? */
+  busy(): boolean;
   /** Opens a menu tab from the map (an unlock card's "tap to open"). */
   openTab(tab: Tab): void;
   /** Sounds for reward moments: a named effect, or the XP bar's rising tone (seconds, from and to 0–1 up the bar). */
@@ -181,9 +183,12 @@ function weaponAt(style: Style, lv: number) {
   return tier > 1 ? GEAR_ORDER.map((id) => GEAR[id]).find((g) => g.slot === 'weapon' && g.style === style && g.tier === tier) : undefined;
 }
 
+/** How far ahead a handling path shows what's coming; levels beyond are a mystery until you get closer. */
+const PATH_REVEAL = 2;
+
 /**
  * A class's whole handling path, to explore: a tab per class, then every level from picking it up to Mastery, what each
- * gives, what you've got, and how far you are toward the next.
+ * gives, what you've got, and how far you are toward the next. Only the next couple of levels say what they bring.
  */
 function handlingTree(s: SaveState, style: Style): string {
   const tabs = (Object.keys(STYLE_NAMES) as Style[]).map((k) =>
@@ -200,6 +205,11 @@ function handlingTree(s: SaveState, style: Style): string {
       [title, note] = [sk.name, sk.note];
     } else if (step === 'trick') [title, note] = [TRICKS[moves.trick].name, TRICKS[moves.trick].note];
     else [title, note] = ['Faster attacks', `${paceGain(style, at) - paceGain(style, at - 1)}% quicker (${paceGain(style, at)}% in all)`];
+    // Further ahead than the next couple of levels: just that something's waiting there.
+    if (at > m.lv + PATH_REVEAL) {
+      return `<li class="hnode locked secret"><span class="hdot">❔</span>
+        <div class="htext"><div class="hlv">Lv ${at}${at === MASTERY_MAX ? ' · Mastery' : ''}</div><b>???</b><small>Train closer to find out</small></div></li>`;
+    }
     const w = weaponAt(style, at);
     const tag = w ? `<span class="htag">${icon(w.id, w.icon, 'icon sm')} Can wield the ${esc(w.name)} ${'★'.repeat(w.tier ?? 0)}</span>` : '';
     const progress = state === 'next' ? `<div class="pbar"><i style="width:${(100 * m.xp) / need}%"></i></div><small class="hxp">${m.xp}/${need} XP</small>` : '';
@@ -275,8 +285,12 @@ export class UI {
   private mode: 'title' | 'world' | 'battle' | 'none' = 'title';
   private unlockQueue: Unlock[] = [];
   private unlockShowing = false;
-  /** The unlock card on screen, to bring back after a fight that interrupts it. */
+  /** The health bar waits for the level-up's bell during an XP fill (see xpGain). */
+  private hpHeld = false;
+  /** The unlock card on screen, to bring back if something cuts it off before you could read it. */
   private unlockNow: Unlock | null = null;
+  private unlockShownAt = 0;
+  private unlockWait = 0;
   private unlockTimer = 0;
   private focus: string | undefined;
   private ctx: MenuCtx = { atForge: false, inVillage: false };
@@ -297,9 +311,16 @@ export class UI {
       this.armed = true;
     });
     window.addEventListener('keydown', (e) => this.onKey(e), true);
-    // Tapping outside the menu sheet closes it (dialogs still need an explicit choice).
+    // Tapping outside the menu sheet closes it (dialogs still need an explicit choice)…
     this.modal.addEventListener('click', (e) => {
       if (e.target === this.modal && this.menuOpen && this.armed) this.closeMenu();
+      // …but in a story scene, a tap anywhere moves the dialogue on, wherever your thumb is.
+      else if (this.modal.classList.contains('cine') && this.armed && this.resolveDialog && !this.sheet.contains(e.target as Node)) {
+        const r = this.resolveDialog;
+        this.resolveDialog = null;
+        this.modal.hidden = true;
+        r('ok');
+      }
     });
     // Swipe the menu down from its header to dismiss it.
     let startY: number | null = null;
@@ -323,6 +344,11 @@ export class UI {
     };
     this.sheet.addEventListener('pointerup', endSwipe);
     this.sheet.addEventListener('pointercancel', endSwipe);
+  }
+
+  /** The menu tab that's open, if the menu is (for the play report's time per screen). */
+  get openTab(): Tab | null {
+    return this.menuOpen ? this.tab : null;
   }
 
   get isOpen() {
@@ -349,6 +375,7 @@ export class UI {
     const card = $('hud').querySelector('.stat') as HTMLElement | null, bar = $('hud-xp');
     if (!card || $('hud').hidden || gained <= 0) return;
     this.xpAnim = true;
+    this.hpHeld = to.lv > from.lv;
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
     card.classList.add('gain');
     const tag = document.createElement('div');
@@ -411,6 +438,7 @@ export class UI {
       // Topped out: a bell, the level ticks over, and the bar starts again from empty.
       this.hooks.sound('ding');
       notch(1, true);
+      this.hpHeld = false;
       card.classList.add('ding');
       $('hud-lv').textContent = String(lv + 1);
       await wait(420 / speed);
@@ -427,16 +455,19 @@ export class UI {
     card.classList.remove('gain');
     bar.style.transition = '';
     this.xpAnim = false;
+    this.hpHeld = false;
     delete this.last.xp;
     delete this.last.lv;
   }
 
   hud(hp: number, zoneName: string) {
+    this.watchUnlocks();
     const s = this.hooks.save();
     const st = playerStats(s);
     const hpText = `${Math.ceil(hp)}/${st.maxHp}`;
     if (!this.xpAnim) this.set('lv', String(s.lv), () => ($('hud-lv').textContent = String(s.lv)));
-    this.set('hp', hpText, () => {
+    // Held during an XP fill that levels you up, so the bigger health bar arrives with the level's bell.
+    if (!this.hpHeld) this.set('hp', hpText, () => {
       $('hud-hptext').textContent = hpText;
       $('hud-hp').style.width = `${(100 * hp) / st.maxHp}%`;
       $('hud-hp').parentElement!.classList.toggle('low', hp / st.maxHp < 0.3);
@@ -542,11 +573,45 @@ export class UI {
   /** The corner button that leads there, which bounces while its card is up. */
   private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', trick: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag' };
 
+  /**
+   * You've been to a menu tab: any unlock card pointing there (showing, or waiting its turn) has done its job, so it
+   * doesn't come back afterwards.
+   */
+  private sawTab(tab: Tab) {
+    const there = (u: Unlock) => UI.UNLOCK_TAB[u.id] === tab;
+    this.unlockQueue = this.unlockQueue.filter((u) => !there(u));
+    if (this.unlockNow && there(this.unlockNow)) this.unlockNow = null;
+  }
+
+  /** Is anything going on that an unlock card shouldn't sit over: a fight, a menu or dialog, gathering, a scene? */
+  private get popupsBlocked() {
+    return this.mode !== 'world' || this.menuOpen || !this.modal.hidden || this.hooks.busy();
+  }
+
+  /**
+   * Checked every frame: whatever you start (a fight, a menu, chopping, a scene) puts an unlock card away. One cut off
+   * before you could read it comes back once you're free again; waiting cards come out then too.
+   */
+  private watchUnlocks() {
+    const blocked = this.popupsBlocked;
+    if (this.unlockShowing && blocked) {
+      window.clearTimeout(this.unlockTimer);
+      if (this.unlockNow && performance.now() - this.unlockShownAt < 2000) this.unlockQueue.unshift(this.unlockNow);
+      this.unlockNow = null;
+      this.nextUnlock();
+    } else if (!this.unlockShowing && !blocked && this.unlockQueue.length && !this.unlockWait) {
+      this.unlockWait = window.setTimeout(() => {
+        this.unlockWait = 0;
+        if (!this.unlockShowing) this.nextUnlock();
+      }, 600);
+    }
+  }
+
   private nextUnlock() {
     const el = $('unlock-card');
     document.querySelectorAll('.dock-btn.beckon').forEach((b) => b.classList.remove('beckon'));
-    // Not over a fight or a popup: wait for the map (setMode picks it back up).
-    if (!this.unlockQueue.length || this.mode !== 'world') {
+    // Not over a fight, a menu or anything else going on: watchUnlocks brings it out once you're free.
+    if (!this.unlockQueue.length || this.popupsBlocked) {
       this.unlockShowing = false;
       el.classList.remove('show');
       window.setTimeout(() => { if (!this.unlockShowing) el.hidden = true; }, 300);
@@ -554,6 +619,7 @@ export class UI {
     }
     const u = this.unlockQueue.shift()!;
     this.unlockNow = u;
+    this.unlockShownAt = performance.now();
     const tab = UI.UNLOCK_TAB[u.id];
     this.unlockShowing = true;
     el.hidden = false;
@@ -615,15 +681,6 @@ export class UI {
 
   setMode(mode: 'title' | 'world' | 'battle' | 'none') {
     this.mode = mode;
-    // A fight (walking straight into a monster, say) puts the card away, to show again afterwards.
-    if (mode !== 'world' && this.unlockShowing && this.unlockNow) {
-      window.clearTimeout(this.unlockTimer);
-      this.unlockQueue.unshift(this.unlockNow);
-      this.unlockNow = null;
-      this.nextUnlock();
-    }
-    // Unlock cards held back during a fight come out once you're back on the map.
-    if (mode === 'world' && this.unlockQueue.length && !this.unlockShowing) window.setTimeout(() => this.nextUnlock(), 600);
     $('title').hidden = mode !== 'title';
     $('hud').hidden = mode === 'title' || mode === 'none';
     $('ctl-world').hidden = mode !== 'world';
@@ -747,6 +804,7 @@ export class UI {
     if (!this.tabOpen(this.tab)) this.tab = (['items', 'journey', 'forge', 'village'] as Tab[]).find((t) => this.tabOpen(t)) ?? 'settings';
     this.focus = focus;
     this.menuOpen = true;
+    this.sawTab(this.tab);
     this.armed = false;
     this.modal.hidden = false;
     this.renderMenu(true);
@@ -1133,6 +1191,7 @@ export class UI {
     }
     if (d.tab) {
       this.tab = d.tab as Tab;
+      this.sawTab(this.tab);
       this.focus = undefined;
       this.renderMenu(true);
       return;
@@ -1327,11 +1386,19 @@ export class UI {
   async talk(name: string, portrait: string, emoji: string, text: string, top = false) {
     this.modal.classList.add('cine');
     this.modal.classList.toggle('top', top);
+    // At the top (so it doesn't cover the action), the way on is still down by your thumbs.
+    const next = top ? document.createElement('div') : null;
+    if (next) {
+      next.className = 'tap-next';
+      next.textContent = 'Tap to continue ▶';
+      this.modal.append(next);
+    }
     const r = await this.dialog(
       `<div class="talk">${icon(portrait, emoji, 'icon lg')}<div><b class="talk-name">${esc(name)}</b><div class="caption-text">${esc(text)}</div></div></div>`,
       [['ok', '▶']],
       'caption',
     );
+    next?.remove();
     this.modal.classList.remove('cine', 'top');
     return r;
   }

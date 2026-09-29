@@ -93,7 +93,7 @@ export class Battle implements FoeWorld, HitWorld {
   /** The strike whose "Riposte!" has been shown (a sweep can hit several foes). */
   private riposteShown = 0;
   /** Running tallies for the play report. */
-  readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0, cooling: 0, rested: 0, lastHitBy: '' };
+  readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0, critDealt: 0, cooling: 0, rested: 0, lastHitBy: '' };
 
   constructor(
     readonly setup: BattleSetup,
@@ -708,12 +708,13 @@ export class Battle implements FoeWorld, HitWorld {
 
   private tryRun() {
     const p = this.p;
-    if (this.setup.boss) {
+    if (this.setup.boss && !this.setup.tower) {
       this.fx.text(p.x, p.y - 40, "Can't run!", '#ffd0d0', 14);
       return;
     }
     if (this.runCd > 0) return;
-    if (Math.random() < 0.7) {
+    // Out of a Battle Tower fight you always get back to the camp, guardians included.
+    if (this.setup.tower || Math.random() < 0.7) {
       this.fx.text(p.x, p.y - 40, 'Got away!', '#ffffff', 16);
       this.finish({ result: 'run', hp: p.hp, xp: 0, drops: {}, defeated: [], log: this.log }, 0.5);
     } else {
@@ -742,7 +743,10 @@ export class Battle implements FoeWorld, HitWorld {
     e.hp -= dmg;
     this.log.hits++;
     this.log.dealt += dmg;
-    if (crit) this.log.crits++;
+    if (crit) {
+      this.log.crits++;
+      this.log.critDealt += dmg;
+    }
     e.flash = 0.12;
     e.squash = 0.18;
     const kbk = e.def.boss ? 0.12 : 1;

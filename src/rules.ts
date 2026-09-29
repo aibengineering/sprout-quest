@@ -46,8 +46,11 @@ export function playerStats(s: SaveState): PlayerStats {
 export const LEVEL_EDGE = 0.08;
 export const levelEdge = (attackerLv: number, defenderLv: number) => Math.min(1.6, Math.max(0.6, 1 + LEVEL_EDGE * (attackerLv - defenderLv)));
 
-/** Monsters are tougher than their listed HP: regular ones take a handful of swings at your level, guardians a long fight. */
-export const MONSTER_HP = 1.7;
+/**
+ * Monsters are tougher than their listed HP: a regular one at your level takes a real exchange with any weapon (a few
+ * cracks or slams, a handful of bolts or swings; see CLASS_STRIKES in balance.ts), and guardians a long fight.
+ */
+export const MONSTER_HP = 3.4;
 export const GUARDIAN_HP = 1.35;
 /** Monster XP, at your level (see xpEdge). */
 export const MONSTER_XP = 0.72;

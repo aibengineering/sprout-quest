@@ -182,7 +182,9 @@ scenario('a new game plays through the prologue to Elder Oswin', null, async (pa
     await waitFor(page, `the ${flag} fight`, async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`), 4000);
     await page.waitForTimeout(1300);
     await endFight(page);
-    await waitFor(page, `the ${flag} result`, async () => !!(await page.$('#modal:not([hidden]) [data-dialog]')), 5000);
+    // Story fights end like any other: the XP fills in as the last foe falls, with no result screen to tap through.
+    await waitFor(page, `the ${flag} XP`, async () => !!(await page.$('#hud .stat.gain')), 5000);
+    check(!(await page.$('#modal:not([hidden]) .result .big')), `the ${flag} fight stopped on a result screen`);
     await closeDialogs(page);
     // Back on the map, the next step's caption may already be up: read it.
     await waitFor(page, 'back on the map', async () => game<boolean>(page, `!g.battle`), 5000);
@@ -200,6 +202,8 @@ scenario('a new game plays through the prologue to Elder Oswin', null, async (pa
       await waitFor(page, 'the Bag to close', async () => game<boolean>(page, `g.mode === 'world'`), 3000);
     }
   }
+  // The prologue's two fights don't unlock the weapon's special: the first fight in the meadow does.
+  check(await game<number>(page, 'g.save.mastery.sword.lv') === 1, 'handling went up in the prologue');
   // Walking into the village plays Elder Oswin's welcome tour.
   await closeDialogs(page);
   // Stand just outside and walk in (teleporting straight in wouldn't count as arriving).
@@ -217,6 +221,8 @@ scenario('a new game plays through the prologue to Elder Oswin', null, async (pa
   await closeDialogs(page);
   await page.waitForTimeout(500);
   check(await game(page, `g.mode`) === 'world', 'not back in control after the welcome');
+  // Granny Clover is home in Sowerby from the moment you arrive.
+  await waitFor(page, 'Granny Clover at her cottage', async () => game<boolean>(page, `!!g.over.actors.get('granny:granny')`), 3000);
   // Talking to Elder Oswin tells you what to do next, then hands you back the controls.
   await use(`g.over.world.obj('elder')`);
   const said = await closeDialogs(page);
@@ -250,6 +256,19 @@ scenario('patch notes: a dot until you read them, from the menu or the title', (
   await closeDialogs(page);
 });
 
+scenario("story dialogue moves on with a tap anywhere, even with the talk box at the top", null, async (page) => {
+  await run(page, `window.__said = g.ui.talk('Granny Clover', 'npc_granny', '👵', 'Hello, dear!', true).then(() => (window.__said = 'done'))`);
+  await waitFor(page, 'the talk box at the top', async () => !!(await page.$('#modal.cine.top:not([hidden]) .tap-next')), 3000);
+  if (SHOTS) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${OUT}talk-top.png` });
+  }
+  // A tap down by the thumbs, nowhere near the box or its button.
+  await page.mouse.click(195, 760);
+  await waitFor(page, 'the line to move on', async () => (await game<string>(page, 'window.__said')) === 'done', 3000);
+  check(!(await page.$('#modal .tap-next')), 'the tap hint stayed behind');
+});
+
 scenario('an unlock card gets out of the way of a fight, and comes back after it', null, async (page) => {
   await run(page, `g.ui.unlockCard({ id: 'bag', icon: '🎒', title: 'Your Bag', text: 'Test', when: () => true })`);
   await waitFor(page, 'the card', async () => !!(await page.$('#unlock-card.show')), 3000);
@@ -258,6 +277,20 @@ scenario('an unlock card gets out of the way of a fight, and comes back after it
   await waitFor(page, 'the card to go', async () => game<boolean>(page, `document.getElementById('unlock-card').hidden`), 3000);
   await winFight(page);
   await waitFor(page, 'the card again', async () => !!(await page.$('#unlock-card.show')), 5000);
+  // Opening a menu (or chopping, or a scene: anything that isn't walking about) puts it away too.
+  await page.keyboard.press('KeyB');
+  await waitFor(page, 'the Bag', async () => !!(await page.$('#modal:not([hidden]) .sheet.menu')), 3000);
+  await waitFor(page, 'the card to go for the menu', async () => game<boolean>(page, `document.getElementById('unlock-card').hidden`), 3000);
+  await run(page, `g.ui.closeMenu()`);
+  // …and having opened the Bag, its card has done its job: it doesn't come back.
+  await page.waitForTimeout(1500);
+  check(await game<boolean>(page, `document.getElementById('unlock-card').hidden`), 'the Bag card came back after opening the Bag');
+  // A card still waiting doesn't come out over a dialog either.
+  await run(page, `g.ui.unlockCard({ id: 'journal', icon: '📜', title: 'Journal', text: 'Test', when: () => true }); void g.ui.message('Hi', 'A dialog')`);
+  await page.waitForTimeout(1500);
+  check(await game<boolean>(page, `document.getElementById('unlock-card').hidden`), 'an unlock card came out over a dialog');
+  await closeDialogs(page);
+  await waitFor(page, 'the cards once free', async () => !!(await page.$('#unlock-card.show')), 5000);
 });
 
 scenario("a weapon class's handling path: every level, what it brings, and where you are", (g) => {
@@ -272,6 +305,9 @@ scenario("a weapon class's handling path: every level, what it brings, and where
   check(/Riposte/.test((await page.locator('#modal .hnode.trick').textContent()) ?? ''), "the Blades' trick isn't on its path");
   check(/Copper Sword/.test((await page.locator('#modal .htree').textContent()) ?? ''), 'the path should say which weapons it lets you wield');
   check(/40\/680 XP/.test((await page.locator('#modal .hnode.next').textContent()) ?? ''), 'the next level should show your progress');
+  // Only the next two levels say what they bring; the rest are a mystery.
+  check(await page.locator('#modal .hnode.secret').count() === 5, 'Lv 6–10 should be shrouded');
+  check(!/Cyclone/.test((await page.locator('#modal .htree').textContent()) ?? ''), 'the Mastery finisher shows before you get close');
   if (SHOTS) await page.screenshot({ path: `${OUT}handling-path.png` });
   // Any class's path, trained or not.
   await page.click('#modal [data-pick="hpath:wand"]');
@@ -281,7 +317,7 @@ scenario("a weapon class's handling path: every level, what it brings, and where
 });
 
 scenario('winning a fight levels you up and reveals new gear (and the quest tracker counts materials)', (g) => {
-  Object.assign(g.save, { lv: 4, xp: 108 });
+  Object.assign(g.save, { lv: 4, xp: 109 }); // 2 short of Lv 5: even a slime you've outgrown gives 2
   g.save.owned.push('jellywhip');
   g.save.equip.weapon = 'jellywhip';
   g.save.mastery.whip.xp = 8; // 2 short of handling Lv 2 (rules.ts masteryXpToNext)
@@ -301,6 +337,8 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
     await page.screenshot({ path: `${OUT}xp-fill.png`, clip: { x: 0, y: 0, width: 390, height: 140 } });
   }
   await waitFor(page, 'the level-up screen', async () => !!(await page.$('#modal:not([hidden]) .lvsheet')));
+  // Its stats tick in one by one.
+  await waitFor(page, "the level-up's stats", async () => /Max HP/.test((await page.textContent('#modal .sheet')) ?? ''), 5000);
   // Loot and XP stack on the right, clear of the quest tracker.
   const pill = await page.locator('#quest-pill').boundingBox(), rows = await page.locator('#loot .lrow').all();
   check(rows.length > 0, 'no loot rows');
@@ -561,6 +599,12 @@ scenario('the play report records fights, waits between strikes, deaths and time
   check(/^wolf:(contact|shot)$/.test(loss?.by ?? ''), `the loss does not say what got you (${loss?.by})`);
   check(s.time.totalMinutes.fighting > 0 && s.time.totalMinutes.walking > 0 && s.time.byZone.meadow, 'no time split');
   check(s.fightsByWeapon.stonesword?.avgCoolingSec > 0, 'no per-weapon pace summary');
+  // How each kill went, time per menu screen, and the story as chapters.
+  const sw = s.fightsByWeapon.stonesword;
+  check(sw.avgDamagePerHit > 0 && sw.strikesPerKill > 0 && sw.secondsPerKill > 0 && 'critShare' in sw && sw.actionsPerKill > 0, 'no per-kill numbers in the report');
+  check(fight.cols.includes('kills') && fight.cols.includes('critDealt'), 'fights do not record kills and crit damage');
+  check(s.time.menusByScreen && Object.keys(s.time.menusByScreen).length > 0, 'no menu time per screen');
+  check(Array.isArray(s.storyline), 'no storyline in the report');
 
   // The summary copies to the clipboard, small enough to paste, both with the clipboard API and without it (http).
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -814,7 +858,8 @@ scenario('dev builds: a Battle Tower run climbs floor after floor from its camp,
   /** Clicks through result and level-up screens until the camp is back. */
   const toCamp = (what: string) => waitFor(page, what, async () => {
     if (await page.$(camp)) return true;
-    const btn = await page.$('#modal:not([hidden]) .sheet:not(.menu) [data-dialog]:last-of-type');
+    // (Never the camp's own buttons: it may have just opened.)
+    const btn = await page.$('#modal:not([hidden]) .sheet:not(.menu):not(.tower-camp) [data-dialog]:last-of-type');
     if (btn) await btn.click();
     return false;
   }, 30000);
@@ -845,6 +890,25 @@ scenario('dev builds: a Battle Tower run climbs floor after floor from its camp,
   await page.waitForSelector('#modal:not([hidden]) .sheet.menu');
   await run(page, 'g.ui.closeMenu()');
   await waitFor(page, 'the camp after the Forge', async () => !!(await page.$(camp)), 5000);
+  // The camp says what the next floor (the Slime King) expects, ticked against you.
+  check(/Suggested:.*Lv 3|Suggested:.*Lv \d/.test((await page.textContent(`${camp} .tower-ready`)) ?? ''), "the camp doesn't say what the next floor expects");
+  if (SHOTS) await page.screenshot({ path: `${OUT}tower-camp-guardian.png` });
+  // Training on a cleared floor: its fight and drops, but the run stays where it is.
+  await page.selectOption('#tower-floor', '1');
+  await page.click(`${camp} [data-dialog="train"]`);
+  await waitFor(page, 'the training fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.setup.tower === 1 && g.battle.intro <= 0`), 10000);
+  await endFight(page);
+  await toCamp('the camp after training');
+  check(await game<number>(page, 'g.save.tower.floor') === 4, 'training moved the run');
+  // Any tower fight can be run from, guardians included, straight back to the camp.
+  await fightFloor(4);
+  await waitFor(page, 'getting away', async () => {
+    await page.keyboard.press('KeyR');
+    await page.waitForTimeout(250);
+    return game<boolean>(page, `!g.battle || g.battle.outcome?.result === 'run'`);
+  }, 8000);
+  await toCamp('the camp after running from the Slime King');
+  check(await game<number>(page, 'g.save.tower.floor') === 4, 'running moved the run');
   // Fainting on the guardian's floor puts you back at the camp to try it again.
   await fightFloor(4);
   await run(page, 'g.battle.p.hp = 0');
@@ -858,6 +922,21 @@ scenario('dev builds: a Battle Tower run climbs floor after floor from its camp,
   await waitFor(page, 'an ordinary fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 10000);
   await winFight(page);
   check(await game<number>(page, 'g.save.lv * 100000 + g.save.xp') > xp0, 'an ordinary fight after the tower gave no XP');
+  // The tower's XP rate stays in the tower: a story slot (a fresh playthrough in a dev build) plays at ×1.
+  await run(page, `localStorage.setItem('sprout-quest-slot', 'story-9')`);
+  await page.reload();
+  await page.waitForSelector('.title-btns:not([hidden])');
+  check(await game<number>(page, 'g.xpRate') === 1, "the tower's XP rate leaked into a story slot");
+  await run(page, `localStorage.removeItem('sprout-quest-dev-xp-rate'); localStorage.removeItem('sprout-quest-slot')`);
+});
+
+scenario('dev builds: a Battle Tower link opens the camp at that point, with that gear', null, async (page) => {
+  const url = page.url().split('?')[0];
+  await page.goto(`${url}?tower&floor=4&lv=3&weapon=jellywhip&h=whip:2&mats=goo:9&xp=5`);
+  await waitFor(page, 'the camp', async () => !!(await page.$('#modal:not([hidden]) .tower-camp')), 30000);
+  check(await game<boolean>(page, `localStorage.getItem('sprout-quest-slot') === 'tower' && g.save.tower.floor === 4 && g.save.lv === 3`), 'the link did not set the floor and level');
+  check(await game<boolean>(page, `g.save.equip.weapon === 'jellywhip' && g.save.mastery.whip.lv === 2 && g.save.mats.goo === 9 && g.xpRate === 5`), 'the link did not set gear, handling, materials and XP rate');
+  check(/Floor 4/.test((await page.textContent('#modal .tower-camp')) ?? ''), 'the camp is not on floor 4');
   await run(page, `localStorage.removeItem('sprout-quest-dev-xp-rate'); localStorage.removeItem('sprout-quest-slot')`);
 });
 

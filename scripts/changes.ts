@@ -5,8 +5,11 @@
 import { $ } from 'bun';
 import { appendFileSync } from 'node:fs';
 
-/** Files that don't change the game: docs (any Markdown, docs/) and CI tooling (workflows, these two scripts). */
-const NOT_THE_GAME = [/\.md$/i, /^docs\//, /^\.github\//, /^scripts\/(changes|check-release)\.ts$/];
+/**
+ * Files that don't change the game: docs (any Markdown, docs/), CI tooling (workflows, these two scripts) and the
+ * playthrough simulator (sim/, test tooling that lives outside the game).
+ */
+const NOT_THE_GAME = [/\.md$/i, /^docs\//, /^\.github\//, /^scripts\/(changes|check-release)\.ts$/, /^sim\//];
 
 /** Files changed since `base`, or null if `base` isn't a commit we have (a new branch, say). */
 export async function changedFiles(base: string): Promise<string[] | null> {

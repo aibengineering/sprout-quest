@@ -1,8 +1,8 @@
 // Balance model: where we expect the player to be at each point in the story, and how fights should feel there.
 // tests/balance.test.ts enforces the targets; `bun run balance` prints the full table while tuning.
 import { ARENA_RX, ARENA_RY } from './arena';
-import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
-import { MOVESETS, comboDps, openingBurst, skillRank, skillShape, strikeShape, tierScale } from './weapons';
+import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, STYLE_NAMES, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
+import { MOVESETS, SUNDER, comboDps, hasTrick, openingBurst, skillRank, skillShape, stepTime, strikeDamage, strikeShape, tierScale } from './weapons';
 import { GENTLE_ATK, MONSTER_HP, calcDamage, CATCH_UP, MASTERY_MAX, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, xpEdge, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
@@ -24,7 +24,8 @@ export interface Checkpoint {
   /** Scripted fights to check instead of the zone's random spawns. */
   foes?: { kind: MonsterKind; lv: number; gentle?: boolean }[];
   /** Swings (at combo multiplier 1, no crits) to kill each regular monster anywhere in the zone's level range. */
-  hitsToKill: Range;
+  /** Scripted fights only (the prologue's): swings to kill. Regular fights are judged per class by killModel. */
+  hitsToKill?: Range;
   /** Hits the player can take from a regular monster before going down. */
   hitsToDie: Range;
   /** Guardian fought here, with its own swing and survival targets. */
@@ -42,27 +43,27 @@ export const CHECKPOINTS: Checkpoint[] = [
     id: 'prologue', label: 'Prologue fights', lv: 1, weapon: 'twig', armor: 'tunic', zone: 'glade', hitsToKill: [2, 4], hitsToDie: [12, 30],
     foes: [{ kind: 'slime', lv: 1, gentle: true }, { kind: 'bunny', lv: 1, gentle: true }],
   },
-  { id: 'meadow', label: 'Meadow, fresh start', lv: 1, weapon: 'twig', armor: 'tunic', zone: 'meadow', hitsToKill: [4, 8], hitsToDie: [5, 12] },
-  { id: 'meadow-gear', label: 'Meadow, first ★ weapon', lv: 3, weapon: 'stonesword', armor: 'tunic', zone: 'meadow', hitsToKill: [2, 3], hitsToDie: [5, 14] },
+  { id: 'meadow', label: 'Meadow, fresh start', lv: 1, weapon: 'twig', armor: 'tunic', zone: 'meadow', hitsToDie: [5, 12] },
+  { id: 'meadow-gear', label: 'Meadow, first ★ weapon', lv: 3, weapon: 'stonesword', armor: 'tunic', zone: 'meadow', hitsToDie: [5, 14] },
   {
-    id: 'woods', label: 'Whisper Woods', lv: 4, weapon: 'stonesword', armor: 'fluffvest', zone: 'woods', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    id: 'woods', label: 'Whisper Woods', lv: 4, weapon: 'stonesword', armor: 'fluffvest', zone: 'woods', hitsToDie: [4, 12],
     boss: { kind: 'kingslime', lv: 5, hitsToKill: [25, 45], hitsToDie: [4, 12] },
   },
   {
-    id: 'cave', label: 'Echo Cavern', lv: 8, weapon: 'coppersword', armor: 'coppermail', charm: 'toothcharm', training: 1, zone: 'cave', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    id: 'cave', label: 'Echo Cavern', lv: 8, weapon: 'coppersword', armor: 'coppermail', charm: 'toothcharm', training: 1, zone: 'cave', hitsToDie: [4, 12],
     boss: { kind: 'alphawolf', lv: 9, hitsToKill: [25, 45], hitsToDie: [4, 12] },
   },
   {
-    id: 'hollow', label: 'Glimmer Hollow', lv: 11, weapon: 'ironsword', armor: 'ironplate', charm: 'toothcharm', training: 2, zone: 'hollow', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    id: 'hollow', label: 'Glimmer Hollow', lv: 11, weapon: 'ironsword', armor: 'ironplate', charm: 'toothcharm', training: 2, zone: 'hollow', hitsToDie: [4, 12],
     boss: { kind: 'echoqueen', lv: 12, hitsToKill: [25, 45], hitsToDie: [4, 12] },
   },
   {
-    id: 'peak', label: 'Ember Peak', lv: 13, weapon: 'crystalsword', armor: 'crystalmail', charm: 'toothcharm', training: 2, home: 2, zone: 'peak', hitsToKill: [3, 10], hitsToDie: [4, 12],
+    id: 'peak', label: 'Ember Peak', lv: 13, weapon: 'crystalsword', armor: 'crystalmail', charm: 'toothcharm', training: 2, home: 2, zone: 'peak', hitsToDie: [4, 12],
     boss: { kind: 'crystalking', lv: 14, hitsToKill: [25, 45], hitsToDie: [4, 12] },
   },
   // By the dragon you've outleveled the bottom of Ember Peak, so only the fight at the top of the zone needs to stay tense.
   {
-    id: 'dragon', label: 'Emberwyrm', lv: 17, weapon: 'emberblade', armor: 'magmamail', charm: 'impring', training: 3, home: 3, zone: 'peak', hitsToKill: [1, 4], hitsToDie: [5, 40],
+    id: 'dragon', label: 'Emberwyrm', lv: 17, weapon: 'emberblade', armor: 'magmamail', charm: 'impring', training: 3, home: 3, zone: 'peak', hitsToDie: [5, 40],
     boss: { kind: 'dragon', lv: 20, hitsToKill: [25, 60], hitsToDie: [3, 10] },
   },
 ];
@@ -96,6 +97,70 @@ export function zoneMatchups(c: Checkpoint): Matchup[] {
   if (c.foes) return c.foes.map((f) => matchup(p, f.kind, f.lv, f.gentle));
   const lvs = [...new Set(zone.lv)];
   return zone.monsters.flatMap((m) => lvs.map((lv) => matchup(p, m.kind, lv)));
+}
+
+// ----------------------------------------------------------------------------- a fight, strike by strike
+
+/** A weapon class against one monster: how many strikes it takes, how long, and what each strike does. */
+export interface Kill { strikes: number; seconds: number; perStrike: number }
+
+/**
+ * Plays out one monster falling to a weapon class, strike by strike, with its real rhythm at a handling level: each
+ * strike's multiplier (a whip's crack, a hammer's slam and shockwave, a spread of shots all landing), the average crit,
+ * the level gap, and a hammer's Sunder once its ability is unlocked. Seconds count from the first swing to the blow
+ * that lands the kill (the walk in isn't counted). Specials are left out: this is the plain attack's fight.
+ */
+export function killModel(p: PlayerStats, style: Style, handling: number, kind: MonsterKind, lv: number): Kill {
+  const m = MOVESETS[style], s = scaleMonster(MONSTERS[kind], lv, false);
+  const crit = 1 + (0.08 + p.luck * 0.2) * 0.6;
+  const per = (i: number) => calcDamage(p.atk, s.def, strikeDamage(m.combo[i]) * levelEdge(p.lv, lv), 0, avg).dmg * crit;
+  let hp = s.hp, t = 0, i = 0, n = 0, total = 0;
+  while (n < 500) {
+    const st = m.combo[i];
+    const d = per(i) * (m.trick === 'sunder' && hasTrick(handling) && n > 0 ? SUNDER.mult : 1);
+    hp -= d;
+    total += d;
+    n++;
+    if (hp <= 0) return { strikes: n, seconds: t + st.windup + st.active / 2, perStrike: total / n };
+    t += stepTime(m, i, handling);
+    i = (i + 1) % m.combo.length;
+  }
+  return { strikes: n, seconds: Infinity, perStrike: total / n };
+}
+
+/**
+ * How many strikes a fair fight takes with each class: a regular monster at your level, with the weapon of that class
+ * the checkpoint's tier gives you. Blades swing often and light; the one-strike classes land a few big blows. Either
+ * way it's a real exchange, never a one-shot, and it's over in a few seconds.
+ */
+export const CLASS_STRIKES: Record<Style, Range> = { sword: [4, 8], hammer: [2, 4], whip: [2, 4], wand: [3, 6] };
+/** …and no longer than this from the first blow to the last (the walk in and dodging aren't counted). */
+export const MAX_KILL_SECONDS = 5;
+
+/** The weapon of a class at a tier (the Twig below ★1). */
+export const weaponOf = (style: Style, tier: number) =>
+  tier === 0 ? 'twig' : Object.values(GEAR).find((g) => g.slot === 'weapon' && g.style === style && g.tier === tier)!.id;
+
+export interface ClassKill { style: Style; weapon: string; kind: MonsterKind; lv: number; kill: Kill }
+
+/**
+ * Every class at a checkpoint against each of its zone's monsters at your level (or the nearest the zone has), with its
+ * tier's weapon and the handling you'd typically have for it.
+ */
+export function atLevelKills(c: Checkpoint): ClassKill[] {
+  const zone = ZONES.find((z) => z.id === c.zone)!;
+  if (c.foes || !zone.monsters.length) return [];
+  const tier = GEAR[c.weapon].tier ?? 0, lv = Math.min(zone.lv[1], Math.max(zone.lv[0], c.lv));
+  const styles: Style[] = tier === 0 ? ['sword'] : ['sword', 'hammer', 'whip', 'wand'];
+  return styles.flatMap((style) => {
+    const s = newState();
+    s.lv = c.lv;
+    s.equip = { weapon: weaponOf(style, tier), armor: c.armor, charm: c.charm ?? null };
+    s.build.training = c.training ?? 0;
+    s.build.home = c.home ?? 1;
+    const p = playerStats(s);
+    return zone.monsters.map((m) => ({ style, weapon: s.equip.weapon, kind: m.kind, lv, kill: killModel(p, style, handlingFor(tier), m.kind, lv) }));
+  });
 }
 
 /**
@@ -403,9 +468,15 @@ export function report(): string {
   for (const c of CHECKPOINTS) {
     const p = checkpointStats(c);
     out.push(`\n${c.label}  (Lv${c.lv} ${c.weapon}/${c.armor}${c.charm ? '/' + c.charm : ''}: atk ${p.atk} def ${p.def} hp ${p.maxHp}${levelPace(c)})`);
-    out.push(`  ${'monster'.padEnd(18)} ${'lv'.padStart(3)} ${'hp'.padStart(5)}  kill ${c.hitsToKill.join('–').padEnd(5)}  die ${c.hitsToDie.join('–')}`);
+    out.push(`  ${'monster'.padEnd(18)} ${'lv'.padStart(3)} ${'hp'.padStart(5)}  kill ${(c.hitsToKill ?? ['', '']).join('–').padEnd(5)}  die ${c.hitsToDie.join('–')}`);
     for (const m of zoneMatchups(c)) {
-      out.push(`  ${m.name.padEnd(18)} ${String(m.lv).padStart(3)} ${String(m.hp).padStart(5)}  ${flag(m.hitsToKill, c.hitsToKill).padStart(10)}  ${flag(m.hitsToDie, c.hitsToDie).padStart(8)}`);
+      out.push(`  ${m.name.padEnd(18)} ${String(m.lv).padStart(3)} ${String(m.hp).padStart(5)}  ${(c.hitsToKill ? flag(m.hitsToKill, c.hitsToKill) : '').padStart(10)}  ${flag(m.hitsToDie, c.hitsToDie).padStart(8)}`);
+    }
+    // A fair fight with each class: strikes and seconds to kill an at-level monster (targets: CLASS_STRIKES).
+    const kills = atLevelKills(c);
+    for (const style of [...new Set(kills.map((k) => k.style))]) {
+      const mine = kills.filter((k) => k.style === style);
+      out.push(`  ${`${STYLE_NAMES[style]} (${GEAR[mine[0].weapon].name})`.padEnd(28)} ${mine.map((k) => `${MONSTERS[k.kind].name} ${flag(k.kill.strikes, CLASS_STRIKES[style])}× ${k.kill.seconds.toFixed(1)}s ${Math.round(k.kill.perStrike)}/hit`).join('  ')}`);
     }
     if (c.boss) {
       const b = matchup(p, c.boss.kind, c.boss.lv);

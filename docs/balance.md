@@ -8,10 +8,24 @@ changes. The numbers themselves live in code, so this page explains the targets 
 - `tests/balance.test.ts` enforces the targets. If a change breaks one, the test name says which intent it broke.
 - The in-game play report (More → Play report) is the real-play check on the model. When they disagree, the report
   wins, and the model's assumptions get fixed, not just its numbers.
+- The playthrough simulator ([sim/](../sim/README.md)) plays the story with the model and lines its runs up against a
+  real report (`bun run sim:compare -- <report.json>`). That tells a wrong model apart from wrong targets.
 
 ## The intent
 
 These were decided with the game's designer while tuning 0.3.x. Keep them, or change them on purpose.
+
+**A fair fight is a real exchange, with every class.**
+- A regular monster at your level takes 4–8 swings with Blades, 2–4 slams or cracks with a Hammer or Whip, or 3–6
+  bolts with Magic, and it's over within about 5 seconds (`CLASS_STRIKES` in `src/balance.ts`). Nothing at your level
+  falls to one blow.
+- It's measured by `killModel`, which plays out each strike with the class's real rhythm, strike multipliers, crits,
+  the level gap and Sunder. The old measure counted swings at 1× damage, which hid one-shot whip cracks and hammer
+  slams. Test: *a fair fight is a real exchange with every class*, at every checkpoint.
+- Monsters you've outgrown still fall fast. That's the reward for levelling, and XP falls off to match.
+
+**Gear is an investment.** Armor costs about twice a weapon of its tier, built from the materials with the most room
+in the farming budget. Weapons stay cheaper, so switching class stays easy.
 
 **Fights are fair, and XP rewards fair fights.**
 - A monster at your level gives full XP. One above you gives up to 25% more. One level below gives 72%, and anything
@@ -89,6 +103,8 @@ tests pick it up automatically from the zone list.
 
 | Knob | Where | Moves |
 |---|---|---|
+| `MONSTER_HP` | rules.ts | How many blows a regular monster takes (fight substance) |
+| `CLASS_STRIKES` | balance.ts | The target blows per class for a fair fight |
 | `MONSTER_XP` | rules.ts | All combat and handling XP (the overall leveling speed) |
 | `xpEdge` | rules.ts | How much fair fights pay versus outgrown ones (how far farming gets you) |
 | `xpToNext` | rules.ts | The character level curve |
@@ -101,7 +117,10 @@ tests pick it up automatically from the zone list.
 
 ## Known gaps
 
-- The fight counts are estimates. Replace them with play-report numbers when there are some.
+- The fight counts are estimates. Replace them with play-report numbers when there are some. The report's
+  `storyline` gives fights and levels per quest, and when you first reached each guardian.
+- `SECONDS_PER_KILL` (14 s, used for farming times) predates fights getting longer in 0.3.3. Check it against the
+  report's `secondsPerKill`.
 - Leaving Glimmer Hollow, a natural run is one level over the Crystal King (15 against 14). That's within the test's
   tolerance, but the Hollow is the most generous area.
 - Story fights (Poppy's and Bram's) aren't modelled separately. They're folded into each area's 40.
