@@ -44,7 +44,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "🪵 The Twig Sword hits a little harder",
       "🛡️ Armor costs about twice as much to craft",
       "🗺️ Weapon Paths only reveal your next two levels",
-      "🎒 Unlock cards keep out of the way of anything you start",
+      "🎒 Unlock cards step aside for what you're doing, and go once you've looked",
       "📜 Story fights no longer stop on a Victory screen",
       "📊 A richer play report",
       "🐛 Fixes: Granny missing on a new game, and the level-up health bar",

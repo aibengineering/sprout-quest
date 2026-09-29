@@ -566,6 +566,16 @@ export class UI {
   /** The corner button that leads there, which bounces while its card is up. */
   private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', trick: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag' };
 
+  /**
+   * You've been to a menu tab: any unlock card pointing there (showing, or waiting its turn) has done its job, so it
+   * doesn't come back afterwards.
+   */
+  private sawTab(tab: Tab) {
+    const there = (u: Unlock) => UI.UNLOCK_TAB[u.id] === tab;
+    this.unlockQueue = this.unlockQueue.filter((u) => !there(u));
+    if (this.unlockNow && there(this.unlockNow)) this.unlockNow = null;
+  }
+
   /** Is anything going on that an unlock card shouldn't sit over: a fight, a menu or dialog, gathering, a scene? */
   private get popupsBlocked() {
     return this.mode !== 'world' || this.menuOpen || !this.modal.hidden || this.hooks.busy();
@@ -787,6 +797,7 @@ export class UI {
     if (!this.tabOpen(this.tab)) this.tab = (['items', 'journey', 'forge', 'village'] as Tab[]).find((t) => this.tabOpen(t)) ?? 'settings';
     this.focus = focus;
     this.menuOpen = true;
+    this.sawTab(this.tab);
     this.armed = false;
     this.modal.hidden = false;
     this.renderMenu(true);
@@ -1173,6 +1184,7 @@ export class UI {
     }
     if (d.tab) {
       this.tab = d.tab as Tab;
+      this.sawTab(this.tab);
       this.focus = undefined;
       this.renderMenu(true);
       return;
