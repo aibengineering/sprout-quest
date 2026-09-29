@@ -70,6 +70,6 @@ function readyFor(from: number, to: number): string[] {
     if (g && !G.save.bosses.includes(g.kind) && g.lv > from && g.lv <= to) out.push(`Strong enough for the ${MONSTERS[g.kind].name} (Lv ${g.lv}) guarding ${z.name}!`);
     if (z.monsters.length && z.rec > from && z.rec <= to) out.push(`${z.name} (monsters Lv ${z.lv[0]}–${z.lv[1]}) is your speed now.`);
   }
-  if (from < 18 && to >= 18) out.push('Ready to face the Emberwyrm (Lv 20)? Bring potions!');
+  if (from < 17 && to >= 17) out.push('Ready to face the Emberwyrm (Lv 20)? Bring potions!');
   return out;
 }

@@ -6,7 +6,7 @@ import { vibrate } from '../audio';
 import { GEAR, MONSTERS, POTION_HEAL, type Fx as Element, type Gear, type MatId, type MonsterKind } from '../data';
 import { Fx } from '../fx';
 import type { Input } from '../input';
-import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
+import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, xpEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
 import { BLINK, MOVESETS, RIPOSTE, SKILL_DATA, SUNDER, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
@@ -136,7 +136,7 @@ export class Battle implements FoeWorld, HitWorld {
     const e: Enemy = {
       kind: f.kind, def, lv: f.lv, golden: f.golden,
       // The level gap: a monster above you hits harder, one below you softer (see levelEdge).
-      hp: s.hp, maxHp: s.hp, atk: Math.round((f.gentle ? s.atk * GENTLE_ATK : s.atk) * levelEdge(f.lv, this.stats.lv)), dfn: s.def, xp: s.xp, spd: def.spd * (f.golden ? 1.1 : 1),
+      hp: s.hp, maxHp: s.hp, atk: Math.round((f.gentle ? s.atk * GENTLE_ATK : s.atk) * levelEdge(f.lv, this.stats.lv)), dfn: s.def, xp: Math.round(s.xp * xpEdge(this.stats.lv, f.lv)), spd: def.spd * (f.golden ? 1.1 : 1),
       x, y, vx: 0, vy: 0, kx: 0, ky: 0,
       r: def.r, z: 0, state: MONSTER_AI[f.kind].start, t: rand(0.3, 1.2), dir: 0, face: 1, orb: Math.atan2(y, x), sub: 0, last: null,
       windup: 0, flash: 0, stun: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,

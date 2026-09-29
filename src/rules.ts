@@ -49,8 +49,18 @@ export const levelEdge = (attackerLv: number, defenderLv: number) => Math.min(1.
 /** Monsters are tougher than their listed HP: regular ones take a handful of swings at your level, guardians a long fight. */
 export const MONSTER_HP = 1.7;
 export const GUARDIAN_HP = 1.35;
-/** …and give a bit more XP for it, so levelling takes about as long as before. */
-export const MONSTER_XP = 1.25;
+/** Monster XP, at your level (see xpEdge). */
+export const MONSTER_XP = 0.72;
+/**
+ * XP pays best for a fair fight: a monster at your level gives its full XP, one above you a little more (up to +25%),
+ * one level below 72%, and anything you've outgrown further settles at a base 55%. It never drops below that, so you
+ * can still farm your way over-levelled if you want an unfair fight; it just takes longer. Tuned so a natural
+ * playthrough reaches each guardian a little under its level, and skipping the grass leaves you under-levelled.
+ */
+export function xpEdge(playerLv: number, monsterLv: number): number {
+  const gap = playerLv - monsterLv;
+  return gap <= 0 ? Math.min(1.25, 1 + 0.08 * -gap) : gap === 1 ? 0.72 : 0.55;
+}
 
 export function calcDamage(atk: number, def: number, mult: number, critChance: number, rng: Rng = Math.random) {
   const base = ((atk * atk) / (atk + def + 0.001)) * mult;

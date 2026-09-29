@@ -3,7 +3,7 @@
 import { ARENA_RX, ARENA_RY } from './arena';
 import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
 import { MOVESETS, comboDps, openingBurst, skillRank, skillShape, strikeShape, tierScale } from './weapons';
-import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, type PlayerStats } from './rules';
+import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, xpEdge, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
 import { LOGS_PER_PLANK } from './sawmill';
@@ -62,7 +62,7 @@ export const CHECKPOINTS: Checkpoint[] = [
   },
   // By the dragon you've outleveled the bottom of Ember Peak, so only the fight at the top of the zone needs to stay tense.
   {
-    id: 'dragon', label: 'Emberwyrm', lv: 18, weapon: 'emberblade', armor: 'magmamail', charm: 'impring', training: 3, home: 3, zone: 'peak', hitsToKill: [1, 4], hitsToDie: [5, 40],
+    id: 'dragon', label: 'Emberwyrm', lv: 17, weapon: 'emberblade', armor: 'magmamail', charm: 'impring', training: 3, home: 3, zone: 'peak', hitsToKill: [1, 4], hitsToDie: [5, 40],
     boss: { kind: 'dragon', lv: 20, hitsToKill: [25, 60], hitsToDie: [3, 10] },
   },
 ];
@@ -98,13 +98,18 @@ export function zoneMatchups(c: Checkpoint): Matchup[] {
   return zone.monsters.flatMap((m) => lvs.map((lv) => matchup(p, m.kind, lv)));
 }
 
-/** Average kills in the zone (weighted by spawn odds, at mid zone level) to gain one level from the checkpoint. */
+/**
+ * Average kills in the zone (weighted by spawn odds) to gain one level from the checkpoint, fighting where it pays best
+ * (XP falls off for monsters you've outgrown and rises for ones above you, see xpEdge).
+ */
 export function killsPerLevel(c: Checkpoint): number | null {
   const zone = ZONES.find((z) => z.id === c.zone)!;
   if (c.foes || !zone.monsters.length) return null;
-  const lv = Math.round((zone.lv[0] + zone.lv[1]) / 2);
   const total = zone.monsters.reduce((a, m) => a + m.w, 0);
-  const xp = zone.monsters.reduce((a, m) => a + (m.w / total) * scaleMonster(MONSTERS[m.kind], lv, false).xp, 0);
+  const perKill = (lv: number) => zone.monsters.reduce((a, m) => a + (m.w / total) * scaleMonster(MONSTERS[m.kind], lv, false).xp * xpEdge(c.lv, lv), 0);
+  // The best-paying level in the zone, up to two above yours.
+  let xp = 0;
+  for (let lv = zone.lv[0]; lv <= Math.min(zone.lv[1], Math.max(zone.lv[0], c.lv + 2)); lv++) xp = Math.max(xp, perKill(lv));
   return xpToNext(c.lv) / xp;
 }
 

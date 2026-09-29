@@ -30,6 +30,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "🎯 Your Skills tab shows each weapon class's trick.",
       "🎒 A \"New unlocked\" card no longer sits over a fight you walk straight into: it steps aside and comes back after.",
       "⚔️ Weapon handling levels a little slower, so your first fights don't rush it up.",
+      "⭐ XP pays best for a fair fight: monsters at or above your level give the most, and ones you've outgrown settle to a lower base rate. Following the story, you'll meet each guardian a little under its level; farm longer if you want an easy fight.",
       "🪓 Bram is at his old logging camp from the first time you find it, grumbling at you to go away, instead of only turning up once Granny has a pie for him.",
     ],
   },
