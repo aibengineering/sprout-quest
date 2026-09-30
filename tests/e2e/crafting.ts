@@ -34,12 +34,12 @@ async function begin(page: Page, id: string, twice = false) {
     for (const k in s.mastery) s.mastery[k].lv = 10;
     for (const k in s.skills) s.skills[k].lv = 10;
     s.lv = 20; s.build.forge = 5; s.stories.poppy = 6;
-    for (const flag of ['oldtools', 'bram:pie', 'bram:stew', 'pip:candy']) if (!s.flags.includes(flag)) s.flags.push(flag);
-    if (['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy'].includes(id)) {
+    for (const flag of ['oldtools', 'bram:pie', 'bram:stew', 'pip:candy', 'garden:berries']) if (!s.flags.includes(flag)) s.flags.push(flag);
+    if (['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy', 'tart'].includes(id)) {
       void g.over.actors.get('granny:granny').talk();
     } else {
       g.ui.openMenu({ atForge: true, inVillage: true }, 'forge');
-      const method = /^(axe|pick)\d$/.test(id) ? 'craftTool' : ['jellypot', 'shroombrew', 'embertonic'].includes(id) ? 'craftPotion' : 'craftGear';
+      const method = /^(axe|pick)\d$/.test(id) ? 'craftTool' : ['jellypot', 'shroombrew', 'embertonic', 'herbtonic'].includes(id) ? 'craftPotion' : 'craftGear';
       void g.ui.hooks[method](id);
       if (twice) void g.ui.hooks[method](id);
     }
@@ -84,7 +84,7 @@ async function finish(page: Page, id: string, equip = true, fallback = false) {
 }
 
 try {
-  if (Object.keys(CRAFT_PRESENTATIONS).length !== 50 || items.length !== 50) throw Error('Expected complete 50-item coverage');
+  if (Object.keys(CRAFT_PRESENTATIONS).length !== items.length) throw Error(`Expected a presentation for each of the ${items.length} craftable items`);
   // Parallel pages are independent saves, and each runs the actual normal timeline.
   await Promise.all([320, 390].map(async width => {
     const page = await boot(width);
@@ -130,7 +130,7 @@ try {
   await page.close();
   if (errors.length) throw Error(errors.join('\n'));
   console.log('PASS lifecycle: double click, Skip, Escape, reduced motion, background, missing art, Keep, reload');
-  console.log(process.env.CRAFT_ONLY ? `Selected crafting transactions passed: ${process.env.CRAFT_ONLY}` : 'All 47 crafting transactions passed at 320px and 390px.');
+  console.log(process.env.CRAFT_ONLY ? `Selected crafting transactions passed: ${process.env.CRAFT_ONLY}` : `All ${items.length} crafting transactions passed at 320px and 390px.`);
 } finally {
   await browser.close(); server.stop(true);
 }

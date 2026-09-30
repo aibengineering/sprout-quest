@@ -1,12 +1,14 @@
 // Poppy and Mr. Floppers: a little girl cornered in a secret grove off the Sunny Meadow, a walk home, a stolen toy
 // bunny, and a chase down into the grove to get him back from the bunny bully. The grove stays afterwards: a quiet
-// spot with good trees and rocks.
+// spot with good trees and rocks. Once the Garden's built, she tends it (see garden.ts): her Garden panel is here too.
 import type { ActorSpec } from '../../actors';
-import { zoneById, type MonsterKind } from '../../data';
+import { MATS, zoneById, type MonsterKind } from '../../data';
+import { CROPS, CROP_ORDER, gardenOpen, gardenUpdate, isReady, pick, plant, pullWeeds, takeGift, takeWelcome, water, type Crop } from '../../garden';
+import { plotOpen } from '../../rules';
 import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { bubble, follow, lookAt, narrate, pan, say, scene, walk, wait, type Speaker } from '../scenes';
-import { stopWaiting, waitAt, type Story } from '../stories';
+import { stopWaiting, syncStories, waitAt, type Story } from '../stories';
 import { GRANNY, GRANNY_ID } from './granny';
 
 const POPPY_TALK: Speaker = { name: 'Poppy', emoji: '👧', portrait: (m) => (m === 'happy' ? 'npc_poppy' : m === 'hug' ? 'npc_poppy_hug' : `npc_poppy_${m}`) };
@@ -26,6 +28,9 @@ const DROPPED = tile(25, 23.3);
 /** Granny's cottage (the blue house in Sowerby): Poppy's place by the door (Granny's is in granny.ts). */
 const HOME = { x: 29.4, y: 10.4 };
 const DOOR = { x: 30.5, y: 10.4 };
+/** Her place once she tends the Garden: at its east end, between it and the fountain. */
+const V = zoneById('village').x0;
+const GARDEN_SPOT = { x: V + 10.75, y: 19.7 };
 /** Big Bun's getaway: west down the corridor, around the clump of trees, and into the clearing. */
 const GETAWAY = [tile(23.5, 23.4), tile(20.3, 23.5), tile(19.6, 24.6), tile(15.5, 24.6), tile(14.5, 23.6), tile(12.2, 23.3), tile(7, 23.3)];
 
@@ -53,8 +58,81 @@ const chat = (lines: [Speaker, string, string?][]) => paused(async () => {
 });
 
 const HOME_LINES = ["Mr. Floppers says hi!", "You can chop the trees in my secret grove. Mr. Floppers says it's okay!", "Granny's baking cookies. Don't tell her I told you.", "When I grow up, I'm going to be a hero too!"];
+/** Once there's a plot for it: she'd love a garden. */
+const WANT_GARDEN = "There's an empty patch by the fountain. If you built a garden there, I'd look after it every single day!";
 const ROAD_LINES = ["Granny says the tall grass is where the Hopbuns nap.", "Are we nearly there yet?", "You're really brave, you know."];
-let line = 0;
+/** At the Garden, when there's nothing new to say. */
+const GARDEN_LINES = [
+  "Mr. Floppers is on weed patrol. He's very strict.",
+  "I used to pick flowers where I wasn't supposed to. Now I grow my own!",
+  'Oak trees drop Berry Seeds when they fall, and pines drop Herb Seeds. Bring me some!',
+  'Thirsty plants go all droopy. A little water and they perk right up!',
+  'Weeds always come back. You just keep pulling, and the good things grow.',
+  'The lady on the statue looks after everything that gets planted. I help!',
+];
+let line = 0, gardenLine = 0;
+
+/** What the Garden needs, over Poppy's head: water, weeding or picking. */
+function gardenMood(): string | undefined {
+  const plots = gardenUpdate(G.save).plots;
+  if (plots.some((p) => p?.thirsty)) return '💧';
+  if (plots.some((p) => p?.weeds)) return '🌿';
+  if (plots.some((p) => p && isReady(p))) return '🧺';
+  return undefined;
+}
+
+/** Poppy's Garden: plant, water, weed and pick, with her chattering away. */
+export function openGarden() {
+  return paused(async () => {
+    const s = G.save;
+    let greeting = GARDEN_LINES[gardenLine++ % GARDEN_LINES.length];
+    // The Berry Seeds she's been saving for the Garden's first day, and Flower Seeds from her grove when you're out.
+    const welcome = takeWelcome(s), gift = takeGift(s);
+    if (welcome) greeting = `A real garden, and I get to look after it! Here, I saved ${welcome} Berry Seeds from the oak trees. Let's plant them!`;
+    else if (gift) greeting = `You're out of Flower Seeds? Here's ${gift} from my Secret Grove. Shh, it's our secret!`;
+    if (welcome || gift) {
+      G.audio.play('pickup');
+      G.ui.toast([welcome && `${MATS.berryseed.icon} +${welcome} Berry Seeds`, gift && `${MATS.flowerseed.icon} +${gift} Flower Seeds`].filter(Boolean).join(' · '));
+      persist();
+    }
+    for (;;) {
+      const r = await G.ui.garden(s, greeting);
+      const [what, at, crop] = r.split(':'), i = Number(at);
+      if (what === 'plant') {
+        const ok = CROP_ORDER.includes(crop as Crop) && plant(s, i, crop as Crop) === 'ok';
+        if (ok) G.audio.play('step');
+        greeting = ok ? `In you go, little ${MATS[CROPS[crop as Crop].seed].name.replace(' Seeds', '').toLowerCase()} seed! Grow big!` : 'Hmm, that one needs a seed first.';
+      } else if (what === 'water') {
+        if (water(s, i)) G.audio.play('heal');
+        greeting = 'Glug, glug, glug! There, all better.';
+      } else if (what === 'weed') {
+        if (pullWeeds(s, i)) G.audio.play('glance');
+        greeting = 'Out you come, weeds! Shoo!';
+      } else if (what === 'pick' || what === 'pickall') {
+        const plots = gardenUpdate(s).plots, firstBerries = !s.flags.includes('garden:berries');
+        const got: Partial<Record<Crop, number>> = {};
+        plots.forEach((p, k) => {
+          if (!p || !isReady(p) || (what === 'pick' && k !== i)) return;
+          const r = pick(s, k);
+          if (r) got[r.mat as Crop] = (got[r.mat as Crop] ?? 0) + r.n;
+        });
+        const lines = (Object.entries(got) as [Crop, number][]).map(([c, n]) => `${MATS[c].icon} +${n} ${MATS[c].name}`);
+        if (lines.length) {
+          G.audio.play('pickup');
+          G.ui.toast(lines.join(' · '));
+        }
+        greeting = lines.length ? 'Look how many! Mr. Floppers wants to count them.' : 'Nothing ready yet. Patience, Mr. Floppers!';
+        if (firstBerries && got.berry) {
+          persist();
+          await G.ui.itemFound('meal_tart', 'Berry Tart', 'Granny can bake it now: +10% max HP for 5 minutes. Berries and Bunny Fluff.', '🥧', 'New recipe');
+          greeting = "Our first berries! Granny's going to bake her berry tart, I just know it!";
+        }
+      } else break;
+      persist();
+    }
+    persist();
+  });
+}
 
 export const POPPY: Story = {
   id: 'poppy',
@@ -208,8 +286,17 @@ export const POPPY: Story = {
       cast.push(at('🥺', () => {
         G.save.flags.push('poppy:returned');
       }));
+    } else if (step >= 6 && gardenOpen(G.save)) {
+      // She tends the Garden now, and shows what it needs over her head.
+      cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...GARDEN_SPOT, face: Math.PI / 2, mood: gardenMood(), label: 'Garden', talk: () => openGarden() });
     } else if (step >= 6) {
-      cast.push({ ...at('', () => chat([[POPPY_TALK, HOME_LINES[line++ % HOME_LINES.length], 'hug']])), look: { kind: 'idle', name: 'poppy_hug' }, mood: undefined });
+      // Every other chat, once there's a plot for it, she asks for a garden.
+      const home = () => {
+        const text = plotOpen(G.save, 'garden') && line % 2 === 0 ? WANT_GARDEN : HOME_LINES[line % HOME_LINES.length];
+        line++;
+        return chat([[POPPY_TALK, text, 'hug']]);
+      };
+      cast.push({ ...at('', home), look: { kind: 'idle', name: 'poppy_hug' }, mood: undefined });
     }
     return cast;
   },
@@ -223,7 +310,12 @@ export const POPPY: Story = {
     if (!p) return;
     // On the walk home she keeps an eye on the grass: nervous with monsters about, happy otherwise.
     if (step === 2 && p.follow) p.mood = G.over.roamers.list.some((r) => Math.hypot(r.x - p.x, r.y - p.y) < 3.5) ? '😰' : '🙂';
+    if (step < 6) return;
+    // She moves to the Garden once there is one for her to tend (and it says what it needs over her head).
+    const atGarden = p.x === GARDEN_SPOT.x && p.y === GARDEN_SPOT.y;
+    if (atGarden !== gardenOpen(G.save)) return syncStories();
+    if (atGarden) p.mood = gardenMood();
     // At home with Mr. Floppers, she lights up when you come by.
-    if (step >= 6 && !p.bubble && Math.hypot(p.x - G.over.x, p.y - G.over.y) < 2.5 && Math.random() < 0.004) p.bubble = { emoji: '💖', t: 0, hold: 2 };
+    if (!p.bubble && Math.hypot(p.x - G.over.x, p.y - G.over.y) < 2.5 && Math.random() < 0.004) p.bubble = { emoji: '💖', t: 0, hold: 2 };
   },
 };

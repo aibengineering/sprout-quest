@@ -1045,6 +1045,63 @@ scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra ore
   await closeDialogs(page);
 });
 
+scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Granny bakes a Berry Tart", (g) => {
+  const s = g.save;
+  s.lv = 6;
+  s.stories.poppy = 6;
+  s.flags.push('poppy:returned');
+  s.build.garden = 2;
+  Object.assign(s.mats, { herbseed: 1, fluff: 2 });
+  s.pos = { x: 24.7, y: 20.8 };
+}, async (page) => {
+  const panel = () => page.$('#modal:not([hidden]) .sheet.garden');
+  const click = async (sel: string) => {
+    await waitFor(page, sel, async () => !!(await page.$(`#modal:not([hidden]) ${sel}:not([disabled])`)));
+    await page.click(`#modal ${sel}`);
+    await page.waitForTimeout(300);
+  };
+  // Poppy tends it now: she's by the Garden, and her first visit comes with the Berry Seeds she saved.
+  await waitFor(page, 'Poppy at the Garden', async () => game<boolean>(page, `(() => { const p = g.over.actors.get('poppy:poppy'); return !!p && p.label === 'Garden' && p.x > 26; })()`));
+  await run(page, `void g.over.actors.get('poppy:poppy').talk()`);
+  await waitFor(page, 'the Garden', async () => !!(await panel()));
+  check((await page.$$('#modal .gslot')).length === 4, 'the Berry Garden should have four plots');
+  check(await game<number>(page, 'g.save.mats.berryseed') === 2, 'no welcome Berry Seeds');
+  await click('[data-dialog="plant:0:berry"]');
+  await click('[data-dialog="plant:1:berry"]');
+  await click('[data-dialog="plant:2:herb"]');
+  check(await game<number>(page, 'g.save.garden.plots.filter(Boolean).length') === 3, 'three plots should be planted');
+  await click('.btns [data-dialog="close"]');
+  // Time passes: the first plot gets thirsty and stops, the second grows weeds.
+  await run(page, `const [a, b, c] = g.save.garden.plots; for (const p of [a, b, c]) { delete p.thirstAt; delete p.weedsAt; p.at -= 100000; }
+    a.thirstAt = 60; b.weedsAt = 30; c.at += 100000`);
+  await waitFor(page, 'a thirsty, weedy garden', async () => game<boolean>(page, `(() => { const [a, b] = g.save.garden.plots; return !!a.thirsty && !!b.weeds; })()`));
+  check(await game<string>(page, `g.over.actors.get('poppy:poppy').mood`) === '💧', 'Poppy should show the garden is thirsty');
+  // The Garden itself opens her plots too.
+  await run(page, `const o = g.over.world.objs.find((o) => o.project === 'garden'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5)`);
+  await page.waitForTimeout(400);
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'the Garden, again', async () => !!(await panel()));
+  await click('[data-dialog="water:0"]');
+  await click('[data-dialog="weed:1"]');
+  check(await game<boolean>(page, `(() => { const [a, b] = g.save.garden.plots; return !a.thirsty && !b.weeds; })()`), 'watering or weeding did not stick');
+  // Much later: everything's ready. Pick it all; the first berries teach Granny her tart.
+  await run(page, `for (const p of g.save.garden.plots) if (p) p.at -= 1e7`);
+  await click('.btns [data-dialog="pickall"]');
+  await waitFor(page, 'the new recipe', async () => ((await page.textContent('#modal:not([hidden]) .sheet').catch(() => '')) ?? '').includes('Berry Tart'));
+  await closeDialogs(page, 1);
+  check(await game<boolean>(page, `g.save.mats.berry === 6 && g.save.mats.herb === 2 && g.save.flags.includes('garden:berries')`), 'the harvest did not reach your bag');
+  await waitFor(page, 'back at the Garden', async () => !!(await panel()));
+  await click('.btns [data-dialog="close"]');
+  // Granny bakes it: +10% max HP.
+  const before = await game<number>(page, 'g.save.hp');
+  await run(page, `void g.over.actors.get('granny:granny').talk()`);
+  await click('[data-dialog="cook:tart"]');
+  await waitFor(page, 'the tart', async () => game<boolean>(page, `g.save.meal?.id === 'tart'`));
+  await closeDialogs(page);
+  check(await game<boolean>(page, `g.save.mats.berry === 2 && g.save.mats.fluff === 0`), 'the tart did not cost 4 Berries and 2 Bunny Fluff');
+  check(await game<number>(page, 'g.save.hp') > before, 'the tart should raise your health');
+});
+
 scenario('fainting: back as a spirit at the checkpoint, walk to your body to wake, never onto a story fight', null, async (page) => {
   // A story fight's monsters blocking a spot (Poppy's first pack), with you right up against them.
   const foe = `g.over.world.objs.find((o) => o.flag === 'poppy:pack1')`;

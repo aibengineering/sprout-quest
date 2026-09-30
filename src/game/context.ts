@@ -11,6 +11,7 @@ import { loadSound, saveSound, type SoundSettings } from '../sound';
 import type { UI } from '../ui';
 import { has } from '../unlocks';
 import { plotOpen } from '../rules';
+import { gardenOpen } from '../garden';
 import { World } from '../world';
 
 /**
@@ -130,6 +131,7 @@ export function syncWorld() {
       if (o.project === 'home') o.label = has(s, 'village') ? 'Build' : 'Rest';
       if (o.project === 'sawmill') o.label = s.build.sawmill ? 'Sawmill' : 'Build';
       if (o.project === 'cottage') o.label = s.build.cottage ? 'Visit' : 'Build';
+      if (o.project === 'garden') o.label = gardenOpen(s) ? 'Garden' : 'Build';
     }
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);

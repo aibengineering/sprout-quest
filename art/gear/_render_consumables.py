@@ -22,8 +22,9 @@ import lib
 
 DEST = os.path.join(ART, '..', 'public', 'assets', 'crafting')
 OUT = os.path.join(ART, 'out', 'consumables')
-ITEMS = ('jellypot', 'shroombrew', 'embertonic', 'pancakes', 'tea', 'goojelly', 'stew', 'rockcandy')
-ICON_IDS = {key: 'meal_'+key if key in ITEMS[3:] else key for key in ITEMS}
+ITEMS = ('jellypot', 'shroombrew', 'embertonic', 'herbtonic', 'pancakes', 'tea', 'goojelly', 'stew', 'rockcandy', 'tart')
+POTIONS = ('jellypot', 'shroombrew', 'embertonic', 'herbtonic')
+ICON_IDS = {key: key if key in POTIONS else 'meal_'+key for key in ITEMS}
 ROLES = {
     'jellypot': {'goo': ['goo-infusion'], 'fluff': ['fluff-foam']},
     'shroombrew': {'cap': ['cap-infusion', 'spotted-caps']},
@@ -33,6 +34,8 @@ ROLES = {
     'goojelly': {'goo': ['jelly-base','jelly-belly','jelly-top']},
     'stew': {'pine': ['pine-fuel'], 'cap': ['cap-broth','shroom-caps']},
     'rockcandy': {'stone': ['pebbles-back','pebbles-front'], 'copper': ['copper-sticks']},
+    'herbtonic': {'herb': ['herb-infusion', 'herb-leaves']},
+    'tart': {'fluff': ['fluff-crust'], 'berry': ['berry-filling', 'berries']},
 }
 
 

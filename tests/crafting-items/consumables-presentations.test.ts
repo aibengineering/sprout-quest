@@ -13,12 +13,14 @@ import tea from '../../src/crafting/items/tea';
 import goojelly from '../../src/crafting/items/goojelly';
 import stew from '../../src/crafting/items/stew';
 import rockcandy from '../../src/crafting/items/rockcandy';
+import herbtonic from '../../src/crafting/items/herbtonic';
+import tart from '../../src/crafting/items/tart';
 
-const presentations: CraftPresentation[] = [jellypot, shroombrew, embertonic, pancakes, tea, goojelly, stew, rockcandy];
+const presentations: CraftPresentation[] = [jellypot, shroombrew, embertonic, herbtonic, pancakes, tea, goojelly, stew, rockcandy, tart];
 const recipes = Object.fromEntries([...POTION_RECIPES, ...Object.values(MEALS)].map((item) => [item.id, item.recipe]));
 
 describe('recipe-faithful potion and Kitchen timelines', () => {
-  test('the contribution covers exactly the three potions and every meal', () => {
+  test('the contribution covers exactly every potion and meal', () => {
     expect(presentations.map((p) => p.id).sort()).toEqual([...POTION_RECIPES.map((p) => p.id), ...MEAL_ORDER].sort());
   });
 
@@ -78,7 +80,7 @@ describe('recipe-faithful potion and Kitchen timelines', () => {
     for (const item of POTION_RECIPES) {
       const save = newState();
       save.potions = 0;
-      Object.assign(save.mats, { goo: 50, fluff: 50, cap: 50, ember: 50 });
+      Object.assign(save.mats, { goo: 50, fluff: 50, cap: 50, ember: 50, herb: 50 });
       const before = { ...save.mats };
       expect(craftPotion(save, item.id)).toBe('ok');
       expect(save.potions).toBe(1);
@@ -87,8 +89,8 @@ describe('recipe-faithful potion and Kitchen timelines', () => {
     for (const id of MEAL_ORDER) {
       const save = newState();
       save.stories.poppy = 6;
-      save.flags.push('bram:stew', 'pip:candy');
-      Object.assign(save.mats, { goo: 50, fluff: 50, clover: 50, pine: 50, cap: 50, stone: 50, copper: 50 });
+      save.flags.push('bram:stew', 'pip:candy', 'garden:berries');
+      Object.assign(save.mats, { goo: 50, fluff: 50, clover: 50, pine: 50, cap: 50, stone: 50, copper: 50, berry: 50 });
       const before = { ...save.mats };
       expect(cook(save, id)).toBe('ok');
       expect(save.meal).toEqual({ id, left: MEALS[id].seconds });

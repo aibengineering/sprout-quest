@@ -2,6 +2,7 @@ import { slotKey, storageFrozen } from './slots';
 import { VERSION } from './version';
 import type { MealId } from './kitchen';
 import type { SawState } from './sawmill';
+import type { GardenState } from './garden';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
 export interface SaveState {
@@ -59,6 +60,8 @@ export interface SaveState {
   meal: { id: MealId; left: number } | null;
   /** Bram's Sawmill: planks queued, ready to collect, and when the current one was started (see sawmill.ts). */
   sawmill?: SawState;
+  /** Poppy's Garden: what's growing in each plot, and when she last brought you Flower Seeds (see garden.ts). */
+  garden?: GardenState;
   /** Set once the Forge has its five levels (older saves had three: Smithy was ★★★–★★★★, Master Forge the third). */
   forgeLevels?: 5;
   /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */

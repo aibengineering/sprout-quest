@@ -115,6 +115,22 @@ tests pick it up automatically from the zone list.
 | `MOVESETS` | weapons.ts | Each class's rhythm and per-hit damage |
 | Monster `xp`, `hp`, `atk` | data.ts | One monster's reward and toughness |
 
+## Poppy's Garden
+
+Crops (Berries, Herbs, Flowers) aren't farmed: they grow in real time in Poppy's plots (`src/garden.ts`), like Bram's
+planks, so they come along while you're out doing other things. Only Flowers are in the building budget (4 for the
+Bloom Garden, 4 for the Manor); Berries (Berry Tart) and Herbs (Herb Tonic) are for meals and potions.
+
+- The farm table gives crops a **garden** row: the real minutes to grow the demand on the plots you'd have when you
+  first need it (the Berry Garden's 4 for Flowers, since the Bloom Garden costs them), each seed going into the first
+  free plot once you have it (Poppy's handful of Flower Seeds, or a tree seed every so often while chopping).
+- Each planting counts its tended time (`tendedSeconds` in `src/balance.ts`): weeds modelled as left in from halfway,
+  and a thirsty plot waiting a minute (`THIRSTY_WAIT`) to be watered.
+- It's held to the same ≤14 minute budget as farming, though it's waiting rather than playing.
+
+The knobs are `CROPS` (grow time, yield), `PLOTS_BY_LEVEL`, `FLOWER_GIFT` / `GIFT_SECONDS` and the thirst and weed
+chances in `src/garden.ts`, and each tree's `seed` chance in `NODES`.
+
 ## Known gaps
 
 - The fight counts are estimates. Replace them with play-report numbers when there are some. The report's

@@ -2,6 +2,7 @@
 import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { currentQuest } from './quests';
 import { repelBelow } from './kitchen';
+import { gardenOpen, gardenUpdate, growthStage, plotCount } from './garden';
 import { Actors, type Actor } from './actors';
 import { hasModel, loadModel } from './models';
 import { carriedMount, carriedWeapon, heroBody, projectWeaponPoint } from './weaponPose';
@@ -27,6 +28,13 @@ const TREE_LEAVES: Partial<Record<string, string>> = { pine: '#2f7a45', glimwood
 const ENCOUNTER_CHANCE = 0.06;
 /** Map tiles are 1.6 Blender units wide. */
 const TILE_BU = 1.6;
+/** Sprites are rendered looking down at 30°: ground depth shows at half its size. */
+const DEPTH = 0.5;
+/**
+ * Where each Garden plot's bed sits in its model (art/env.py garden()), in Blender units from the front middle, in
+ * planting order: the middle column first, then the left, then the right (two more with each Garden level).
+ */
+const GARDEN_BEDS: [number, number][] = [[0, 2], [0, 0.7], [-1.45, 2], [-1.45, 0.7], [1.45, 2], [1.45, 0.7]];
 
 /** `roamer` is the monster that caught you, or null for an ambush from the grass. */
 export type WorldEvent = { type: 'encounter'; roamer: Roamer | null } | { type: 'zone'; zone: Zone } | null;
@@ -1064,7 +1072,9 @@ export class Overworld {
         // Empty plots (and your home, always) say what goes there.
         const p = o.project!;
         const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Waystone', sawmill: '🪚 Sawmill', cottage: '🏡 Guest Cottage' } as Record<string, string>)[p] ?? '';
-        if (!this.save.build[p] || p === 'home' || p === 'sawmill') this.nameTag(ctx, name, ax, top, ts);
+        if (p === 'garden' && this.save.build.garden) this.drawGarden(ctx, ax, ay, ts);
+        if (p === 'garden' && gardenOpen(this.save)) this.nameTag(ctx, "🌷 Poppy's Garden", ax, top, ts);
+        else if (!this.save.build[p] || p === 'home' || p === 'sawmill') this.nameTag(ctx, name, ax, top, ts);
         break;
       }
       case 'lair':
@@ -1072,6 +1082,34 @@ export class Overworld {
         break;
     }
     return true;
+  }
+
+  /**
+   * Poppy's plots on the Garden's beds: damp soil (pale and cracked when thirsty), whatever's growing at its stage,
+   * weeds on top, and a drop or a sparkle to say it needs water or picking. The back row first, so the front covers it.
+   */
+  private drawGarden(ctx: CanvasRenderingContext2D, ax: number, ay: number, ts: number) {
+    const unit = ts / TILE_BU, plots = gardenUpdate(this.save).plots, n = plotCount(this.save);
+    const order = [...Array(n).keys()].sort((a, b) => GARDEN_BEDS[b][1] - GARDEN_BEDS[a][1]);
+    for (const i of order) {
+      const [bx, by] = GARDEN_BEDS[i], p = plots[i] ?? null, st = growthStage(p);
+      const x = ax + bx * unit, y = ay - by * DEPTH * unit;
+      const soil = frame(p?.thirsty ? 'env/soil_dry' : 'env/soil');
+      if (soil) drawFrame(ctx, soil, x, y, unit);
+      if (!p) continue;
+      const crop = frame(`env/crop_${p.crop}_${st}`);
+      // Thirsty plants droop and fade a little; ripe ones sway.
+      if (crop) drawFrame(ctx, crop, x, y, unit, p.thirsty ? { tint: '#c8a868', tintAmount: 0.35, sy: 0.9 } : { rot: st === 3 ? Math.sin(this.t * 2 + i) * 0.03 : 0 });
+      const weeds = p.weeds && frame('env/weeds');
+      if (weeds) drawFrame(ctx, weeds, x, y, unit, { rot: Math.sin(this.t * 1.5 + i) * 0.02 });
+      if (p.thirsty) {
+        ctx.font = `${Math.round(ts * 0.4)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('💧', x, y - ts * (0.7 + Math.sin(this.t * 3 + i) * 0.06));
+      } else if (st === 3 && Math.random() < 0.03) {
+        this.fx.burst(x + (Math.random() - 0.5) * ts * 0.5, y - ts * 0.45, '#fff6c8', 1, ts * 0.3, { size: ts * 0.05, star: true, grav: -ts * 0.3, life: 0.8 });
+      }
+    }
   }
 
   /** Simple canvas drawings for buildings, used only if the sprites failed to load. */

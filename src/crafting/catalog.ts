@@ -24,6 +24,7 @@ import glimmershawl from './items/glimmershawl';
 import glimmerwand from './items/glimmerwand';
 import glimmerwhip from './items/glimmerwhip';
 import goojelly from './items/goojelly';
+import herbtonic from './items/herbtonic';
 import impring from './items/impring';
 import ironhammer from './items/ironhammer';
 import ironplate from './items/ironplate';
@@ -45,6 +46,7 @@ import sporewhip from './items/sporewhip';
 import stew from './items/stew';
 import stonehammer from './items/stonehammer';
 import stonesword from './items/stonesword';
+import tart from './items/tart';
 import tea from './items/tea';
 import toothcharm from './items/toothcharm';
 import wyrmbreaker from './items/wyrmbreaker';
@@ -52,5 +54,5 @@ import wyrmfire from './items/wyrmfire';
 import type { CraftPresentation } from './types';
 
 export const CRAFT_PRESENTATIONS: Readonly<Record<string, CraftPresentation>> = Object.fromEntries(
-  [axe1, axe2, axe3, axe4, barkvest, batcloak, batwand, batwhip, clovercharm, copperhammer, coppermail, coppersword, crystalhammer, crystalheart, crystalmail, crystalsword, dragonmail, dragontail, emberblade, embertonic, fluffvest, glimmershawl, glimmerwand, glimmerwhip, goojelly, impring, ironhammer, ironplate, ironsword, jellypot, jellywand, jellywhip, magmamail, pancakes, pick1, pick2, pick3, pick4, rockcandy, shroombrew, shroomhood, sporewand, sporewhip, stew, stonehammer, stonesword, tea, toothcharm, wyrmbreaker, wyrmfire].map((item) => [item.id, item]),
+  [axe1, axe2, axe3, axe4, barkvest, batcloak, batwand, batwhip, clovercharm, copperhammer, coppermail, coppersword, crystalhammer, crystalheart, crystalmail, crystalsword, dragonmail, dragontail, emberblade, embertonic, fluffvest, glimmershawl, glimmerwand, glimmerwhip, goojelly, herbtonic, impring, ironhammer, ironplate, ironsword, jellypot, jellywand, jellywhip, magmamail, pancakes, pick1, pick2, pick3, pick4, rockcandy, shroombrew, shroomhood, sporewand, sporewhip, stew, stonehammer, stonesword, tart, tea, toothcharm, wyrmbreaker, wyrmfire].map((item) => [item.id, item]),
 );
