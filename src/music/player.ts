@@ -3,7 +3,7 @@
 // ever waits for music.
 import type { Audio } from '../audio';
 import { orchestrate, pick, samplesFor, type Note, type SampleIndex, type Score } from './orchestra';
-import { FIRST_THEMES, THEMES, type ThemeId } from './scores';
+import { FIRST_THEMES, THEMES, isBattleTheme, type ThemeId } from './scores';
 
 /**
  * The music's level with the slider at full: background, under the sound effects. Set from a playtest where the
@@ -11,7 +11,7 @@ import { FIRST_THEMES, THEMES, type ThemeId } from './scores';
  */
 const VOLUME = 0.06;
 /** Fights are the busiest for sound effects (hits, dodges, spells), so their themes sit lower still. */
-const THEME_LEVEL: Partial<Record<ThemeId, number>> = { battle: 0.65, guardian: 0.75 };
+const THEME_LEVEL: Partial<Record<ThemeId, number>> = { battleMeadow: 0.65, battleWoods: 0.65, battleCave: 0.65, battleHollow: 0.65, battlePeak: 0.65, guardian: 0.75 };
 const FADE = 1.2;
 /** How far ahead notes are scheduled (seconds), and how often the scheduler looks. */
 const AHEAD = 0.35;
@@ -69,6 +69,8 @@ export class Music {
   /** What decodes the recordings: an offline context before sound unlocks, the real one after. */
   private decoder: BaseAudioContext | null = null;
   private playing: Playing | null = null;
+  /** Re-enter ordinary fights at the next four-bar phrase, instead of repeating the opening every encounter. */
+  private battleEntries = new Map<ThemeId, number>();
   private wanted: ThemeId | null = null;
   /** The level the music's heading for (0 when muted or turned down to off). */
   private level = -1;
@@ -185,7 +187,10 @@ export class Music {
     }
     dry.connect(this.bus);
     wet.connect(this.reverb);
-    const p: Playing = { id, notes, length, beat: 60 / score.bpm, start: ctx.currentTime + 0.1, next: 0, loop: 0, dry, wet, desks: new Map(), timer: 0 };
+    const entry = this.battleEntries.get(id) ?? 0;
+    const beat = 60 / score.bpm;
+    const next = notes.findIndex((n) => n.t >= entry);
+    const p: Playing = { id, notes, length, beat, start: ctx.currentTime + 0.1 - entry * beat, next: Math.max(0, next), loop: 0, dry, wet, desks: new Map(), timer: 0 };
     const tick = () => {
       const horizon = ctx.currentTime + AHEAD;
       for (;;) {
@@ -210,6 +215,11 @@ export class Music {
     this.playing = null;
     clearInterval(p.timer);
     const t = this.ctx!.currentTime;
+    if (isBattleTheme(p.id)) {
+      const phrase = THEMES[p.id].beatsPerBar * 4;
+      const elapsed = Math.max(0, (t - p.start) / p.beat);
+      this.battleEntries.set(p.id, ((Math.floor(elapsed / phrase) + 1) * phrase) % p.length);
+    }
     for (const g of [p.dry, p.wet]) {
       g.gain.cancelScheduledValues(t);
       g.gain.setValueAtTime(g.gain.value, t);

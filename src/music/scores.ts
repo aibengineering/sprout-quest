@@ -1,6 +1,7 @@
 // The game's music. Melodies are written out (note:beats, bars split by |); everything else is a section of the
 // orchestra doing a job over the chords (see Part in orchestra.ts). Each loops.
 import type { Score } from './orchestra';
+import { BATTLE_MEADOW, BATTLE_WOODS, BATTLE_CAVE, BATTLE_HOLLOW, BATTLE_PEAK } from './battle-scores';
 
 /** Dawn in the Quiet Glade: a lullaby in 3/4. Flute over harp; violins join the second time round. */
 const GLADE: Score = {
@@ -167,33 +168,6 @@ const PEAK: Score = {
   ],
 };
 
-/** A fight: a rising horn call over a galloping 3+3+2 string ostinato, lifting to D major for the charge. */
-const BATTLE: Score = {
-  bpm: 168, beatsPerBar: 4,
-  chords: 'Dm:4 Bb:4 C:4 Dm:4 Dm:4 Bb:4 C:4 A:4 Bb:4 C:4 D:4 D:4 Gm:4 Bb:4 A:4 A7:4',
-  lines: {
-    theme: `D5:1.5 E5:.5 F5:1 A5:1 | Bb5:1.5 A5:.5 F5:2 | G5:1.5 A5:.5 C6:1 G5:1 | A5:3 -:1 |
-            D6:1.5 C6:.5 A5:1 F5:1 | G5:1 A5:1 Bb5:1 D6:1 | C6:1.5 Bb5:.5 G5:1 E5:1 | A5:2 C#6:2 |
-            D6:1.5 C6:.5 Bb5:1 F5:1 | G5:1 A5:1 Bb5:1 C6:1 | D6:2 F#5:1 A5:1 | D6:3 -:1 |
-            Bb5:1.5 A5:.5 G5:1 D5:1 | F5:1.5 G5:.5 Bb5:1 D6:1 | C#6:1.5 B5:.5 A5:1 E5:1 | A5:1 G5:1 E5:1 C#5:1`,
-  },
-  parts: [
-    { inst: 'violins', from: 'theme', short: 'violins_spic', vel: 0.85 },
-    { inst: 'horn', from: 'theme', octave: -1, vel: 0.9 },
-    { inst: 'trumpet', from: 'theme', octave: -1, vel: 0.75, bars: [9, 16] },
-    { inst: 'trombone_stac', hits: 'X.....X.....X...', degree: 'R', centre: 50, vel: 0.85 },
-    { inst: 'trombone_stac', hits: 'X.....X.....X...', degree: '5', centre: 50, vel: 0.75 },
-    { inst: 'tuba', ostinato: 'R', rate: 4, centre: 38, vel: 0.6, bars: [9, 16] },
-    { inst: 'violas_spic', ostinato: '5 3 R 3 5 8 5 3', rate: 0.5, centre: 62, vel: 0.7 },
-    { inst: 'celli_spic', ostinato: 'R R R R R R R R', accents: '>..>..>.', rate: 0.5, centre: 50, vel: 0.8 },
-    { inst: 'basses_spic', ostinato: 'R R R R R R R R', accents: '>..>..>.', rate: 0.5, centre: 38, vel: 0.8 },
-    { inst: 'timpani', hits: 'X.....X.....X.x.', degree: 'R', centre: 50, vel: 0.9 },
-    { inst: 'bassdrum', hits: 'X.......X.......', vel: 0.8 },
-    { inst: 'snare', hits: '....x.......x.xx', fill: 'x.x.x.x.xxxxXXXX', every: 4, vel: 0.6 },
-    { inst: 'crash', hits: 'X', onBars: [1, 9], vel: 0.9 },
-  ],
-};
-
 /** A guardian: a low brass theme in C minor over string tremolo, timpani and gong, with a dark D-flat near the end. */
 const GUARDIAN: Score = {
   bpm: 132, beatsPerBar: 4,
@@ -221,12 +195,18 @@ const GUARDIAN: Score = {
   ],
 };
 
-export const THEMES = { glade: GLADE, sowerby: SOWERBY, meadow: MEADOW, woods: WOODS, cave: CAVE, hollow: HOLLOW, peak: PEAK, battle: BATTLE, guardian: GUARDIAN } satisfies Record<string, Score>;
+export const THEMES = { glade: GLADE, sowerby: SOWERBY, meadow: MEADOW, woods: WOODS, cave: CAVE, hollow: HOLLOW, peak: PEAK, battleMeadow: BATTLE_MEADOW, battleWoods: BATTLE_WOODS, battleCave: BATTLE_CAVE, battleHollow: BATTLE_HOLLOW, battlePeak: BATTLE_PEAK, guardian: GUARDIAN } satisfies Record<string, Score>;
 export type ThemeId = keyof typeof THEMES;
 
 /** Loaded first, so the opening (the glade, and its first fight) has music as soon as possible. */
-export const FIRST_THEMES: ThemeId[] = ['glade', 'battle'];
+export const FIRST_THEMES: ThemeId[] = ['glade', 'battleMeadow'];
 
 /** Each area's theme (anywhere else, the tower's camp say, borrows the meadow's). */
 export const ZONE_THEMES: Record<string, ThemeId> = { glade: 'glade', village: 'sowerby', meadow: 'meadow', woods: 'woods', cave: 'cave', hollow: 'hollow', peak: 'peak' };
 export const zoneTheme = (zone: string): ThemeId => ZONE_THEMES[zone] ?? 'meadow';
+
+/** Ordinary fights inherit their arena's region, including tower floors and the meadow's Secret Grove. */
+export const BATTLE_THEMES = { glade: 'battleMeadow', meadow: 'battleMeadow', woods: 'battleWoods', cave: 'battleCave', hollow: 'battleHollow', peak: 'battlePeak' } as const;
+export type BattleThemeId = typeof BATTLE_THEMES[keyof typeof BATTLE_THEMES];
+export const isBattleTheme = (id: ThemeId): id is BattleThemeId => Object.values(BATTLE_THEMES).some((theme) => theme === id);
+export const battleTheme = (zone: string, boss = false): ThemeId => boss ? 'guardian' : Object.hasOwn(BATTLE_THEMES, zone) ? BATTLE_THEMES[zone as keyof typeof BATTLE_THEMES] : 'battleMeadow';

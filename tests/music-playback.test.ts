@@ -87,3 +87,65 @@ describe('music note playback', () => {
     expect(source.stops[0]).toBeCloseTo(end + 0.16);
   });
 });
+
+test('repeat encounters enter the next phrase, keep regional memory separate, and bosses restart their own opening', () => {
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const previousTimeout = globalThis.setTimeout;
+  const scheduled: { note: Note; at: number }[] = [];
+  const ramps: number[] = [];
+  const node = () => ({ connect() {}, disconnect() {}, gain: {
+    value: 0, setValueAtTime() {}, cancelScheduledValues() {},
+    linearRampToValueAtTime(v: number) { ramps.push(v); },
+  } });
+  const ctx = { currentTime: 10, createGain: node };
+  const music = new Music(new Audio()) as any;
+  music.ctx = ctx;
+  music.bus = node();
+  music.reverb = node();
+  music.note = (_p: unknown, n: Note, at: number) => scheduled.push({ note: n, at });
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { setInterval: () => 0 } });
+  globalThis.setTimeout = (() => 0) as unknown as typeof setTimeout;
+  const start = (id: string) => {
+    scheduled.length = 0;
+    ramps.length = 0;
+    music.start(id);
+    expect(scheduled.length).toBeGreaterThan(0);
+    expect(scheduled.every((n) => n.at >= ctx.currentTime)).toBe(true);
+    expect(ramps).toEqual(id === 'guardian' ? [.75, .75] : [.65, .65]);
+    return scheduled[0].note.t;
+  };
+  const leave = (seconds = 2) => { ctx.currentTime += seconds; music.fadeOut(); ctx.currentTime += 3; };
+  try {
+    expect(start('battleMeadow')).toBe(0);
+    leave();
+    expect(start('battleMeadow')).toBe(16);
+    leave();
+    expect(start('battleWoods')).toBe(0);
+    leave();
+    expect(start('battleMeadow')).toBe(32);
+    leave();
+    expect(start('battleMeadow')).toBe(48);
+    leave();
+    expect(start('battleMeadow')).toBe(0);
+    leave();
+    expect(start('battleHollow')).toBe(0);
+    leave();
+    expect(start('battleHollow')).toBe(12); // Four 3/4 bars, not sixteen beats.
+    leave();
+    expect(start('battleCave')).toBe(0);
+    leave(90); // A long encounter can pass more than one complete loop.
+    const caveEntry = start('battleCave');
+    expect(caveEntry % 16).toBe(0);
+    expect(caveEntry).toBeLessThan(64);
+    leave();
+    expect(start('battlePeak')).toBe(0);
+    leave();
+    expect(start('guardian')).toBe(0);
+    leave();
+    expect(start('guardian')).toBe(0);
+  } finally {
+    globalThis.setTimeout = previousTimeout;
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow);
+    else delete (globalThis as any).window;
+  }
+});

@@ -17,11 +17,15 @@ licence is needed.
 | `cave` | In Echo Cavern: sparse, with drips that echo |
 | `hollow` | In Glimmer Hollow: a crystalline waltz |
 | `peak` | On Ember Peak: the climb to the dragon |
-| `battle` | In every regular and story fight |
+| `battleMeadow` | Quiet Glade, Sunny Meadow and Secret Grove ordinary fights: playful clarinet/flute and plucks |
+| `battleWoods` | Whisper Woods ordinary fights: sly Dorian clarinet, displaced plucks and harp |
+| `battleCave` | Echo Cavern ordinary fights: clipped horn calls, low-string footsteps and sparse bells |
+| `battleHollow` | Glimmer Hollow ordinary fights: agile flute and harp in 3/4 |
+| `battlePeak` | Ember Peak ordinary fights: low brass and restrained 3+3+2 strings |
 | `guardian` | In boss fights |
 
 `zoneTheme` and `ZONE_THEMES` in `scores.ts` choose the theme for each area. The frame loop in `main.ts` picks the
-fight or area theme.
+fight or area theme. `battleTheme` takes the battle arena's zone (including tower floors); boss identity takes priority, including Big Bun. Unknown regions borrow `battleMeadow`.
 
 ## Loading
 
@@ -29,16 +33,19 @@ fight or area theme.
 - The recordings download and decode while the title screen is up (decoding needs no tap), so the music can start on
   the first tap, which is when browsers allow sound.
 - They load one theme at a time: the theme for where you are first, then the opening's (`FIRST_THEMES`: glade and
-  battle), then the rest.
+  battleMeadow), then the rest.
 - A theme that hasn't loaded yet is silent. It fades in as soon as it's ready, if it's still the one playing.
+- Ordinary battle themes remember the next four-bar phrase for the next encounter, per region and per session.
+  The first encounter starts at bar 1; subsequent fights start at a phrase boundary, with the normal fade-in.
+  Continuous loops retain their note/reverb tails, and bosses always begin at their own opening.
 - Themes crossfade, and the music ducks under fanfares (the jingles listed in `FANFARES` in `audio.ts`).
 - Automated browsers (the e2e tests) get no music unless the URL has `?music`.
 
 ## Samples
 
 `bun run music` runs `art/music/pack.ts`. It ships **only the recordings the scores play**, as 64 kbps mono AAC in
-`public/music/`, with an `index.json` that the player reads. It currently ships about 160 recordings, 3.2 MB in all,
-and about 1.4 MB for the opening.
+`public/music/`, with an `index.json` that the player reads. It currently ships 157 recordings, 3.149 MiB in all,
+and 1.003 MiB (47 recordings) for the opening. The regional battle revision adds no recordings.
 
 The first run, and any run with `--fresh`, calls `art/music/samples.py` through `uv`. That script:
 
@@ -47,7 +54,9 @@ The first run, and any run with `--fresh`, calls `art/music/samples.py` through 
 - trims each recording to 3 s or less;
 - caches everything in `art/music/cache/`, which is git-ignored.
 
-**After changing a score, re-run `bun run music`.** `tests/music.test.ts` checks that:
+**After changing a score, re-run `bun run music`.** For a revision deliberately limited to the current bank, use
+`bun run music --reuse-shipped`: this verifies pitch coverage and removes unplayed encoded recordings without
+downloading or re-encoding samples. Use the normal source rebuild when coverage requires new recordings. `tests/music.test.ts` checks that:
 
 - every note has its recording shipped, stretched by at most 4 semitones. The horn's limit is 7, because VSCO has no
   horn recordings between middle C and D5.
@@ -75,3 +84,5 @@ Try themes in the music lab before they come into the game. It lives in the stor
 
 See [the area-music review](music-review.md) for the score assessment, the small playback corrections, and an
 audition checklist. The review distinguishes measured behavior from choices that need an in-game listen.
+
+See [the regional battle review](regional-battle-music.md) for arrangement details and verification limits.

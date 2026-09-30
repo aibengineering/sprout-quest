@@ -1065,13 +1065,24 @@ scenario('music: it gets ready on the title (where you are first), plays from th
   await page.click('#btn-continue');
   await waitFor(page, "the meadow's theme straight after Continue", async () => (await game<string>(page, 'g.music.current')) === 'meadow', 2500);
   await closeDialogs(page);
-  await waitFor(page, "the fight's theme to load", async () => (await game<string[]>(page, 'g.music.loaded')).includes('battle'), 30000);
+  await waitFor(page, "the fight's theme to load", async () => (await game<string[]>(page, 'g.music.loaded')).includes('battleMeadow'), 30000);
   await run(page, `g.fight('slime', 1, 1)`);
-  await waitFor(page, "the fight's theme", async () => (await game<string>(page, 'g.music.current')) === 'battle');
+  await waitFor(page, "the fight's theme", async () => (await game<string>(page, 'g.music.current')) === 'battleMeadow');
   await winFight(page);
   await waitFor(page, "back to the meadow's theme", async () => (await game<string>(page, 'g.music.current')) === 'meadow');
+  await waitFor(page, 'all regional themes', async () => (await game<string[]>(page, 'g.music.loaded')).length === 13, 30000);
   const loaded = await game<string[]>(page, 'g.music.loaded');
-  check(loaded.slice(0, 3).join() === 'meadow,glade,battle' && loaded.length === 9, `themes loaded in the wrong order, or not all: ${loaded.join()}`);
+  check(loaded.slice(0, 3).join() === 'meadow,glade,battleMeadow' && loaded.length === 13, `themes loaded in the wrong order, or not all: ${loaded.join()}`);
+  // Deliberately keep the overworld in the meadow: music must read the battle's arena (as tower floors do).
+  for (const [zone, theme] of [['glade', 'battleMeadow'], ['woods', 'battleWoods'], ['cave', 'battleCave'], ['hollow', 'battleHollow'], ['peak', 'battlePeak']]) {
+    await run(page, `g.fight('slime', 1, 1); g.battle.setup.zone = { ...g.battle.setup.zone, id: '${zone}' }`);
+    await waitFor(page, `${zone} battle music`, async () => (await game<string>(page, 'g.music.current')) === theme);
+    await run(page, `g.battle.setup.boss = true`);
+    await waitFor(page, `${zone} boss priority`, async () => (await game<string>(page, 'g.music.current')) === 'guardian');
+    await run(page, `g.battle.setup.boss = false`);
+    await winFight(page);
+  }
+
 });
 
 scenario('dev builds: a Battle Tower run climbs floor after floor from its camp, in its own slot', (g) => {
