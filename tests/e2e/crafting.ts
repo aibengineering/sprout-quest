@@ -34,12 +34,12 @@ async function begin(page: Page, id: string, twice = false) {
     for (const k in s.mastery) s.mastery[k].lv = 10;
     for (const k in s.skills) s.skills[k].lv = 10;
     s.lv = 20; s.build.forge = 5; s.stories.poppy = 6;
-    for (const flag of ['oldtools', 'bram:pie', 'bram:stew']) if (!s.flags.includes(flag)) s.flags.push(flag);
-    if (['pancakes', 'tea', 'goojelly', 'stew'].includes(id)) {
+    for (const flag of ['oldtools', 'bram:pie', 'bram:stew', 'garden:berries']) if (!s.flags.includes(flag)) s.flags.push(flag);
+    if (['pancakes', 'tea', 'goojelly', 'stew', 'tart'].includes(id)) {
       void g.over.actors.get('granny:granny').talk();
     } else {
       g.ui.openMenu({ atForge: true, inVillage: true }, 'forge');
-      const method = /^(axe|pick)\d$/.test(id) ? 'craftTool' : ['jellypot', 'shroombrew', 'embertonic'].includes(id) ? 'craftPotion' : 'craftGear';
+      const method = /^(axe|pick)\d$/.test(id) ? 'craftTool' : ['jellypot', 'shroombrew', 'embertonic', 'herbtonic'].includes(id) ? 'craftPotion' : 'craftGear';
       void g.ui.hooks[method](id);
       if (twice) void g.ui.hooks[method](id);
     }

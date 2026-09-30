@@ -112,6 +112,8 @@ describe('village', () => {
       ...Object.values(NODES as Record<string, { mat: string }>).map((n) => n.mat),
       // Sawn from logs at Bram's Sawmill, a plank for each wood.
       ...Object.values(require('../src/sawmill').SAW as Record<string, { plank: string }>).map((v) => v.plank),
+      // Grown in Poppy's Garden, from seeds.
+      ...Object.keys(require('../src/garden').CROPS),
     ]);
     for (const p of Object.values(PROJECTS)) for (const l of p.levels) for (const m of Object.keys(l.cost)) expect(droppable.has(m)).toBe(true);
     void GEAR;

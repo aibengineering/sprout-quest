@@ -7,6 +7,7 @@ import { GENTLE_ATK, MONSTER_HP, calcDamage, CATCH_UP, MASTERY_MAX, levelEdge, m
 import { World, type WorldObj } from './world';
 import { newState } from './state';
 import { LOGS_PER_PLANK, SAW, type SawLog } from './sawmill';
+import { CROPS, FLOWER_GIFT, GIFT_SECONDS, PLOTS_BY_LEVEL, THIRST_CHANCE, WEED_CHANCE, WEED_SLOW, type Crop } from './garden';
 
 export type Range = [min: number, max: number];
 
@@ -204,10 +205,10 @@ export interface Farm {
   need: number;
   /** Guaranteed from one-time guardian fights along the story. */
   fromGuardians: number;
-  source: 'monsters' | 'gathering' | 'bosses';
+  source: 'monsters' | 'gathering' | 'bosses' | 'garden';
   zone?: ZoneId;
   perMinute: number;
-  /** Minutes in the best zone to cover what the guardians don't; 0 if the guardians cover it all. */
+  /** Minutes in the best zone to cover what the guardians don't; 0 if the guardians cover it all. Crops: real minutes of growing. */
   minutes: number;
 }
 
@@ -274,10 +275,60 @@ export function gatherPerSecond(mat: MatId): Partial<Record<ZoneId, number>> {
   return out;
 }
 
+// ----------------------------------------------------------------------------- Poppy's Garden
+
+/**
+ * A plot that gets thirsty waits this long for you to notice and water it (you check in between trips). Weeds are
+ * modelled as coming up halfway through, and left until the crop's ready: the worst case for someone who never pulls
+ * them.
+ */
+export const THIRSTY_WAIT = 60;
+
+/** Real seconds one planting takes, on average, with the tending the model assumes. */
+export function tendedSeconds(crop: Crop): number {
+  const grow = CROPS[crop].seconds;
+  return grow + WEED_CHANCE * (1 / WEED_SLOW - 1) * grow * 0.5 + THIRST_CHANCE * THIRSTY_WAIT;
+}
+
+/** Plots you'd have when you first need a crop: the level below the first Garden upgrade that costs it (else the full Garden). */
+export function gardenPlotsFor(crop: Crop): number {
+  const lv = PROJECTS.garden.levels.findIndex((l) => (l.cost[crop] ?? 0) > 0);
+  return PLOTS_BY_LEVEL[lv < 0 ? PLOTS_BY_LEVEL.length - 1 : Math.max(1, lv)];
+}
+
+/** When the k-th seed (from 0) is in your bag: Poppy's handfuls of Flower Seeds, or a tree seed every so many seconds of chopping. */
+function seedAt(crop: Crop, k: number): number {
+  if (crop === 'flower') return Math.floor(k / FLOWER_GIFT) * GIFT_SECONDS;
+  const tree = Object.values(NODES).find((n) => n.seed?.mat === CROPS[crop].seed)!;
+  const rate = Math.max(...Object.values(gatherPerSecond(tree.mat))) / (tree.grass.yield + FLAWLESS) * tree.seed!.chance;
+  return (k + 1) / rate;
+}
+
+/**
+ * Real minutes to grow `need` of a crop on the plots you'd have: each seed goes in the first free plot once you have
+ * it, and grows for its tended time. It all happens while you're off doing other things, but it's held to the same
+ * budget as farming.
+ */
+export function gardenMinutes(crop: Crop, need: number): number {
+  const seeds = Math.ceil(need / CROPS[crop].yield), free = Array<number>(gardenPlotsFor(crop)).fill(0);
+  let done = 0;
+  for (let k = 0; k < seeds; k++) {
+    const i = free.indexOf(Math.min(...free)), start = Math.max(free[i], seedAt(crop, k));
+    free[i] = start + tendedSeconds(crop);
+    done = Math.max(done, free[i]);
+  }
+  return done / 60;
+}
+
 export function farmTable(): Farm[] {
   const guardians = ZONES.flatMap((z) => (z.guardian ? [MONSTERS[z.guardian.kind]] : []));
   return Object.entries(totalDemand()).map(([k, need]) => {
     const mat = k as MatId;
+    // Crops grow in Poppy's Garden, in Sowerby.
+    if (mat in CROPS) {
+      const minutes = gardenMinutes(mat as Crop, need!);
+      return { mat, need: need!, fromGuardians: 0, source: 'garden' as const, zone: 'village' as const, perMinute: need! / minutes, minutes };
+    }
     const fromGuardians = guardians.reduce((a, g) => a + g.drops.filter((d) => d.mat === mat && d.chance === 1).reduce((b, d) => b + d.min, 0), 0);
     const rest = Math.max(0, need! - fromGuardians);
     const best = (rates: Partial<Record<ZoneId, number>>) => (Object.entries(rates) as [ZoneId, number][]).sort((a, b) => b[1] - a[1])[0];
@@ -493,6 +544,7 @@ export function report(): string {
     out.push(`  ${f.mat.padEnd(12)} ${String(f.need).padStart(4)} ${String(f.fromGuardians).padStart(5)}  ${f.source.padEnd(9)} ${(f.zone ?? '-').padEnd(7)} ${f.perMinute.toFixed(1).padStart(5)}  ${mins.padStart(7)}`);
   }
   out.push(`  scale: ${totalDemand().scale ?? 0} needed, ${flag(dragonFights(), [0, MAX_DRAGON_FIGHTS])} Emberwyrm fights`);
+  out.push(`Poppy's Garden (per planting, tended): ${(Object.keys(CROPS) as Crop[]).map((c) => `${c} ${CROPS[c].yield} in ~${(tendedSeconds(c) / 60).toFixed(1)} min`).join(', ')}`);
   for (const sk of Object.keys(SKILL_NAMES) as SkillId[]) {
     const tools = TOOLS.filter((t) => t.skill === sk && t.level > 1).map((t) => `Lv ${t.level} (${t.name}) in ~${minutesToSkillLevel(sk, t.level).toFixed(1)} min`);
     out.push(`${SKILL_NAMES[sk]}: ${tools.join(', ')}, Lv ${SKILL_MAX} in ~${minutesToSkillLevel(sk, SKILL_MAX).toFixed(1)} min`);

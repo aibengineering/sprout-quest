@@ -8,7 +8,9 @@ export type MatId =
   | 'ember' | 'horn' | 'scale' | 'emberwood' | 'obsidian'
   | 'royaljelly' | 'alphapelt' | 'echowing' | 'kingcrystal'
   /** Sawn at Bram's Sawmill, one kind from each wood (see sawmill.ts). */
-  | 'plank' | 'pineplank' | 'glimplank' | 'emberplank';
+  | 'plank' | 'pineplank' | 'glimplank' | 'emberplank'
+  /** Grown in Poppy's Garden from seeds (see garden.ts). */
+  | 'berryseed' | 'herbseed' | 'flowerseed' | 'berry' | 'herb' | 'flower';
 
 export type Recipe = Partial<Record<MatId, number>>;
 
@@ -41,6 +43,12 @@ export const MATS: Record<MatId, { name: string; icon: string; where: string }> 
   pineplank: { name: 'Pine Plank', icon: '🟫', where: "Bram's Iron Sawmill · Sowerby" },
   glimplank: { name: 'Glimmerwood Plank', icon: '🟪', where: "Bram's Crystal Sawmill · Sowerby" },
   emberplank: { name: 'Emberwood Plank', icon: '🟧', where: "Bram's Obsidian Sawmill · Sowerby" },
+  berryseed: { name: 'Berry Seeds', icon: '🫘', where: "Felled oak trees, once Poppy has a garden" },
+  herbseed: { name: 'Herb Seeds', icon: '🌰', where: "Felled pine trees, once Poppy has a garden" },
+  flowerseed: { name: 'Flower Seeds', icon: '🌱', where: 'Poppy, from her Secret Grove' },
+  berry: { name: 'Berries', icon: '🫐', where: "Poppy's Garden · Sowerby" },
+  herb: { name: 'Herbs', icon: '🌿', where: "Poppy's Garden · Sowerby" },
+  flower: { name: 'Flowers', icon: '🌸', where: "Poppy's Garden · Sowerby" },
 };
 
 export const MAT_ORDER = Object.keys(MATS) as MatId[];
@@ -232,6 +240,7 @@ export const POTION_RECIPES: { id: string; name: string; recipe: Recipe }[] = [
   { id: 'jellypot', name: 'Jelly Potion', recipe: { goo: 2, fluff: 1 } },
   { id: 'shroombrew', name: 'Shroom Brew', recipe: { cap: 2 } },
   { id: 'embertonic', name: 'Ember Tonic', recipe: { ember: 2 } },
+  { id: 'herbtonic', name: 'Herb Tonic', recipe: { herb: 2 } },
 ];
 
 export type ZoneId = 'glade' | 'village' | 'meadow' | 'woods' | 'cave' | 'hollow' | 'peak';
@@ -380,6 +389,8 @@ export interface NodeDef {
   safe: { yield: number; xp: number; regrow: number };
   /** Nodes out in the tall grass: you brave monsters to reach them, for more, faster regrowth and a rare find. */
   grass: { yield: number; xp: number; regrow: number; rare: { mat: MatId; chance: number } };
+  /** Trees that can drop a seed for Poppy's Garden when they fall, safe or wild (once the Garden is hers). */
+  seed?: { mat: MatId; chance: number };
 }
 
 export const NODES: Record<NodeKind, NodeDef> = {
@@ -387,11 +398,13 @@ export const NODES: Record<NodeKind, NodeDef> = {
     name: 'Oak', skill: 'wood', tier: 1, mat: 'bark', hp: 4,
     safe: { yield: 1, xp: 10, regrow: 180 },
     grass: { yield: 2, xp: 15, regrow: 75, rare: { mat: 'clover', chance: 0.12 } },
+    seed: { mat: 'berryseed', chance: 0.2 },
   },
   pine: {
     name: 'Pine', skill: 'wood', tier: 2, mat: 'pine', hp: 6,
     safe: { yield: 1, xp: 25, regrow: 180 },
     grass: { yield: 2, xp: 35, regrow: 75, rare: { mat: 'clover', chance: 0.1 } },
+    seed: { mat: 'herbseed', chance: 0.2 },
   },
   glimwood: {
     name: 'Glimmerwood', skill: 'wood', tier: 3, mat: 'glimwood', hp: 8,
@@ -466,7 +479,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
     levels: [
       { name: 'Tent', cost: {}, perk: 'A cozy tent to call your own.' },
       { name: 'Cottage', cost: { bark: 8, stone: 4, clover: 1 }, perk: '+10% max HP' },
-      { name: 'Manor', cost: { glimplank: 4, emberplank: 4, obsidian: 4, crystal: 4 }, perk: '+20% max HP' },
+      { name: 'Manor', cost: { glimplank: 4, emberplank: 4, obsidian: 4, crystal: 4, flower: 4 }, perk: '+20% max HP' },
     ],
   },
   forge: {
@@ -482,10 +495,11 @@ export const PROJECTS: Record<ProjectId, Project> = {
   },
   garden: {
     name: 'Garden', icon: '🌱',
+    // Poppy's, once her story's done: each level adds plots to grow in (see garden.ts).
     levels: [
-      { name: 'Sprout Patch', cost: { bark: 4, clover: 1 }, perk: 'Fountain refills potions to 3' },
-      { name: 'Berry Garden', cost: { cap: 4, plank: 3, stone: 4 }, perk: 'Fountain refills potions to 4' },
-      { name: 'Bloom Garden', cost: { glimplank: 3, ember: 4 }, perk: 'Fountain refills potions to 5' },
+      { name: 'Sprout Patch', cost: { bark: 4, clover: 1 }, perk: 'Two plots for Poppy to grow in, and the fountain refills potions to 3' },
+      { name: 'Berry Garden', cost: { cap: 4, plank: 3, stone: 4 }, perk: 'Four plots, and the fountain refills potions to 4' },
+      { name: 'Bloom Garden', cost: { glimplank: 3, ember: 4, flower: 4 }, perk: 'Six plots, and the fountain refills potions to 5' },
     ],
   },
   training: {

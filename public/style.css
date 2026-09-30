@@ -1231,6 +1231,44 @@ body.kbd .drag-hint .keys { display: flex; }
 .sheet.sawmill .btns { flex-wrap: nowrap; }
 .sheet.sawmill .btns .go { padding: 12px 16px; font-size: 16px; flex: 1; }
 
+/* ================= Poppy's Garden ================= */
+/* A card per plot on a patch of grass: what's growing, a bar, and the one thing it needs from you. */
+.sheet.garden .result { position: relative; }
+.sheet.garden .gx {
+  position: absolute; top: 4px; right: 4px; width: 34px; height: 34px; border-radius: 99px; border: 0; cursor: pointer;
+  background: rgba(74, 42, 90, 0.1); color: var(--outline); font: 700 16px var(--display);
+}
+.sheet.garden .speaker small { font-size: 12px; font-weight: 800; opacity: 0.6; }
+.sheet.garden .gplots {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0 8px; padding: 8px;
+  border-radius: 16px; background: linear-gradient(#8ac86a, #6aae4e); border: 3px solid #4e8a3a; box-shadow: inset 0 -5px 0 rgba(30, 60, 20, 0.25);
+}
+.sheet.garden .gplot {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; height: 100%; min-height: 128px; padding: 6px 4px; border-radius: 12px;
+  background: linear-gradient(#a8784e, #8a5e3a); border: 2px solid #6a442a; color: #fff; box-shadow: inset 0 -4px 0 rgba(58, 36, 20, 0.3);
+}
+.sheet.garden .gplot.thirsty { background: linear-gradient(#d8b888, #c09a68); border-color: #9a7448; }
+.sheet.garden .gplot.s3 { box-shadow: inset 0 -4px 0 rgba(58, 36, 20, 0.3), 0 0 0 3px #ffe07a; }
+.sheet.garden .gart { height: 40px; display: grid; place-items: center; }
+.sheet.garden .gart .emo { font-size: 30px; }
+.sheet.garden .gart img.icon { width: 40px; height: 40px; filter: drop-shadow(0 2px 0 rgba(58, 36, 20, 0.35)); }
+.sheet.garden .gplot.s3 .gart { animation: pulse 0.6s infinite alternate; }
+.sheet.garden .gname { font-size: 13px; font-weight: 800; text-shadow: 0 1px 0 rgba(58, 36, 20, 0.5); }
+.sheet.garden .gbar { width: 90%; height: 7px; border-radius: 99px; background: rgba(58, 36, 20, 0.35); overflow: hidden; }
+.sheet.garden .gbar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(#c8f89a, #6ad84a); transition: width 0.25s linear; }
+.sheet.garden .gplot.weedy .gbar i { background: linear-gradient(#e8e89a, #b8b84a); }
+.sheet.garden .gplot.thirsty .gbar i { background: #a8a8a8; }
+.sheet.garden .gnote { font-size: 11px; font-weight: 800; text-shadow: 0 1px 0 rgba(58, 36, 20, 0.5); white-space: nowrap; }
+.sheet.garden .gact { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; margin-top: auto; }
+.sheet.garden .gact .go { padding: 5px 8px; font-size: 13px; }
+.sheet.garden .gact .seed { display: inline-flex; align-items: center; gap: 1px; padding: 3px 5px; min-width: 0; font-size: 12px; }
+.sheet.garden .gact .seed img.icon.sm { width: 22px; height: 22px; vertical-align: 0; }
+.sheet.garden .gact small { font-size: 11px; font-weight: 800; opacity: 0.8; }
+.sheet.garden .seeds { justify-content: center; }
+.sheet.garden .small { font-size: 13px; opacity: 0.75; margin: 6px 0 10px; }
+.sheet.garden .btns { flex-wrap: nowrap; }
+.sheet.garden .btns .go { padding: 12px 16px; font-size: 16px; flex: 1; }
+
 /* Weapon handling's path: ✨ skill ranks and ⚡ speed steps, lit up to your level. */
 .hpath { display: flex; gap: 3px; margin: 6px 0 4px; }
 .hpath i { flex: 1; display: grid; place-items: center; height: 22px; border-radius: 6px; font-style: normal; font-size: 12px; background: rgba(74, 42, 90, 0.08); filter: grayscale(1); opacity: 0.55; }

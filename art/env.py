@@ -438,25 +438,145 @@ def plot():
     return root
 
 
+# Poppy's Garden: where each plot's bed sits, from the front middle, in planting order (the middle column, then the
+# left, then the right). The game draws each plot's soil and crop on these spots (GARDEN_BEDS in src/overworld.ts).
+GARDEN_BEDS = [(0, 2.0), (0, 0.7), (-1.45, 2.0), (-1.45, 0.7), (1.45, 2.0), (1.45, 0.7)]
+GARDEN_PLOTS = {1: 2, 2: 4, 3: 6}
+SOIL, SOIL_DRY, TIMBER = '#6a4630', '#c8a476', '#b98a5a'
+
+
+def watering_can(parent, loc, rot=0.0):
+    """Poppy's little blue watering can."""
+    r = empty('can', parent, loc)
+    r.rotation_euler = (0, 0, rot)
+    tin = toon('#6ab8f0', rim=0.35)
+    cylinder((0, 0, 0.14), 0.13, 0.26, tin, r, seg=16, line=0.012)
+    cylinder((0.2, 0, 0.2), 0.03, 0.3, tin, r, seg=8, rot=(0, 0.9, 0), line=0.01)
+    cylinder((0.32, 0, 0.3), 0.055, 0.04, toon('#4a98d0'), r, seg=10, rot=(0, 0.9, 0), line=0.008)
+    torus((-0.02, 0, 0.3), 0.1, 0.022, tin, r, rot=(math.pi / 2, 0, 0), line=0.008)
+    return r
+
+
 def garden(level):
+    """Poppy's Garden: a grassy patch with a white picket fence round the back and sides, a wooden bed for each plot
+    (two more with every level; the game draws the soil and whatever's growing in them), and a few of her things."""
     root = empty('garden')
-    box((0, 0, 0.05), (3.4, 1.9, 0.1), toon('#8a6a4a'), root, bevel=0.04, line=0.012)
-    for x in (-1.7, -0.85, 0, 0.85, 1.7):
-        box((x, -1.0, 0.18), (0.08, 0.08, 0.36), toon('#fff0dc'), root, bevel=0.02, line=0.01)
-    box((0, -1.0, 0.28), (3.5, 0.06, 0.06), toon('#fff0dc'), root, bevel=0.01, line=0.01)
-    fruit = ['#7ad85a', '#ff6a8a', '#ffd35a'][level - 1]
-    for row in range(2):
+    box((0, 1.4, 0.03), (4.6, 2.95, 0.06), toon('#86c864'), root, bevel=0.05, line=0.012)
+    picket = toon('#fff4e2')
+    for i in range(9):
+        x = -2.2 + i * 0.55
+        box((x, 2.85, 0.22), (0.1, 0.07, 0.44), picket, root, bevel=0.02, line=0.01)
+        cone((x, 2.85, 0.47), 0.07, 0.08, picket, root, seg=4, line=0.008, rot=(0, 0, math.pi / 4))
+    box((0, 2.85, 0.3), (4.5, 0.05, 0.06), picket, root, bevel=0.01, line=0.01)
+    for sx in (-1, 1):
         for i in range(5):
-            x, y = -1.3 + i * 0.65, -0.35 + row * 0.7
-            h = 0.25 + level * 0.12
-            cylinder((x, y, 0.1 + h / 2), 0.03, h, toon('#4a9a3a'), root, seg=6, line=0.01)
-            for s in (-1, 1):
-                sphere((x + 0.1 * s, y, 0.1 + h * 0.6), (0.12, 0.05, 0.06), toon('#6ac85a'), root, rot=(0, -0.4 * s, 0), line=0.01)
-            if level >= 2:
-                sphere((x, y - 0.03, 0.12 + h), 0.09 + level * 0.02, toon(fruit), root, line=0.012)
+            box((2.25 * sx, 0.2 + i * 0.65, 0.2), (0.07, 0.1, 0.4), picket, root, bevel=0.02, line=0.01)
+        box((2.25 * sx, 1.5, 0.28), (0.05, 2.7, 0.06), picket, root, bevel=0.01, line=0.01)
+    # A low timber edge along the front, so it reads as a garden from the path.
+    box((0, -0.04, 0.07), (4.5, 0.1, 0.14), toon(TIMBER), root, bevel=0.02, line=0.01)
+    for bx, by in GARDEN_BEDS[:GARDEN_PLOTS[level]]:
+        box((bx, by, 0.05), (1.22, 1.1, 0.06), toon('#7a5236'), root, bevel=0.02, line=0)
+        for dy in (-0.55, 0.55):
+            box((bx, by + dy, 0.08), (1.26, 0.08, 0.14), toon(TIMBER), root, bevel=0.02, line=0.01)
+        for dx in (-0.61, 0.61):
+            box((bx + dx, by, 0.08), (0.08, 1.1, 0.14), toon(TIMBER), root, bevel=0.02, line=0.01)
+    # Where the next beds will go: a few wildflowers in the grass for now.
+    for bx, by in GARDEN_BEDS[GARDEN_PLOTS[level]:]:
+        _flowers(root, 2.2, [(bx / 2.2 - 0.12, (by - 0.1) / 2.2, '#ff8ab0'), (bx / 2.2 + 0.1, (by + 0.15) / 2.2, '#ffd35a'),
+                             (bx / 2.2 + 0.02, (by - 0.25) / 2.2, '#ffffff')], z=0.05)
+    watering_can(root, (-2.0, -0.35, 0.02) if level < 3 else (2.0, -0.35, 0.02), 0.5 if level < 3 else 2.6)
+    if level >= 2:
+        # A basket for the picking, by the gate.
+        lathe([(0.0001, 0.0), (0.2, 0.0), (0.24, 0.2), (0.0001, 0.2)], toon('#d8a860'), root, loc=(2.0 if level < 3 else -2.0, -0.35, 0.02), seg=14, line=0.01)
+        torus((2.0 if level < 3 else -2.0, -0.35, 0.22), 0.16, 0.022, toon('#b8884a'), root, rot=(math.pi / 2, 0, 0), line=0.008)
     if level >= 3:
-        cylinder((1.9, 0.6, 0.35), 0.25, 0.5, toon('#9aa0b0'), root, seg=12)
-        cylinder((1.9, 0.6, 0.6), 0.2, 0.03, toon('#6ac8f0'), root, seg=12, line=0)
+        # The Bloom Garden: flowers climbing the back fence.
+        for i in range(12):
+            x = -2.1 + i * 0.38
+            col = ('#ff8ab0', '#ffd35a', '#b08aff', '#ffffff')[i % 4]
+            for p in range(5):
+                a = p / 5 * math.tau
+                sphere((x + math.cos(a) * 0.05, 2.78, 0.4 + (i % 2) * 0.12 + math.sin(a) * 0.05), 0.045, toon(col), root, seg=8, line=0.006)
+            sphere((x, 2.75, 0.4 + (i % 2) * 0.12), 0.03, toon('#ffb03a'), root, seg=8, line=0)
+    return root
+
+
+def soil(dry=False):
+    """One plot's soil, heaped in its bed: dark and damp with furrows, or pale and cracked when it's thirsty."""
+    root = empty('soil')
+    sphere((0, 0, 0.02), (0.54, 0.46, 0.1), toon(SOIL_DRY if dry else SOIL), root, seg=24, line=0.012)
+    for k in (-1, 0, 1):
+        box((0, k * 0.22, 0.1), (0.8 - abs(k) * 0.2, 0.035, 0.03), toon('#b89060' if dry else '#50321f'), root, bevel=0.01, line=0)
+    if dry:
+        for x, y, a in ((-0.28, 0.08, 0.6), (0.22, -0.1, -0.5), (0.05, 0.2, 1.3), (-0.1, -0.2, -1.1)):
+            box((x, y, 0.1), (0.2, 0.02, 0.02), toon('#8a6440'), root, rot=(0, 0, a), bevel=0, line=0)
+    return root
+
+
+def _leaf(parent, loc, size, col, yaw=0.0, tilt=0.5):
+    sphere(loc, (size, size * 0.35, size * 0.55), toon(col), parent, rot=(0, -tilt, yaw), seg=12, line=0.01)
+
+
+def crop(kind, stage):
+    """A plot's crop at a stage: 1 a sprout, 2 growing, 3 ready to pick. Chunky, so it reads at phone size."""
+    root = empty('crop')
+    if stage == 1:
+        col = {'berry': '#6ac85a', 'herb': '#8ad86a', 'flower': '#5ab85a'}[kind]
+        cylinder((0, 0, 0.2), 0.035, 0.32, toon('#4a9a3a'), root, seg=6, line=0.012)
+        for s in (-1, 1):
+            sphere((0.14 * s, 0, 0.37), (0.16, 0.07, 0.09), toon(col), root, rot=(0, -0.35 * s, 0), seg=12, line=0.014)
+        return root
+    if kind == 'berry':
+        big = stage == 3
+        leaf = toon('#4aa84a')
+        for x, y, z, r in ((-0.2, 0.05, 0.22, 0.2), (0.2, 0.05, 0.22, 0.2), (0, 0.12, 0.34, 0.22), (0, -0.08, 0.2, 0.2)):
+            k = 1.2 if big else 0.9
+            sphere((x * k, y, z * k), r * k, leaf, root, seg=16, line=0.014)
+        if big:
+            for x, z in ((-0.27, 0.27), (-0.1, 0.44), (0.13, 0.36), (0.29, 0.24), (-0.02, 0.22), (0.2, 0.5), (-0.22, 0.47)):
+                sphere((x, -0.3, z), 0.075, toon('#e8405a', rim=0.4), root, seg=12, line=0.01)
+                sphere((x - 0.02, -0.36, z + 0.03), 0.02, toon('#ffffff', rim=0), root, seg=6, line=0)
+        else:
+            for x, z in ((-0.15, 0.32), (0.12, 0.4), (0.18, 0.2)):
+                sphere((x, -0.2, z), 0.04, toon('#ffffff'), root, seg=8, line=0.006)
+    elif kind == 'herb':
+        h = 0.62 if stage == 3 else 0.36
+        n = 9 if stage == 3 else 5
+        for i in range(n):
+            a = (i / n) * math.tau
+            x, y = math.cos(a) * 0.14, math.sin(a) * 0.08
+            cylinder((x, y, h / 2), 0.02, h, toon('#3a8a3a'), root, seg=6, line=0.008, rot=(math.sin(a) * 0.3, -math.cos(a) * 0.3, 0))
+            _leaf(root, (x * 2.1, y * 2.1 - 0.02, h * 0.55), 0.18 if stage == 3 else 0.14, '#5ac86a', yaw=a, tilt=0.2)
+            _leaf(root, (x * 1.5, y * 1.5 - 0.02, h * 0.95), 0.16 if stage == 3 else 0.12, '#9ae88a' if stage == 3 else '#6ad87a', yaw=a + 0.5, tilt=-0.3)
+        if stage == 3:
+            sphere((0, 0, h + 0.05), (0.12, 0.08, 0.1), toon('#9ae88a'), root, seg=12, line=0.01)
+    else:
+        spots = ((-0.22, 0.02, '#ff8ab0'), (0.04, 0.1, '#ffd35a'), (0.26, -0.04, '#b08aff'))
+        for i, (x, y, col) in enumerate(spots):
+            h = (0.5 + (i == 1) * 0.12) if stage == 3 else 0.32 + (i == 1) * 0.06
+            cylinder((x, y, h / 2), 0.022, h, toon('#4a9a3a'), root, seg=6, line=0.008)
+            _leaf(root, (x + 0.08, y, h * 0.4), 0.1, '#6ac85a', tilt=0.6)
+            if stage == 3:
+                for p in range(5):
+                    a = p / 5 * math.tau
+                    sphere((x + math.cos(a) * 0.1, y - 0.06, h + math.sin(a) * 0.1), (0.085, 0.04, 0.085), toon(col), root, seg=12, line=0.01)
+                sphere((x, y - 0.1, h), 0.055, toon('#ffb03a'), root, seg=10, line=0.008)
+            else:
+                sphere((x, y, h + 0.04), (0.06, 0.06, 0.09), toon(col), root, seg=12, line=0.01)
+                for s in (-1, 1):
+                    sphere((x + 0.03 * s, y - 0.02, h + 0.0), (0.035, 0.03, 0.07), toon('#5ab85a'), root, rot=(0, 0.4 * s, 0), seg=8, line=0.006)
+    return root
+
+
+def weeds():
+    """Weeds crowding a plot's corners: spiky dark tufts and a dandelion, over whatever's growing."""
+    root = empty('weeds')
+    for cx, cy in ((-0.42, -0.12), (0.4, 0.14), (0.1, -0.3)):
+        for i in range(7):
+            a = (i - 3) * 0.3
+            cone((cx + (i - 3) * 0.04, cy, 0.17), 0.06, 0.38, toon('#2e6e34' if i % 2 else '#3e8a3a'), root, rot=(0, a, 0), seg=4, line=0.01)
+    cylinder((0.42, 0.12, 0.2), 0.012, 0.3, toon('#3e8a3a'), root, seg=6, line=0.006)
+    sphere((0.42, 0.1, 0.36), 0.07, toon('#ffd83a'), root, seg=12, line=0.01)
     return root
 
 
@@ -751,7 +871,7 @@ SCENERY['home2'] = (lambda: house('#6ac86a'), 380, 360)
 SCENERY['home3'] = (manor, 420, 480)
 SCENERY['plot'] = (plot, 260, 150)
 for lv in (1, 2, 3):
-    SCENERY[f'garden{lv}'] = (lambda lv=lv: garden(lv), 280, 160)
+    SCENERY[f'garden{lv}'] = (lambda lv=lv: garden(lv), 300, 180)
     SCENERY[f'training{lv}'] = (lambda lv=lv: training(lv), 280, 220)
 SCENERY['warp0'] = (lambda: warpstone(0), 150, 110)
 SCENERY['warp1'] = (lambda: warpstone(1), 150, 230)
@@ -774,6 +894,13 @@ SCENERY['bramhut'] = (bramhut, 230, 260)
 SCENERY['prop_campstump'] = (camp_stump, 170, 150)
 SCENERY['prop_campmill'] = (camp_mill, 330, 230)
 SCENERY['prop_logs'] = (lambda: log_pile(None, 3), 150, 130)
+# Poppy's plots: soil (damp or thirsty), each crop at each stage, and weeds to lay over them.
+SCENERY['soil'] = (soil, 90, 60)
+SCENERY['soil_dry'] = (lambda: soil(True), 90, 60)
+for kind in ('berry', 'herb', 'flower'):
+    for st in (1, 2, 3):
+        SCENERY[f'crop_{kind}_{st}'] = (lambda k=kind, s=st: crop(k, s), 90, 90)
+SCENERY['weeds'] = (weeds, 90, 70)
 for zone, (c, t) in GRASS.items():
     SCENERY[f'grass_{zone}'] = (lambda c=c, t=t: grass(c, t, 3), 70, 50)
 for i, col in enumerate(('#ff8ab0', '#ffd35a', '#ffffff', '#b08aff')):

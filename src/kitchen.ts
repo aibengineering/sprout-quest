@@ -2,10 +2,10 @@
 // fights, chopping; not in menus). They're a quick, repeatable way to spend the materials you pile up, not something
 // to make last (see the story bible, Side quests).
 import type { Recipe } from './data';
-import { hasMats, spend } from './rules';
+import { hasMats, playerStats, spend } from './rules';
 import type { SaveState } from './state';
 
-export type MealId = 'pancakes' | 'tea' | 'goojelly' | 'stew';
+export type MealId = 'pancakes' | 'tea' | 'goojelly' | 'stew' | 'tart';
 
 export interface Meal {
   id: MealId;
@@ -37,12 +37,16 @@ export const MEALS: Record<MealId, Meal> = {
     id: 'stew', name: "Woodcutter's Stew", icon: '🍲', recipe: { pine: 3, cap: 2 },
     desc: 'A wider sweet spot when chopping, for 4 minutes.', seconds: 240, from: 'Bram',
   },
+  tart: {
+    id: 'tart', name: 'Berry Tart', icon: '🥧', recipe: { berry: 4, fluff: 2 },
+    desc: '+10% max HP for 5 minutes.', seconds: 300, from: 'the Garden',
+  },
 };
 
-export const MEAL_ORDER: MealId[] = ['pancakes', 'tea', 'goojelly', 'stew'];
+export const MEAL_ORDER: MealId[] = ['pancakes', 'tea', 'goojelly', 'stew', 'tart'];
 
-/** The flag that teaches Granny a newcomer's recipe. */
-const TAUGHT: Partial<Record<MealId, string>> = { stew: 'bram:stew' };
+/** The flag that teaches Granny a newcomer's recipe (or, for her tart, the Garden's first berries). */
+const TAUGHT: Partial<Record<MealId, string>> = { stew: 'bram:stew', tart: 'garden:berries' };
 
 /** The kitchen opens once Mr. Floppers is home (Poppy's story finished). */
 export const kitchenOpen = (s: SaveState) => (s.stories.poppy ?? 0) >= 6;
@@ -56,7 +60,9 @@ export function cook(s: SaveState, id: MealId): 'ok' | 'missing' | 'unknown' {
   if (!m || !kitchenOpen(s) || !knownMeals(s).includes(id)) return 'unknown';
   if (!hasMats(s, m.recipe)) return 'missing';
   spend(s, m.recipe);
+  const before = playerStats(s).maxHp;
   s.meal = { id, left: m.seconds };
+  fitHp(s, before);
   return 'ok';
 }
 
@@ -82,11 +88,23 @@ export const repelBelow = (s: SaveState) => (eating(s, 'goojelly') ? s.lv - 2 : 
 export function mealTick(s: SaveState, dt: number) {
   if (!s.meal) return;
   s.meal.left -= dt;
-  if (s.meal.left <= 0) s.meal = null;
+  if (s.meal.left > 0) return;
+  const before = playerStats(s).maxHp;
+  s.meal = null;
+  fitHp(s, before);
+}
+
+/** A Berry Tart's extra max HP comes with the health to fill it, and goes again when it wears off. */
+function fitHp(s: SaveState, before: number) {
+  const after = playerStats(s).maxHp;
+  s.hp = Math.min(after, s.hp + Math.max(0, after - before));
 }
 
 /** Woodcutter's Stew widens the sweet spot on trees. */
 export const sweetBoost = (s: SaveState) => (eating(s, 'stew') ? 1.3 : 1);
+
+/** Berry Tart: max HP multiplier. */
+export const hpBoost = (s: SaveState) => (eating(s, 'tart') ? 1.1 : 1);
 
 /** What's left of your meal, for the HUD ("🥞 3"). */
 export function mealLeft(s: SaveState): { icon: string; name: string; left: string } | null {

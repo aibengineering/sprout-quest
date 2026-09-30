@@ -179,6 +179,17 @@ export const PRESETS: Preset[] = [
     }),
   },
   {
+    id: 'garden', name: "Poppy's Garden", desc: 'Poppy tends the Berry Garden: four empty plots, a handful of every seed, and Bunny Fluff for a Berry Tart.',
+    make: () => base('smithy', 'woods', zoneById('village').x0 + 8.7, 20.8, (s) => {
+      tools(s, 2, 1);
+      s.stories.poppy = 6;
+      s.perks.push('trailboots');
+      s.flags.push(...bossFlags, 'poppy:returned', 'garden:welcome');
+      s.build.garden = 2;
+      Object.assign(s.mats, { berryseed: 4, herbseed: 3, flowerseed: 2, fluff: 6 });
+    }),
+  },
+  {
     id: 'kingslime', name: 'Slime King', desc: 'Lv 4, Stone Sword and Fluff Vest, at the Whisper Woods gate.',
     make: () => base('kingslime', 'woods', gate('woods').x, gate('woods').y, (s) => tools(s, 1, 1)),
   },

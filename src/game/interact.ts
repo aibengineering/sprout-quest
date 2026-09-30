@@ -12,6 +12,8 @@ import { travelTo } from './menu';
 import { tryGather } from './gathering';
 import { progressQuests, talkToElder } from './story';
 import { openSawmill, sawmillBuilt } from './stories/bram';
+import { openGarden } from './stories/poppy';
+import { gardenOpen } from '../garden';
 
 /** Opens the menu with the world waiting behind it. */
 function openMenu(...args: Parameters<typeof G.ui.openMenu>) {
@@ -63,6 +65,8 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     if (o.project === 'warp' && G.save.build.warp > 0) return waystone();
     // Bram's Sawmill, once it's built: his bench, logs in and planks out.
     if (o.project === 'sawmill' && sawmillBuilt()) return openSawmill();
+    // Poppy's Garden, once she tends it: her plots.
+    if (o.project === 'garden' && gardenOpen(G.save)) return openGarden();
     openMenu(menuCtx(), 'village', o.project);
   },
 

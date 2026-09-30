@@ -1,0 +1,108 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "plate": {
+      "src": "assets/crafting/tart-plate.webp",
+      "bounds": [
+        36,
+        264,
+        476,
+        463
+      ],
+      "center": [
+        0.5,
+        0.71
+      ]
+    },
+    "fluff-crust": {
+      "src": "assets/crafting/tart-fluff-crust.webp",
+      "bounds": [
+        85,
+        198,
+        427,
+        421
+      ],
+      "center": [
+        0.5,
+        0.6045
+      ]
+    },
+    "berry-filling": {
+      "src": "assets/crafting/tart-berry-filling.webp",
+      "bounds": [
+        120,
+        230,
+        392,
+        377
+      ],
+      "center": [
+        0.5,
+        0.5928
+      ]
+    },
+    "berries": {
+      "src": "assets/crafting/tart-berries.webp",
+      "bounds": [
+        161,
+        197,
+        354,
+        330
+      ],
+      "center": [
+        0.5029,
+        0.5146
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/tart-complete.webp",
+      "bounds": [
+        36,
+        197,
+        476,
+        463
+      ],
+      "center": [
+        0.5,
+        0.6445
+      ]
+    }
+  },
+  "stack": [
+    "plate",
+    "fluff-crust",
+    "berry-filling",
+    "berries"
+  ],
+  "ingredientRoles": {
+    "fluff": [
+      "fluff-crust"
+    ],
+    "berry": [
+      "berry-filling",
+      "berries"
+    ]
+  },
+  "camera": {
+    "ppu": 385,
+    "elevation": 24,
+    "anchor": [
+      0,
+      0,
+      -0.015
+    ]
+  },
+  "iconId": "meal_tart",
+  "webpQuality": 92,
+  "completeParts": [
+    "plate",
+    "fluff-crust",
+    "berry-filling",
+    "berries"
+  ],
+  "props": [
+    "plate"
+  ]
+}
