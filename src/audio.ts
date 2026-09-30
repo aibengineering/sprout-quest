@@ -21,10 +21,20 @@ export type Sfx =
 /** How many bubbles an XP fill of `dur` seconds plays, evenly spaced (the HUD pops a notch onto the bar with each). */
 export const xpBloops = (dur: number) => Math.max(2, Math.round(dur / 0.075));
 
+/** The jingles the music makes room for, and for how long (seconds). */
+const FANFARES: Partial<Record<Sfx, number>> = { victory: 1.4, lose: 1.2, levelup: 0.8, treasure: 1.1, keyItem: 2.2, kindle: 2.2 };
+
 export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   muted = false;
+  /** Called when a fanfare plays, with how long it rings (the music ducks under it). */
+  onFanfare: ((secs: number) => void) | null = null;
+
+  /** The shared AudioContext, once a user gesture has unlocked sound (the music plays through it too). */
+  get context() {
+    return this.ctx;
+  }
 
   /** Must be called from a user gesture on iOS before any sound can play. */
   unlock() {
@@ -124,6 +134,7 @@ export class Audio {
 
   play(s: Sfx) {
     if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
+    if (FANFARES[s]) this.onFanfare?.(FANFARES[s]);
     const notes = (fs: number[], step: number, type: OscillatorType = 'square', vol = 0.12) =>
       fs.forEach((f, i) => this.tone(f, step * 1.6, type, vol, undefined, i * step));
     switch (s) {

@@ -19,6 +19,7 @@ import { UI } from './ui';
 import { SCREENS, flushTime, noteReached, trackTime, type Activity } from './stats';
 import { mealTick } from './kitchen';
 import { has } from './unlocks';
+import { zoneTheme } from './music/scores';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -221,6 +222,8 @@ function frame(now: number) {
   }
   // A fight on the map can end inside update() and hand straight back to the overworld, so hold on to it for this frame.
   const b = G.battle;
+  // The music follows along: the fight's theme in a fight (a guardian's for a boss), otherwise the area's.
+  G.music.want(b ? (b.setup.boss ? 'guardian' : 'battle') : zoneTheme(G.over.currentZone.id));
   if (b) battleFrame(b, dt);
   else worldFrame(dt);
   tickModels();
@@ -255,6 +258,7 @@ requestAnimationFrame(frame);
   get chop() { return chop; },
   get modelStats() { return modelStats; },
   get xpRate() { return G.xpRate; },
+  get music() { return G.music; },
   set zoom(z: number) { debugZoom = z; },
   /** A regular grass encounter right here (or in `zone`). */
   encounter(zone?: ZoneId) {

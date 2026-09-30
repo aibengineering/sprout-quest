@@ -61,6 +61,8 @@ then push east toward stronger monsters and the dragon at the end of Ember Peak.
 
 No runtime dependencies. Characters, monsters, weapons and scenery are cute cel-shaded 3D models built with
 Blender Python scripts in `art/` and pre-rendered into sprite atlases; sounds and the map are generated in code.
+The music is written as code too, and played by a real orchestra: recordings from VSCO 2 Community Edition
+(public domain), see [docs/music.md](docs/music.md).
 
 ## Play
 

@@ -4,6 +4,7 @@ import { Audio } from '../audio';
 import type { Battle } from '../battle/battle';
 import { zoneById, type Zone } from '../data';
 import { Input } from '../input';
+import { Music } from '../music/player';
 import { Overworld } from '../overworld';
 import { loadState, newState, saveState, type SaveState } from '../state';
 import type { UI } from '../ui';
@@ -23,6 +24,7 @@ export type Mode = 'title' | 'world' | 'gather' | 'battle' | 'dialog';
 
 class GameState {
   readonly audio = new Audio();
+  readonly music = new Music(this.audio);
   readonly input = new Input(document.getElementById('touch')!, document.getElementById('joy')!, document.getElementById('joy-knob')!);
   readonly world = new World();
   save: SaveState = loadState() ?? newState();

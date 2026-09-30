@@ -1004,6 +1004,25 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.flag === 'bram:ambush2').hidden`), 'the second ambush vanished');
 });
 
+scenario('music: the orchestra loads the opening first, then plays the area, a fight, and the area again', null, async (page) => {
+  // Music is off in automated browsers unless the page asks for it.
+  await page.goto(`${page.url().split('?')[0]}?music`);
+  await page.waitForSelector('.title-btns:not([hidden])');
+  await page.click('#btn-continue');
+  await page.waitForTimeout(1500);
+  await closeDialogs(page);
+  await waitFor(page, 'the opening themes to load first', async () => {
+    const loaded = await game<string[]>(page, 'g.music.loaded');
+    return loaded.length >= 2 && loaded[0] === 'glade' && loaded[1] === 'battle';
+  }, 30000);
+  await waitFor(page, "the meadow's theme", async () => (await game<string>(page, 'g.music.current')) === 'meadow', 30000);
+  await run(page, `g.fight('slime', 1, 1)`);
+  await waitFor(page, "the fight's theme", async () => (await game<string>(page, 'g.music.current')) === 'battle');
+  await winFight(page);
+  await waitFor(page, "back to the meadow's theme", async () => (await game<string>(page, 'g.music.current')) === 'meadow');
+  check((await game<string[]>(page, 'g.music.loaded')).length === 5, 'not every theme loaded');
+});
+
 scenario('dev builds: a Battle Tower run climbs floor after floor from its camp, in its own slot', (g) => {
   g.lv = 3;
 }, async (page) => {
