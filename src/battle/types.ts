@@ -126,7 +126,12 @@ export interface Swing {
 }
 
 /** A hammer's traveling shockwave (or the Wyrmbreaker's dragonfire). */
-export interface Wave { x: number; y: number; dir: number; dist: number; range: number; width: number; speed: number; mult: number; id: number; spikeAt: number; fire?: boolean }
+/**
+ * A wave of rock spikes (or dragonfire) rolling out from a slam. The waves of one slam share `hit`: each foe is hit
+ * by at most one of them, however many overlap it (a foe only remembers its last hit, so a big one standing in the
+ * fan used to be hit by the waves in turn, over and over).
+ */
+export interface Wave { x: number; y: number; dir: number; dist: number; range: number; width: number; speed: number; mult: number; id: number; spikeAt: number; hit: Set<object>; fire?: boolean }
 export interface Spike { x: number; y: number; t: number; life: number; size: number; tilt: number }
 export interface Crack { pts: [number, number][]; t: number }
 export interface Spark { x: number; y: number; t: number; size: number; color: string; rot: number }

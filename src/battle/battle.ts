@@ -608,20 +608,21 @@ export class Battle implements FoeWorld, HitWorld {
     if (s.wave) {
       const w = s.wave;
       const width = w.width * this.reach * (this.el.waveWidth ?? 1);
-      this.waves.push({ x: ix, y: iy, dir: sw.aim, dist: 0, range: w.range * this.reach, width, speed: w.speed, mult: w.mult, id: ++this.hitCounter, spikeAt: 0 });
+      this.waves.push({ x: ix, y: iy, dir: sw.aim, dist: 0, range: w.range * this.reach, width, speed: w.speed, mult: w.mult, id: ++this.hitCounter, spikeAt: 0, hit: new Set() });
     }
     if (this.weapon.breath && !sw.skill) {
       // Dragon breath: a fan of fire rolls out from the slam, leaving the ground burning behind it.
+      const hit = new Set<object>();
       for (const off of [-0.5, -0.25, 0, 0.25, 0.5]) {
-        this.waves.push({ x: ix, y: iy, dir: sw.aim + off, dist: 0, range: 150 * this.reach, width: 30, speed: 430, mult: 0.3, id: ++this.hitCounter, spikeAt: 0, fire: true });
+        this.waves.push({ x: ix, y: iy, dir: sw.aim + off, dist: 0, range: 150 * this.reach, width: 30, speed: 430, mult: 0.3, id: ++this.hitCounter, spikeAt: 0, hit, fire: true });
       }
     }
     if (sw.skill) {
       // Fracture: rock spikes burst out in a fan ahead of you, as wide as the rank allows.
-      const q = SKILL_DATA.quake.waves, n = this.skillNow?.count ?? q.count, fan = this.skillNow?.size ?? 0.8;
+      const q = SKILL_DATA.quake.waves, n = this.skillNow?.count ?? q.count, fan = this.skillNow?.size ?? 0.8, hit = new Set<object>();
       for (let i = 0; i < n; i++) {
         const dir = sw.aim + (n > 1 ? (i / (n - 1) - 0.5) * fan : 0);
-        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: this.skillNow?.sub ?? q.mult, id: ++this.hitCounter, spikeAt: 0 });
+        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: this.skillNow?.sub ?? q.mult, id: ++this.hitCounter, spikeAt: 0, hit });
       }
     }
   }
@@ -658,11 +659,11 @@ export class Battle implements FoeWorld, HitWorld {
         w.spikeAt += 15;
       }
       for (const e of this.enemies) {
-        if (e.dead || e.hitId === w.id) continue;
+        if (e.dead || w.hit.has(e)) continue;
         const ex = e.x - w.x, ey = e.y - w.y;
         const along = ex * cx + ey * cy, perp = Math.abs(-ex * cy + ey * cx);
         if (along < w.dist - 40 || along > w.dist + e.r || perp > w.width / 2 + e.r) continue;
-        e.hitId = w.id;
+        w.hit.add(e);
         this.hitEnemy(e, w.mult, w.dir, 200, 0.25, w.id, 0.04);
       }
     }
