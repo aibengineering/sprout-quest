@@ -1,0 +1,106 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "cup": {
+      "src": "assets/crafting/tea-cup.webp",
+      "bounds": [
+        36,
+        141,
+        476,
+        463
+      ],
+      "center": [
+        0.5,
+        0.5898
+      ]
+    },
+    "clover-infusion": {
+      "src": "assets/crafting/tea-clover-infusion.webp",
+      "bounds": [
+        150,
+        158,
+        362,
+        252
+      ],
+      "center": [
+        0.5,
+        0.4004
+      ]
+    },
+    "clover-leaves": {
+      "src": "assets/crafting/tea-clover-leaves.webp",
+      "bounds": [
+        178,
+        170,
+        332,
+        241
+      ],
+      "center": [
+        0.498,
+        0.4014
+      ]
+    },
+    "steam": {
+      "src": "assets/crafting/tea-steam.webp",
+      "bounds": [
+        228,
+        78,
+        263,
+        156
+      ],
+      "center": [
+        0.4795,
+        0.2285
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/tea-complete.webp",
+      "bounds": [
+        36,
+        78,
+        476,
+        463
+      ],
+      "center": [
+        0.5,
+        0.5283
+      ]
+    }
+  },
+  "stack": [
+    "cup",
+    "clover-infusion",
+    "clover-leaves",
+    "steam"
+  ],
+  "ingredientRoles": {
+    "clover": [
+      "clover-infusion",
+      "clover-leaves"
+    ]
+  },
+  "camera": {
+    "ppu": 385,
+    "elevation": 24,
+    "anchor": [
+      0,
+      0,
+      -0.015
+    ]
+  },
+  "iconId": "meal_tea",
+  "props": [
+    "cup",
+    "steam"
+  ],
+  "completeParts": [
+    "cup",
+    "clover-infusion",
+    "clover-leaves",
+    "steam"
+  ],
+  "webpQuality": 92
+}
