@@ -9,6 +9,8 @@ from lib import box, crystal, empty, profile, sphere, toon, torus
 
 PARTS = ('iron-shell', 'back-scales', 'front-scales', 'left-mantle', 'right-mantle', 'ember-seams', 'crystal-clasps')
 HELMET = True
+# Lossy alpha WebP (VP8X) keeps these layers inside their reviewed mobile download budget.
+WEBP_QUALITY = 95
 CAMERA = dict(ppu=370, anchor=(0, 0, .635), elevation=math.radians(12))
 
 
@@ -72,8 +74,8 @@ def build(body, arms=None, head=None):
         parts['ember-seams'].append(box((.064 * side, -.127, .1), (.102, .012, .014), ember, arm,
                                        bevel=.004, line=0, name='dragon_shoulder_ember'))
         for z in (.212, .462):
-            parts['crystal-clasps'].append(crystal((.173 * side, -.287, z), .03, .05, gem, body,
-                                                 rot=(math.pi / 2, 0, 0), sides=5, line=.007, name='dragon_crystal_clasp'))
-        parts['crystal-clasps'].append(crystal((.147 * side, -.328, .17), .03, .054, gem, head,
-                                             rot=(math.pi / 2, 0, 0), sides=5, line=.007, name='dragon_crown_crystal'))
+            parts['crystal-clasps'].append(crystal((.173 * side, -.29, z), .048, .08, gem, body,
+                                                 rot=(math.pi / 2, 0, 0), sides=5, line=.01, name='dragon_crystal_clasp'))
+        parts['crystal-clasps'].append(crystal((.147 * side, -.335, .17), .05, .085, gem, head,
+                                             rot=(math.pi / 2, 0, 0), sides=5, line=.01, name='dragon_crown_crystal'))
     return parts

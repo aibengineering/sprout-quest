@@ -60,13 +60,13 @@
       "src": "assets/crafting/batcloak-fang-clasps.webp",
       "center": [
         0.5,
-        0.5137
+        0.5068
       ],
       "bounds": [
-        213,
-        204,
-        299,
-        322
+        194,
+        189,
+        318,
+        330
       ]
     },
     "complete": {

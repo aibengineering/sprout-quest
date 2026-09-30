@@ -36,9 +36,11 @@ describe('ingredient-built late armor assets', () => {
       }
       expect(spec.duration - reveal.at).toBeGreaterThanOrEqual(600);
       expect(spec.duration).toBeLessThanOrEqual(4500);
-      // Each real crystal gets its own clip and contact, rather than six decorative
-      // jewels appearing from one landing in the empty center of the garment.
-      expect(spec.targets.filter((target) => target.material === 'crystal')).toHaveLength(item.recipe.crystal);
+      // All crystals set their chunky clasps in one assembly step, instead of six
+      // separate clipped specks; the recipe quantity is allocated to that one contact.
+      expect(spec.targets.filter((target) => target.material === 'crystal').map((target) => target.part))
+        .toEqual(['crystal-clasps']);
+      expect(spec.layers.some((layer) => 'clip' in layer)).toBe(false);
       for (const layer of spec.layers) expect(readFileSync(`public/${layer.src}`).length).toBeGreaterThan(0);
     });
     test(`${id} preserves the recipe and combat balance`, () => {

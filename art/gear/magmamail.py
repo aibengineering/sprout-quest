@@ -8,6 +8,8 @@ from lib import box, crystal, empty, profile, sphere, toon, torus
 
 PARTS = ('iron-shell', 'ember-seams', 'left-horns', 'right-horns', 'crystal-clasps')
 HELMET = False
+# Lossy alpha WebP (VP8X) keeps these layers inside their reviewed mobile download budget.
+WEBP_QUALITY = 95
 CAMERA = dict(ppu=480, anchor=(0, 0, .365), elevation=math.radians(12))
 
 
@@ -50,9 +52,9 @@ def build(body, arms=None, head=None):
                                      horn_edge, arm, seg=12, line=.006, name='magma_horn_root'))
         parts['ember-seams'].append(box((.023 * side, -.11, .091), (.125, .018, .017), ember, arm,
                                        bevel=.005, line=0, name='magma_shoulder_ember'))
-        parts['crystal-clasps'].append(crystal((.023 * side, -.121, .109), .034, .061, gem, arm,
-                                             rot=(math.pi / 2, 0, 0), sides=5, line=.008, name='magma_crystal_rivet'))
+        parts['crystal-clasps'].append(crystal((.023 * side, -.13, .109), .05, .085, gem, arm,
+                                             rot=(math.pi / 2, 0, 0), sides=5, line=.01, name='magma_crystal_rivet'))
         for z in (.223, .468):
-            parts['crystal-clasps'].append(crystal((.172 * side, -.267, z), .031, .056, gem, body,
-                                                 rot=(math.pi / 2, 0, 0), sides=5, line=.008, name='magma_crystal_rivet'))
+            parts['crystal-clasps'].append(crystal((.172 * side, -.27, z), .05, .085, gem, body,
+                                                 rot=(math.pi / 2, 0, 0), sides=5, line=.01, name='magma_crystal_rivet'))
     return parts

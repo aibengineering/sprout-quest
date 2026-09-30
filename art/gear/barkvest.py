@@ -36,8 +36,8 @@ def build(body, arms=None, head=None):
     stone = toon('#a4a8b0', rim=.13)
     for side in (-1, 1):
         for z in (.22, .355, .49):
-            add(parts, 'stone-fasteners', sphere((side * .043, -.269, z), (.031, .018, .028),
-                                                 stone, body, seg=10, line=.007, name='stone_button'))
+            add(parts, 'stone-fasteners', sphere((side * .056, -.272, z), (.047, .028, .043),
+                                                 stone, body, seg=14, line=.009, name='stone_button'))
     return parts
 
 

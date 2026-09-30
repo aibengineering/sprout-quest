@@ -7,11 +7,11 @@
     "iron-shell": {
       "src": "assets/crafting/magmamail-iron-shell.webp",
       "center": [
-        0.499,
+        0.5,
         0.5254
       ],
       "bounds": [
-        41,
+        42,
         148,
         470,
         390
@@ -60,13 +60,13 @@
       "src": "assets/crafting/magmamail-crystal-clasps.webp",
       "center": [
         0.5039,
-        0.5566
+        0.5625
       ],
       "bounds": [
-        92,
-        202,
-        424,
-        368
+        85,
+        197,
+        431,
+        379
       ]
     },
     "complete": {

@@ -1,15 +1,6 @@
 import type { CraftPresentation } from '../types';
 
 const src = (part: string) => `assets/crafting/dragonmail-${part}.webp`;
-const clasps = [
-  { x: .396, y: .318, clip: 'inset(27% 57% 64% 36%)' },
-  { x: .608, y: .318, clip: 'inset(27% 36% 64% 57%)' },
-  { x: .377, y: .671, clip: 'inset(64% 59% 29% 34%)' },
-  { x: .627, y: .671, clip: 'inset(64% 34% 29% 59%)' },
-  { x: .377, y: .847, clip: 'inset(81% 59% 12% 34%)' },
-  { x: .627, y: .847, clip: 'inset(81% 34% 12% 59%)' },
-];
-
 export default {
   id: 'dragonmail', duration: 4200,
   layers: [
@@ -19,7 +10,7 @@ export default {
     { id: 'left-mantle', src: src('left-mantle') },
     { id: 'right-mantle', src: src('right-mantle') },
     { id: 'ember-seams', src: src('ember-seams') },
-    ...clasps.map((clasp, i) => ({ id: `crystal-${i}`, src: src('crystal-clasps'), clip: clasp.clip })),
+    { id: 'crystal-clasps', src: src('crystal-clasps') },
   ],
   complete: src('complete'),
   roles: { iron: 'Inner shell, sleeves & crown rim', scale: 'Overlapping scale panels & crown',
@@ -31,8 +22,7 @@ export default {
     { material: 'scale', part: 'left-mantle', at: 1230, duration: 460, x: .260, y: .640, contact: 'solid', sound: 'craftFluff' },
     { material: 'scale', part: 'right-mantle', at: 1460, duration: 460, x: .740, y: .640, contact: 'solid', sound: 'craftFluff' },
     { material: 'ember', part: 'ember-seams', at: 2060, duration: 480, x: .5, y: .733, contact: 'energy', sound: 'craftGoo' },
-    ...clasps.map((clasp, i) => ({ material: 'crystal' as const, part: `crystal-${i}`, at: 2710 + i * 80,
-      duration: 360, x: clasp.x, y: clasp.y, contact: 'solid' as const, sound: 'craftStitch' as const })),
+    { material: 'crystal', part: 'crystal-clasps', at: 2710, duration: 620, x: .615, y: .662, contact: 'solid', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'shape', text: 'Iron, forming the shell and open crown…' },
