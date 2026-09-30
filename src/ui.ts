@@ -1,7 +1,8 @@
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
 import { xpBloops, type Sfx } from './audio';
-import { fluffyCraftMarkup, playFluffyCraft } from './crafting';
+import { craftMarkup, craftPresentation, playCraft } from './crafting';
+import type { CraftItem, CraftPresentation } from './crafting/types';
 import {
   GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
   STYLE_NAMES, TOOLS, ZONES, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
@@ -169,6 +170,7 @@ export function allIconIds(): string[] {
     ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`))];
   return [
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
+    ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
     ...buildings.map((b) => `b_${b}`), 'npc_elder',
     // Story portraits and keepsakes.
@@ -1140,8 +1142,8 @@ export class UI {
       rows = POTION_RECIPES.map((p) => {
         const can = at && hasMats(s, p.recipe) && s.potions < MAX_POTIONS;
         return {
-          id: p.id, art: '<span class="emo">🧪</span>', name: p.name, tier: 0, owned: false, lock: null, can,
-          tag: () => tagCard('<span class="emo big-emo">🧪</span>', esc(p.name), `<div class="desc">You carry ${s.potions}/${MAX_POTIONS}.</div><div class="chips">${costChips(s, p.recipe)}</div>`,
+          id: p.id, art: icon(p.id, '🧪'), name: p.name, tier: 0, owned: false, lock: null, can,
+          tag: () => tagCard(icon(p.id, '🧪'), esc(p.name), `<div class="desc">You carry ${s.potions}/${MAX_POTIONS}.</div><div class="chips">${costChips(s, p.recipe)}</div>`,
             `<button class="go" data-potion="${p.id}" ${can ? '' : 'disabled'}>${s.potions >= MAX_POTIONS ? 'Full' : 'Brew'}</button>`),
         };
       });
@@ -1557,20 +1559,11 @@ export class UI {
       const d = b - a;
       return `<span class="chip ${d >= 0 ? 'ok' : 'miss'}">${k.toUpperCase()} ${a} → <b>${b}</b></span>`;
     };
-    if (g.id === 'fluffvest' && g.recipe) {
-      const choice = this.dialog(
-        `${fluffyCraftMarkup(g.recipe, before)}<div class="craft-details" hidden><div class="chips">${cmp('atk')}${cmp('def')}${cmp('hp')}</div></div>`,
-        [['later', 'Keep in bag'], ['equip', 'Equip now!']],
-        'crafting',
-      );
-      const buttons = this.sheet.querySelector<HTMLElement>('.btns')!;
-      buttons.hidden = true;
-      const craft = playFluffyCraft(this.sheet, g.recipe, before, (s) => this.hooks.sound(s), () => {
-        this.sheet.querySelector<HTMLElement>('.craft-details')!.hidden = false;
-        buttons.hidden = false;
-      });
-      try { return await choice; }
-      finally { craft.dispose(); }
+    const presentation = craftPresentation(g);
+    if (presentation && g.recipe) {
+      return this.showCraft({ ...g, recipe: g.recipe }, presentation, before,
+        `<div class="chips">${cmp('atk')}${cmp('def')}${cmp('hp')}</div>`,
+        [['later', 'Keep in bag'], ['equip', 'Equip now!']]);
     }
     this.hooks.sound('treasure');
     return this.dialog(
@@ -1581,6 +1574,25 @@ export class UI {
       [['later', 'Keep in bag'], ['equip', 'Equip now!']],
       'celebrate',
     );
+  }
+
+  /** Tools are already repaired/upgraded; potions/meals are already saved when this opens. */
+  madeItem(item: CraftItem, before: Recipe, text: string, emoji: string, heading = 'You crafted', label = 'Take it!') {
+    const presentation = craftPresentation(item);
+    if (!presentation) return this.itemFound(item.iconId ?? item.id, item.name, text, emoji, heading);
+    return this.showCraft(item, presentation, before, `<p>${esc(text)}</p>`, [['ok', label]]);
+  }
+
+  private async showCraft(item: CraftItem, presentation: CraftPresentation, before: Recipe, details: string, choices: [string, string, string?][]) {
+    const choice = this.dialog(`${craftMarkup(item, presentation, before)}<div class="craft-details" hidden>${details}</div>`, choices, 'crafting');
+    const buttons = this.sheet.querySelector<HTMLElement>('.btns')!;
+    buttons.hidden = true;
+    const craft = playCraft(this.sheet, presentation, item.recipe, before, (s) => this.hooks.sound(s), () => {
+      this.sheet.querySelector<HTMLElement>('.craft-details')!.hidden = false;
+      buttons.hidden = false;
+    });
+    try { return await choice; }
+    finally { craft.dispose(); }
   }
 
   challenge(kind: MonsterKind, name: string, title: string, lv: number, playerLv: number, zoneName: string) {

@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import env  # noqa: E402
 import gather  # noqa: E402
+from gear_parts import item_module, preview_parts, item_ids  # noqa: E402
 import hero  # noqa: E402
 import icons  # noqa: E402
 import lib  # noqa: E402
@@ -40,6 +41,25 @@ def shot(name, w, h, ppu, **kw):
 
 def wanted(key):
     return ONLY is None or key in ONLY.split(',')
+
+
+def contributed_icon(item_id, destination=None):
+    item = item_module(item_id)
+    if item is None:
+        return False
+    root, parts = preview_parts(item)
+    weapon = hasattr(item, 'build_weapon')
+    camera = dict(ppu=240 if weapon else 320,
+                  anchor=(.42, 0, .42) if weapon else (0, 0, .55),
+                  elevation=0 if weapon else math.radians(12))
+    camera.update(getattr(item, 'CAMERA', {}))
+    camera['ppu'] /= 4
+    for key, objects in parts.items():
+        if key not in getattr(item, 'COMPLETE_PARTS', parts):
+            for obj in objects:
+                obj.hide_render = True
+    shot('icon/' + (destination or item_id), 128, 128, fit_origin=.5, **camera)
+    return True
 
 
 lib.reset()
@@ -98,6 +118,8 @@ elif GROUP == 'icons':
         if not wanted(wid):
             continue
         lib.clear_objects()
+        if contributed_icon(wid):
+            continue
         root = lib.empty('w')
         fn(root)
         root.scale = (1, CHUNKY, CHUNKY)
@@ -108,6 +130,8 @@ elif GROUP == 'icons':
         if not wanted(armor):
             continue
         lib.clear_objects()
+        if contributed_icon(armor):
+            continue
         if armor == 'fluffvest':
             # Use the same headless garment as the tactile crafting assembly.
             hero.build_fluffvest(lib.empty('fluffvest_icon'))
@@ -122,8 +146,16 @@ elif GROUP == 'icons':
         if not wanted(name):
             continue
         lib.clear_objects()
+        if contributed_icon(name.removeprefix('meal_'), name):
+            continue
         fn()
         shot(f'icon/{name}', 128, 128, 120, elevation=math.radians(12), fit_origin=0.5)
+
+    for item_id in item_ids():
+        if item_id not in ('jellypot', 'shroombrew', 'embertonic') or not wanted(item_id):
+            continue
+        lib.clear_objects()
+        contributed_icon(item_id)
 
 elif GROUP == 'npc':
     if wanted('elder'):

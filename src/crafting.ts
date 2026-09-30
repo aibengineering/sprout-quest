@@ -1,62 +1,75 @@
-// The Fluffy Vest's little making-of. Presentation only: the game commits and saves the recipe before opening it.
-// Every flight has an ingredient, a quantity and a destination. Nothing is granted or charged by an animation.
+// Presentation only: the game commits and saves the recipe before opening this modal.
+// Every flight accounts for real ingredients. Animations never grant, charge or equip gear.
 import { iconUrl } from './assets';
 import type { Sfx } from './audio';
-import type { Recipe } from './data';
+import { GEAR, MATS, type Gear, type MatId, type Recipe } from './data';
+import fluffvest from './crafting/items/fluffvest';
+import { CRAFT_PRESENTATIONS } from './crafting/catalog';
+import type { CraftFlight, CraftItem, CraftPresentation } from './crafting/types';
+export type { CraftFlight, CraftPresentation } from './crafting/types';
+export { FLUFFY_PARTS, FLUFFY_BINDINGS, FLUFFY_DURATION } from './crafting/items/fluffvest';
 
-export const FLUFFY_PARTS = ['left-panel', 'right-panel', 'collar', 'left-cuff', 'right-cuff', 'goo-seams'] as const;
-type Part = typeof FLUFFY_PARTS[number];
-export interface CraftFlight { material: 'fluff' | 'goo'; count: number; part: Part; at: number; duration: number; x: number; y: number; binding?: number }
-export const FLUFFY_DURATION = 3200;
-/** Four visible pieces of adhesive: cuffs, hem, then the front closure. Bounds use the registered 512px art. */
-export const FLUFFY_BINDINGS = [
-  { x: .2, y: .6, clip: 'inset(43.7% 70% 23% 0)' },
-  { x: .8, y: .6, clip: 'inset(43.7% 0 23% 70%)' },
-  { x: .38, y: .74, clip: 'inset(68% 30% 23% 30%)' },
-  { x: .5, y: .54, clip: 'inset(43.7% 47% 23% 47%)' },
-] as const;
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-/** Split the real recipe into a handful of legible bundles, rather than 16 tiny, identical particles. */
-export function fluffyFlights(recipe: Recipe): CraftFlight[] {
-  const split = (n: number, slots: number) => Array.from({ length: slots }, (_, i) => Math.floor(n / slots) + (i < n % slots ? 1 : 0));
-  const targets: [Part, number, number][] = [
-    ['left-panel', 0.289, 0.541], ['right-panel', 0.711, 0.541], ['collar', 0.503, 0.340], ['left-cuff', 0.191, 0.613], ['right-cuff', 0.815, 0.613],
-  ];
-  return [
-    ...split(recipe.fluff ?? 0, 5).map((count, i): CraftFlight => ({ material: 'fluff', count, part: targets[i][0], x: targets[i][1], y: targets[i][2], at: 220 + i * 155, duration: 520 })),
-    ...split(recipe.goo ?? 0, 4).map((count, i): CraftFlight => ({ material: 'goo', count, part: 'goo-seams', binding: i, x: FLUFFY_BINDINGS[i].x, y: FLUFFY_BINDINGS[i].y, at: 1450 + i * 140, duration: 460 })),
-  ].filter((f) => f.count > 0);
+/** A recipe's quantity is split over its material's contacts, including tiny/changed recipes. */
+export function craftFlights(item: CraftPresentation, recipe: Recipe): CraftFlight[] {
+  const seen: Recipe = {};
+  return item.targets.map((target): CraftFlight => {
+    const n = recipe[target.material] ?? 0;
+    const slots = item.targets.filter((t) => t.material === target.material).length;
+    const i = seen[target.material] ?? 0;
+    seen[target.material] = i + 1;
+    return { ...target, count: Math.floor(n / slots) + (i < n % slots ? 1 : 0) };
+  }).filter((f) => f.count > 0);
 }
 
-export function fluffyCraftMarkup(recipe: Recipe, before: Recipe): string {
-  const bag = (id: 'fluff' | 'goo', name: string, role: string) => `<div class="craft-material" data-material="${id}">
-    <img src="${iconUrl(id)}" alt="" class="craft-source"><div><b>${name}</b><small>${role}</small></div>
+/** Leave recipes without a ready, complete contribution on the existing celebration. */
+export function craftPresentation(g: Pick<Gear, 'id' | 'recipe'>): CraftPresentation | undefined {
+  const item = CRAFT_PRESENTATIONS[g.id];
+  return g.recipe && item && Object.keys(g.recipe).every((id) => item.targets.some((t) => t.material === id)) ? item : undefined;
+}
+
+export function craftMarkup(g: CraftItem, item: CraftPresentation, before: Recipe): string {
+  const recipe = g.recipe!;
+  const bag = (id: MatId) => `<div class="craft-material" data-material="${id}">
+    <img src="${iconUrl(id)}" alt="" class="craft-source"><div><b>${esc(MATS[id].name)}</b><small>${esc(item.roles[id] ?? '')}</small></div>
     <span class="craft-count"><b data-count="${id}">${before[id] ?? recipe[id] ?? 0}</b><small>−${recipe[id] ?? 0}</small></span></div>`;
-  return `<div class="craft-heading"><span class="craft-eyebrow">THE FORGE · HANDMADE</span><h2>Fluffy Vest</h2></div>
-    <div class="craft-scene" data-stage="gather" aria-label="Bunny Fluff becomes the vest's panels, collar and cuffs. Slime Goo binds the seams.">
+  return `<div class="craft-heading"><span class="craft-eyebrow">${esc(item.eyebrow ?? 'THE FORGE · HANDMADE')}</span><h2>${esc(g.name)}</h2></div>
+    <div class="craft-scene" data-stage="gather" data-item="${esc(g.id)}" aria-label="${esc(item.sceneLabel)}">
       <div class="craft-halo"></div><div class="craft-bench"><i></i><i></i><i></i></div>
-      <div class="craft-pattern" aria-hidden="true">✂<span>soft things, made strong</span></div>
-      <div class="craft-garment" aria-hidden="true">${FLUFFY_PARTS.slice(0, 5).map((p) => `<img class="craft-part" data-part="${p}" src="assets/crafting/fluffvest-${p}.webp" alt="">`).join('')}${FLUFFY_BINDINGS.map((b, i) => `<img class="craft-part craft-binding" data-binding="${i}" style="clip-path:${b.clip}" src="assets/crafting/fluffvest-goo-seams.webp" alt="">`).join('')}<img class="craft-complete" src="assets/crafting/fluffvest-complete.webp" alt=""></div>
-      <img class="craft-fallback" src="${iconUrl('fluffvest')}" alt="Finished Fluffy Vest" hidden>
+      <div class="craft-pattern" aria-hidden="true">✂<span>${esc(item.pattern)}</span></div>
+      <div class="craft-garment" aria-hidden="true">${item.layers.map((p) => {
+        const initial = p.initial ?? (p.showAt === undefined && !item.targets.some((t) => t.part === p.id));
+        const style = `${p.clip ? `clip-path:${p.clip};` : ''}${initial ? 'opacity:1;' : ''}`;
+        return `<img class="craft-part${p.binding === undefined ? '' : ' craft-binding'}" data-part="${esc(p.id)}"${p.binding === undefined ? '' : ` data-binding="${p.binding}"`}${style ? ` style="${esc(style)}"` : ''} src="${esc(p.src)}" alt="">`;
+      }).join('')}<img class="craft-complete" src="${esc(item.complete)}" alt=""></div>
+      <img class="craft-fallback" src="${iconUrl(g.iconId ?? g.id)}" alt="Finished ${esc(g.name)}" hidden>
       <div class="craft-sparkles" aria-hidden="true">${Array.from({ length: 7 }, (_, i) => `<i style="--i:${i}">✦</i>`).join('')}</div>
       <div class="craft-flights" aria-hidden="true"></div>
     </div>
-    <p class="craft-status" role="status" aria-live="polite">A little fluff. A little magic.</p>
-    <div class="craft-bag"><div class="craft-bag-label">🎒 FROM YOUR BAG</div>${bag('fluff', 'Bunny Fluff', 'Panels, collar & cuffs')}${bag('goo', 'Slime Goo', 'Soft, springy seams')}</div>
+    <p class="craft-status" role="status" aria-live="polite">${esc(item.intro)}</p>
+    <div class="craft-bag" data-materials="${Object.keys(recipe).length}"><div class="craft-bag-label">🎒 FROM YOUR BAG</div>${(Object.keys(recipe) as MatId[]).map(bag).join('')}</div>
     <button type="button" class="craft-skip" data-craft-skip>Skip animation <span aria-hidden="true">›</span><kbd class="key">Esc</kbd></button>`;
 }
 
+// Compatibility wrappers keep the pilot's existing checks and call sites stable.
+export const fluffyFlights = (recipe: Recipe) => craftFlights(fluffvest, recipe).map((f) => f.binding === undefined ? f : { ...f, part: 'goo-seams' });
+export const fluffyCraftMarkup = (recipe: Recipe, before: Recipe) => craftMarkup({ ...GEAR.fluffvest, recipe }, fluffvest, before);
+export const playFluffyCraft = (root: HTMLElement, recipe: Recipe, before: Recipe, sound: (s: Sfx) => void, ready: () => void) => playCraft(root, fluffvest, recipe, before, sound, ready);
+
 /** All temporary listeners, frames and Web Animations belong to this one modal and are cancelled together. */
-export function playFluffyCraft(root: HTMLElement, recipe: Recipe, before: Recipe, sound: (s: Sfx) => void, ready: () => void) {
+export function playCraft(root: HTMLElement, item: CraftPresentation, recipe: Recipe, before: Recipe, sound: (s: Sfx) => void, ready: () => void) {
   const scene = root.querySelector<HTMLElement>('.craft-scene')!;
   const garment = root.querySelector<HTMLElement>('.craft-garment')!;
   const flightLayer = root.querySelector<HTMLElement>('.craft-flights')!;
   const status = root.querySelector<HTMLElement>('.craft-status')!;
   const skip = root.querySelector<HTMLButtonElement>('[data-craft-skip]')!;
-  const flights = fluffyFlights(recipe), animations = new Set<Animation>();
+  const flights = craftFlights(item, recipe), animations = new Set<Animation>();
   const parts = [...root.querySelectorAll<HTMLImageElement>('.craft-part')];
   const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let ended = false, disposed = false, frame = 0, start = 0, phase = '', charged = { fluff: 0, goo: 0 };
+  const materials = Object.keys(recipe) as MatId[];
+  let ended = false, disposed = false, frame = 0, start: number | null = null, phase = -1;
+  const charged: Recipe = {};
   const launched = new Set<number>(), landed = new Set<number>();
   const animate = (el: HTMLElement, keys: Keyframe[], options: KeyframeAnimationOptions) => {
     if (!el.animate) return;
@@ -65,7 +78,7 @@ export function playFluffyCraft(root: HTMLElement, recipe: Recipe, before: Recip
     a.onfinish = () => animations.delete(a);
   };
   const counts = () => {
-    for (const id of ['fluff', 'goo'] as const) root.querySelector<HTMLElement>(`[data-count="${id}"]`)!.textContent = String((before[id] ?? recipe[id] ?? 0) - charged[id]);
+    for (const id of materials) root.querySelector<HTMLElement>(`[data-count="${id}"]`)!.textContent = String((before[id] ?? recipe[id] ?? 0) - (charged[id] ?? 0));
   };
   const clear = () => {
     cancelAnimationFrame(frame);
@@ -73,18 +86,24 @@ export function playFluffyCraft(root: HTMLElement, recipe: Recipe, before: Recip
     animations.clear();
     flightLayer.replaceChildren();
   };
+  const revealLayers = () => {
+    parts.forEach((p, i) => {
+      p.hidden = item.layers[i].finished === false;
+      p.style.opacity = '1';
+    });
+  };
   const finish = (audible = true) => {
     if (ended || disposed) return;
     if (!scene.isConnected) { dispose(); return; }
     ended = true;
     clear();
-    charged = { fluff: recipe.fluff ?? 0, goo: recipe.goo ?? 0 };
+    for (const id of materials) charged[id] = recipe[id] ?? 0;
     counts();
-    parts.forEach((p) => { p.style.opacity = '1'; });
+    revealLayers();
     scene.dataset.stage = 'ready';
     root.classList.add('craft-ready');
     skip.hidden = true;
-    status.textContent = 'Fluff for comfort. Goo to hold it together.';
+    status.textContent = item.finished;
     root.querySelector('.craft-eyebrow')!.textContent = 'MADE BY YOU';
     if (audible) sound('treasure');
     ready();
@@ -97,7 +116,7 @@ export function playFluffyCraft(root: HTMLElement, recipe: Recipe, before: Recip
   media.addEventListener('change', onMotion);
 
   const launch = (f: CraftFlight) => {
-    charged[f.material] += f.count;
+    charged[f.material] = (charged[f.material] ?? 0) + f.count;
     counts();
     const source = root.querySelector<HTMLElement>(`[data-material="${f.material}"] .craft-source`)!;
     const base = scene.getBoundingClientRect(), from = source.getBoundingClientRect(), to = garment.getBoundingClientRect();
@@ -111,7 +130,7 @@ export function playFluffyCraft(root: HTMLElement, recipe: Recipe, before: Recip
     animate(particle, [
       { transform: transform(x, y, '1', 0), opacity: 1, offset: 0 },
       { transform: transform(x, y + 7, '.85,1.12', -8), opacity: 1, offset: 0.13 },
-      { transform: transform(x + (tx - x) * .25, Math.min(y, ty) - 36, '.92,1.12', f.material === 'fluff' ? -18 : 15), opacity: 1, offset: .6 },
+      { transform: transform(x + (tx - x) * .25, Math.min(y, ty) - 36, '.92,1.12', f.contact === 'soft' ? -18 : 15), opacity: 1, offset: .6 },
       { transform: transform(tx, ty, '1.15,.8', 0), opacity: 1, offset: .92 },
       { transform: transform(tx, ty, '.3', 0), opacity: 0, offset: 1 },
     ], { duration: f.duration, easing: 'cubic-bezier(.3,.05,.4,1)', fill: 'forwards' });
@@ -119,38 +138,51 @@ export function playFluffyCraft(root: HTMLElement, recipe: Recipe, before: Recip
     sound('craftPull');
   };
   const land = (f: CraftFlight) => {
-    const part = root.querySelector<HTMLElement>(f.material === 'goo' ? `[data-binding="${f.binding}"]` : `[data-part="${f.part}"]`)!;
+    const part = root.querySelector<HTMLElement>(`[data-part="${f.part}"]`)!;
     part.style.opacity = '1';
     part.style.transformOrigin = `${f.x * 100}% ${f.y * 100}%`;
-    if (f.material === 'fluff') {
+    if (f.contact === 'soft') {
       animate(part, [
         { transform: 'scale(.4,.28)', opacity: .3 }, { transform: 'scale(1.11,.85)', opacity: 1, offset: .45 },
         { transform: 'scale(.96,1.04)', offset: .72 }, { transform: 'scale(1)' },
       ], { duration: 370, easing: 'ease-out' });
-      sound('craftFluff');
-    } else {
+      sound(f.sound ?? 'craftFluff');
+    } else if (f.contact === 'bind') {
       animate(part, [{ opacity: 0, transform: 'scale(.9,1.06)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 240, easing: 'ease-out' });
       animate(garment, [{ transform: 'scale(1)' }, { transform: 'scale(1.025,.975)' }, { transform: 'scale(1)' }], { duration: 220 });
-      sound('craftGoo');
+      sound(f.sound ?? 'craftGoo');
+    } else if (f.contact === 'solid') {
+      animate(part, [{ transform: 'translateY(-8px) scale(.94)', opacity: .3 }, { transform: 'translateY(2px) scale(1.02,.98)', opacity: 1, offset: .65 }, { transform: 'none' }], { duration: 280, easing: 'ease-out' });
+      animate(garment, [{ transform: 'translateY(0)' }, { transform: 'translateY(2px)' }, { transform: 'translateY(0)' }], { duration: 180 });
+      sound(f.sound ?? 'craftStitch');
+    } else {
+      animate(part, [{ transform: 'scale(.7)', opacity: 0 }, { transform: 'scale(1.07)', opacity: 1, offset: .65 }, { transform: 'scale(1)', opacity: 1 }], { duration: 340, easing: 'ease-out' });
+      sound(f.sound ?? 'ding');
     }
   };
   const tick = (now: number) => {
     if (ended || disposed) return;
     if (!scene.isConnected) { dispose(); return; }
-    start ||= now;
+    start ??= now;
     const t = now - start;
-    const next = t < 1450 ? 'fluff' : t < 2450 ? 'binding' : 'reveal';
-    if (phase !== next) {
+    let next = -1;
+    item.phases.forEach((p, i) => { if (t >= p.at) next = i; });
+    if (phase !== next && next >= 0) {
       phase = next;
-      scene.dataset.stage = next;
-      status.textContent = next === 'fluff' ? 'Bunny Fluff, finding its shape…' : next === 'binding' ? 'Slime Goo, sealing every seam…' : 'A soft little vest, made to last.';
-      if (next === 'reveal') sound('craftStitch');
+      const p = item.phases[next];
+      scene.dataset.stage = p.stage;
+      status.textContent = p.text;
+      if (p.stage === 'reveal') revealLayers();
+      if (p.sound) sound(p.sound);
     }
     flights.forEach((f, i) => {
       if (t >= f.at && !launched.has(i)) { launched.add(i); launch(f); }
       if (t >= f.at + f.duration && !landed.has(i)) { landed.add(i); land(f); }
     });
-    if (t >= FLUFFY_DURATION) finish();
+    item.layers.forEach((layer, i) => {
+      if (layer.showAt !== undefined && t >= layer.showAt) parts[i].style.opacity = '1';
+    });
+    if (t >= item.duration) finish();
     else frame = requestAnimationFrame(tick);
   };
   // Decode before starting so the first bundle cannot arrive at an invisible garment on a slow connection.
@@ -167,7 +199,7 @@ export function playFluffyCraft(root: HTMLElement, recipe: Recipe, before: Recip
     root.querySelector<HTMLImageElement>('.craft-fallback')!.hidden = false;
     finish();
   }).finally(() => clearTimeout(loadTimer));
-  const dispose = () => {
+  function dispose() {
     if (disposed) return;
     disposed = true;
     clear();

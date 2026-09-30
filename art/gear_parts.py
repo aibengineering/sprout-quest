@@ -6,6 +6,7 @@ the existing model; errors in present modules must surface rather than be hidden
 """
 from functools import lru_cache
 import importlib
+import math
 import os
 
 
@@ -33,8 +34,13 @@ def preview_parts(item):
         for side in (-1, 1):
             pivots['arm' + str(side)] = empty('arm' + str(side), body, (.29 * side, 0, .37))
         return root, item.build_armor(pivots)
+    weapon = hasattr(item, 'build_weapon')
     builder = getattr(item, 'build_weapon', None) or item.build_item
-    return root, builder(root)
+    parts = builder(root)
+    if weapon:
+        root.rotation_euler = getattr(item, 'PREVIEW_ROTATION', (0, -math.pi / 4, 0))
+        root.scale = getattr(item, 'PREVIEW_SCALE', (1, 1.25, 1.25))
+    return root, parts
 
 
 def item_icon(item_id):

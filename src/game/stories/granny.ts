@@ -1,6 +1,7 @@
 // Granny Clover: in the blue house in Sowerby from the day you arrive, worrying about her granddaughter Poppy. Once
 // Mr. Floppers is home (Poppy's story), she cooks for you: her Kitchen (see kitchen.ts).
 import { cook, kitchenOpen, MEALS, type MealId } from '../../kitchen';
+import { craftPresentation } from '../../crafting';
 import { G, paused, persist } from '../context';
 import { say, type Speaker } from '../scenes';
 import type { Story } from '../stories';
@@ -34,9 +35,12 @@ function kitchen() {
     const r = await G.ui.kitchen(G.save, GREETINGS[greet++ % GREETINGS.length]);
     if (!r.startsWith('cook:')) return;
     const id = r.slice(5) as MealId;
+    const before = { ...G.save.mats };
     if (cook(G.save, id) !== 'ok') return;
-    G.audio.play('craft');
+    const meal = MEALS[id];
+    if (!craftPresentation(meal)) G.audio.play('craft');
     persist();
+    if (craftPresentation(meal)) await G.ui.madeItem({ ...meal, iconId: `meal_${id}` }, before, meal.desc, meal.icon, 'Granny made', 'Enjoy!');
     await say(GRANNY, `${MEALS[id].icon} There you go: ${MEALS[id].name}. Mind the crumbs!`);
   });
 }

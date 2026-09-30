@@ -7,6 +7,12 @@ export interface CraftLayer {
   src: string;
   /** Optional registered-canvas clipping, for separate contacts on one shared seam image. */
   clip?: string;
+  /** Untargeted supports (bottles/cookware) show initially unless explicitly disabled. */
+  initial?: boolean;
+  /** Non-ingredient effects such as steam can enter at a particular timeline time. */
+  showAt?: number;
+  /** Fuel and temporary supports can leave when the finished piece is revealed. */
+  finished?: boolean;
   /** Pilot compatibility only; new contributions should use unique layer ids. */
   binding?: number;
 }
@@ -39,6 +45,16 @@ export interface CraftPresentation {
   pattern: string;
   intro: string;
   finished: string;
+  /** Defaults to the Forge heading; meals may name Granny's kitchen instead. */
+  eyebrow?: string;
+}
+
+export interface CraftItem {
+  id: string;
+  name: string;
+  recipe: import('../data').Recipe;
+  /** Meals retain their existing meal_<id> inventory icon identity. */
+  iconId?: string;
 }
 
 export interface CraftFlight extends CraftTarget { count: number }

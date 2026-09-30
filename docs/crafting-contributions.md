@@ -45,10 +45,15 @@ export default {
   all contacts, leaving time for the final lift before `duration`.
 - A layer may use `clip: 'inset(...)'` to reveal separate contacts from one
   registered image. Use separate unique ids for those clips.
+- Untargeted bottles/cookware show initially by default. `initial` overrides that
+  default; `showAt` schedules steam or other effects in milliseconds; `finished:
+  false` hides fuel or temporary supports at reveal and after skip/reduced motion.
+- Optional `eyebrow` names another station, such as Granny's kitchen.
 - `binding` is a pilot compatibility field. New definitions do not need it.
 - Text fields explain the actual materials and construction. The schema describes
   presentation only; persistence, ownership, effects and equip stay in game rules.
-- The integration owner adds finished definitions to `src/crafting/catalog.ts`.
+- The integration owner runs `bun run scripts/register-crafting.ts` to add finished
+  definitions to `src/crafting/catalog.ts` after their assets arrive.
 
 ## Blender geometry
 
@@ -68,6 +73,10 @@ helmet setting). Preview rendering supplies these same empty pivots without skin
 Weapons export `build_weapon(root)`. Keep the grip at the origin and length along
 `+X`, within the existing weapon's footprint. Existing length metadata and hero
 attachment nodes stay unchanged. All weapon render/model callers use this builder.
+Only the preview root rotates `(0,-pi/4,0)` and scales `(1,1.25,1.25)` by default,
+matching the existing tilted weapon view. Optional `PREVIEW_ROTATION` and
+`PREVIEW_SCALE` override those preview transforms. `CAMERA` anchors are world
+coordinates after these transforms. Equipped geometry stays on the grip/+X axis.
 
 Charms, tools, potions and meals export `build_item(root)`. Construct under that
 root and return the parts map; icon and workbench rendering share the builder.
@@ -76,6 +85,9 @@ Assembly rendering accepts optional `CAMERA = dict(ppu=..., anchor=(x,y,z),
 elevation=...)`; elevation is in radians. Every part and complete image uses that
 one camera. Optional `ICON_ID` overrides the destination inventory icon (meals
 automatically use `meal_<id>`).
+Optional `COMPLETE_PARTS` selects component ids present in the completed render and
+inventory icon; other components (for example pine cooking fuel) still get their
+own registered assembly image. Mark those runtime layers `finished: false` too.
 
 The shared command is `bun run art crafting <id>` (or comma-separated ids).
 It renders registered transparent 512×512 PNGs, packs lossless-quality WebPs,

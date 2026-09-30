@@ -1,8 +1,12 @@
 // In-process DOM coverage complements the real mobile Chromium scenarios. No network, GPU or timers are needed.
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { Window } from 'happy-dom';
-import { fluffyCraftMarkup, playFluffyCraft, FLUFFY_BINDINGS, FLUFFY_DURATION } from '../src/crafting';
-import { GEAR } from '../src/data';
+import { craftMarkup, playCraft, fluffyCraftMarkup, playFluffyCraft, FLUFFY_BINDINGS, FLUFFY_DURATION } from '../src/crafting';
+import fluffvest from '../src/crafting/items/fluffvest';
+import { CRAFT_PRESENTATIONS } from '../src/crafting/catalog';
+import type { CraftPresentation } from '../src/crafting/types';
+import { GEAR, TOOLS, POTION_RECIPES, type MatId, type Recipe } from '../src/data';
+import { MEALS } from '../src/kitchen';
 import { UI, type UIHooks } from '../src/ui';
 
 const recipe = GEAR.fluffvest.recipe!;
@@ -170,5 +174,81 @@ describe('Fluffy Vest presentation lifecycle', () => {
     keep.focus();
     win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'Enter', bubbles: true }));
     expect(await choice).toBe('later');
+  });
+});
+
+describe('shared crafting player', () => {
+  const recipe: Recipe = { iron: 8, copper: 6, stone: 6, pine: 3 };
+  const materials = Object.keys(recipe) as MatId[];
+  const contacts = ['solid', 'energy', 'bind', 'soft'] as const;
+  const presentation: CraftPresentation = {
+    ...fluffvest, id: 'ironplate',
+    roles: { iron: 'Plates', copper: 'Rivets', stone: 'Bracing', pine: 'Inner frame' },
+    layers: [
+      ...materials.map((id, i) => ({ id, src: fluffvest.layers[i].src })),
+      { id: 'bench-support', src: fluffvest.complete },
+      { id: 'fuel', src: fluffvest.complete, initial: true, finished: false },
+      { id: 'steam', src: fluffvest.complete, showAt: 1500 },
+    ],
+    targets: materials.map((material, i) => ({ material, part: material, at: 220 + i * 400, duration: 300, x: .3 + i * .1, y: .5, contact: contacts[i] })),
+    phases: [{ at: 0, stage: 'assemble', text: 'Assembling…' }, { at: 2450, stage: 'reveal', text: 'Made by you.' }],
+  };
+
+  test('four recipe materials land independently; supports, steam and fuel follow their stages', async () => {
+    root.innerHTML = craftMarkup({ ...GEAR.ironplate, recipe }, presentation, { iron: 16, copper: 12, stone: 12, pine: 6 });
+    expect((root.querySelector('[data-part="bench-support"]') as HTMLElement).style.opacity).toBe('1');
+    expect((root.querySelector('[data-part="steam"]') as HTMLElement).style.opacity).not.toBe('1');
+    let ready = 0;
+    const sounds: string[] = [];
+    const controller = playCraft(root, presentation, recipe, { iron: 16, copper: 12, stone: 12, pine: 6 }, (s) => sounds.push(s), () => ready++);
+    controllers.push(controller);
+    await drain();
+    frame(0); frame(1520);
+    expect((root.querySelector('[data-part="steam"]') as HTMLElement).style.opacity).toBe('1');
+    frame(2000);
+    for (const id of materials) {
+      expect(root.querySelector(`[data-count="${id}"]`)!.textContent).toBe(String(recipe[id]));
+      expect((root.querySelector(`[data-part="${id}"]`) as HTMLElement).style.opacity).toBe('1');
+    }
+    expect(sounds).toContain('craftStitch');
+    expect(sounds).toContain('craftGoo');
+    expect(sounds).toContain('craftFluff');
+    expect(sounds).toContain('ding');
+    frame(2450);
+    expect((root.querySelector('[data-part="fuel"]') as HTMLElement).hidden).toBe(true);
+    frame(3200);
+    expect(ready).toBe(1);
+    expect(sounds.filter((s) => s === 'treasure')).toHaveLength(1);
+    expect(frames.size).toBe(0);
+  });
+
+  test('tools, potions and meals use the same explicit acknowledgement after keyboard skip', async () => {
+    const ui = new UI({ sound: () => {} } as unknown as UIHooks);
+    for (const item of [TOOLS[0], POTION_RECIPES[0], { ...MEALS.tea, iconId: 'meal_tea' }]) {
+      const catalog = CRAFT_PRESENTATIONS as Record<string, CraftPresentation>;
+      const original = catalog[item.id];
+      catalog[item.id] = {
+        ...presentation, id: item.id,
+        roles: Object.fromEntries(Object.keys(item.recipe).map((id) => [id, 'Test ingredient'])),
+        targets: (Object.keys(item.recipe) as MatId[]).map((material, i) => ({ material, part: materials[i], at: 220, duration: 300, x: .5, y: .5, contact: 'solid' })),
+      };
+      try {
+        const before = { ...item.recipe };
+        const choice = ui.madeItem(item, before, 'Ready to use.', '✨');
+        win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'Enter', bubbles: true }));
+        expect(root.classList.contains('craft-ready')).toBe(true);
+        expect((root.querySelector('.btns') as HTMLElement).hidden).toBe(false);
+        let settled = false;
+        choice.then(() => settled = true);
+        await drain();
+        expect(settled).toBe(false);
+        win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'Enter', bubbles: true }));
+        expect(await choice).toBe('ok');
+        expect(before).toEqual(item.recipe);
+      } finally {
+        if (original) catalog[item.id] = original;
+        else delete catalog[item.id];
+      }
+    }
   });
 });

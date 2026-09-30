@@ -6,6 +6,7 @@ Reads art/out/*.json, writes public/assets/{atlas-N.webp, atlas.json, icons/*.we
 import glob
 import json
 import os
+import sys
 
 import bpy
 import numpy as np
@@ -31,6 +32,7 @@ def load(path):
 NOT_SHIPPED = ('hero/', 'mon/', 'npc/')
 ATLAS_QUALITY = 78
 ICON_QUALITY = 85
+INCREMENTAL = '--incremental' in sys.argv
 
 
 def save(px, path, quality=ATLAS_QUALITY):
@@ -75,6 +77,21 @@ def main():
             continue
         cut, x0, y0 = trim(px)
         sprites.append((e, cut, e['ax'] - x0, e['ay'] - y0))
+    # Isolated gear worktrees do not have every historical art/out render. Preserve
+    # unchanged shipped scenery/sprites when packing just one group or item.
+    atlas_path = os.path.join(DEST, 'atlas.json')
+    if INCREMENTAL and os.path.isfile(atlas_path):
+        previous = json.load(open(atlas_path))
+        updated = {e['name'] for e, _, _, _ in sprites}
+        old_pages = {}
+        for name, frame in previous['frames'].items():
+            if name in updated:
+                continue
+            page, x, y, w, h, ax, ay, ppu = frame
+            if page not in old_pages:
+                old_pages[page] = load(os.path.join(DEST, previous['pages'][page]))
+            cut = old_pages[page][y:y + h, x:x + w].copy()
+            sprites.append(({'name': name, 'ppu': ppu}, cut, ax, ay))
     # Shelf packing, tallest first.
     sprites.sort(key=lambda s: (-s[1].shape[0], -s[1].shape[1]))
     pages = [np.zeros((PAGE, PAGE, 4), np.float32)]
@@ -103,4 +120,5 @@ def main():
     print(f'PACKED {len(frames)} frames into {len(files)} pages; icons done')
 
 
-main()
+if __name__ == '__main__':
+    main()
