@@ -506,6 +506,11 @@ body:has(#modal:not([hidden])) #title { z-index: 19; }
 .hint { color: #fff; font-size: 13px; font-weight: 700; opacity: 0.9; text-shadow: 0 1px 0 var(--ink); line-height: 1.5; }
 #modal:not([hidden]) ~ #toast { top: calc(10px + var(--safe-t)); }
 img.icon { width: 44px; height: 44px; object-fit: contain; display: inline-block; vertical-align: middle; filter: drop-shadow(0 2px 0 rgba(74, 42, 90, 0.18)); }
+.icon-fallback { display: inline-grid; place-items: center; width: 1em; height: 1em; font-size: 44px; line-height: 1; vertical-align: middle; }
+.icon-fallback.sm { font-size: 20px; }
+.icon-fallback.lg { font-size: 56px; }
+.icon-fallback.xl { font-size: 72px; }
+.icon-fallback.xxl { font-size: 116px; }
 img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
 .result .chip img.icon.sm { width: 26px; height: 26px; vertical-align: -7px; }
 
@@ -1098,8 +1103,9 @@ body.kbd .drag-hint .keys { display: flex; }
 @keyframes rays { to { transform: rotate(360deg); } }
 @keyframes raysin { from { opacity: 0; transform: scale(0.4); } }
 .stage-art { position: relative; animation: prize 0.6s 0.1s cubic-bezier(0.3, 1.7, 0.5, 1) backwards, float 2.4s 0.7s ease-in-out infinite; filter: drop-shadow(0 6px 0 rgba(58, 36, 72, 0.25)); }
-.stage-art img.icon.xxl { width: 120px; height: 120px; }
-.stage.small .stage-art img.icon { width: 88px; height: 88px; }
+.stage-art { --prize-size: 120px; }
+.stage.small .stage-art { --prize-size: 88px; }
+.stage .stage-art .icon { width: var(--prize-size); height: var(--prize-size); font-size: var(--prize-size); }
 @keyframes prize { from { transform: scale(0) rotate(-25deg); } }
 @keyframes float { 50% { transform: translateY(-6px); } }
 .sparkles i { position: absolute; width: 14px; height: 14px; background: #fff; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); animation: twinkle 1.6s infinite ease-in-out; opacity: 0; }
@@ -1152,7 +1158,8 @@ body.kbd .drag-hint .keys { display: flex; }
 @media (max-height: 560px) {
   .stage { height: 110px; width: 140px; }
   .stage.small { height: 90px; }
-  .stage-art img.icon.xxl { width: 84px; height: 84px; }
+  .stage-art { --prize-size: 84px; }
+  .stage.small .stage-art { --prize-size: 72px; }
   .lvbadge { width: 80px; height: 80px; }
   .lvbadge b { font-size: 38px; }
   .lvbadge small { top: 10px; }

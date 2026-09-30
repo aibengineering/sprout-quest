@@ -87,7 +87,7 @@ const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', mea
 /** Blender-rendered icon with the emoji as a fallback if the image is missing. */
 export function icon(id: string, emoji: string, cls = 'icon') {
   // decoding="sync": paint the (already downloaded and decoded) icon with the menu, not a moment after.
-  return `<img class="${cls}" src="${iconUrl(id)}" alt="" decoding="sync" onerror="this.outerHTML='${emoji}'">`;
+  return `<img class="${cls}" src="${iconUrl(id)}" alt="" decoding="sync" data-fallback="${esc(emoji)}" onerror="const fallback=document.createElement('span'); fallback.className=this.className+' icon-fallback'; fallback.textContent=this.dataset.fallback; this.replaceWith(fallback)">`;
 }
 
 export function gearStats(g: Gear): string {
@@ -158,7 +158,7 @@ function goalIcon(q: Quest): string {
   if (g.type === 'boss') return bossIcon(g.kind, 'icon xl');
   if (g.type === 'build') return icon(`b_${g.project === 'forge' ? forgeArt(g.level) : g.project + g.level}`, PROJECTS[g.project].icon, 'icon xl');
   if (g.type === 'kills') return icon('goo', '⚔️', 'icon xl');
-  if (g.type === 'craft') return icon('jelly', '⚒', 'icon xl');
+  if (g.type === 'craft') return icon('stonehammer', '⚒', 'icon xl');
   if (g.type === 'mend') return icon('axe1', '🪓', 'icon xl');
   return icon('npc_elder', '🌿', 'icon xl');
 }

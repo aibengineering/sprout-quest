@@ -1030,6 +1030,32 @@ scenario('sound settings: mute everything, or turn the music and the effects up 
   check(await game<boolean>(page, 'g.sound.music === 0 && g.sound.effects === 0.4 && !g.sound.muted && g.audio.effects === 0.4'), 'the settings were not kept');
 });
 
+scenario('chapter celebrations size loaded and fallback icons on phones and short screens', null, async (page) => {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }, { width: 740, height: 500 }]) {
+    await page.setViewportSize(viewport);
+    for (const goal of ['craft', 'build', 'boss', 'mats', 'mend']) {
+      await run(page, `void g.ui.questComplete(g.quests.find(q => q.goal.type === '${goal}'))`);
+      const art = page.locator('.stage-art .icon');
+      await art.waitFor();
+      await page.waitForTimeout(750);
+      check(await art.evaluate((el) => el instanceof HTMLImageElement && el.complete && el.naturalWidth > 0), `${goal}: missing chapter art`);
+      const expected = viewport.height <= 560 ? 72 : 88;
+      for (const fallback of [false, true]) {
+        if (fallback) await art.evaluate((el) => el.dispatchEvent(new Event('error')));
+        const box = await art.boundingBox();
+        check(box && Math.abs(box.width - expected) < 1 && Math.abs(box.height - expected) < 1, `${goal}: ${fallback ? 'fallback' : 'image'} has wrong size`);
+        const stageBox = await page.locator('.stage.small').boundingBox();
+        check(box && stageBox && Math.abs(box.x + box.width / 2 - stageBox.x - stageBox.width / 2) < 1, `${goal}: icon is not centered`);
+        check(await page.locator('[data-dialog="ok"]').isVisible(), `${goal}: reward action missing`);
+      }
+      await page.click('[data-dialog="ok"]');
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await run(page, `void g.ui.questComplete(g.quests.find(q => q.id === 'gear'))`);
+  await page.waitForTimeout(800);
+});
+
 scenario('music: it gets ready on the title (where you are first), plays from the first tap, and follows you into a fight and back', null, async (page) => {
   // Music is off in automated browsers unless the page asks for it.
   await page.goto(`${page.url().split('?')[0]}?music`);
