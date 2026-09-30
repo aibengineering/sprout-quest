@@ -169,8 +169,8 @@ export class GatherView {
   /** What you earned, waiting to pop out; and seconds since it came free (-1: not yet). */
   private drops: [string, number][] = [];
   private freed = -1;
-  /** Sounds as things happen (or `inSecs` from now): set by the game. */
-  onSound: (s: GatherSound, inSecs?: number) => void = () => {};
+  /** Sounds as things happen: set by the game. */
+  onSound: (s: GatherSound) => void = () => {};
 
   constructor(readonly look: Look) {
     this.art = look.kind === 'wood' ? new TreeArt(look.tree) : new RockArt(look.rock, look);
@@ -231,10 +231,11 @@ export class GatherView {
     this.pending = { at: c.hitPos, share: c.lastAmount / c.hp, kind: c.last!, seed: Math.random() * 100 };
     this.target = this.art.target(c.hitPos, this.progress + this.pending.share);
     this.swing = 0;
-    // The blow's sound is booked now, to land as the tool connects: played at the moment it connects, the device's
-    // output delay made it trail the hit.
+    // The blow's sound plays on the tap, not when the tool connects on screen a tenth of a second later: audio output
+    // (Bluetooth earbuds especially) takes about that long anyway, so this is when it's heard landing. Measured in a
+    // playtest: Pixel Buds added 73 ms over the phone's reported 29, against the 102 ms swing to the hit.
     const b = this.pending;
-    this.onSound(b.kind === 'miss' ? 'glance' : this.look.kind === 'wood' ? 'chop' : 'clink', IMPACT * SWING_T);
+    this.onSound(b.kind === 'miss' ? 'glance' : this.look.kind === 'wood' ? 'chop' : 'clink');
   }
 
   /** The tool connects: the notch or crack, chips and dust, the wobble and the shake (its sound was booked at the strike). */
