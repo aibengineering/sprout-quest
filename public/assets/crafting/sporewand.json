@@ -1,0 +1,79 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "complete": {
+      "src": "assets/crafting/sporewand-complete.webp",
+      "center": [
+        0.4795,
+        0.5303
+      ],
+      "bounds": [
+        66,
+        94,
+        425,
+        449
+      ]
+    },
+    "cap-stem": {
+      "src": "assets/crafting/sporewand-cap-stem.webp",
+      "center": [
+        0.3906,
+        0.6201
+      ],
+      "bounds": [
+        66,
+        186,
+        334,
+        449
+      ]
+    },
+    "cap-crown": {
+      "src": "assets/crafting/sporewand-cap-crown.webp",
+      "center": [
+        0.6924,
+        0.3242
+      ],
+      "bounds": [
+        284,
+        94,
+        425,
+        238
+      ]
+    },
+    "cap-gills": {
+      "src": "assets/crafting/sporewand-cap-gills.webp",
+      "center": [
+        0.6797,
+        0.3379
+      ],
+      "bounds": [
+        293,
+        119,
+        403,
+        227
+      ]
+    },
+    "fang-braces": {
+      "src": "assets/crafting/sporewand-fang-braces.webp",
+      "center": [
+        0.6494,
+        0.3516
+      ],
+      "bounds": [
+        292,
+        134,
+        373,
+        226
+      ]
+    }
+  },
+  "stack": [
+    "cap-stem",
+    "cap-crown",
+    "cap-gills",
+    "fang-braces"
+  ]
+}
