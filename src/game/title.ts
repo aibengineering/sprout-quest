@@ -7,7 +7,8 @@ import { clearLog, logEvent } from '../stats';
 import { clearState, loadState, newState, saveState } from '../state';
 import { allIconIds, hasNews } from '../ui';
 import { VERSION } from '../version';
-import { G, persist, showZoneBanner } from './context';
+import { G, applySound, persist, showZoneBanner } from './context';
+import { zoneTheme } from '../music/scores';
 import { setUpStories } from './stories';
 import { progressQuests, unlocks } from './story';
 
@@ -55,6 +56,8 @@ export async function boot() {
   loading.classList.add('done');
   setTimeout(() => (loading.hidden = true), 300);
   booted = true;
+  // The music gets ready while you're on the title (it can only start playing once you tap): where you are first.
+  G.music.preload(zoneTheme(G.over.currentZone.id));
   // Every other armor, quietly, so changing gear shows the new look straight away.
   void loadModels(Object.values(GEAR).filter((g) => g.slot === 'armor' && g.id !== armor).map((g) => `hero_${g.id}`));
   // …and every weapon you own, so switching shows it in your hand straight away (others load when first held).
@@ -90,7 +93,7 @@ function startGame(fresh: boolean) {
     G.restart(s);
   }
   const s = G.save;
-  G.audio.muted = s.muted;
+  applySound(false);
   logEvent(s, { kind: 'session', action: fresh ? 'new' : 'start' });
   G.mode = 'world';
   G.ui.setMode('world');

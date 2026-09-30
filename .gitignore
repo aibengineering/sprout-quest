@@ -4,3 +4,4 @@ art/out
 __pycache__
 tests/e2e/out
 sim/out/
+art/music/cache

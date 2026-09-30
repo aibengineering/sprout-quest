@@ -8,6 +8,7 @@ import {
 import { currentQuest, progress, questNeeds } from './quests';
 import { MASTERY_MAX, PLOT_UNLOCK, canBuild, hasMats, levelLock, masteryXpToNext, playerStats, plotOpen, revealed, skillXpToNext, xpToNext, type Lock } from './rules';
 import type { SaveState } from './state';
+import type { SoundSettings } from './sound';
 import type { Unlock, UnlockId } from './unlocks';
 import { CLASS_NOTES, MOVESETS, SKILL_LEVELS, TRICKS, TRICK_LEVEL, comboTime, handlingStep, skillAt } from './weapons';
 import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
@@ -53,7 +54,7 @@ export interface UIHooks {
   /** Opens a menu tab from the map (an unlock card's "tap to open"). */
   openTab(tab: Tab): void;
   /** Sounds for reward moments: a named effect, or the XP bar's rising tone (seconds, from and to 0–1 up the bar). */
-  sound(s: 'ding' | 'handlingDing' | 'tick' | 'treasure' | 'levelup'): void;
+  sound(s: 'ding' | 'handlingDing' | 'tick' | 'treasure' | 'keyItem' | 'levelup'): void;
   sweep(dur: number, from: number, to: number, voice?: 'xp' | 'handling'): void;
   craftGear(id: string): void;
   craftTool(id: string): void;
@@ -61,9 +62,10 @@ export interface UIHooks {
   equip(id: string): void;
   build(id: ProjectId): void;
   drink(): void;
-  travel(id: ZoneId): void;
-  warpHome(): void;
   toggleMute(): void;
+  /** A sound volume moved (0 to 1); `done` when the slider's let go. */
+  setVolume(kind: 'music' | 'effects', v: number, done: boolean): void;
+  soundSettings(): SoundSettings;
   resetSave(): void;
   /** Play report: share or download the full file, or copy the summary to paste. */
   exportReport(how: 'file' | 'copy'): void;
@@ -285,6 +287,9 @@ const SAW_BLADE = `<svg viewBox="-50 -50 100 100" aria-hidden="true"><path d="${
   return `${i ? 'L' : 'M'}${(Math.cos(a) * t).toFixed(1)},${(Math.sin(a) * t).toFixed(1)}L${(Math.cos(b) * r).toFixed(1)},${(Math.sin(b) * r).toFixed(1)}`;
 }).join('')}Z"/><circle r="11" class="hub"/></svg>`;
 
+/** A volume as the sound card shows it. */
+const volText = (v: number) => (v ? `${Math.round(v * 100)}%` : 'Off');
+
 export class UI {
   private modal = $('modal');
   private sheet = this.modal.querySelector('.sheet') as HTMLElement;
@@ -324,6 +329,16 @@ export class UI {
 
   constructor(private hooks: UIHooks) {
     this.sheet.addEventListener('click', (e) => this.onClick(e));
+    // Volume sliders: heard while dragging, kept when let go (updated in place: a re-render would drop the drag).
+    const vol = (e: Event, done: boolean) => {
+      const el = e.target as HTMLInputElement;
+      if (!el.dataset?.vol) return;
+      const v = Number(el.value) / 100;
+      el.parentElement!.querySelector('.vol-val')!.textContent = volText(v);
+      this.hooks.setVolume(el.dataset.vol as 'music' | 'effects', v, done);
+    };
+    this.sheet.addEventListener('input', (e) => vol(e, false));
+    this.sheet.addEventListener('change', (e) => vol(e, true));
     this.modal.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.armed = true;
@@ -969,23 +984,21 @@ export class UI {
       card = `<section class="qcard done"><div class="qtitle">🌅 The smoke has cleared</div><p class="qtext">Sowerby is safe. Keep building, crafting and rematching bosses!</p></section>`;
     }
     const warp = s.build.warp > 0;
-    const here = this.ctx.inVillage;
     const zones = ZONES.filter((z) => z.id !== 'glade').map((z) => {
       const g = z.guardian;
       const beaten = !g || s.bosses.includes(g.kind);
-      const seen = s.visited.includes(z.id);
-      const reachable = z.id === 'village' || (beaten && (seen || !g));
       let status: string;
       if (z.id === 'village') status = 'Home sweet home';
       else if (!beaten) status = `🔒 Guarded by ${MONSTERS[g!.kind].name} · Lv ${g!.lv}`;
       else if (g) status = `🔥 Campfire lit · Monsters Lv ${z.lv[0]}–${z.lv[1]}`;
       else status = `Monsters Lv ${z.lv[0]}–${z.lv[1]}`;
       const art = !beaten ? bossIcon(g!.kind) : `<span class="emo">${ZONE_EMOJI[z.id]}</span>`;
-      const btn = warp && reachable && !(z.id === 'village' && here) ? `<button class="go sm" data-travel="${z.id}">Warp</button>` : '';
-      return `<div class="zrow ${beaten ? '' : 'locked'}"><div class="zart">${art}</div><div class="info"><div class="name">${esc(z.name)}</div><div class="desc">${status}</div></div>${btn}</div>`;
+      return `<div class="zrow ${beaten ? '' : 'locked'}"><div class="zart">${art}</div><div class="info"><div class="name">${esc(z.name)}</div><div class="desc">${status}</div></div></div>`;
     }).join('');
-    const warpNote = warp ? '' : `<div class="note">🔮 Build the <b>Waystone</b> in the village to fast travel between campfires.</div>`;
-    const home = here ? '' : `<button class="wide go alt" data-do="home">🏠 Warp home to Sowerby</button>`;
+    // Travel happens in the world: a campfire takes you home, the Waystone takes you out.
+    const warpNote = s.camps.length
+      ? `<div class="note">🔥 Rest at a campfire to travel home to Sowerby.${warp ? " 🔮 Sowerby's Waystone sends you out to any campfire you've lit." : ' 🔮 Rebuild the <b>Waystone</b> in Sowerby to travel out to them.'}</div>`
+      : '';
     const chapters = QUESTS.map((qq, i) => {
       const st = i < s.quest ? 'done' : i === s.quest ? 'now' : 'later';
       const mark = st === 'done' ? '✓' : st === 'now' ? '▶' : '🔒';
@@ -993,7 +1006,7 @@ export class UI {
     }).join('');
     const sides = this.hooks.stories().map((st) => `<div class="zrow ${st.done ? 'done' : ''}"><div class="zart"><span class="emo">${st.icon}</span></div>
       <div class="info"><div class="name">${esc(st.title)}</div><div class="desc">${st.done ? '✓ ' : '▶ '}${esc(st.label)}</div></div></div>`).join('');
-    return `<div class="notebook">${card}${sides ? `<h3>Side stories</h3><div class="zones">${sides}</div>` : ''}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div>${home}<h3>Story</h3><ol class="chapters">${chapters}</ol></div>`;
+    return `<div class="notebook">${card}${sides ? `<h3>Side stories</h3><div class="zones">${sides}</div>` : ''}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div><h3>Story</h3><ol class="chapters">${chapters}</ol></div>`;
   }
 
   private items(s: SaveState): string {
@@ -1208,14 +1221,25 @@ export class UI {
   /** Dev builds add their own row to the More tab (save slots and presets; see src/dev/devtools.ts). */
   devRow: { html: string; open: () => void } | null = null;
 
+  /** Sound: everything on or off, and a volume each for the music and the effects. */
+  private soundCard(): string {
+    const snd = this.hooks.soundSettings();
+    const slider = (kind: 'music' | 'effects', icon: string, name: string) =>
+      `<label class="vol"><span class="vol-name">${icon} ${name}</span>
+        <input type="range" min="0" max="100" step="5" value="${Math.round(snd[kind] * 100)}" data-vol="${kind}" aria-label="${name} volume" ${snd.muted ? 'disabled' : ''}>
+        <b class="vol-val">${volText(snd[kind])}</b></label>`;
+    return `<div class="mcard sound${snd.muted ? ' muted' : ''}"><div class="row"><div class="ico">${snd.muted ? '🔇' : '🔊'}</div><div class="info"><div class="name">Sound</div></div>
+        <button class="go" data-do="mute">${snd.muted ? 'Off' : 'On'}</button></div>
+      ${slider('music', '🎵', 'Music')}${slider('effects', '💥', 'Effects')}</div>`;
+  }
+
   private settings(s: SaveState): string {
     const rep = reportInfo();
     return `<div class="notebook">${this.devRow?.html ?? ''}
       <div class="mcard row news"><div class="ico">📰</div><div class="info"><div class="name">What's new${hasNews(s) ? ' <span class="tag new">New!</span>' : ''}</div>
         <div class="desc">Version ${VERSION}: ${esc(PATCH_NOTES[0].title)}</div></div>
         <button class="go" data-do="notes">Patch notes</button></div>
-      <div class="mcard row"><div class="ico">${s.muted ? '🔇' : '🔊'}</div><div class="info"><div class="name">Sound</div></div>
-        <button class="go" data-do="mute">${s.muted ? 'Off' : 'On'}</button></div>
+      ${this.soundCard()}
       <h3>How to play</h3>
       <div class="note" style="font-weight:600;line-height:1.5">
         • Drag anywhere to move. Walk through <b>tall grass</b> to meet monsters.<br>
@@ -1270,10 +1294,8 @@ export class UI {
     else if (d.potion) this.hooks.craftPotion(d.potion);
     else if (d.equip) this.hooks.equip(d.equip);
     else if (d.build) this.hooks.build(d.build as ProjectId);
-    else if (d.travel) this.hooks.travel(d.travel as ZoneId);
     else if (d.do === 'close') this.closeMenu();
     else if (d.do === 'drink') this.hooks.drink();
-    else if (d.do === 'home') this.hooks.warpHome();
     else if (d.do === 'mute') this.hooks.toggleMute();
     else if (d.do === 'reset') this.hooks.resetSave();
     else if (d.do === 'report') this.hooks.exportReport('file');
@@ -1469,8 +1491,9 @@ export class UI {
     return r;
   }
 
-  itemFound(id: string, name: string, text: string, emoji = '🗡️', heading = 'You found') {
-    this.hooks.sound('treasure');
+  /** Something found or given. A key item (the Twig Sword, Granny's boots, story items) gets the key item fanfare. */
+  itemFound(id: string, name: string, text: string, emoji = '🗡️', heading = 'You found', key = false) {
+    this.hooks.sound(key ? 'keyItem' : 'treasure');
     return this.dialog(
       `${ribbon(heading)}${stage(icon(id, emoji, 'icon xxl'))}
        <div class="big">${esc(name)}!</div><p>${esc(text)}</p>`,
@@ -1552,7 +1575,7 @@ export class UI {
     this.hooks.sound('treasure');
     return this.dialog(
       `${ribbon('The road is open!')}${stage(bossIcon(kind, 'icon xl'), 'small')}
-       <p>${esc(bossName)} steps aside. <b>${esc(zoneName)}</b> awaits, and a 🔥 campfire checkpoint has been lit just past the gate.</p>`,
+       <p>${esc(bossName)} steps aside. <b>${esc(zoneName)}</b> awaits, with an old campfire just past the gate to light.</p>`,
       [['ok', 'Onward!']],
       'celebrate',
     );

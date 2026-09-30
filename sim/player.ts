@@ -10,12 +10,15 @@ import {
   GEAR, GEAR_ORDER, MAX_POTIONS, MONSTERS, NODES, POTION_HEAL, PROJECTS, QUESTS, TOOLS, ZONES, forgeLevelFor,
   type Gear, type MatId, type MonsterKind, type ProjectId, type Recipe, type Style, type ZoneId,
 } from '../src/data';
-import { calcDamage, equip, gainMastery, gainSkillXp, gainXp, hasMats, levelEdge, masteryShort, mergeDrops, missingSkill, playerStats, rollDrops, scaleMonster, spend, toolPower, xpEdge } from '../src/rules';
+import { calcDamage, equip, gainMastery, gainSkillXp, gainXp, groupSize, hasMats, levelEdge, masteryShort, mergeDrops, missingSkill, playerStats, rollDrops, scaleMonster, spend, toolPower, xpEdge } from '../src/rules';
 import { LOGS_PER_PLANK } from '../src/sawmill';
 import { newState, type SaveState } from '../src/state';
 import type { Stamped, TimeLog } from '../src/stats';
 
-/** How a player behaves, in seconds unless noted. First guesses; tune them against real play reports. */
+/**
+ * How a player behaves, in seconds unless noted. Calibrated against the 0.3.4 sword playthrough (fresh world to the
+ * Waystone, 42 minutes); tune them against each new report.
+ */
 export const CAL = {
   /** Walking up to each monster in a fight, and the swoop in and out. */
   approachSec: 2.5,
@@ -23,15 +26,25 @@ export const CAL = {
   /** Time out in an area (walking, gathering) per grass ambush. */
   ambushEverySec: 30,
   /** Looking for a monster to farm, between fights. */
-  searchSec: 6,
+  searchSec: 4,
   /** A trip out to an area and back to the village. */
-  tripSec: 45,
-  /** Each craft or build in the menus, and reading each quest's dialogue. */
-  menuPerCraftSec: 15,
-  menuPerQuestSec: 20,
+  tripSec: 30,
+  /** Each craft or build in the menus, reading each quest's dialogue and story scenes, and each level-up screen. */
+  menuPerCraftSec: 25,
+  menuPerQuestSec: 75,
+  menuPerLevelSec: 6,
   /** A monster tries to hit you this often, and this share gets through (dodges, misses, spacing). */
   monsterHitEverySec: 2.5,
-  hitChance: 0.35,
+  hitChance: 0.25,
+  /**
+   * Real fights run longer than the kill model's strikes alone (dodging, chasing, groups, monster tricks); guardians
+   * far longer (minions, movement, patterns), and their blows land more often.
+   */
+  fightTimeFactor: 1.3,
+  bossTimeFactor: 2.8,
+  bossHitChance: 0.6,
+  /** Gathering goes faster than the balance model's rates (which count a walk to every tree). */
+  gatherSpeed: 2,
   /** Go back and rest below this share of HP. */
   restBelow: 0.4,
   /** Fight a guardian once you're at most this many levels under it. */
@@ -96,15 +109,17 @@ export function simulate(style: Style, seed = 1, cal = CAL): SimResult {
     const p = stats(), st = myStyle(), h = s.mastery[st].lv;
     let t = 0, strikes = 0, taken = 0, dealt = 0, xp = 0, potions = 0;
     const hpStart = Math.round(s.hp);
+    const slow = opts.boss ? cal.bossTimeFactor : cal.fightTimeFactor;
+    const hitChance = opts.boss ? cal.bossHitChance : cal.hitChance;
     for (const f of foes) {
       const k = killModel(p, st, h, f.kind, f.lv);
-      t += k.seconds + cal.approachSec;
+      t += k.seconds * slow + cal.approachSec;
       strikes += k.strikes;
       dealt += Math.round(k.perStrike * k.strikes);
       // Every foe still standing takes swings at you until it falls.
       const m = scaleMonster(MONSTERS[f.kind], f.lv, false);
       const hit = calcDamage(m.atk * levelEdge(f.lv, p.lv), p.def, MONSTERS[f.kind].boss ? 0.8 : 1, 0, () => 0.5).dmg;
-      taken += (t / cal.monsterHitEverySec) * cal.hitChance * hit;
+      taken += (t / cal.monsterHitEverySec) * hitChance * hit;
       xp += Math.round(m.xp * xpEdge(p.lv, f.lv));
     }
     // Potions when it gets dangerous (you can drink up to what you carry).
@@ -136,16 +151,21 @@ export function simulate(style: Style, seed = 1, cal = CAL): SimResult {
     const lvBefore = s.lv, hBefore = s.mastery[st].lv;
     gainXp(s, xp);
     gainMastery(s, st, xp);
-    if (s.lv > lvBefore) log({ kind: 'level', track: 'combat', lv: s.lv });
-    if (s.mastery[st].lv > hBefore) log({ kind: 'level', track: `handling:${st}`, lv: s.mastery[st].lv });
+    if (s.lv > lvBefore) {
+      log({ kind: 'level', track: 'combat', lv: s.lv });
+      menus(cal.menuPerLevelSec);
+    }
+    if (s.mastery[st].lv > hBefore) {
+      log({ kind: 'level', track: `handling:${st}`, lv: s.mastery[st].lv });
+      menus(cal.menuPerLevelSec);
+    }
     if (s.hp < stats().maxHp * cal.restBelow) rest();
     return true;
   }
 
   /** Some of a zone's monsters, the way the grass throws them at you. */
   function rollFoes(z: ZoneId): Foe[] {
-    const zz = zone(z), x = r();
-    const n = Math.min(zz.maxEnemies, x < 0.5 ? 1 : x < 0.85 ? 2 : 3);
+    const zz = zone(z), n = groupSize(zz, r);
     const total = zz.monsters.reduce((a, m) => a + m.w, 0);
     return Array.from({ length: n }, () => {
       let y = r() * total;
@@ -178,7 +198,7 @@ export function simulate(style: Style, seed = 1, cal = CAL): SimResult {
       const tool = s.tools[node.skill];
       const best = bestZone(gatherPerSecond(mat));
       if (!best) return false;
-      const rate = best[1] * (tool >= node.tier ? 1 : toolPower(tool, node.tier));
+      const rate = best[1] * cal.gatherSpeed * (tool >= node.tier ? 1 : toolPower(tool, node.tier));
       trip(best[0]);
       const secs = n / rate;
       outIn(best[0], secs, 'gathering');
@@ -313,8 +333,12 @@ export function simulate(style: Style, seed = 1, cal = CAL): SimResult {
     }
   }
 
-  /** Grinds in the newest area until you're ready for a guardian, then fights it (grinding more after a loss). */
+  /**
+   * Gears up for a guardian (the way players do: upgrading when the next fight needs it), grinds in the newest area
+   * until you're ready, then fights it (grinding more after a loss).
+   */
   function guardian(kind: MonsterKind, lv: number, z: ZoneId) {
+    gearUp();
     log({ kind: 'reached', id: kind });
     for (let tries = 0; tries < 30; tries++) {
       const farm = unlocked[unlocked.length - 1];
@@ -393,7 +417,8 @@ export function simulate(style: Style, seed = 1, cal = CAL): SimResult {
     if (!ok) return { save: s, events, time, stuck: q.id };
     log({ kind: 'quest', id: q.id });
     s.quest++;
-    gearUp();
+    // New tools as soon as you can make them (gear waits for the next guardian).
+    tools();
     if (g.type === 'boss' && g.kind === 'dragon') break;
   }
   return { save: s, events, time };

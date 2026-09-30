@@ -198,7 +198,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
         e.windup = 1 - e.t / 0.6;
         if (e.t <= 0) {
           e.windup = 0;
-          for (const s of [-0.3, 0, 0.3]) w.enemyShoot(e, toP + s, 140, 7, '#c08ae0', 1, 3);
+          for (const s of [-0.3, 0, 0.3]) w.enemyShoot(e, toP + s, 140, 7, '#c08ae0', 1, 2);
           w.play('shoot');
           e.state = 'move';
           e.t = rand(1.4, 2.4);

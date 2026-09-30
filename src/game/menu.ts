@@ -5,14 +5,15 @@ import { copyText, shareOrDownload } from '../share';
 import { logEvent, reportText, summaryText } from '../stats';
 import { clearState, newState } from '../state';
 import type { UIHooks } from '../ui';
-import { G, menuCtx, paused, persist, showZoneBanner, syncWorld, transition } from './context';
+import { G, applySound, menuCtx, paused, persist, showZoneBanner, syncWorld, transition } from './context';
 import { VERSION } from '../version';
 import { newlyRevealed } from './rewards';
 import { activeStory, storyLog } from './stories';
 import { progressQuests } from './story';
 
 /** Travel (by warp or fast travel) with an iris transition, landing somewhere safe in the area. */
-function travelTo(id: ZoneId) {
+/** Off to an area in a flash: its campfire, or Sowerby's entrance. */
+export function travelTo(id: ZoneId) {
   G.ui.closeMenu();
   transition(() => {
     const w = G.world;
@@ -110,14 +111,20 @@ export const menuHooks: UIHooks = {
     persist();
   },
 
-  travel: travelTo,
-  warpHome: () => travelTo('village'),
 
   toggleMute() {
-    G.save.muted = !G.save.muted;
-    G.audio.muted = G.save.muted;
-    persist();
+    G.sound.muted = !G.sound.muted;
+    applySound();
   },
+
+  setVolume(kind: 'music' | 'effects', v: number, done: boolean) {
+    G.sound[kind] = v;
+    applySound(done);
+    // A blip at the new level when you let go, so you can hear where the effects sit.
+    if (kind === 'effects' && done) G.audio.play('ui');
+  },
+
+  soundSettings: () => G.sound,
 
   async resetSave() {
     G.mode = 'dialog';

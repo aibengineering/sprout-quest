@@ -1,7 +1,7 @@
 // Monsters you can see: they wander the tall grass, notice you when you get close, and chase you a little.
 // Bumping into one starts a fight on the spot; hitting one before it notices you is a surprise attack.
 import { ZONES, type MonsterKind, type Zone, type ZoneId } from './data';
-import { weightedPick, type Rng } from './rules';
+import { groupSize, weightedPick, type Rng } from './rules';
 import { T, type World } from './world';
 
 /** How many monsters roam each zone's grass at once. */
@@ -73,8 +73,7 @@ export class Roamers {
       const g = tiles[Math.floor(this.rng() * tiles.length)];
       const x = g.x + 0.5, y = g.y + 0.8;
       if (Math.hypot(x - px, y - py) < minDist || this.list.some((r) => Math.hypot(r.x - x, r.y - y) < 3)) continue;
-      const r = this.rng();
-      const size = firstFight ? 1 : Math.min(z.maxEnemies, r < 0.5 ? 1 : r < 0.85 ? 2 : 3);
+      const size = firstFight ? 1 : groupSize(z, this.rng);
       this.list.push({
         id: this.nextId++, zone: z.id, kind: weightedPick(z.monsters, this.rng).kind,
         lv: z.lv[0] + Math.floor(this.rng() * (z.lv[1] - z.lv[0] + 1)), golden: this.rng() < 0.04, extra: size - 1,

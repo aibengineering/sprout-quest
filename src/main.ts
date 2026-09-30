@@ -4,7 +4,7 @@ import { modelStats, tickModels } from './models';
 import type { Battle } from './battle/battle';
 import { drawBattle } from './battle/render';
 import { MAX_POTIONS, MONSTERS, QUESTS, ZONES, zoneById, type MonsterKind, type ZoneId } from './data';
-import { G, busy, menuCtx, persist, showZoneBanner, syncWorld } from './game/context';
+import { G, applySound, busy, menuCtx, persist, showZoneBanner, syncWorld } from './game/context';
 import { canRun, challengeFoe, coachBattle, startBattle, startFieldBattle } from './game/fights';
 import { revive, spirit } from './game/death';
 import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/gathering';
@@ -19,6 +19,7 @@ import { UI } from './ui';
 import { SCREENS, flushTime, noteReached, trackTime, type Activity } from './stats';
 import { mealTick } from './kitchen';
 import { has } from './unlocks';
+import { zoneTheme } from './music/scores';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -60,8 +61,11 @@ bind('btn-dodge', 'dodge');
 bind('btn-potion', 'potion');
 bind('btn-run', 'run');
 bind('btn-act', 'act');
-// Any touch also unlocks audio on iOS.
-window.addEventListener('pointerdown', () => G.audio.unlock(), { passive: true });
+// Sound settings apply from the start (turned-off music must never begin downloading on the title screen's first tap).
+applySound(false);
+// Browsers only allow sound after you've touched the page, and phones count a touch when the finger lifts, not when it
+// lands: listen for both (and keys), so the very first tap unlocks it.
+for (const ev of ['pointerdown', 'pointerup', 'touchend', 'keydown']) window.addEventListener(ev, () => G.audio.unlock(), { passive: true });
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden || G.mode === 'title') return;
   persist();
@@ -221,6 +225,8 @@ function frame(now: number) {
   }
   // A fight on the map can end inside update() and hand straight back to the overworld, so hold on to it for this frame.
   const b = G.battle;
+  // The music follows along: the fight's theme in a fight (a guardian's for a boss), otherwise the area's.
+  G.music.want(b ? (b.setup.boss ? 'guardian' : 'battle') : zoneTheme(G.over.currentZone.id));
   if (b) battleFrame(b, dt);
   else worldFrame(dt);
   tickModels();
@@ -255,6 +261,9 @@ requestAnimationFrame(frame);
   get chop() { return chop; },
   get modelStats() { return modelStats; },
   get xpRate() { return G.xpRate; },
+  get music() { return G.music; },
+  get audio() { return G.audio; },
+  get sound() { return G.sound; },
   set zoom(z: number) { debugZoom = z; },
   /** A regular grass encounter right here (or in `zone`). */
   encounter(zone?: ZoneId) {

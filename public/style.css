@@ -608,6 +608,13 @@ img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
 .mcard .desc { font-size: 12px; font-weight: 700; opacity: 0.7; margin-top: 2px; }
 .mcard .stats { font-size: 12px; font-weight: 800; color: #c85a3a; }
 .mcard .info { flex: 1; min-width: 0; }
+/* Sound: on/off, then a slider each for the music and the effects (big thumbs, for fingers). */
+.mcard.sound .row { display: flex; align-items: center; gap: 10px; }
+.mcard.sound .vol { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding-left: 8px; font-weight: 700; color: var(--outline); }
+.mcard.sound .vol-name { width: 86px; flex: none; font-size: 14px; }
+.mcard.sound .vol input { flex: 1; min-width: 0; height: 32px; accent-color: var(--accent, #6cbf4a); }
+.mcard.sound .vol-val { width: 42px; flex: none; text-align: right; font-size: 13px; }
+.mcard.sound.muted .vol { opacity: 0.45; }
 /* Not reached the level for it yet: a dark silhouette with a "?", no name, stats or recipe. */
 img.icon.lg { width: 56px; height: 56px; }
 img.icon.xl { width: 72px; height: 72px; }
@@ -1262,3 +1269,7 @@ body.kbd .drag-hint .keys { display: flex; }
 .hback { margin-top: 10px; width: 100%; }
 .hnode.secret .htext b { letter-spacing: 2px; }
 .hnode.secret .htext { font-style: italic; }
+
+/* The Waystone's list of campfires to travel out to. */
+.waystone { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; }
+.waystone .go small { opacity: 0.7; font-size: 12px; }

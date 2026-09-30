@@ -156,7 +156,7 @@ export const POPPY: Story = {
       target: () => approach(!has(PACK1.flag!) ? PACK1 : !has(PACK2.flag!) ? PACK2 : BIGBUN),
       done: () => has('poppy:bigbun'),
       async then() {
-        await paused(() => G.ui.itemFound('floppers', 'Mr. Floppers', "A little blue plush bunny with a heart patch. Poppy's going to be so happy!", '🐰', 'You got back'));
+        await paused(() => G.ui.itemFound('floppers', 'Mr. Floppers', "A little blue plush bunny with a heart patch. Poppy's going to be so happy!", '🐰', 'You got back', true));
       },
     },
     {
@@ -175,7 +175,7 @@ export const POPPY: Story = {
           await say(GRANNY, 'You brought my Poppy home, and her bunny too. Let me make you something for those tired feet.');
           G.save.perks.push('trailboots');
           persist();
-          await G.ui.itemFound('trailboots', 'Trail Boots', 'Sturdy boots from Granny Clover. You walk 25% faster outside of fights.', '👢', 'Granny made you');
+          await G.ui.itemFound('trailboots', 'Trail Boots', 'Sturdy boots from Granny Clover. You walk 25% faster outside of fights.', '👢', 'Granny made you', true);
           await say(POPPY_TALK, 'Mr. Floppers says thank you!', 'hug');
           await say(GRANNY, "And you come by my kitchen whenever you're hungry, dear. A hero can't fight on an empty stomach!");
         });

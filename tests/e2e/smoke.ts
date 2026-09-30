@@ -339,16 +339,16 @@ scenario('winning a fight levels you up and reveals new gear (and the quest trac
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${OUT}hand-fill.png`, clip: { x: 0, y: 0, width: 390, height: 140 } });
   }
+  // Loot and XP stack on the right as the fight is won, clear of the quest tracker.
+  await waitFor(page, 'the loot', async () => (await page.$$('#loot .lrow')).length > 0, 8000);
+  const pill = await page.locator('#quest-pill').boundingBox();
+  for (const r of await page.locator('#loot .lrow').all()) {
+    const b = await r.boundingBox();
+    check(!b || !pill || b.x >= pill.x + pill.width || b.y >= pill.y + pill.height, 'a loot row overlaps the quest tracker');
+  }
   await waitFor(page, 'the level-up screen', async () => !!(await page.$('#modal:not([hidden]) .lvsheet')));
   // Its stats tick in one by one.
   await waitFor(page, "the level-up's stats", async () => /Max HP/.test((await page.textContent('#modal .sheet')) ?? ''), 5000);
-  // Loot and XP stack on the right, clear of the quest tracker.
-  const pill = await page.locator('#quest-pill').boundingBox(), rows = await page.locator('#loot .lrow').all();
-  check(rows.length > 0, 'no loot rows');
-  for (const r of rows) {
-    const b = (await r.boundingBox())!;
-    check(!pill || b.x >= pill.x + pill.width || b.y >= pill.y + pill.height, 'a loot row overlaps the quest tracker');
-  }
   const screens = await closeDialogs(page);
   check(screens.some((t) => t.includes('Level up!') && t.includes('Max HP')), 'no combat level-up screen');
   check(screens.some((t) => /Whip handling/i.test(t) && t.includes('Spore Whip')), 'whip handling screen did not reveal the Spore Whip');
@@ -474,6 +474,55 @@ scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its spec
   check(Math.hypot(to[0] - from[0], to[1] - from[1]) > 80, 'jellywand: the dodge didn\'t blink');
   await special('jellywand');
   await winFight(page);
+});
+
+scenario('travel: a campfire takes you home to Sowerby, and the Waystone takes you back out', (g) => {
+  g.save.lv = 8;
+  g.save.bosses.push('kingslime', 'alphawolf');
+  g.save.visited.push('meadow', 'woods');
+  g.save.build.warp = 1;
+}, async (page) => {
+  /** Stands you just in front of an object and presses the action key. */
+  const use = async (find: string) => {
+    await run(page, `const o = ${find}; g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5)`);
+    await page.waitForTimeout(400);
+    await page.keyboard.press('KeyE');
+  };
+  // The woods' roaming monsters leave you be: one catching you at the campfire starts a fight instead.
+  await run(page, 'g.over.roamers.calm = 1e9');
+  // The Journal's map no longer warps you anywhere.
+  await run(page, `g.ui.openMenu({ atForge: false, inVillage: false }, 'journey')`);
+  check(!(await page.$('#modal [data-travel], #modal [data-do="home"]')), 'the Journal still has warp buttons');
+  await run(page, 'g.ui.closeMenu()');
+  // Beating the Slime King opened the road, but its campfire waits, cold, for you to light it.
+  const camp = `g.over.world.objs.find((o) => o.kind === 'camp' && o.zone === 'woods')`;
+  check(await game<boolean>(page, `!${camp}.hidden && ${camp}.label === 'Light'`), "the Woods campfire isn't there, cold, to light");
+  await use(camp);
+  await waitFor(page, 'the campfire lit', async () => game<boolean>(page, `g.save.camps.includes('woods') && ${camp}.label === 'Rest'`), 3000);
+  check(await game<string>(page, 'g.save.respawn') === 'woods', "lighting the campfire didn't make it your checkpoint");
+  // Rest there, then home.
+  await page.waitForTimeout(500);
+  await use(camp);
+  await page.click('#modal:not([hidden]) [data-dialog="home"]', { timeout: 5000 });
+  await waitFor(page, 'home in Sowerby', async () => game<boolean>(page, `g.mode === 'world' && g.over.currentZone.id === 'village'`), 8000);
+  check(await game<string>(page, 'g.save.respawn') === 'woods', "resting at the campfire didn't save your checkpoint there");
+  // The Waystone: out to the Woods campfire.
+  await use(`g.over.world.objs.find((o) => o.kind === 'plot' && o.project === 'warp')`);
+  await page.click('#modal:not([hidden]) [data-dialog="woods"]', { timeout: 5000 });
+  await waitFor(page, 'out at the Woods campfire', async () => game<boolean>(page, `g.mode === 'world' && g.over.currentZone.id === 'woods'`), 8000);
+});
+
+scenario('a roaming group marked ×3 brings all three to the fight', (g) => {
+  g.save.lv = 6;
+}, async (page) => {
+  await run(page, `g.warp('woods')`);
+  await waitFor(page, 'roamers in the Woods', async () => game<boolean>(page, `g.over.roamers.list.some((r) => r.zone === 'woods')`), 5000);
+  await run(page, `window.__r = g.over.roamers.list.find((r) => r.zone === 'woods'); window.__r.extra = 2`);
+  await waitFor(page, 'bumping into it', async () => {
+    await run(page, `if (g.mode === 'world') { window.__r.x = g.over.x; window.__r.y = g.over.y; }`);
+    return game<boolean>(page, `g.mode === 'battle' && !!g.battle`);
+  }, 10000);
+  check(await game<number>(page, 'g.battle.setup.foes.length') === 3, `a ×3 group came as ${await game<number>(page, 'g.battle.setup.foes.length')}`);
 });
 
 scenario('monster tricks: spores poison, a screech dizzies, stone skin shrugs off hits, Impy dodges, a howl rallies the pack', null, async (page) => {
@@ -955,6 +1004,46 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   await closeDialogs(page);
   await waitFor(page, 'Bram following again', async () => !!(await bram())?.follow);
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.flag === 'bram:ambush2').hidden`), 'the second ambush vanished');
+});
+
+scenario('sound settings: mute everything, or turn the music and the effects up and down, and they stay that way', null, async (page) => {
+  await openMore(page);
+  const slider = (kind: string) => `#modal:not([hidden]) input[data-vol="${kind}"]`;
+  const slide = (kind: string, v: number) => page.$eval(slider(kind), (el, v) => {
+    (el as HTMLInputElement).value = String(v);
+    for (const t of ['input', 'change']) el.dispatchEvent(new Event(t, { bubbles: true }));
+  }, v);
+  check((await page.inputValue(slider('music'))) === '70' && (await page.inputValue(slider('effects'))) === '100', 'the sliders do not start at music 70%, effects 100%');
+  await slide('music', 0);
+  await slide('effects', 40);
+  check(await game<boolean>(page, 'g.music.volume === 0 && g.audio.effects === 0.4'), 'the sliders did not set the volumes');
+  check(/Off/.test((await page.textContent('#modal .mcard.sound')) ?? ''), 'music at zero does not read Off');
+  await page.click('#modal:not([hidden]) .mcard.sound [data-do="mute"]');
+  check(await game<boolean>(page, 'g.audio.muted') && (await page.isDisabled(slider('effects'))), 'muting did not mute, or left the sliders live');
+  await page.click('#modal:not([hidden]) .mcard.sound [data-do="mute"]');
+  check(await game<boolean>(page, '!g.audio.muted'), 'unmuting did not unmute');
+  // A device setting: it outlives a reload, whichever save is loaded.
+  await page.reload();
+  await page.waitForSelector('.title-btns:not([hidden])');
+  check(await game<boolean>(page, 'g.sound.music === 0 && g.sound.effects === 0.4 && !g.sound.muted && g.audio.effects === 0.4'), 'the settings were not kept');
+});
+
+scenario('music: it gets ready on the title (where you are first), plays from the first tap, and follows you into a fight and back', null, async (page) => {
+  // Music is off in automated browsers unless the page asks for it.
+  await page.goto(`${page.url().split('?')[0]}?music`);
+  await page.waitForSelector('.title-btns:not([hidden])');
+  // The save stands in the meadow: its theme loads first, before any tap, then the opening's.
+  await waitFor(page, "the meadow's theme to load on the title", async () => (await game<string[]>(page, 'g.music.loaded'))[0] === 'meadow', 30000);
+  await page.click('#btn-continue');
+  await waitFor(page, "the meadow's theme straight after Continue", async () => (await game<string>(page, 'g.music.current')) === 'meadow', 2500);
+  await closeDialogs(page);
+  await waitFor(page, "the fight's theme to load", async () => (await game<string[]>(page, 'g.music.loaded')).includes('battle'), 30000);
+  await run(page, `g.fight('slime', 1, 1)`);
+  await waitFor(page, "the fight's theme", async () => (await game<string>(page, 'g.music.current')) === 'battle');
+  await winFight(page);
+  await waitFor(page, "back to the meadow's theme", async () => (await game<string>(page, 'g.music.current')) === 'meadow');
+  const loaded = await game<string[]>(page, 'g.music.loaded');
+  check(loaded.slice(0, 3).join() === 'meadow,glade,battle' && loaded.length === 9, `themes loaded in the wrong order, or not all: ${loaded.join()}`);
 });
 
 scenario('dev builds: a Battle Tower run climbs floor after floor from its camp, in its own slot', (g) => {

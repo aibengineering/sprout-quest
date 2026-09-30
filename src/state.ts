@@ -16,6 +16,7 @@ export interface SaveState {
   pos: { x: number; y: number };
   visited: ZoneId[];
   bossWins: number;
+  /** Old saves' mute, carried over once into the device's sound settings (src/sound.ts), which replaced it. */
   muted: boolean;
   tips: string[];
   /** Index into QUESTS of the current story step. */

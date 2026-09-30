@@ -12,16 +12,42 @@ export type Sfx =
   | 'ding' | 'tick' | 'treasure'
   // Weapon handling's bar has its own voice: the same bell, a fourth lower and warmer.
   | 'handlingDing'
+  // Something important in the story (the Twig Sword, Granny's boots): a climb that resolves into a held bright
+  // chord, the way Zelda marks a key item. And a campfire caught alight: a whoosh, a warm rise, a soft chord.
+  | 'keyItem' | 'kindle'
   // A regular win: a quick bright bell, leaving room for the XP fill right after it (guardians keep the full jingle).
   | 'win';
 
 /** How many bubbles an XP fill of `dur` seconds plays, evenly spaced (the HUD pops a notch onto the bar with each). */
 export const xpBloops = (dur: number) => Math.max(2, Math.round(dur / 0.075));
 
+/** The effects' level at full volume. */
+const LOUDNESS = 0.35;
+
+/** The jingles the music makes room for, and for how long (seconds). */
+const FANFARES: Partial<Record<Sfx, number>> = { victory: 1.4, lose: 1.2, levelup: 0.8, treasure: 1.1, keyItem: 2.2, kindle: 2.2 };
+
 export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private level = 1;
   muted = false;
+  /** Called when a fanfare plays, with how long it rings (the music ducks under it). */
+  onFanfare: ((secs: number) => void) | null = null;
+
+  /** The shared AudioContext, once a user gesture has unlocked sound (the music plays through it too). */
+  get context() {
+    return this.ctx;
+  }
+
+  /** The sound effects' volume, 0 (off) to 1. */
+  get effects() {
+    return this.level;
+  }
+  set effects(v: number) {
+    this.level = v;
+    if (this.master) this.master.gain.value = LOUDNESS * v;
+  }
 
   /** Must be called from a user gesture on iOS before any sound can play. */
   unlock() {
@@ -30,7 +56,7 @@ export class Audio {
       if (!AC) return;
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.35;
+      this.master.gain.value = LOUDNESS * this.level;
       this.master.connect(this.ctx.destination);
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
@@ -77,7 +103,7 @@ export class Audio {
    * which builds anticipation), and it gets louder as the bar fills.
    */
   sweep(dur: number, from: number, to: number, voice: 'xp' | 'handling' = 'xp') {
-    if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
+    if (this.muted || !this.level || !this.ctx || this.ctx.state !== 'running') return;
     const t0 = this.ctx.currentTime + 0.01;
     const n = xpBloops(dur), step = dur / n;
     // Weapon handling's fill: a fourth lower, with a warmer, woodier triangle tone, so the two bars sound apart.
@@ -120,7 +146,12 @@ export class Audio {
   }
 
   play(s: Sfx) {
-    if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
+    if (this.muted || !this.level || !this.ctx || this.ctx.state !== 'running') return;
+    this.effect(s);
+  }
+
+  private effect(s: Sfx) {
+    if (FANFARES[s]) this.onFanfare?.(FANFARES[s]);
     const notes = (fs: number[], step: number, type: OscillatorType = 'square', vol = 0.12) =>
       fs.forEach((f, i) => this.tone(f, step * 1.6, type, vol, undefined, i * step));
     switch (s) {
@@ -155,6 +186,24 @@ export class Audio {
       case 'tick': this.tone(1320, 0.05, 'square', 0.06); break;
       case 'win': this.tone(1319, 0.14, 'triangle', 0.2); this.tone(1976, 0.3, 'triangle', 0.18, undefined, 0.08); this.tone(3951, 0.2, 'sine', 0.03, undefined, 0.1); break;
       case 'treasure': notes([659, 784, 1047, 1319], 0.07, 'triangle', 0.16); this.tone(1568, 0.5, 'sine', 0.1, undefined, 0.3); break;
+      case 'keyItem': {
+        // Four rising semitones, each a little longer, straining upward…
+        [784, 831, 880, 932].forEach((f, i) => this.tone(f, 0.13 + i * 0.02, 'square', 0.08, undefined, i * 0.13));
+        // …then a bright B major chord that rings out, with a sparkle over the top.
+        for (const f of [988, 1245, 1480, 1976]) this.tone(f, 1.1, 'triangle', 0.1, undefined, 0.56);
+        this.tone(494, 1.1, 'square', 0.05, undefined, 0.56);
+        [2960, 3951].forEach((f, i) => this.tone(f, 0.35, 'sine', 0.035, undefined, 0.62 + i * 0.12));
+        break;
+      }
+      case 'kindle':
+        // The flame catching: a soft rushing whoosh…
+        this.noise(0.35, 0.18, 900);
+        // …a warm rise…
+        [392, 523, 659, 784].forEach((f, i) => this.tone(f, 0.22, 'triangle', 0.13, undefined, 0.18 + i * 0.12));
+        // …and a gentle chord that settles, like sitting down by the fire.
+        for (const f of [523, 659, 784, 1047]) this.tone(f, 1.3, 'sine', 0.08, undefined, 0.72);
+        this.tone(2093, 0.4, 'sine', 0.025, undefined, 0.8);
+        break;
     }
   }
 }
