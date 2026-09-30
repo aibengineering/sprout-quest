@@ -6,9 +6,9 @@ export default {
   complete: src('complete'),
   roles: { pine: 'Pine grip & end grain', iron: 'Guard, pommel & blade cradle', crystal: 'Faceted cutting edge' },
   targets: [
-    { material: 'pine', part: 'pine-grip', at: 180, duration: 450, x: .1943, y: .5, contact: 'solid', sound: 'craftStitch' },
-    { material: 'iron', part: 'iron-cradle', at: 700, duration: 430, x: .25, y: .5, contact: 'solid', sound: 'craftStitch' },
-    { material: 'crystal', part: 'crystal-edge', at: 1240, duration: 480, x: .624, y: .5, contact: 'solid', sound: 'tick' },
+    { material: 'pine', part: 'pine-grip', at: 180, duration: 450, x: .2305, y: .7666, contact: 'solid', sound: 'craftStitch' },
+    { material: 'iron', part: 'iron-cradle', at: 700, duration: 430, x: .2949, y: .7023, contact: 'solid', sound: 'craftStitch' },
+    { material: 'crystal', part: 'crystal-edge', at: 1240, duration: 480, x: .6289, y: .3723, contact: 'solid', sound: 'tick' },
   ],
   phases: [
     { at: 0, stage: 'shape', text: 'Pine Wood, shaped into a comfortable grip…' },

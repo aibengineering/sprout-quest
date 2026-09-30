@@ -40,20 +40,25 @@ export function hammerHead(g: Gear): number {
   return g.id === 'wyrmbreaker' ? 1.05 : 0.8 + 0.05 * (g.tier ?? 0);
 }
 
+/** A carried whip is bigger than its old hip coil, so its grip and colour read at a glance. */
+export const WHIP_CARRIED_SCALE = 0.85;
+/** Its grip rides out sideways at the hip (angled a little toward the camera), with the coils hanging below it. */
+export const WHIP_HIP_DIR = new Vector3(0.8, 0, 0.55);
+
 export function carriedWeapon(g: Gear, size: number): Held {
   const hip = g.style === 'wand' || g.style === 'whip';
   return {
     id: `wpn_${g.id}`, at: hip ? 'hip' : 'back',
-    scale: (g.style === 'wand' ? 0.32 : g.style === 'whip' ? 0.58 : g.style === 'hammer' ? 0.56 : 0.52) * size,
+    scale: (g.style === 'wand' ? 0.32 : g.style === 'whip' ? WHIP_CARRIED_SCALE : g.style === 'hammer' ? 0.56 : 0.52) * size,
     hipDown: g.style === 'wand', headUp: g.style === 'hammer',
   };
 }
 
 export function carriedMount(h: Held): { position: Vector3; rotation: Quaternion } {
-  const position = h.at === 'back' ? new Vector3(0.2, h.headUp ? 0.18 : 0.57, -0.34) : new Vector3(0.32, h.hipDown ? 0.4 : 0.34, -0.02);
+  const position = h.at === 'back' ? new Vector3(0.2, h.headUp ? 0.18 : 0.57, -0.34) : new Vector3(0.32, h.hipDown ? 0.4 : 0.44, -0.02);
   const dir = h.at === 'back'
     ? h.headUp ? new Vector3(-0.95, 0.7, -0.25) : new Vector3(-0.75, -0.72, -0.1)
-    : h.hipDown ? new Vector3(0.1, -1, 0.2) : new Vector3(0.1, -0.35, 1);
+    : h.hipDown ? new Vector3(0.1, -1, 0.2) : WHIP_HIP_DIR.clone();
   return { position, rotation: new Quaternion().setFromUnitVectors(new Vector3(1, 0, 0), dir.normalize()) };
 }
 
