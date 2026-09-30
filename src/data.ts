@@ -195,7 +195,7 @@ const GEAR_LIST: Gear[] = [
   W('glimmerwand', 'Glimmer Wand', 'wand', 4, 29, 'glimmer', '#c8b0ff', '#f0e0ff', 'Sparkles that jump to a second foe.', { glimmer: 5, wing: 3, core: 1 }),
   W('emberblade', 'Ember Blade', 'sword', 5, 56, 'fire', '#ff8a3a', '#ffb03a', 'Sets foes ablaze in a long fiery arc.', { ember: 8, horn: 4, crystal: 4, iron: 4 }, { mine: 8 }),
   W('wyrmbreaker', 'Wyrmbreaker', 'hammer', 5, 62, 'dragon', '#c83a3a', '#ffb03a', 'Legendary. Each slam breathes a fan of dragonfire.', { scale: 3, ember: 6, crystal: 4, iron: 6 }, { mine: 9 }, { breath: true }),
-  W('dragontail', 'Dragontail Whip', 'whip', 5, 63, 'dragon', '#ff5a4a', '#ffb03a', 'A lash of living flame that bursts on impact.', { scale: 3, ember: 6, horn: 4, pine: 6 }, { wood: 8 }),
+  W('dragontail', 'Dragontail Whip', 'whip', 5, 63, 'dragon', '#ff5a4a', '#ffb03a', 'A lash of living flame that bursts on impact.', { scale: 3, ember: 6, horn: 4, pine: 2 }, { wood: 8 }),
   W('wyrmfire', 'Wyrmfire Wand', 'wand', 5, 64, 'dragon', '#ff5a4a', '#ffd35a', 'Hurls fireballs that burst into dragonfire.', { scale: 2, horn: 4, ember: 6, crystal: 3 }, { mine: 8 }),
   // Armor
   { id: 'tunic', name: 'Cozy Tunic', slot: 'armor', icon: '👕', def: 1, color: '#6fa8ff', desc: 'Smells like home.' },
