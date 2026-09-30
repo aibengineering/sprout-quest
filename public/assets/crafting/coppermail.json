@@ -1,0 +1,93 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "copper-shell": {
+      "src": "assets/crafting/coppermail-copper-shell.webp",
+      "center": [
+        0.5,
+        0.5596
+      ],
+      "bounds": [
+        96,
+        161,
+        416,
+        412
+      ]
+    },
+    "left-pauldron": {
+      "src": "assets/crafting/coppermail-left-pauldron.webp",
+      "center": [
+        0.1445,
+        0.4072
+      ],
+      "bounds": [
+        6,
+        170,
+        142,
+        247
+      ]
+    },
+    "right-pauldron": {
+      "src": "assets/crafting/coppermail-right-pauldron.webp",
+      "center": [
+        0.8555,
+        0.4072
+      ],
+      "bounds": [
+        370,
+        170,
+        506,
+        247
+      ]
+    },
+    "stone-studs": {
+      "src": "assets/crafting/coppermail-stone-studs.webp",
+      "center": [
+        0.5,
+        0.625
+      ],
+      "bounds": [
+        50,
+        227,
+        462,
+        413
+      ]
+    },
+    "copper-bindings": {
+      "src": "assets/crafting/coppermail-copper-bindings.webp",
+      "center": [
+        0.5,
+        0.6299
+      ],
+      "bounds": [
+        106,
+        213,
+        406,
+        432
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/coppermail-complete.webp",
+      "center": [
+        0.5,
+        0.5791
+      ],
+      "bounds": [
+        6,
+        161,
+        506,
+        432
+      ]
+    }
+  },
+  "stack": [
+    "copper-shell",
+    "left-pauldron",
+    "right-pauldron",
+    "stone-studs",
+    "copper-bindings"
+  ]
+}

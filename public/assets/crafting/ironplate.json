@@ -1,0 +1,93 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "pine-braces": {
+      "src": "assets/crafting/ironplate-pine-braces.webp",
+      "center": [
+        0.5,
+        0.4844
+      ],
+      "bounds": [
+        163,
+        41,
+        349,
+        455
+      ]
+    },
+    "iron-shell": {
+      "src": "assets/crafting/ironplate-iron-shell.webp",
+      "center": [
+        0.5,
+        0.7441
+      ],
+      "bounds": [
+        91,
+        295,
+        421,
+        467
+      ]
+    },
+    "iron-helmet": {
+      "src": "assets/crafting/ironplate-iron-helmet.webp",
+      "center": [
+        0.5,
+        0.2588
+      ],
+      "bounds": [
+        107,
+        55,
+        405,
+        210
+      ]
+    },
+    "stone-guards": {
+      "src": "assets/crafting/ironplate-stone-guards.webp",
+      "center": [
+        0.5,
+        0.7891
+      ],
+      "bounds": [
+        111,
+        339,
+        401,
+        469
+      ]
+    },
+    "copper-rivets": {
+      "src": "assets/crafting/ironplate-copper-rivets.webp",
+      "center": [
+        0.5,
+        0.6318
+      ],
+      "bounds": [
+        159,
+        189,
+        353,
+        458
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/ironplate-complete.webp",
+      "center": [
+        0.5,
+        0.498
+      ],
+      "bounds": [
+        91,
+        41,
+        421,
+        469
+      ]
+    }
+  },
+  "stack": [
+    "pine-braces",
+    "iron-shell",
+    "iron-helmet",
+    "stone-guards",
+    "copper-rivets"
+  ]
+}
