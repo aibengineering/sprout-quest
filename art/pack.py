@@ -33,6 +33,8 @@ NOT_SHIPPED = ('hero/', 'mon/', 'npc/')
 ATLAS_QUALITY = 78
 ICON_QUALITY = 85
 INCREMENTAL = '--incremental' in sys.argv
+# Append only updated sprites; keep previous pages byte-for-byte during a coordinated integration.
+OVERLAY = '--overlay' in sys.argv
 
 
 def save(px, path, quality=ATLAS_QUALITY):
@@ -65,6 +67,12 @@ def main():
     for f in sorted(glob.glob(os.path.join(OUT, '*.json')), key=os.path.getmtime):
         for e in json.load(open(f)):
             latest[e['name']] = e
+    # Item workers ship standalone gathering frames and their original grip anchors.
+    # Use those as overrides when requested, without forcing a second render.
+    if '--gathering' in sys.argv:
+        for path in sorted(glob.glob(os.path.join(DEST, 'gather', '*.json'))):
+            e = json.load(open(path))
+            latest[e['name']] = dict(e, file=os.path.join(DEST, '..', e['src']))
     entries = list(latest.values())
     os.makedirs(os.path.join(DEST, 'icons'), exist_ok=True)
     frames, sprites = {}, []
@@ -80,7 +88,10 @@ def main():
     # Isolated gear worktrees do not have every historical art/out render. Preserve
     # unchanged shipped scenery/sprites when packing just one group or item.
     atlas_path = os.path.join(DEST, 'atlas.json')
-    if INCREMENTAL and os.path.isfile(atlas_path):
+    previous = json.load(open(atlas_path)) if os.path.isfile(atlas_path) else {'pages': [], 'frames': {}}
+    if OVERLAY:
+        frames = dict(previous['frames'])
+    if INCREMENTAL and not OVERLAY and os.path.isfile(atlas_path):
         previous = json.load(open(atlas_path))
         updated = {e['name'] for e, _, _, _ in sprites}
         old_pages = {}
@@ -106,13 +117,14 @@ def main():
             used_h.append(0)
             x = y = shelf = 0
         pages[-1][y:y + h, x:x + w] = cut
-        frames[e['name']] = [len(pages) - 1, int(x), int(y), int(w), int(h), round(float(ax), 1), round(float(ay), 1), e['ppu']]
+        frames[e['name']] = [len(previous['pages']) + len(pages) - 1 if OVERLAY else len(pages) - 1, int(x), int(y), int(w), int(h), round(float(ax), 1), round(float(ay), 1), e['ppu']]
         used_h[-1] = max(used_h[-1], y + h)
         x += w + PAD
         shelf = max(shelf, h)
-    files = []
+    files = list(previous['pages']) if OVERLAY else []
+    page_offset = len(files)
     for i, p in enumerate(pages):
-        name = f'atlas-{i}.webp'
+        name = f'atlas-{page_offset + i}.webp'
         save(p[:used_h[i] + 1], os.path.join(DEST, name))
         files.append(name)
     with open(os.path.join(DEST, 'atlas.json'), 'w') as f:

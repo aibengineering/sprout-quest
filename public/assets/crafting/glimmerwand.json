@@ -1,0 +1,79 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "wing-stem": {
+      "src": "assets/crafting/glimmerwand-wing-stem.webp",
+      "center": [
+        0.4121,
+        0.5
+      ],
+      "bounds": [
+        48,
+        235,
+        374,
+        277
+      ]
+    },
+    "wing-frame": {
+      "src": "assets/crafting/glimmerwand-wing-frame.webp",
+      "center": [
+        0.7471,
+        0.5
+      ],
+      "bounds": [
+        325,
+        150,
+        440,
+        362
+      ]
+    },
+    "core-heart": {
+      "src": "assets/crafting/glimmerwand-core-heart.webp",
+      "center": [
+        0.7891,
+        0.499
+      ],
+      "bounds": [
+        368,
+        209,
+        440,
+        302
+      ]
+    },
+    "jelly-star": {
+      "src": "assets/crafting/glimmerwand-jelly-star.webp",
+      "center": [
+        0.6377,
+        0.5078
+      ],
+      "bounds": [
+        189,
+        187,
+        464,
+        333
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/glimmerwand-complete.webp",
+      "center": [
+        0.5,
+        0.5
+      ],
+      "bounds": [
+        48,
+        150,
+        464,
+        362
+      ]
+    }
+  },
+  "stack": [
+    "wing-stem",
+    "wing-frame",
+    "core-heart",
+    "jelly-star"
+  ]
+}

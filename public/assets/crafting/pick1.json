@@ -1,0 +1,68 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "stack": [
+    "existing-tool",
+    "goo-joint",
+    "fluff-wrap"
+  ],
+  "existing": [
+    "existing-tool"
+  ],
+  "parts": {
+    "existing-tool": {
+      "src": "assets/crafting/pick1-existing-tool.webp",
+      "bounds": [
+        47,
+        19,
+        435,
+        487
+      ],
+      "center": [
+        0.4707,
+        0.4941
+      ]
+    },
+    "goo-joint": {
+      "src": "assets/crafting/pick1-goo-joint.webp",
+      "bounds": [
+        228,
+        76,
+        301,
+        174
+      ],
+      "center": [
+        0.5166,
+        0.2441
+      ]
+    },
+    "fluff-wrap": {
+      "src": "assets/crafting/pick1-fluff-wrap.webp",
+      "bounds": [
+        219,
+        87,
+        303,
+        464
+      ],
+      "center": [
+        0.5098,
+        0.5381
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/pick1-complete.webp",
+      "bounds": [
+        47,
+        19,
+        435,
+        487
+      ],
+      "center": [
+        0.4707,
+        0.4941
+      ]
+    }
+  }
+}

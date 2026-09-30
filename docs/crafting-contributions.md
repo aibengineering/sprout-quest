@@ -82,7 +82,7 @@ Charms, tools, potions and meals export `build_item(root)`. Construct under that
 root and return the parts map; icon and workbench rendering share the builder.
 
 Assembly rendering accepts optional `CAMERA = dict(ppu=..., anchor=(x,y,z),
-elevation=...)`; elevation is in radians. Every part and complete image uses that
+elevation=..., fit_origin=.5)`; elevation is in radians. Every part and complete image uses that
 one camera. Optional `ICON_ID` overrides the destination inventory icon (meals
 automatically use `meal_<id>`).
 Optional `COMPLETE_PARTS` selects component ids present in the completed render and
@@ -90,11 +90,15 @@ inventory icon; other components (for example pine cooking fuel) still get their
 own registered assembly image. Mark those runtime layers `finished: false` too.
 
 The shared command is `bun run art crafting <id>` (or comma-separated ids).
-It renders registered transparent 512×512 PNGs, packs lossless-quality WebPs,
+It renders registered transparent 512×512 PNGs and packs WebPs (quality 100 by
+default; optional `WEBP_QUALITY` preserves an item’s reviewed compression budget),
 records alpha bounds/centers in `public/assets/crafting/<id>.json`, and writes the
 complete piece as the 128×128 inventory icon. Never independently fit or trim
 component images. Deliver your individual WebPs, JSON metadata and equipped GLB
-outputs; the shared integration owner coordinates atlas regeneration.
+outputs; the shared integration owner coordinates atlas regeneration. For a
+coordinated partial integration, `blender -b --factory-startup --python-exit-code 1
+-P art/pack.py -- --overlay --gathering` appends updated weapon renders and
+standalone gathering frames, preserving existing atlas pages byte-for-byte.
 
 ## Checks and publication
 

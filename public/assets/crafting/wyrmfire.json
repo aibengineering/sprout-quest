@@ -1,0 +1,79 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "horn": {
+      "src": "assets/crafting/wyrmfire-horn.webp",
+      "center": [
+        0.498,
+        0.5
+      ],
+      "bounds": [
+        63,
+        176,
+        447,
+        336
+      ]
+    },
+    "scale": {
+      "src": "assets/crafting/wyrmfire-scale.webp",
+      "center": [
+        0.6006,
+        0.5
+      ],
+      "bounds": [
+        164,
+        210,
+        451,
+        302
+      ]
+    },
+    "crystal": {
+      "src": "assets/crafting/wyrmfire-crystal.webp",
+      "center": [
+        0.793,
+        0.5
+      ],
+      "bounds": [
+        339,
+        219,
+        473,
+        293
+      ]
+    },
+    "ember": {
+      "src": "assets/crafting/wyrmfire-ember.webp",
+      "center": [
+        0.4863,
+        0.5
+      ],
+      "bounds": [
+        77,
+        238,
+        421,
+        274
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/wyrmfire-complete.webp",
+      "center": [
+        0.5234,
+        0.5
+      ],
+      "bounds": [
+        63,
+        176,
+        473,
+        336
+      ]
+    }
+  },
+  "stack": [
+    "horn",
+    "scale",
+    "crystal",
+    "ember"
+  ]
+}

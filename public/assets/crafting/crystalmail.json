@@ -1,0 +1,93 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "iron-frame": {
+      "src": "assets/crafting/crystalmail-iron-frame.webp",
+      "center": [
+        0.4912,
+        0.5625
+      ],
+      "bounds": [
+        66,
+        179,
+        437,
+        397
+      ]
+    },
+    "crystal-scales": {
+      "src": "assets/crafting/crystalmail-crystal-scales.webp",
+      "center": [
+        0.5059,
+        0.6377
+      ],
+      "bounds": [
+        175,
+        250,
+        343,
+        403
+      ]
+    },
+    "left-crystal": {
+      "src": "assets/crafting/crystalmail-left-crystal.webp",
+      "center": [
+        0.1895,
+        0.3857
+      ],
+      "bounds": [
+        49,
+        133,
+        145,
+        262
+      ]
+    },
+    "right-crystal": {
+      "src": "assets/crafting/crystalmail-right-crystal.webp",
+      "center": [
+        0.8203,
+        0.3867
+      ],
+      "bounds": [
+        374,
+        133,
+        466,
+        263
+      ]
+    },
+    "stone-anchors": {
+      "src": "assets/crafting/crystalmail-stone-anchors.webp",
+      "center": [
+        0.5,
+        0.6104
+      ],
+      "bounds": [
+        89,
+        236,
+        423,
+        389
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/crystalmail-complete.webp",
+      "center": [
+        0.5029,
+        0.5234
+      ],
+      "bounds": [
+        49,
+        133,
+        466,
+        403
+      ]
+    }
+  },
+  "stack": [
+    "iron-frame",
+    "crystal-scales",
+    "left-crystal",
+    "right-crystal",
+    "stone-anchors"
+  ]
+}

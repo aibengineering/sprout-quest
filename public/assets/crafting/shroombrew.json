@@ -1,0 +1,90 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "bottle": {
+      "src": "assets/crafting/shroombrew-bottle.webp",
+      "bounds": [
+        145,
+        13,
+        367,
+        472
+      ],
+      "center": [
+        0.5,
+        0.4736
+      ]
+    },
+    "cap-infusion": {
+      "src": "assets/crafting/shroombrew-cap-infusion.webp",
+      "bounds": [
+        110,
+        75,
+        402,
+        459
+      ],
+      "center": [
+        0.5,
+        0.5215
+      ]
+    },
+    "spotted-caps": {
+      "src": "assets/crafting/shroombrew-spotted-caps.webp",
+      "bounds": [
+        147,
+        26,
+        349,
+        391
+      ],
+      "center": [
+        0.4844,
+        0.4072
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/shroombrew-complete.webp",
+      "bounds": [
+        110,
+        13,
+        402,
+        472
+      ],
+      "center": [
+        0.5,
+        0.4736
+      ]
+    }
+  },
+  "stack": [
+    "bottle",
+    "cap-infusion",
+    "spotted-caps"
+  ],
+  "ingredientRoles": {
+    "cap": [
+      "cap-infusion",
+      "spotted-caps"
+    ]
+  },
+  "camera": {
+    "ppu": 440,
+    "elevation": 24,
+    "anchor": [
+      0,
+      0,
+      0.03
+    ]
+  },
+  "iconId": "shroombrew",
+  "props": [
+    "bottle"
+  ],
+  "completeParts": [
+    "bottle",
+    "cap-infusion",
+    "spotted-caps"
+  ],
+  "webpQuality": 92
+}

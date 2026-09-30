@@ -21,7 +21,7 @@ DEST = os.path.join(HERE, '..', 'public', 'assets', 'crafting')
 PARTS = ('left-panel', 'right-panel', 'left-cuff', 'right-cuff', 'collar', 'goo-seams')
 
 
-def pack(item_id="fluffvest", parts=PARTS, icon_id=None):
+def pack(item_id="fluffvest", parts=PARTS, icon_id=None, quality=100):
     import bpy
     import numpy as np
     os.makedirs(DEST, exist_ok=True)
@@ -29,7 +29,7 @@ def pack(item_id="fluffvest", parts=PARTS, icon_id=None):
     sc.view_settings.view_transform = 'Standard'
     sc.render.image_settings.file_format = 'WEBP'
     sc.render.image_settings.color_mode = 'RGBA'
-    sc.render.image_settings.quality = 100
+    sc.render.image_settings.quality = quality
     manifest = {'size': [512, 512], 'parts': {}, 'stack': list(parts)}
     for name in (*parts, 'complete'):
         image = bpy.data.images.load(os.path.join(OUT, f'{item_id}-{name}.png'))
@@ -104,7 +104,7 @@ def render_item(item_id):
         sc.eevee.taa_render_samples = 64
     weapon = hasattr(item, 'build_weapon')
     defaults = dict(ppu=240 if weapon else 320, anchor=(.42, 0, .42) if weapon else (0, 0, .55),
-                    elevation=0 if weapon else math.radians(12))
+                    elevation=0 if weapon else math.radians(12), fit_origin=.5)
     defaults.update(getattr(item, 'CAMERA', {}))
     # Only registered component objects render. Geometry attached to empty pivots
     # keeps the exact transforms used by the equipped build.
@@ -113,10 +113,10 @@ def render_item(item_id):
             for obj in objects:
                 obj.hide_render = (key not in getattr(item, 'COMPLETE_PARTS', parts)) if name == 'complete' else key != name
         lib.render(os.path.join(OUT, f'{item_id}-{name}.png'), 512, 512,
-                   fit_origin=.5, **defaults)
+                   **defaults)
         print('RENDERED crafting/' + item_id + '-' + name)
     icon_id = getattr(item, 'ICON_ID', 'meal_' + item_id if item_id in ('pancakes', 'tea', 'goojelly', 'stew') else item_id)
-    pack(item_id, tuple(parts), icon_id)
+    pack(item_id, tuple(parts), icon_id, getattr(item, 'WEBP_QUALITY', 100))
 
 
 if __name__ == '__main__':

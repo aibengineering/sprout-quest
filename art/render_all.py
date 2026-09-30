@@ -51,14 +51,14 @@ def contributed_icon(item_id, destination=None):
     weapon = hasattr(item, 'build_weapon')
     camera = dict(ppu=240 if weapon else 320,
                   anchor=(.42, 0, .42) if weapon else (0, 0, .55),
-                  elevation=0 if weapon else math.radians(12))
+                  elevation=0 if weapon else math.radians(12), fit_origin=.5)
     camera.update(getattr(item, 'CAMERA', {}))
     camera['ppu'] /= 4
     for key, objects in parts.items():
         if key not in getattr(item, 'COMPLETE_PARTS', parts):
             for obj in objects:
                 obj.hide_render = True
-    shot('icon/' + (destination or item_id), 128, 128, fit_origin=.5, **camera)
+    shot('icon/' + (destination or item_id), 128, 128, **camera)
     return True
 
 

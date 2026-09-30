@@ -222,4 +222,12 @@ def pick(tier):
 
 def tools():
     """Every tool the Forge makes: (name, builder)."""
-    return [(f'axe{t}', lambda t=t: axe(t)) for t in (1, 2)] + [(f'pick{t}', lambda t=t: pick(t)) for t in (1, 2, 3, 4)]
+    from gear_parts import item_module
+    def build(item_id, legacy):
+        item = item_module(item_id)
+        if item and hasattr(item, 'build_item'):
+            root = empty(item_id)
+            item.build_item(root)
+            return root
+        return legacy()
+    return [(f'axe{t}', lambda t=t: build(f'axe{t}', lambda: axe(t))) for t in (1, 2)] + [(f'pick{t}', lambda t=t: build(f'pick{t}', lambda: pick(t))) for t in (1, 2, 3, 4)]

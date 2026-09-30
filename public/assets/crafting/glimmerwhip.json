@@ -1,0 +1,79 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "core-anchor": {
+      "src": "assets/crafting/glimmerwhip-core-anchor.webp",
+      "center": [
+        0.1465,
+        0.3672
+      ],
+      "bounds": [
+        39,
+        146,
+        111,
+        230
+      ]
+    },
+    "wing-grip": {
+      "src": "assets/crafting/glimmerwhip-wing-grip.webp",
+      "center": [
+        0.377,
+        0.3359
+      ],
+      "bounds": [
+        100,
+        114,
+        286,
+        230
+      ]
+    },
+    "wing-lash": {
+      "src": "assets/crafting/glimmerwhip-wing-lash.webp",
+      "center": [
+        0.7188,
+        0.5898
+      ],
+      "bounds": [
+        287,
+        186,
+        449,
+        418
+      ]
+    },
+    "jelly-channels": {
+      "src": "assets/crafting/glimmerwhip-jelly-channels.webp",
+      "center": [
+        0.6592,
+        0.5732
+      ],
+      "bounds": [
+        232,
+        178,
+        443,
+        409
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/glimmerwhip-complete.webp",
+      "center": [
+        0.4766,
+        0.5195
+      ],
+      "bounds": [
+        39,
+        114,
+        449,
+        418
+      ]
+    }
+  },
+  "stack": [
+    "core-anchor",
+    "wing-grip",
+    "wing-lash",
+    "jelly-channels"
+  ]
+}

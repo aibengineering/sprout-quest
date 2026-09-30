@@ -1,0 +1,66 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "stack": [
+    "iron-haft",
+    "crystal-head",
+    "iron-socket"
+  ],
+  "existing": [],
+  "parts": {
+    "iron-haft": {
+      "src": "assets/crafting/pick4-iron-haft.webp",
+      "bounds": [
+        229,
+        87,
+        283,
+        486
+      ],
+      "center": [
+        0.5,
+        0.5596
+      ]
+    },
+    "crystal-head": {
+      "src": "assets/crafting/pick4-crystal-head.webp",
+      "bounds": [
+        45,
+        19,
+        436,
+        170
+      ],
+      "center": [
+        0.4697,
+        0.1846
+      ]
+    },
+    "iron-socket": {
+      "src": "assets/crafting/pick4-iron-socket.webp",
+      "bounds": [
+        221,
+        34,
+        291,
+        176
+      ],
+      "center": [
+        0.5,
+        0.2051
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/pick4-complete.webp",
+      "bounds": [
+        45,
+        19,
+        436,
+        486
+      ],
+      "center": [
+        0.4697,
+        0.4932
+      ]
+    }
+  }
+}

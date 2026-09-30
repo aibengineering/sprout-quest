@@ -1,0 +1,65 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "pine-grip": {
+      "src": "assets/crafting/crystalsword-pine-grip.webp",
+      "center": [
+        0.1943,
+        0.5
+      ],
+      "bounds": [
+        49,
+        237,
+        150,
+        275
+      ]
+    },
+    "iron-cradle": {
+      "src": "assets/crafting/crystalsword-iron-cradle.webp",
+      "center": [
+        0.291,
+        0.5
+      ],
+      "bounds": [
+        41,
+        178,
+        257,
+        334
+      ]
+    },
+    "crystal-edge": {
+      "src": "assets/crafting/crystalsword-crystal-edge.webp",
+      "center": [
+        0.624,
+        0.5
+      ],
+      "bounds": [
+        161,
+        202,
+        478,
+        310
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/crystalsword-complete.webp",
+      "center": [
+        0.5068,
+        0.5
+      ],
+      "bounds": [
+        41,
+        178,
+        478,
+        334
+      ]
+    }
+  },
+  "stack": [
+    "pine-grip",
+    "iron-cradle",
+    "crystal-edge"
+  ]
+}

@@ -1058,7 +1058,8 @@ scenario('chapter celebrations size loaded and fallback icons on phones and shor
       }
       await page.click('[data-dialog="ok"]');
     }
-    for (const id of ['stonesword', 'tunic']) {
+    // Crafted gear now has a workbench; exercise the retained reward layout with starter gear.
+    for (const id of ['twig', 'tunic']) {
       await run(page, `void g.ui.newGear(${JSON.stringify(GEAR[id])}, null)`);
       await page.waitForTimeout(750);
       const art = page.locator('.stage-art .icon');
