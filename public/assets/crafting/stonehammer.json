@@ -1,0 +1,65 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "complete": {
+      "src": "assets/crafting/stonehammer-complete.webp",
+      "center": [
+        0.5,
+        0.5
+      ],
+      "bounds": [
+        40,
+        147,
+        472,
+        365
+      ]
+    },
+    "oak-shaft": {
+      "src": "assets/crafting/stonehammer-oak-shaft.webp",
+      "center": [
+        0.4277,
+        0.5117
+      ],
+      "bounds": [
+        40,
+        245,
+        398,
+        279
+      ]
+    },
+    "stone-head": {
+      "src": "assets/crafting/stonehammer-stone-head.webp",
+      "center": [
+        0.7852,
+        0.5137
+      ],
+      "bounds": [
+        332,
+        161,
+        472,
+        365
+      ]
+    },
+    "oak-clamp": {
+      "src": "assets/crafting/stonehammer-oak-clamp.webp",
+      "center": [
+        0.7832,
+        0.4971
+      ],
+      "bounds": [
+        373,
+        147,
+        429,
+        362
+      ]
+    }
+  },
+  "stack": [
+    "oak-shaft",
+    "stone-head",
+    "oak-clamp"
+  ]
+}

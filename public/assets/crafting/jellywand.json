@@ -1,0 +1,79 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "complete": {
+      "src": "assets/crafting/jellywand-complete.webp",
+      "center": [
+        0.5,
+        0.5
+      ],
+      "bounds": [
+        40,
+        184,
+        472,
+        328
+      ]
+    },
+    "fluff-spine": {
+      "src": "assets/crafting/jellywand-fluff-spine.webp",
+      "center": [
+        0.3926,
+        0.4834
+      ],
+      "bounds": [
+        40,
+        223,
+        362,
+        272
+      ]
+    },
+    "goo-wraps": {
+      "src": "assets/crafting/jellywand-goo-wraps.webp",
+      "center": [
+        0.4912,
+        0.4834
+      ],
+      "bounds": [
+        155,
+        229,
+        348,
+        266
+      ]
+    },
+    "goo-crown": {
+      "src": "assets/crafting/jellywand-goo-crown.webp",
+      "center": [
+        0.7949,
+        0.4717
+      ],
+      "bounds": [
+        342,
+        184,
+        472,
+        299
+      ]
+    },
+    "goo-drip": {
+      "src": "assets/crafting/jellywand-goo-drip.webp",
+      "center": [
+        0.7646,
+        0.5859
+      ],
+      "bounds": [
+        376,
+        272,
+        407,
+        328
+      ]
+    }
+  },
+  "stack": [
+    "fluff-spine",
+    "goo-wraps",
+    "goo-crown",
+    "goo-drip"
+  ]
+}
