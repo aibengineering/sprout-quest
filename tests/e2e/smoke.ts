@@ -26,7 +26,8 @@ const server = startServer(0);
 const URL_ = `http://localhost:${server.port}/`;
 // Most scenarios run without WebGL (characters fall back to sprites): software 3D is far too slow for the timing they
 // rely on. One scenario at the end checks the 3D characters with WebGL on (see src/models.ts).
-const browser = await chromium.launch({ args: ['--disable-webgl', '--disable-gpu'] });
+const executablePath = process.env.CHROMIUM_PATH || undefined;
+const browser = await chromium.launch({ executablePath, args: ['--disable-webgl', '--disable-gpu'] });
 const failures: string[] = [];
 
 /** Changes a scenario makes to the save, on top of `base`. Sent to the page as source, so it can't use closures. */
@@ -1152,12 +1153,95 @@ scenario('dev builds: a preset plays in its own slot, and your real save is unto
   check(/preset-poppy-chase/.test(panel) && /Sandbox/.test(panel), 'the dev panel is missing slots or presets');
 });
 
+// Fluffy Vest presentation exercises the real transaction; every scenario starts with an unowned vest.
+const fluffySeed = (g: any) => {
+  g.save.lv = 4;
+  g.save.build.forge = 1;
+  g.save.equip.armor = 'tunic';
+  g.save.owned = g.save.owned.filter((id: string) => id !== 'fluffvest');
+  Object.assign(g.save.mats, { fluff: 24, goo: 12 });
+};
+async function openFluffyCraft(page: Page) {
+  await run(page, `const forge = g.over.world.objs.find((o) => o.kind === 'forge'); g.over.teleport(forge.x + forge.w / 2, forge.y + forge.h + .7)`);
+  await page.waitForTimeout(300);
+  await page.keyboard.press('KeyE');
+  await page.waitForSelector('[data-sub="forge:armor"]');
+  await page.click('[data-sub="forge:weapon"]');
+  await page.click('[data-pick="forge-weapon:jellywhip"]');
+  check(await page.locator('[data-craft="jellywhip"]').isEnabled(), 'second recipe must be craftable to exercise the mutex');
+  await page.click('[data-sub="forge:armor"]');
+  await page.click('[data-pick="forge-armor:fluffvest"]');
+  await page.click('[data-craft="fluffvest"]');
+  await page.waitForSelector('.sheet.crafting');
+}
+
+scenario('Fluffy crafting assembles from the bag then equips, with one saved transaction', fluffySeed, async (page) => {
+  await openFluffyCraft(page);
+  check(await game(page, `g.save.owned.filter((id) => id === 'fluffvest').length`) === 1, 'craft did not grant one vest');
+  check(await game(page, `g.save.mats.fluff`) === 12 && await game(page, `g.save.mats.goo`) === 8, 'wrong recipe charge');
+  check(await game(page, `JSON.parse(localStorage.getItem('sprout-quest-save')).owned.includes('fluffvest')`), 'craft was not saved before animation');
+  check(!await page.locator('[data-dialog="equip"]').isVisible(), 'equip offered before assembly');
+  await page.waitForSelector('.craft-flight');
+  if (SHOTS) await page.screenshot({ path: `${OUT}fluffy-flight.png` });
+  await page.waitForSelector('.craft-ready', { timeout: 8000 });
+  check(await page.textContent('[data-count="fluff"]') === '12', 'bag display did not end at real inventory count');
+  check(await page.textContent('[data-count="goo"]') === '8', 'goo display did not end at real inventory count');
+  if (SHOTS) await page.screenshot({ path: `${OUT}fluffy-complete.png` });
+  await page.click('[data-dialog="equip"]');
+  await waitFor(page, 'equipped vest', async () => await game(page, `g.save.equip.armor`) === 'fluffvest');
+  check(await game(page, `g.save.mats.fluff`) === 12, 'equip charged the recipe again');
+});
+
+scenario('Fluffy crafting skips safely, ignores repeated craft requests, and keeps the vest', fluffySeed, async (page) => {
+  await openFluffyCraft(page);
+  // A queued second hook invocation may arrive after the first has already swapped out the Forge.
+  await run(page, `void g.ui.hooks.craftGear('fluffvest'); void g.ui.hooks.craftGear('jellywhip')`);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.craft-ready');
+  check(await game(page, `g.save.equip.armor`) === 'tunic', 'skip also equipped the vest');
+  check(!await game(page, `g.save.owned.includes('jellywhip')`), 'second recipe raced the active reveal');
+  await page.click('[data-dialog="later"]');
+  await page.waitForTimeout(3500);
+  check(await game(page, `g.save.equip.armor`) === 'tunic', 'keep unexpectedly equipped');
+  check(await game(page, `g.save.owned.filter((id) => id === 'fluffvest').length`) === 1, 'duplicate ownership');
+  check(await game(page, `g.save.mats.fluff`) === 12 && await game(page, `g.save.mats.goo`) === 8, 'double craft spent twice');
+  check(await page.locator('.craft-flight').count() === 0, 'leftover ingredient animation');
+});
+
+scenario('Fluffy crafting respects reduced motion and fits a small phone', fluffySeed, async (page) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openFluffyCraft(page);
+  await page.waitForSelector('.craft-ready');
+  check(await page.locator('.craft-flight').count() === 0, 'reduced-motion flight still played');
+  check(!await page.locator('[data-craft-skip]').isVisible(), 'reduced-motion flow still waiting for animation');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+  check(!overflow, 'craft screen overflows horizontally on 320px phone');
+  await page.locator('[data-dialog="equip"]').scrollIntoViewIfNeeded();
+  const button = await page.locator('[data-dialog="equip"]').boundingBox();
+  check(button && button.y >= 0 && button.y + button.height <= 568, 'equip button is unreachable on small phone');
+  if (SHOTS) await page.screenshot({ path: `${OUT}fluffy-small-phone.png` });
+  await page.click('[data-dialog="equip"]');
+});
+
+scenario('Fluffy crafting survives reloading during assembly', fluffySeed, async (page) => {
+  await openFluffyCraft(page);
+  await page.reload();
+  await page.waitForSelector('.title-btns:not([hidden])');
+  await page.click('#btn-continue');
+  await page.waitForTimeout(1500);
+  await closeDialogs(page);
+  check(await game(page, `g.save.owned.includes('fluffvest')`), 'reload lost crafted vest');
+  check(await game(page, `g.save.mats.fluff`) === 12 && await game(page, `g.save.mats.goo`) === 8, 'reload changed charged materials');
+  check(await game(page, `g.save.equip.armor`) === 'tunic', 'reload chose equip without player choice');
+});
+
 // The 3D characters: every model loads, and the hero, villagers and monsters render (in software WebGL here) without
 // errors, on the map and in a fight.
 const GL_NAME = 'characters are drawn in 3D: every model loads and renders on the map and in a fight';
 if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, run: async () => {
   const name = GL_NAME;
-  const gl = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const gl = await chromium.launch({ executablePath, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await (await gl.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));

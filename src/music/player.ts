@@ -25,6 +25,7 @@ const DESK: Record<string, { pan: number; level: number; release: number }> = {
   violins_pizz: { pan: -0.4, level: 0.8, release: 0 }, violins_trem: { pan: -0.4, level: 1.3, release: 0.3 },
   violas: { pan: -0.05, level: 1.4, release: 0.35 }, violas_spic: { pan: 0.05, level: 0.75, release: 0.08 },
   celli: { pan: 0.3, level: 1.3, release: 0.35 }, celli_spic: { pan: 0.3, level: 0.85, release: 0.08 },
+  celli_pizz: { pan: 0.3, level: 0.7, release: 0 },
   basses: { pan: 0.5, level: 0.8, release: 0.3 }, basses_spic: { pan: 0.5, level: 0.85, release: 0.08 }, basses_pizz: { pan: 0.45, level: 0.65, release: 0 },
   harp: { pan: -0.6, level: 0.8, release: 0 },
   horn: { pan: -0.2, level: 0.42, release: 0.25 },
@@ -240,7 +241,10 @@ export class Music {
     }
     src.connect(g).connect(this.desk(p, n.inst));
     src.start(t, b.start);
-    src.stop(release > 0 ? Math.min(end + release * 2, t + b.buf.duration) : t + b.buf.duration);
+    // One-shots end naturally. A lower pitch plays the recording more slowly, so stopping after buf.duration
+    // would cut off its tail (harp, glock, pizzicato, timpani). Sustained voices still obey their written release;
+    // if the recording runs out sooner, AudioBufferSourceNode ends itself.
+    if (release > 0) src.stop(end + release * 2);
   }
 
   /** A section's seat: its level and pan, into the theme's dry and reverb paths. Made on first use. */

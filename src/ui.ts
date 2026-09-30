@@ -1,6 +1,7 @@
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
-import { xpBloops } from './audio';
+import { xpBloops, type Sfx } from './audio';
+import { fluffyCraftMarkup, playFluffyCraft } from './crafting';
 import {
   GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
   STYLE_NAMES, TOOLS, ZONES, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
@@ -54,7 +55,7 @@ export interface UIHooks {
   /** Opens a menu tab from the map (an unlock card's "tap to open"). */
   openTab(tab: Tab): void;
   /** Sounds for reward moments: a named effect, or the XP bar's rising tone (seconds, from and to 0–1 up the bar). */
-  sound(s: 'ding' | 'handlingDing' | 'tick' | 'treasure' | 'keyItem' | 'levelup'): void;
+  sound(s: Sfx): void;
   sweep(dur: number, from: number, to: number, voice?: 'xp' | 'handling'): void;
   craftGear(id: string): void;
   craftTool(id: string): void;
@@ -780,12 +781,20 @@ export class UI {
       e.stopImmediatePropagation();
     };
     if (this.resolveDialog) {
+      // During assembly these keys skip to the finished piece. The same press never also equips it.
+      const skip = this.sheet.querySelector<HTMLButtonElement>('[data-craft-skip]:not([hidden])');
+      if (skip && ['Enter', 'Space', 'KeyE', 'NumpadEnter', 'Escape'].includes(k)) {
+        swallow();
+        skip.click();
+        return;
+      }
       const btns = [...this.sheet.querySelectorAll<HTMLButtonElement>('[data-dialog]')];
       const primary = btns[btns.length - 1], secondary = btns.length > 1 ? btns[0] : null;
       if (k === 'Enter' || k === 'Space' || k === 'KeyE' || k === 'NumpadEnter') {
         swallow();
         this.armed = true;
-        primary?.click();
+        const focused = btns.find((b) => b === document.activeElement && !b.closest('[hidden]'));
+        (k === 'KeyE' ? primary : focused ?? primary)?.click();
       } else if (k === 'Escape' && secondary) {
         swallow();
         this.armed = true;
@@ -1541,13 +1550,28 @@ export class UI {
   }
 
   /** Shown right after crafting: celebrate the new item and offer to equip it on the spot. */
-  newGear(g: Gear, current: Gear | null) {
+  async newGear(g: Gear, current: Gear | null, before: Recipe = {}) {
     const cmp = (k: 'atk' | 'def' | 'hp') => {
       const a = current?.[k] ?? 0, b = g[k] ?? 0;
       if (!a && !b) return '';
       const d = b - a;
       return `<span class="chip ${d >= 0 ? 'ok' : 'miss'}">${k.toUpperCase()} ${a} → <b>${b}</b></span>`;
     };
+    if (g.id === 'fluffvest' && g.recipe) {
+      const choice = this.dialog(
+        `${fluffyCraftMarkup(g.recipe, before)}<div class="craft-details" hidden><div class="chips">${cmp('atk')}${cmp('def')}${cmp('hp')}</div></div>`,
+        [['later', 'Keep in bag'], ['equip', 'Equip now!']],
+        'crafting',
+      );
+      const buttons = this.sheet.querySelector<HTMLElement>('.btns')!;
+      buttons.hidden = true;
+      const craft = playFluffyCraft(this.sheet, g.recipe, before, (s) => this.hooks.sound(s), () => {
+        this.sheet.querySelector<HTMLElement>('.craft-details')!.hidden = false;
+        buttons.hidden = false;
+      });
+      try { return await choice; }
+      finally { craft.dispose(); }
+    }
     this.hooks.sound('treasure');
     return this.dialog(
       `${ribbon(`New ${g.slot}!`)}${stage(icon(g.id, g.icon, 'icon xxl'))}

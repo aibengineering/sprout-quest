@@ -108,6 +108,12 @@ elif GROUP == 'icons':
         if not wanted(armor):
             continue
         lib.clear_objects()
+        if armor == 'fluffvest':
+            # Use the same headless garment as the tactile crafting assembly.
+            hero.build_fluffvest(lib.empty('fluffvest_icon'))
+            shot('icon/fluffvest', 128, 128, 128.75, anchor=(0, 0, 0.365),
+                 elevation=math.radians(12), fit_origin=0.5)
+            continue
         P = hero.build(armor)
         P['root'].rotation_euler = (0, 0, math.radians(15))
         hero.pose(P, 0, False)

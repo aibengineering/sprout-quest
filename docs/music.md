@@ -54,6 +54,11 @@ The first run, and any run with `--fresh`, calls `art/music/samples.py` through 
 - nothing is shipped that no score plays;
 - the opening stays under 1.5 MB and the whole set under 3.5 MB.
 
+`tests/music-playback.test.ts` also checks the player's note envelopes. Plucked strings, harp, bells and percussion
+ring to the recording's natural end, including when a lower pitch makes it longer. Bowed and blown notes release
+at their written end. Every new instrument needs an entry in `DESK` in `player.ts`: in particular, a pizzicato
+section needs `release: 0`, rather than the fallback sustained-note envelope.
+
 ## Writing and trying themes
 
 Try themes in the music lab before they come into the game. It lives in the story bible repo, in
@@ -67,3 +72,6 @@ Try themes in the music lab before they come into the game. It lives in the stor
   each for the music (default 70%) and the effects.
 - These are device settings in `src/sound.ts`, not part of the save, so every save slot sounds the same.
 - With the music at Off, its recordings are never downloaded.
+
+See [the area-music review](music-review.md) for the score assessment, the small playback corrections, and an
+audition checklist. The review distinguishes measured behavior from choices that need an in-game listen.

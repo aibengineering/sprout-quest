@@ -11,6 +11,9 @@ import { newlyRevealed } from './rewards';
 import { activeStory, storyLog } from './stories';
 import { progressQuests } from './story';
 
+/** One transaction/reveal at a time, including taps queued while the Forge is being replaced. */
+let craftingGear = false;
+
 /** Travel (by warp or fast travel) with an iris transition, landing somewhere safe in the area. */
 /** Off to an area in a flash: its campfire, or Sowerby's entrance. */
 export function travelTo(id: ZoneId) {
@@ -50,17 +53,25 @@ export const menuHooks: UIHooks = {
   busy: () => G.mode !== 'world' || !!G.trans || !!G.swoop,
 
   async craftGear(id) {
+    if (craftingGear || !GEAR[id]) return;
     const s = G.save, g = GEAR[id];
     const current = g.slot === 'charm' ? (s.equip.charm ? GEAR[s.equip.charm] : null) : GEAR[s.equip[g.slot]];
+    const before = { ...s.mats };
     if (craftGear(s, id) !== 'ok') return;
-    logEvent(s, { kind: 'craft', id });
-    G.audio.play('craft');
-    persist();
-    const choice = await G.ui.newGear(g, current);
-    if (choice === 'equip' && equip(s, id)) G.audio.play('levelup');
-    persist();
-    const advanced = await progressQuests();
-    if (!advanced) G.ui.openMenu(menuCtx(true), 'forge');
+    craftingGear = true;
+    try {
+      logEvent(s, { kind: 'craft', id });
+      if (id !== 'fluffvest') G.audio.play('craft');
+      // Ownership and the cost survive a reload, skipped animation or backgrounded phone.
+      persist();
+      const choice = await G.ui.newGear(g, current, before);
+      if (choice === 'equip' && equip(s, id)) G.audio.play('levelup');
+      persist();
+      const advanced = await progressQuests();
+      if (!advanced) G.ui.openMenu(menuCtx(true), 'forge');
+    } finally {
+      craftingGear = false;
+    }
   },
 
   build(id) {
