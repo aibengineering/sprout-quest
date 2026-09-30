@@ -1050,6 +1050,18 @@ scenario('chapter celebrations size loaded and fallback icons on phones and shor
       }
       await page.click('[data-dialog="ok"]');
     }
+    for (const id of ['stonesword', 'tunic']) {
+      await run(page, `void g.ui.newGear(${JSON.stringify(GEAR[id])}, null)`);
+      await page.waitForTimeout(750);
+      const art = page.locator('.stage-art .icon');
+      const expected = viewport.height <= 560 ? 84 : 120;
+      for (const fallback of [false, true]) {
+        if (fallback) await art.evaluate((el) => el.dispatchEvent(new Event('error')));
+        const box = await art.boundingBox();
+        check(box && Math.abs(box.width - expected) < 1 && Math.abs(box.height - expected) < 1, `${id}: reward art has wrong size`);
+      }
+      await page.click('[data-dialog="later"]');
+    }
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await run(page, `void g.ui.questComplete(g.quests.find(q => q.id === 'gear'))`);
@@ -1075,7 +1087,9 @@ scenario('music: it gets ready on the title (where you are first), plays from th
   check(loaded.slice(0, 3).join() === 'meadow,glade,battleMeadow' && loaded.length === 13, `themes loaded in the wrong order, or not all: ${loaded.join()}`);
   // Deliberately keep the overworld in the meadow: music must read the battle's arena (as tower floors do).
   for (const [zone, theme] of [['glade', 'battleMeadow'], ['woods', 'battleWoods'], ['cave', 'battleCave'], ['hollow', 'battleHollow'], ['peak', 'battlePeak']]) {
-    await run(page, `g.fight('slime', 1, 1); g.battle.setup.zone = { ...g.battle.setup.zone, id: '${zone}' }`);
+    await run(page, `g.fight('slime', 1, 1)`);
+    await waitFor(page, 'the arena after its entrance transition', async () => await game<boolean>(page, '!!g.battle'));
+    await run(page, `g.battle.setup.zone = { ...g.battle.setup.zone, id: '${zone}' }`);
     await waitFor(page, `${zone} battle music`, async () => (await game<string>(page, 'g.music.current')) === theme);
     await run(page, `g.battle.setup.boss = true`);
     await waitFor(page, `${zone} boss priority`, async () => (await game<string>(page, 'g.music.current')) === 'guardian');
