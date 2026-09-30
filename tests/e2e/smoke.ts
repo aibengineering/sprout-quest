@@ -546,7 +546,15 @@ scenario('monster tricks: spores poison, a screech dizzies, stone skin shrugs of
   await winFight(page);
   // A Pebblor shrugs off hits while it walks, and is wide open right after its slam.
   await fight('golem', 9, 1);
-  const hitAs = (state: string) => game<number>(page, `(() => { const b = g.battle, e = b.enemies[0]; e.state = '${state}'; e.t = 9; e.stun = 99; const before = e.hp; b.hitEnemy(e, 1, 0, 0); return before - e.hp; })()`);
+  // Compare the armor states with identical, noncritical rolls. A random walking crit otherwise makes the
+  // expected >2x gap intermittently fail after integer rounding (for example, 4 damage versus 8).
+  const hitAs = (state: string) => game<number>(page, `(() => {
+    const b = g.battle, e = b.enemies[0]; e.state = '${state}'; e.t = 9; e.stun = 99;
+    const before = e.hp, random = Math.random;
+    Math.random = () => 0.5;
+    try { b.hitEnemy(e, 1, 0, 0); } finally { Math.random = random; }
+    return before - e.hp;
+  })()`);
   const walking = await hitAs('walk'), exposed = await hitAs('exposed');
   check(exposed > walking * 2, `stone skin: ${walking} damage while walking vs ${exposed} exposed`);
   await winFight(page);
