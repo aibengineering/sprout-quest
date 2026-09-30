@@ -36,6 +36,23 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.6',
+    date: '2026-09-30',
+    title: 'Made by Hand',
+    notes: [
+      "🔨 Crafting shows your materials building each piece, for all gear and meals",
+      "🎬 New moves play a preview when unlocked, and again any time from Skills",
+      "🎵 Each region has its own battle music",
+      "💥 Fracture hits each monster once per slam, so guardians no longer melt",
+      "✨ Glimmer gear is icy glass and glowing jelly, made without Bat Wings",
+      "🪢 Whips are easy to spot when carried",
+      "🛡️ Armor clasps, studs and gems are chunky and easy to see",
+      "🪄 The Jelly Wand is a solid goo rod with a fluffy grip",
+      "🐉 The Dragontail Whip needs 2 Pine Logs, not 6",
+      "🗡️ Weapons in fights match their new designs",
+    ],
+  },
+  {
     version: '0.3.5',
     date: '2026-09-30',
     title: 'Strike Up the Band',
