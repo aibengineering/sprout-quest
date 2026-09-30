@@ -56,7 +56,7 @@ export function tryGather(o: WorldObj) {
     ? { kind: 'wood', tree: o.node, tool }
     : { kind: 'mine', rock: o.node!, tool, ...ROCK_COLORS[o.node!] };
   const view = new GatherView(look);
-  view.onSound = (sfx) => G.audio.play(sfx);
+  view.onSound = (sfx, inSecs) => G.audio.play(sfx, inSecs);
   // Woodcutter's Stew (Granny's) widens the sweet spot on trees.
   const width = sweetWidth(s.skills[n.skill].lv) * (n.skill === 'wood' ? sweetBoost(s) : 1);
   chop = { game: new Chop(n.hp, toolPower(tool, n.tier), width), obj: o, view, noise: storyNoisy(o) ? 0 : undefined };

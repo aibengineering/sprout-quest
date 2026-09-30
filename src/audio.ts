@@ -31,6 +31,8 @@ export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private level = 1;
+  /** Seconds from now that the sound being played starts (see play's `inSecs`). */
+  private ahead = 0;
   muted = false;
   /** Called when a fanfare plays, with how long it rings (the music ducks under it). */
   onFanfare: ((secs: number) => void) | null = null;
@@ -64,7 +66,7 @@ export class Audio {
 
   private tone(freq: number, dur: number, type: OscillatorType, vol: number, slideTo?: number, delay = 0) {
     const ctx = this.ctx!;
-    const t0 = ctx.currentTime + delay;
+    const t0 = ctx.currentTime + this.ahead + delay;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = type;
@@ -80,7 +82,7 @@ export class Audio {
 
   private noise(dur: number, vol: number, freq = 1200, delay = 0) {
     const ctx = this.ctx!;
-    const t0 = ctx.currentTime + delay;
+    const t0 = ctx.currentTime + this.ahead + delay;
     const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = buf.getChannelData(0);
@@ -145,8 +147,27 @@ export class Audio {
     this.chirp(4186 * pitch, 4186 * pitch, 0.25, 'sine', 0.025, t0 + 0.06);
   }
 
-  play(s: Sfx) {
+  /**
+   * Plays a sound effect: now, or `inSecs` from now, to land on something that's about to happen on screen (an axe
+   * connecting). The device's own output delay comes off that, so it's heard as it's seen.
+   */
+  play(s: Sfx, inSecs = 0) {
     if (this.muted || !this.level || !this.ctx || this.ctx.state !== 'running') return;
+    this.ahead = inSecs ? Math.max(0, inSecs - this.latency) : 0;
+    try {
+      this.effect(s);
+    } finally {
+      this.ahead = 0;
+    }
+  }
+
+  /** How long a sound takes from being played to coming out of the speaker (reported by the browser; 0 if unknown). */
+  private get latency() {
+    const ctx = this.ctx!;
+    return Math.min(0.25, (ctx.baseLatency || 0) + (ctx.outputLatency || 0));
+  }
+
+  private effect(s: Sfx) {
     if (FANFARES[s]) this.onFanfare?.(FANFARES[s]);
     const notes = (fs: number[], step: number, type: OscillatorType = 'square', vol = 0.12) =>
       fs.forEach((f, i) => this.tone(f, step * 1.6, type, vol, undefined, i * step));

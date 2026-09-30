@@ -22,5 +22,8 @@ describe('sound settings', () => {
     expect(loadSound()).toEqual({ muted: false, music: 0.7, effects: 1 });
     store.set('sprout-quest-sound', '{nope');
     expect(loadSound()).toEqual({ muted: false, music: 0.7, effects: 1 });
+    // Music set on the old, much louder scale goes back to the default; the rest is kept.
+    store.set('sprout-quest-sound', JSON.stringify({ muted: false, music: 0.1, effects: 0.5 }));
+    expect(loadSound()).toEqual({ muted: false, music: 0.7, effects: 0.5 });
   });
 });

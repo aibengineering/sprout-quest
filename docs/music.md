@@ -57,7 +57,7 @@ Try themes in the music lab before they come into the game. It lives in the stor
 
 - **The music sits well under the sound effects.** `VOLUME` in `player.ts` sets its overall level. Fight themes play
   lower still (`THEME_LEVEL`), because fights are the busiest for sound effects.
-- **Players set their own levels** in the menu's More tab, under Sound. There's a mute for everything, plus a slider
+- **Players set their own levels** in the menu's More tab, under Sound. There's a mute for everything, plus a slider (squared, so it follows the ear)
   each for the music (default 70%) and the effects.
 - These are device settings in `src/sound.ts`, not part of the save, so every save slot sounds the same.
 - With the music at Off, its recordings are never downloaded.

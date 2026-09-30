@@ -5,8 +5,11 @@ import type { Audio } from '../audio';
 import { orchestrate, pick, samplesFor, type Note, type SampleIndex, type Score } from './orchestra';
 import { FIRST_THEMES, THEMES, type ThemeId } from './scores';
 
-/** The music's overall level: background, well under the sound effects. */
-const VOLUME = 0.3;
+/**
+ * The music's level with the slider at full: background, under the sound effects. Set from a playtest where the
+ * fight's sounds only came through with the music turned right down; the default (70%) now sits there.
+ */
+const VOLUME = 0.06;
 /** Fights are the busiest for sound effects (hits, dodges, spells), so their themes sit lower still. */
 const THEME_LEVEL: Partial<Record<ThemeId, number>> = { battle: 0.65, guardian: 0.75 };
 const FADE = 1.2;
@@ -77,7 +80,8 @@ export class Music {
   /** Called every frame with the theme that fits what's happening (null for none). */
   want(id: ThemeId | null) {
     if (!this.enabled) return;
-    const target = this.audio.muted ? 0 : VOLUME * this.volume;
+    // The slider is squared, as hearing works: each step sounds like a step, not all the change in its bottom tenth.
+    const target = this.audio.muted ? 0 : VOLUME * this.volume ** 2;
     if (!this.ctx) {
       // Sound unlocks on the first tap; the music starts loading then (unless it's turned off: then it never downloads).
       const ctx = this.audio.context;
