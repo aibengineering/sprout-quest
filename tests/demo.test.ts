@@ -12,12 +12,15 @@ const quiet = { play: () => {} } as unknown as Audio;
 function landed(style: Style, lv: number, secs = 6) {
   const move = moveAt(style, lv)!;
   const d = new MoveDemo(move, newState(), quiet);
+  // A Blink counts once a bolt lands after it (its cooldown can be over by then).
+  let blinked = false;
   for (let t = 0; t < secs; t += 1 / 60) {
     d.update(1 / 60);
     const b = d.battle;
+    blinked ||= b.p.dodgeCd > 0;
     if (move.kind === 'skill' && b.p.skillCd > 0 && b.hits > 0) return true;
     if (move.kind === 'trick') {
-      const n = { riposte: b.ripostes, stagger: b.staggers, snare: b.snares, blink: b.p.dodgeCd > 0 && b.hits > 0 ? 1 : 0 }[move.trick];
+      const n = { riposte: b.ripostes, stagger: b.staggers, snare: b.snares, blink: blinked && b.hits > 0 ? 1 : 0 }[move.trick];
       if (n > 0) return true;
     }
   }

@@ -177,9 +177,10 @@ export class MoveDemo {
               inp.press('attack');
               done();
             }
-          } else if (m.trick === 'blink' && e.state !== 'charge' && b.canStrike) {
-            inp.press('attack');
-            done();
+          } else if (m.trick === 'blink' && e.state !== 'charge') {
+            // Keep firing until a bolt lands, as you would (one can miss a Hopbun on the move).
+            if (b.hits > 0) done();
+            else if (b.canStrike) inp.press('attack');
           }
         }
         return;
