@@ -1,0 +1,92 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "bottle": {
+      "src": "assets/crafting/jellypot-bottle.webp",
+      "bounds": [
+        145,
+        47,
+        367,
+        454
+      ],
+      "center": [
+        0.5,
+        0.4893
+      ]
+    },
+    "goo-infusion": {
+      "src": "assets/crafting/jellypot-goo-infusion.webp",
+      "bounds": [
+        110,
+        106,
+        402,
+        441
+      ],
+      "center": [
+        0.5,
+        0.5342
+      ]
+    },
+    "fluff-foam": {
+      "src": "assets/crafting/jellypot-fluff-foam.webp",
+      "bounds": [
+        186,
+        41,
+        331,
+        342
+      ],
+      "center": [
+        0.5049,
+        0.374
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/jellypot-complete.webp",
+      "bounds": [
+        110,
+        41,
+        402,
+        454
+      ],
+      "center": [
+        0.5,
+        0.4834
+      ]
+    }
+  },
+  "stack": [
+    "bottle",
+    "goo-infusion",
+    "fluff-foam"
+  ],
+  "ingredientRoles": {
+    "goo": [
+      "goo-infusion"
+    ],
+    "fluff": [
+      "fluff-foam"
+    ]
+  },
+  "camera": {
+    "ppu": 440,
+    "elevation": 24,
+    "anchor": [
+      0,
+      0,
+      -0.015
+    ]
+  },
+  "iconId": "jellypot",
+  "props": [
+    "bottle"
+  ],
+  "completeParts": [
+    "bottle",
+    "goo-infusion",
+    "fluff-foam"
+  ],
+  "webpQuality": 92
+}

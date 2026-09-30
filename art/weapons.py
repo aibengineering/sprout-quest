@@ -182,3 +182,18 @@ WEAPONS = {
     'glimmerwand': (lambda r: wand(r, '#6b4a8a', 'glimmer'), 1.3),
     'wyrmfire': (lambda r: wand(r, '#5a1a1a', 'dragon'), 1.35),
 }
+
+# Override only finished per-item contributions. The grip origin and +X axis are
+# inherited by the hand attachment, weapon models and existing sprite renderer.
+from gear_parts import item_module
+
+
+def contributed_weapon(item_id, legacy):
+    def build(root):
+        item = item_module(item_id)
+        return item.build_weapon(root) if item and hasattr(item, 'build_weapon') else legacy(root)
+    return build
+
+
+WEAPONS = {item_id: (contributed_weapon(item_id, build), length)
+           for item_id, (build, length) in WEAPONS.items()}

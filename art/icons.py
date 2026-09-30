@@ -326,3 +326,18 @@ TOOLS = {
     'pick3': lambda: pick('#c8d4e8', '#5e6272'),
     'pick4': lambda: pick('#9ae6ff', '#8a70e0'),
 }
+
+# Charms, tools and prepared meals use the worker's same physical component builder.
+from gear_parts import item_module, item_icon
+
+
+def contributed_icon(item_id, legacy):
+    def build():
+        item = item_module(item_id)
+        return item_icon(item_id) if item and hasattr(item, 'build_item') else legacy()
+    return build
+
+
+CHARMS = {key: contributed_icon(key, build) for key, build in CHARMS.items()}
+TOOLS = {key: contributed_icon(key, build) for key, build in TOOLS.items()}
+ITEMS = {key: contributed_icon(key.removeprefix('meal_'), build) for key, build in ITEMS.items()}

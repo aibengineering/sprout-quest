@@ -1,0 +1,93 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "oak-back": {
+      "src": "assets/crafting/barkvest-oak-back.webp",
+      "center": [
+        0.5,
+        0.5
+      ],
+      "bounds": [
+        45,
+        126,
+        467,
+        386
+      ]
+    },
+    "oak-left": {
+      "src": "assets/crafting/barkvest-oak-left.webp",
+      "center": [
+        0.3486,
+        0.5186
+      ],
+      "bounds": [
+        106,
+        153,
+        251,
+        378
+      ]
+    },
+    "oak-right": {
+      "src": "assets/crafting/barkvest-oak-right.webp",
+      "center": [
+        0.6514,
+        0.5186
+      ],
+      "bounds": [
+        261,
+        153,
+        406,
+        378
+      ]
+    },
+    "oak-shoulders": {
+      "src": "assets/crafting/barkvest-oak-shoulders.webp",
+      "center": [
+        0.5,
+        0.4365
+      ],
+      "bounds": [
+        50,
+        167,
+        462,
+        280
+      ]
+    },
+    "stone-fasteners": {
+      "src": "assets/crafting/barkvest-stone-fasteners.webp",
+      "center": [
+        0.5,
+        0.5332
+      ],
+      "bounds": [
+        201,
+        179,
+        311,
+        367
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/barkvest-complete.webp",
+      "center": [
+        0.5,
+        0.5
+      ],
+      "bounds": [
+        45,
+        126,
+        467,
+        386
+      ]
+    }
+  },
+  "stack": [
+    "oak-back",
+    "oak-left",
+    "oak-right",
+    "oak-shoulders",
+    "stone-fasteners"
+  ]
+}

@@ -5,3 +5,4 @@ __pycache__
 tests/e2e/out
 sim/out/
 art/music/cache
+.claude/worktrees/

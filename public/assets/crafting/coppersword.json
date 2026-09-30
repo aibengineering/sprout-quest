@@ -1,0 +1,79 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "complete": {
+      "src": "assets/crafting/coppersword-complete.webp",
+      "center": [
+        0.4688,
+        0.5264
+      ],
+      "bounds": [
+        61,
+        93,
+        419,
+        446
+      ]
+    },
+    "bark-grip": {
+      "src": "assets/crafting/coppersword-bark-grip.webp",
+      "center": [
+        0.2676,
+        0.7246
+      ],
+      "bounds": [
+        76,
+        310,
+        198,
+        432
+      ]
+    },
+    "copper-blade": {
+      "src": "assets/crafting/coppersword-copper-blade.webp",
+      "center": [
+        0.5352,
+        0.4629
+      ],
+      "bounds": [
+        129,
+        93,
+        419,
+        381
+      ]
+    },
+    "copper-guard": {
+      "src": "assets/crafting/coppersword-copper-guard.webp",
+      "center": [
+        0.2812,
+        0.709
+      ],
+      "bounds": [
+        61,
+        280,
+        227,
+        446
+      ]
+    },
+    "copper-rivets": {
+      "src": "assets/crafting/coppersword-copper-rivets.webp",
+      "center": [
+        0.3174,
+        0.6895
+      ],
+      "bounds": [
+        108,
+        299,
+        217,
+        407
+      ]
+    }
+  },
+  "stack": [
+    "bark-grip",
+    "copper-blade",
+    "copper-guard",
+    "copper-rivets"
+  ]
+}

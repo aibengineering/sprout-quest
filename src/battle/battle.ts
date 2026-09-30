@@ -12,6 +12,7 @@ import { BLINK, MOVESETS, RIPOSTE, SKILL_DATA, STAGGER, hasTrick, pace, skillAt,
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
 import { MONSTER_AI, blinkAway, type FoeWorld } from './monsters';
 import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
+import { battleWeapon } from './weaponPose';
 import {
   AIM_ASSIST, SKILL_CD, TAU, ZOOM_T, angDiff, clamp01, easeInOut, easeOut, rand,
   type BattleLog, type BattleOutcome, type BattleSetup, type Crack, type Enemy, type Flame, type Foe, type Hazard,
@@ -56,6 +57,7 @@ export class Battle implements FoeWorld, HitWorld {
     /** Rest after a full combo; seconds until the next strike may start, and how much of that comes after the swing. */
     restT: 0, atkCd: 0, atkGap: 0,
     whirlT: 0, whirlTick: 0, whirlAng: 0,
+    castT: 0, castAng: 0,
     /** Seconds left poisoned (Sporecap spores), and until its next hurt; seconds left dizzy (a Flapper's screech). */
     poison: 0, poisonTick: 0, dizzy: 0,
     /** Seconds left of a dodge's dodging (for the Riposte), and of the Riposte it earned. */
@@ -91,12 +93,7 @@ export class Battle implements FoeWorld, HitWorld {
   private hitCounter = 1;
   /** How many times the player has landed a hit (drives the first-battle tutorial). */
   hits = 0;
-  /**
-   * A lesson's pause (teaching a newly unlocked move, see coachBattle): the fight stands still until you press this.
-   * Other presses meanwhile are dropped.
-   */
-  lesson: 'attack' | 'dodge' | 'skill' | null = null;
-  /** Each class ability landing, for the lessons to see it worked. */
+  /** Each class ability landing (for the play report and the tests). */
   ripostes = 0;
   staggers = 0;
   snares = 0;
@@ -221,13 +218,6 @@ export class Battle implements FoeWorld, HitWorld {
       this.hitstop -= dt;
       return;
     }
-    if (this.lesson) {
-      if (!this.input.peek(this.lesson)) {
-        this.input.flush();
-        return;
-      }
-      this.lesson = null;
-    }
     this.updatePlayer(dt);
     for (const e of this.enemies) this.updateEnemy(e, dt);
     this.separate();
@@ -301,7 +291,7 @@ export class Battle implements FoeWorld, HitWorld {
 
   private updatePlayer(dt: number) {
     const p = this.p, st = this.stats, inp = this.input;
-    p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt; p.dodging -= dt; p.riposte -= dt; p.dizzy -= dt;
+    p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt; p.dodging -= dt; p.riposte -= dt; p.dizzy -= dt; p.castT -= dt;
     if (p.poison > 0) {
       p.poison -= dt;
       p.poisonTick -= dt;
@@ -533,8 +523,8 @@ export class Battle implements FoeWorld, HitWorld {
    */
   private lashHit(sw: Swing) {
     const p = this.p, s = sw.s;
-    const ang = pose(sw, this.reach).ang;
-    const hx = p.x + Math.cos(ang) * 7, hy = p.y - 10 + Math.sin(ang) * 4;
+    const outlet = battleWeapon(this.weapon, this.moves, this.reach, p, this.t).tip;
+    const hx = p.x + outlet.x, hy = p.y + outlet.y;
     const rope = lashRope(sw, this.reach);
     // How far along the rope each point is, for telling the tip from the rest.
     const along = [0];
@@ -585,8 +575,10 @@ export class Battle implements FoeWorld, HitWorld {
   private impact(sw: Swing) {
     sw.impacted = true;
     const p = this.p, s = sw.s;
-    const reach = (s.reach ?? 0) * this.reach;
-    const ix = p.x + Math.cos(sw.aim) * reach, iy = p.y + Math.sin(sw.aim) * reach;
+    // Use the contact pose, even if this frame stepped a little way into recovery.
+    const contact = { ...sw, t: s.windup + s.active };
+    const head = battleWeapon(this.weapon, this.moves, this.reach, { ...p, swing: contact }, this.t).head;
+    const ix = p.x + head.x, iy = p.y + head.y;
     const radius = s.size * this.reach;
     for (const e of this.enemies) {
       if (e.dead || e.hitId === sw.id) continue;
@@ -604,20 +596,21 @@ export class Battle implements FoeWorld, HitWorld {
     if (s.wave) {
       const w = s.wave;
       const width = w.width * this.reach * (this.el.waveWidth ?? 1);
-      this.waves.push({ x: ix, y: iy, dir: sw.aim, dist: 0, range: w.range * this.reach, width, speed: w.speed, mult: w.mult, id: ++this.hitCounter, spikeAt: 0 });
+      this.waves.push({ x: ix, y: iy, dir: sw.aim, dist: 0, range: w.range * this.reach, width, speed: w.speed, mult: w.mult, id: ++this.hitCounter, spikeAt: 0, hit: new Set() });
     }
     if (this.weapon.breath && !sw.skill) {
       // Dragon breath: a fan of fire rolls out from the slam, leaving the ground burning behind it.
+      const hit = new Set<object>();
       for (const off of [-0.5, -0.25, 0, 0.25, 0.5]) {
-        this.waves.push({ x: ix, y: iy, dir: sw.aim + off, dist: 0, range: 150 * this.reach, width: 30, speed: 430, mult: 0.3, id: ++this.hitCounter, spikeAt: 0, fire: true });
+        this.waves.push({ x: ix, y: iy, dir: sw.aim + off, dist: 0, range: 150 * this.reach, width: 30, speed: 430, mult: 0.3, id: ++this.hitCounter, spikeAt: 0, hit, fire: true });
       }
     }
     if (sw.skill) {
       // Fracture: rock spikes burst out in a fan ahead of you, as wide as the rank allows.
-      const q = SKILL_DATA.quake.waves, n = this.skillNow?.count ?? q.count, fan = this.skillNow?.size ?? 0.8;
+      const q = SKILL_DATA.quake.waves, n = this.skillNow?.count ?? q.count, fan = this.skillNow?.size ?? 0.8, hit = new Set<object>();
       for (let i = 0; i < n; i++) {
         const dir = sw.aim + (n > 1 ? (i / (n - 1) - 0.5) * fan : 0);
-        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: this.skillNow?.sub ?? q.mult, id: ++this.hitCounter, spikeAt: 0 });
+        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: this.skillNow?.sub ?? q.mult, id: ++this.hitCounter, spikeAt: 0, hit });
       }
     }
   }
@@ -654,11 +647,11 @@ export class Battle implements FoeWorld, HitWorld {
         w.spikeAt += 15;
       }
       for (const e of this.enemies) {
-        if (e.dead || e.hitId === w.id) continue;
+        if (e.dead || w.hit.has(e)) continue;
         const ex = e.x - w.x, ey = e.y - w.y;
         const along = ex * cx + ey * cy, perp = Math.abs(-ex * cy + ey * cx);
         if (along < w.dist - 40 || along > w.dist + e.r || perp > w.width / 2 + e.r) continue;
-        e.hitId = w.id;
+        w.hit.add(e);
         this.hitEnemy(e, w.mult, w.dir, 200, 0.25, w.id, 0.04);
       }
     }
@@ -715,8 +708,11 @@ export class Battle implements FoeWorld, HitWorld {
         break;
       case 'scatter':
         // A fan of bolts where you aim, `size` radians wide.
+        p.castT = 0.18;
+        p.castAng = ang;
         for (let i = 0; i < r.count; i++) this.shoot(ang + (i / (r.count - 1) - 0.5) * r.size, r.sub, SKILL_DATA.scatter.size);
-        this.fx.burst(p.x + Math.cos(ang) * 18, p.y - 12 + Math.sin(ang) * 18, col[0], 10, 160, { size: 4, star: true, grav: 0, life: 0.3 });
+        const outlet = battleWeapon(this.weapon, this.moves, this.reach, p, this.t).tip;
+        this.fx.burst(p.x + outlet.x, p.y + outlet.y, col[0], 10, 160, { size: 4, star: true, grav: 0, life: 0.3 });
         this.punch = Math.max(this.punch, 0.02);
         this.shakeAtLeast(4);
         break;
@@ -744,8 +740,9 @@ export class Battle implements FoeWorld, HitWorld {
 
   private shoot(ang: number, mult: number, r: number) {
     const p = this.p;
+    const outlet = battleWeapon(this.weapon, this.moves, this.reach, p, this.t).tip;
     this.projs.push({
-      x: p.x + Math.cos(ang) * 16, y: p.y - 12 + Math.sin(ang) * 16,
+      x: p.x + outlet.x, y: p.y + outlet.y,
       vx: Math.cos(ang) * 400, vy: Math.sin(ang) * 400, r,
       atk: 0, mult, owner: 'p', life: 1.2, color: this.weapon.trail ?? this.weapon.color ?? '#ccc', homing: this.el.homing,
     });

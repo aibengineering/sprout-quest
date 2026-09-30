@@ -3,7 +3,9 @@ import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './
 import { currentQuest } from './quests';
 import { repelBelow } from './kitchen';
 import { Actors, type Actor } from './actors';
-import { hasModel, type Held } from './models';
+import { hasModel, loadModel } from './models';
+import { carriedMount, carriedWeapon, heroBody, projectWeaponPoint } from './weaponPose';
+import { Vector3 } from 'three';
 import { forgeArt } from './ui';
 import { drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from './assets';
 import { drawBubble } from './bubble';
@@ -480,13 +482,19 @@ export class Overworld {
     const wpn = GEAR[this.save.equip.weapon];
     const style = wpn?.style ?? 'sword';
     const size = MOVESETS[style]?.size ?? 1;
-    const held: Held | undefined = wpn && { id: `wpn_${wpn.id}`, at: style === 'whip' || style === 'wand' ? 'hip' : 'back', scale: (style === 'wand' ? 0.5 : style === 'hammer' ? 0.7 : 0.75) * size, hipDown: style === 'wand', headUp: style === 'hammer' };
+    const held = wpn && carriedWeapon(wpn, size);
+    // New gear was not owned at startup. Request it even while its sprite is still being drawn.
+    if (held && !hasModel(held.id)) void loadModel(held.id);
     const in3d = !!wpn && hasModel(`wpn_${wpn.id}`) && hasModel(`hero_${this.save.equip.armor}`);
     const wf = !in3d && wpn && frame(`wpn/${wpn.id}`);
     const away = Math.sin(this.face) < -0.5;
-    const bob = this.moving ? Math.abs(Math.sin(this.t * 9)) * ts * 0.03 : 0;
     const back = () => {
-      if (wf) drawFrame(ctx, wf, px - ts * 0.15, py - ts * 0.36 - bob, ts * 0.47 * size, { rot: -1.05 });
+      if (wf && held) {
+        const mount = carriedMount(held), body = heroBody(this.face, this.moving, this.t);
+        const origin = projectWeaponPoint(mount.position.clone().applyMatrix4(body), ts / 1.2);
+        const end = projectWeaponPoint(mount.position.clone().add(new Vector3(1, 0, 0).applyQuaternion(mount.rotation)).applyMatrix4(body), ts / 1.2);
+        drawFrame(ctx, wf, px + origin.x, py + origin.y, held.scale * Math.hypot(end.x - origin.x, end.y - origin.y), { rot: Math.atan2(end.y - origin.y, end.x - origin.x) });
+      }
     };
     if (!away) back();
     const look = spirit ? { alpha: 0.55, tint: '#bfe6ff', tintAmount: 0.6 } : {};

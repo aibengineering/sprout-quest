@@ -3,6 +3,7 @@
 # Usage: bun run art            (all groups, then the 3D character models)
 #        bun run art monsters   (one group; the rest are reused from art/out)
 #        bun run art models     (just the 3D character models)
+#        bun run art crafting   (registered assembly layers and icons [id,id,...])
 set -euo pipefail
 cd "$(dirname "$0")"
 BLENDER="${BLENDER:-blender}"
@@ -31,6 +32,15 @@ if [ "${1:-}" = models ]; then
   exit 0
 fi
 
+crafting() {
+  "$BLENDER" -b --factory-startup --python-exit-code 1 -P crafting.py -- "${1:-all}"
+}
+
+if [ "${1:-}" = crafting ]; then
+  crafting "${2:-all}"
+  exit 0
+fi
+
 if [ $# -eq 2 ]; then
   # A single item within a group (e.g. `bun run art monsters kingslime`): keep the rest of the group.
   render "$@"
@@ -45,4 +55,9 @@ else
   printf '%s\n' "${jobs[@]}" | xargs -P "${ART_JOBS:-3}" -I{} bash -c 'render {}'
   models
 fi
-"$BLENDER" -b --factory-startup -P pack.py 2>&1 | grep -E "PACKED|Error|Traceback" || true
+PACK_ARGS=()
+if [ $# -gt 0 ]; then PACK_ARGS=(-- --incremental); fi
+"$BLENDER" -b --factory-startup --python-exit-code 1 -P pack.py "${PACK_ARGS[@]}" 2>&1 | grep -E "PACKED|Error|Traceback"
+
+# Registered complete renders remain the canonical icons after atlas packing.
+if [ $# -eq 0 ]; then crafting all; fi

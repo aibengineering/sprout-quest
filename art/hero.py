@@ -2,6 +2,7 @@
 import math
 
 from lib import box, cone, crystal, cylinder, empty, profile, sphere, toon, torus
+from gear_parts import item_module
 
 SKIN = '#ffe2c8'
 
@@ -28,6 +29,117 @@ ARMORS = {
 }
 
 
+def build_fluffvest(bodyp, arms=None):
+    """The actual fluffy garment, also used for the Forge's registered assembly layers.
+
+    Two pressed-wool panels, a cloud collar and cuffs are held together by mint Slime Goo.
+    Keep these parts separate: crafting.py renders each list on the same camera/canvas.
+    Optional arm pivots let the sleeves/cuffs follow the existing hero rig unchanged.
+    """
+    import bmesh
+    import bpy
+    from lib import _finish, _link
+    from mathutils import Vector
+
+    pink = toon('#ffd8e0')
+    wool = toon('#fff9f7')
+    goo = toon('#8cda9a', rim=0.12)
+    shine = toon('#ddfbe0', rim=0.05)
+    parts = {key: [] for key in ('left-panel', 'right-panel', 'collar', 'left-cuff', 'right-cuff', 'goo-seams')}
+
+    def binding(points, radius, parent):
+        """A continuous glossy ribbon of goo, not a row of decorative beads."""
+        points = [Vector(p) for p in points]
+        bm = bmesh.new()
+        rows = []
+        for i, p in enumerate(points):
+            tangent = (points[min(i + 1, len(points) - 1)] - points[max(0, i - 1)]).normalized()
+            axis = Vector((0, 0, 1)) if abs(tangent.z) < 0.9 else Vector((0, 1, 0))
+            u = tangent.cross(axis).normalized()
+            v = tangent.cross(u).normalized()
+            rows.append([bm.verts.new(p + radius * (math.cos(j / 10 * math.tau) * u +
+                                                   math.sin(j / 10 * math.tau) * v)) for j in range(10)])
+        for lower, upper in zip(rows, rows[1:]):
+            for j in range(10):
+                bm.faces.new((lower[j], lower[(j + 1) % 10], upper[(j + 1) % 10], upper[j]))
+        bm.faces.new(rows[0][::-1])
+        bm.faces.new(rows[-1])
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        mesh = bpy.data.meshes.new('slime_goo_binding')
+        bm.to_mesh(mesh)
+        bm.free()
+        obj = _link(bpy.data.objects.new('slime_goo_binding', mesh))
+        _finish(obj, goo, parent, line=0.003)
+        parts['goo-seams'].append(obj)
+
+    # A rounded waist and shoulders, rather than a complete ball: the opening and hem
+    # make this read as a wearable even without the hero's head, hands or feet.
+    rings = [(0.125, 0.215, 0.155), (0.14, 0.255, 0.19), (0.18, 0.28, 0.22),
+             (0.28, 0.286, 0.246), (0.39, 0.274, 0.242), (0.47, 0.252, 0.207),
+             (0.535, 0.185, 0.145)]
+    for side, key in ((-1, 'left-panel'), (1, 'right-panel')):
+        me = bpy.data.meshes.new('fluffy_panel')
+        bm = bmesh.new()
+        rows = []
+        for z, rx, ry in rings:
+            rows.append([bm.verts.new((side * (0.009 + rx * math.sin(i / 20 * math.pi)),
+                                      -ry * math.cos(i / 20 * math.pi), z)) for i in range(21)])
+        for lower, upper in zip(rows, rows[1:]):
+            for i in range(20):
+                bm.faces.new((lower[i], lower[i + 1], upper[i + 1], upper[i]))
+        bm.faces.new(rows[0][::-1])
+        bm.faces.new(rows[-1])
+        # The flat center edge closes each half, and is covered by the goo binding.
+        bm.faces.new([row[0] for row in rows] + [row[-1] for row in rows[::-1]])
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bm.to_mesh(me)
+        bm.free()
+        panel = _link(bpy.data.objects.new('fluffy_' + key, me))
+        _finish(panel, pink, bodyp, line=0.012)
+        sub = panel.modifiers.new('Soft pressed wool', 'SUBSURF')
+        sub.levels = sub.render_levels = 2
+        # Apply the smoothing before the outline shell, preserving a crisp cute edge.
+        panel.modifiers.move(len(panel.modifiers) - 1, 0)
+        parts[key].append(panel)
+        arm = arms[side] if arms else empty('fluffy_sleeve_pivot', bodyp, (0.29 * side, 0, 0.37))
+        parts[key].append(sphere((0.02 * side, 0, -0.035), (0.098, 0.102, 0.12), pink, arm, line=0.012))
+        # Tiny wool tufts in the panels tie their material to the fluffy collar.
+        for x, y, z, tilt in ((0.125, -0.245, 0.36, -0.35), (0.145, -0.23, 0.27, 0.25)):
+            parts[key].append(sphere((side * x, y, z), (0.035, 0.008, 0.01), wool, bodyp,
+                                     line=0, rot=(0, side * tilt, 0)))
+        cuff_key = 'left-cuff' if side < 0 else 'right-cuff'
+        parts[cuff_key].append(torus((0.02 * side, 0, -0.12), 0.071, 0.025, wool, arm, line=0.01))
+        for i in range(7):
+            a = i / 7 * math.tau
+            parts[cuff_key].append(sphere((0.02 * side + math.cos(a) * 0.07,
+                                          math.sin(a) * 0.07, -0.12),
+                                         (0.033, 0.033, 0.037), wool, arm, line=0.007))
+        # Only the exposed front edge is green, so the registered top layer also
+        # composites correctly without drawing back-facing rings over the wool.
+        binding([(0.02 * side + math.cos(math.pi + i / 20 * math.pi) * 0.072,
+                  math.sin(math.pi + i / 20 * math.pi) * 0.085 - 0.008, -0.078)
+                 for i in range(21)], 0.01, arm)
+
+    # The neck stays open: a ring of separate soft puffs, with a lower front edge.
+    for i in range(13):
+        a = i / 13 * math.tau
+        front = max(0, -math.sin(a))
+        parts['collar'].append(sphere((math.cos(a) * 0.21, math.sin(a) * 0.165,
+                                       0.545 - front * 0.035),
+                                      (0.084, 0.077, 0.083), wool, bodyp, line=0.012))
+    # A glossy, continuous binding runs down the front and around the lower hem.
+    # At gameplay size it remains a small green signature instead of recoloring the vest.
+    binding([(0, -0.216 - 0.044 * math.sin(i / 20 * math.pi), 0.145 + i / 20 * 0.325)
+             for i in range(21)], 0.012, bodyp)
+    binding([(math.cos(math.pi + i / 28 * math.pi) * 0.249,
+              math.sin(math.pi + i / 28 * math.pi) * 0.197 - 0.007, 0.145)
+             for i in range(29)], 0.009, bodyp)
+    for z in (0.235, 0.355, 0.44):
+        parts['goo-seams'].append(sphere((-0.003, -0.269 if z < 0.4 else -0.238, z),
+                                         (0.004, 0.004, 0.014), shine, bodyp, line=0))
+    return parts
+
+
 def build(armor):
     """Returns a dict of named parts; `root` faces -Y (towards the camera) at rest.
 
@@ -35,6 +147,8 @@ def build(armor):
     still read apart at phone size, where the torso is only a few pixels tall.
     """
     a = ARMORS[armor]
+    contribution = item_module(armor)
+    custom = contribution is not None and hasattr(contribution, 'build_armor')
     P = {}
     root = P['root'] = empty('hero')
     bodyp = P['body'] = empty('bodyPivot', root)
@@ -48,11 +162,13 @@ def build(armor):
         sphere((0, -0.03, 0.06), (0.11, 0.14, 0.08), boot, f)
 
     # Body: a touch bigger than a pure chibi so the armor has room to show.
-    sphere((0, 0, 0.33), (0.3, 0.25, 0.27), body_m, bodyp)
-    torus((0, 0, 0.2), 0.26, 0.04, trim_m, bodyp)
+    if armor != 'fluffvest' and not custom:
+        sphere((0, 0, 0.33), (0.3, 0.25, 0.27), body_m, bodyp)
+        torus((0, 0, 0.2), 0.26, 0.04, trim_m, bodyp)
     for side in (-1, 1):
         arm = P[f'arm{side}'] = empty(f'arm{side}', bodyp, (0.29 * side, 0, 0.37))
-        sphere((0.02 * side, 0, -0.04), (0.09, 0.09, 0.11), body_m, arm)
+        if armor != 'fluffvest' and not custom:
+            sphere((0.02 * side, 0, -0.04), (0.09, 0.09, 0.11), body_m, arm)
         sphere((0.03 * side, -0.01, -0.14), 0.07, skin, arm)
 
     # Head
@@ -65,7 +181,7 @@ def build(armor):
         sphere((0.21 * side, -0.27, -0.11), (0.055, 0.02, 0.03), toon('#ff9aaa', rim=0), head, line=0)
     sphere((0, -0.33, -0.12), (0.03, 0.012, 0.014), toon('#8a3a4a', rim=0), head, line=0)
 
-    helm = armor in ('shroomhood', 'dragonmail', 'ironplate')
+    helm = getattr(contribution, 'HELMET', armor in ('shroomhood', 'dragonmail', 'ironplate'))
     # Hair: a cap over the back/top of the head plus soft bangs.
     sphere((0, 0.05, 0.07), (0.39, 0.34, 0.31), hair, head, seg=32)
     if not helm:
@@ -86,14 +202,10 @@ def build(armor):
         profile([(-0.3, 0.56), (0.3, 0.56), (0.4, bottom), (0.2, bottom + 0.06), (0.0, bottom - 0.02), (-0.2, bottom + 0.06), (-0.4, bottom)],
                 0.1, toon(color), bodyp, loc=(0, 0.2, 0.02))
 
-    if armor == 'fluffvest':
-        # A big fluffy collar and cuffs.
-        fluff = toon('#ffffff')
-        for i in range(11):
-            ang = i / 11 * math.tau
-            sphere((math.cos(ang) * 0.22, math.sin(ang) * 0.18, 0.54), 0.1, fluff, bodyp)
-        for side in (-1, 1):
-            sphere((0.3 * side, -0.01, 0.26), 0.075, fluff, bodyp)
+    if custom:
+        contribution.build_armor(P)
+    elif armor == 'fluffvest':
+        build_fluffvest(bodyp, {side: P[f'arm{side}'] for side in (-1, 1)})
     elif armor == 'shroomhood':
         cap = toon('#e8505a')
         sphere((0, 0, 0.2), (0.48, 0.46, 0.3), cap, head, seg=32)

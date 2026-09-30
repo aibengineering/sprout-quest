@@ -4,6 +4,7 @@ import { masteryXpToNext, playerStats, revealed, type PlayerStats } from '../rul
 import { logEvent } from '../stats';
 import { handlingGain as handlingGainText, icon, type HandlingGain } from '../ui';
 import { handlingStep } from '../weapons';
+import { previewUnlocked } from './preview';
 import { G, paused } from './context';
 
 /** Loot rows; `what` (a skill or weapon class) names whose XP it is, and is dropped on phones where the icon says it. */
@@ -59,6 +60,8 @@ export async function celebrate(m: LevelMark) {
     const gains = Array.from({ length: lv - m.fromHandling }, (_, i) => m.fromHandling + 1 + i).map((l) => handlingGainText(m.style, l).replace(/^Lv \d+: /, ''));
     const step = handlingStep(lv), mark = step === 'skill' ? '✨' : step === 'trick' ? '🎯' : '⚡';
     await G.ui.skillUp(`${STYLE_NAMES[m.style]} handling`, lv, mark, `${mark} ${gains.join(' · ')}`, newlyRevealed(m.shown));
+    // Each new special rank or trick: watch it in action (again any time from the Skills menu).
+    await previewUnlocked(m.style, m.fromHandling, lv);
   }
 }
 

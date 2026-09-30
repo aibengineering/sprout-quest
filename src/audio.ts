@@ -16,7 +16,9 @@ export type Sfx =
   // chord, the way Zelda marks a key item. And a campfire caught alight: a whoosh, a warm rise, a soft chord.
   | 'keyItem' | 'kindle'
   // A regular win: a quick bright bell, leaving room for the XP fill right after it (guardians keep the full jingle).
-  | 'win';
+  | 'win'
+  // Hand-making: an ingredient leaving the bag, soft wool contact, sticky binding, then a final seam settling.
+  | 'craftPull' | 'craftFluff' | 'craftGoo' | 'craftStitch';
 
 /** How many bubbles an XP fill of `dur` seconds plays, evenly spaced (the HUD pops a notch onto the bar with each). */
 export const xpBloops = (dur: number) => Math.max(2, Math.round(dur / 0.075));
@@ -166,6 +168,10 @@ export class Audio {
       case 'victory': notes([523, 523, 659, 784, 659, 784, 1047], 0.09, 'triangle', 0.18); break;
       case 'lose': notes([392, 330, 262, 196], 0.14, 'triangle', 0.18); break;
       case 'craft': this.tone(880, 0.06, 'square', 0.1); this.tone(1320, 0.2, 'triangle', 0.15, undefined, 0.07); break;
+      case 'craftPull': this.noise(0.075, 0.065, 1900); this.tone(420, 0.085, 'sine', 0.04, 680); break;
+      case 'craftFluff': this.noise(0.14, 0.16, 850); this.tone(190, 0.11, 'sine', 0.075, 115); break;
+      case 'craftGoo': this.tone(260, 0.1, 'sine', 0.13, 540); this.tone(430, 0.13, 'sine', 0.055, 180, 0.045); this.noise(0.05, 0.06, 650); break;
+      case 'craftStitch': this.noise(0.08, 0.08, 1800); this.tone(540, 0.075, 'triangle', 0.075, 720); this.tone(810, 0.13, 'triangle', 0.055, undefined, 0.1); break;
       case 'heal': notes([660, 880, 1100], 0.06, 'sine', 0.2); break;
       case 'dodge': this.noise(0.12, 0.15, 1800); break;
       case 'shoot': this.tone(900, 0.1, 'triangle', 0.12, 1500); break;

@@ -1,0 +1,79 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "core-anchor": {
+      "src": "assets/crafting/glimmerwhip-core-anchor.webp",
+      "center": [
+        0.1504,
+        0.6426
+      ],
+      "bounds": [
+        44,
+        296,
+        110,
+        362
+      ]
+    },
+    "glass-grip": {
+      "src": "assets/crafting/glimmerwhip-glass-grip.webp",
+      "center": [
+        0.3145,
+        0.4795
+      ],
+      "bounds": [
+        76,
+        161,
+        246,
+        330
+      ]
+    },
+    "jelly-lash": {
+      "src": "assets/crafting/glimmerwhip-jelly-lash.webp",
+      "center": [
+        0.584,
+        0.416
+      ],
+      "bounds": [
+        198,
+        142,
+        400,
+        284
+      ]
+    },
+    "shard-tip": {
+      "src": "assets/crafting/glimmerwhip-shard-tip.webp",
+      "center": [
+        0.8223,
+        0.4912
+      ],
+      "bounds": [
+        369,
+        224,
+        473,
+        279
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/glimmerwhip-complete.webp",
+      "center": [
+        0.5049,
+        0.4922
+      ],
+      "bounds": [
+        44,
+        142,
+        473,
+        362
+      ]
+    }
+  },
+  "stack": [
+    "core-anchor",
+    "glass-grip",
+    "jelly-lash",
+    "shard-tip"
+  ]
+}

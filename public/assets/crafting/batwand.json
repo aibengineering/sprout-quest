@@ -1,0 +1,93 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "wing-shaft": {
+      "src": "assets/crafting/batwand-wing-shaft.webp",
+      "bounds": [
+        63,
+        198,
+        314,
+        448
+      ],
+      "center": [
+        0.3682,
+        0.6309
+      ]
+    },
+    "left-wing": {
+      "src": "assets/crafting/batwand-left-wing.webp",
+      "bounds": [
+        214,
+        24,
+        351,
+        191
+      ],
+      "center": [
+        0.5518,
+        0.21
+      ]
+    },
+    "right-wing": {
+      "src": "assets/crafting/batwand-right-wing.webp",
+      "bounds": [
+        321,
+        161,
+        488,
+        298
+      ],
+      "center": [
+        0.79,
+        0.4482
+      ]
+    },
+    "core-crown": {
+      "src": "assets/crafting/batwand-core-crown.webp",
+      "bounds": [
+        284,
+        128,
+        384,
+        228
+      ],
+      "center": [
+        0.6523,
+        0.3477
+      ]
+    },
+    "core-pommel": {
+      "src": "assets/crafting/batwand-core-pommel.webp",
+      "bounds": [
+        48,
+        406,
+        106,
+        464
+      ],
+      "center": [
+        0.1504,
+        0.8496
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/batwand-complete.webp",
+      "bounds": [
+        48,
+        24,
+        488,
+        464
+      ],
+      "center": [
+        0.5234,
+        0.4766
+      ]
+    }
+  },
+  "stack": [
+    "wing-shaft",
+    "left-wing",
+    "right-wing",
+    "core-crown",
+    "core-pommel"
+  ]
+}

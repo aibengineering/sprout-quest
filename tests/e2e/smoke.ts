@@ -13,6 +13,7 @@ import { availableParallelism } from 'node:os';
 import { startServer } from '../../server';
 import { GEAR, MONSTERS } from '../../src/data';
 import { MOVESETS, comboTime } from '../../src/weapons';
+import { masteryXpToNext } from '../../src/rules';
 
 const SHOTS = process.argv.includes('--shots');
 const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].toLowerCase() : null;
@@ -26,7 +27,8 @@ const server = startServer(0);
 const URL_ = `http://localhost:${server.port}/`;
 // Most scenarios run without WebGL (characters fall back to sprites): software 3D is far too slow for the timing they
 // rely on. One scenario at the end checks the 3D characters with WebGL on (see src/models.ts).
-const browser = await chromium.launch({ args: ['--disable-webgl', '--disable-gpu'] });
+const executablePath = process.env.CHROMIUM_PATH || undefined;
+const browser = await chromium.launch({ executablePath, args: ['--disable-webgl', '--disable-gpu'] });
 const failures: string[] = [];
 
 /** Changes a scenario makes to the save, on top of `base`. Sent to the page as source, so it can't use closures. */
@@ -53,7 +55,7 @@ async function boot(seed: Seed) {
 /** A save past the prologue, standing in the meadow, with the Forge built. */
 const base = (g: any) => {
   const s = g.save;
-  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined', 'teach:skill:sword', 'teach:skill:hammer', 'teach:skill:whip', 'teach:skill:wand', 'teach:riposte', 'teach:stagger', 'teach:snare', 'teach:blink'] });
+  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined'] });
   s.build.forge = 1;
   s.pos = { x: 50.5, y: 18 };
   s.unlocked.push('forge', 'bag', 'journal');
@@ -383,37 +385,43 @@ scenario('every weapon waits between strikes, and handling shortens the wait', (
   }
 });
 
-scenario('a newly unlocked move is taught in the next fight: the fight waits for you to try it', (g) => {
-  g.save.mastery.sword = { lv: 3, xp: 0 };
-  // (Past the first two fights' own tutorial.)
+scenario("a new move plays its preview when handling unlocks it, and watches again from the Skills menu's path", (g) => {
+  g.save.mastery.sword = { lv: 2, xp: 0 };
   g.save.wins = 5;
-  g.save.tips = g.save.tips.filter((t: string) => t !== 'teach:skill:sword' && t !== 'teach:riposte');
 }, async (page) => {
-  await run(page, `g.fight('slime', 1, 1)`);
+  // Win a fight that takes sword handling from Lv 2 to Lv 3: its level-up screen, then the Riposte's preview.
+  await run(page, `g.save.mastery.sword.xp = ${masteryXpToNext(2) - 1}; g.fight('slime', 1, 1)`);
   await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 8000);
-  await run(page, `const e = g.battle.enemies[0]; e.hp = e.maxHp = 1e6; e.state = 'held'; e.t = 99; e.x = g.battle.p.x + 200`);
-  // The special first: once it's ready, the fight stops and asks for it.
-  await waitFor(page, 'the special lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'skill', 5000);
-  check(/Spin/.test((await page.textContent('#coach')) ?? ''), "the lesson doesn't name the special");
-  const frozen = await game<string>(page, 'JSON.stringify([g.battle.enemies[0].x, g.battle.enemies[0].y, g.battle.p.skillCd])');
-  await page.waitForTimeout(500);
-  check(await game<string>(page, 'JSON.stringify([g.battle.enemies[0].x, g.battle.enemies[0].y, g.battle.p.skillCd])') === frozen && await game<string>(page, 'g.battle.lesson') === 'skill', 'the fight kept going during the lesson');
-  await page.keyboard.press('KeyL');
-  await waitFor(page, 'the special lesson done', async () => game<boolean>(page, `g.save.tips.includes('teach:skill:sword')`), 3000);
-  check(await game<number>(page, 'g.battle.log.skills') >= 1, "pressing the special didn't use it");
-  // The Riposte: a monster winding up next to you…
-  await page.waitForTimeout(600);
-  await run(page, `const b = g.battle, e = b.enemies[0]; e.stun = 0; e.x = b.p.x; e.y = b.p.y - 50; e.windup = 0.8`);
-  await waitFor(page, 'the dodge lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'dodge', 5000);
-  await page.keyboard.press('KeyK');
-  await page.waitForTimeout(60);
-  // …its blow passing through your dodge…
-  await run(page, `const b = g.battle; b.hurtPlayer(5, 1, b.p.x, b.p.y - 20, 'test'); b.enemies[0].windup = 0`);
-  await waitFor(page, 'the riposte lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'attack', 3000);
-  await run(page, `const b = g.battle, e = b.enemies[0]; b.p.dodgeT = 0; e.x = b.p.x; e.y = b.p.y - 50; b.p.face = -Math.PI / 2`);
-  await page.keyboard.press('KeyJ');
-  await waitFor(page, 'the Riposte landing', async () => game<boolean>(page, `g.save.tips.includes('teach:riposte')`), 3000);
-  check(await game<number>(page, 'g.battle.ripostes') >= 1, 'no Riposte landed');
+  await endFight(page);
+  await waitFor(page, 'the Riposte preview', async () => {
+    const btn = await page.$('#modal:not([hidden]) .sheet:not(.preview) [data-dialog]:last-of-type');
+    if (btn) await btn.click().catch(() => {});
+    return !!(await page.$('#modal:not([hidden]) .sheet.preview canvas.demo-cv'));
+  }, 20000);
+  check(/Riposte/.test((await page.textContent('#modal .sheet.preview')) ?? ''), "the preview doesn't name the Riposte");
+  // It's really playing: the demo battle draws frames into its window.
+  const frame = () => page.$eval('#modal .sheet.preview canvas.demo-cv', (c) => (c as HTMLCanvasElement).toDataURL().length);
+  const f1 = await frame();
+  await page.waitForTimeout(400);
+  check(f1 > 2000 && (await frame()) !== f1, 'the preview is not animating');
+  await page.click('#modal .sheet.preview [data-dialog="ok"]');
+  await waitFor(page, 'back on the map', async () => {
+    await closeDialogs(page);
+    return game<boolean>(page, `g.mode === 'world' && !g.battle`);
+  }, 10000);
+  check(await game<number>(page, 'g.save.mastery.sword.lv') >= 3, 'sword handling did not reach Lv 3');
+  // The Skills menu's sword path: each unlocked special rank and the trick can be watched again.
+  await run(page, `g.ui.openMenu({ atForge: false, inVillage: false }, 'items')`);
+  await page.click('#modal [data-sub="items:skills"]');
+  await page.click('#modal [data-pick="hpath:sword"]');
+  check((await page.$$('#modal [data-preview]')).length === 2, 'the path should offer Spin and Riposte to watch');
+  await page.click('#modal [data-preview="sword:2"]');
+  await page.waitForSelector('#modal .sheet.preview canvas.demo-cv');
+  check(/Spin/.test((await page.textContent('#modal .sheet.preview')) ?? ''), "the replay doesn't show Spin");
+  await page.click('#modal .sheet.preview [data-dialog="ok"]');
+  // Back on the same path afterwards.
+  await page.waitForSelector('#modal .htree');
+  check(!!(await page.$('#modal .htab.on[data-pick="hpath:sword"]')), 'did not come back to the sword path');
 });
 
 scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its special fires", (g) => {
@@ -488,8 +496,9 @@ scenario('travel: a campfire takes you home to Sowerby, and the Waystone takes y
     await page.waitForTimeout(400);
     await page.keyboard.press('KeyE');
   };
-  // The woods' roaming monsters leave you be: one catching you at the campfire starts a fight instead.
-  await run(page, 'g.over.roamers.calm = 1e9');
+  // This scenario tests object interaction, not encounters. Calm still permits KeyE surprise attacks on nearby
+  // monsters, and teleport resets it, so remove random roamers and suppress their refill for this fixture.
+  await run(page, 'g.over.roamers.list = []; g.over.roamers.respawn = 1e9');
   // The Journal's map no longer warps you anywhere.
   await run(page, `g.ui.openMenu({ atForge: false, inVillage: false }, 'journey')`);
   check(!(await page.$('#modal [data-travel], #modal [data-do="home"]')), 'the Journal still has warp buttons');
@@ -544,7 +553,15 @@ scenario('monster tricks: spores poison, a screech dizzies, stone skin shrugs of
   await winFight(page);
   // A Pebblor shrugs off hits while it walks, and is wide open right after its slam.
   await fight('golem', 9, 1);
-  const hitAs = (state: string) => game<number>(page, `(() => { const b = g.battle, e = b.enemies[0]; e.state = '${state}'; e.t = 9; e.stun = 99; const before = e.hp; b.hitEnemy(e, 1, 0, 0); return before - e.hp; })()`);
+  // Compare the armor states with identical, noncritical rolls. A random walking crit otherwise makes the
+  // expected >2x gap intermittently fail after integer rounding (for example, 4 damage versus 8).
+  const hitAs = (state: string) => game<number>(page, `(() => {
+    const b = g.battle, e = b.enemies[0]; e.state = '${state}'; e.t = 9; e.stun = 99;
+    const before = e.hp, random = Math.random;
+    Math.random = () => 0.5;
+    try { b.hitEnemy(e, 1, 0, 0); } finally { Math.random = random; }
+    return before - e.hp;
+  })()`);
   const walking = await hitAs('walk'), exposed = await hitAs('exposed');
   check(exposed > walking * 2, `stone skin: ${walking} damage while walking vs ${exposed} exposed`);
   await winFight(page);
@@ -1028,6 +1045,45 @@ scenario('sound settings: mute everything, or turn the music and the effects up 
   check(await game<boolean>(page, 'g.sound.music === 0 && g.sound.effects === 0.4 && !g.sound.muted && g.audio.effects === 0.4'), 'the settings were not kept');
 });
 
+scenario('chapter celebrations size loaded and fallback icons on phones and short screens', null, async (page) => {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }, { width: 740, height: 500 }]) {
+    await page.setViewportSize(viewport);
+    for (const goal of ['craft', 'build', 'boss', 'mats', 'mend']) {
+      await run(page, `void g.ui.questComplete(g.quests.find(q => q.goal.type === '${goal}'))`);
+      const art = page.locator('.stage-art .icon');
+      await art.waitFor();
+      await page.waitForTimeout(750);
+      check(await art.evaluate((el) => el instanceof HTMLImageElement && el.complete && el.naturalWidth > 0), `${goal}: missing chapter art`);
+      const expected = viewport.height <= 560 ? 72 : 88;
+      for (const fallback of [false, true]) {
+        if (fallback) await art.evaluate((el) => el.dispatchEvent(new Event('error')));
+        const box = await art.boundingBox();
+        check(box && Math.abs(box.width - expected) < 1 && Math.abs(box.height - expected) < 1, `${goal}: ${fallback ? 'fallback' : 'image'} has wrong size`);
+        const stageBox = await page.locator('.stage.small').boundingBox();
+        check(box && stageBox && Math.abs(box.x + box.width / 2 - stageBox.x - stageBox.width / 2) < 1, `${goal}: icon is not centered`);
+        check(await page.locator('[data-dialog="ok"]').isVisible(), `${goal}: reward action missing`);
+      }
+      await page.click('[data-dialog="ok"]');
+    }
+    // Crafted gear now has a workbench; exercise the retained reward layout with starter gear.
+    for (const id of ['twig', 'tunic']) {
+      await run(page, `void g.ui.newGear(${JSON.stringify(GEAR[id])}, null)`);
+      await page.waitForTimeout(750);
+      const art = page.locator('.stage-art .icon');
+      const expected = viewport.height <= 560 ? 84 : 120;
+      for (const fallback of [false, true]) {
+        if (fallback) await art.evaluate((el) => el.dispatchEvent(new Event('error')));
+        const box = await art.boundingBox();
+        check(box && Math.abs(box.width - expected) < 1 && Math.abs(box.height - expected) < 1, `${id}: reward art has wrong size`);
+      }
+      await page.click('[data-dialog="later"]');
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await run(page, `void g.ui.questComplete(g.quests.find(q => q.id === 'gear'))`);
+  await page.waitForTimeout(800);
+});
+
 scenario('music: it gets ready on the title (where you are first), plays from the first tap, and follows you into a fight and back', null, async (page) => {
   // Music is off in automated browsers unless the page asks for it.
   await page.goto(`${page.url().split('?')[0]}?music`);
@@ -1037,13 +1093,26 @@ scenario('music: it gets ready on the title (where you are first), plays from th
   await page.click('#btn-continue');
   await waitFor(page, "the meadow's theme straight after Continue", async () => (await game<string>(page, 'g.music.current')) === 'meadow', 2500);
   await closeDialogs(page);
-  await waitFor(page, "the fight's theme to load", async () => (await game<string[]>(page, 'g.music.loaded')).includes('battle'), 30000);
+  await waitFor(page, "the fight's theme to load", async () => (await game<string[]>(page, 'g.music.loaded')).includes('battleMeadow'), 30000);
   await run(page, `g.fight('slime', 1, 1)`);
-  await waitFor(page, "the fight's theme", async () => (await game<string>(page, 'g.music.current')) === 'battle');
+  await waitFor(page, "the fight's theme", async () => (await game<string>(page, 'g.music.current')) === 'battleMeadow');
   await winFight(page);
   await waitFor(page, "back to the meadow's theme", async () => (await game<string>(page, 'g.music.current')) === 'meadow');
+  await waitFor(page, 'all regional themes', async () => (await game<string[]>(page, 'g.music.loaded')).length === 13, 30000);
   const loaded = await game<string[]>(page, 'g.music.loaded');
-  check(loaded.slice(0, 3).join() === 'meadow,glade,battle' && loaded.length === 9, `themes loaded in the wrong order, or not all: ${loaded.join()}`);
+  check(loaded.slice(0, 3).join() === 'meadow,glade,battleMeadow' && loaded.length === 13, `themes loaded in the wrong order, or not all: ${loaded.join()}`);
+  // Deliberately keep the overworld in the meadow: music must read the battle's arena (as tower floors do).
+  for (const [zone, theme] of [['glade', 'battleMeadow'], ['woods', 'battleWoods'], ['cave', 'battleCave'], ['hollow', 'battleHollow'], ['peak', 'battlePeak']]) {
+    await run(page, `g.fight('slime', 1, 1)`);
+    await waitFor(page, 'the arena after its entrance transition', async () => await game<boolean>(page, '!!g.battle'));
+    await run(page, `g.battle.setup.zone = { ...g.battle.setup.zone, id: '${zone}' }`);
+    await waitFor(page, `${zone} battle music`, async () => (await game<string>(page, 'g.music.current')) === theme);
+    await run(page, `g.battle.setup.boss = true`);
+    await waitFor(page, `${zone} boss priority`, async () => (await game<string>(page, 'g.music.current')) === 'guardian');
+    await run(page, `g.battle.setup.boss = false`);
+    await winFight(page);
+  }
+
 });
 
 scenario('dev builds: a Battle Tower run climbs floor after floor from its camp, in its own slot', (g) => {
@@ -1152,14 +1221,108 @@ scenario('dev builds: a preset plays in its own slot, and your real save is unto
   check(/preset-poppy-chase/.test(panel) && /Sandbox/.test(panel), 'the dev panel is missing slots or presets');
 });
 
+// Fluffy Vest presentation exercises the real transaction; every scenario starts with an unowned vest.
+const fluffySeed = (g: any) => {
+  g.save.lv = 4;
+  g.save.build.forge = 1;
+  g.save.equip.armor = 'tunic';
+  g.save.owned = g.save.owned.filter((id: string) => id !== 'fluffvest');
+  Object.assign(g.save.mats, { fluff: 24, goo: 12 });
+};
+async function openFluffyCraft(page: Page) {
+  const selectRecipe = async (id: string) => {
+    const tile = page.locator(`[data-pick="${id}"]`);
+    await tile.waitFor({ state: 'visible' });
+    // Selected cards bob forever. They already show this recipe, so don't wait for a redundant click to stabilize.
+    if (!await tile.evaluate((el) => el.classList.contains('sel'))) await tile.click();
+  };
+  await run(page, `const forge = g.over.world.objs.find((o) => o.kind === 'forge'); g.over.teleport(forge.x + forge.w / 2, forge.y + forge.h + .7)`);
+  await page.waitForTimeout(300);
+  await page.keyboard.press('KeyE');
+  await page.waitForSelector('[data-sub="forge:armor"]');
+  await page.click('[data-sub="forge:weapon"]');
+  await selectRecipe('forge-weapon:jellywhip');
+  check(await page.locator('[data-craft="jellywhip"]').isEnabled(), 'second recipe must be craftable to exercise the mutex');
+  await page.click('[data-sub="forge:armor"]');
+  await selectRecipe('forge-armor:fluffvest');
+  await page.click('[data-craft="fluffvest"]');
+  await page.waitForSelector('.sheet.crafting');
+}
+
+scenario('Fluffy crafting assembles from the bag then equips, with one saved transaction', fluffySeed, async (page) => {
+  await openFluffyCraft(page);
+  check(await game(page, `g.save.owned.filter((id) => id === 'fluffvest').length`) === 1, 'craft did not grant one vest');
+  check(await game(page, `g.save.mats.fluff`) === 12 && await game(page, `g.save.mats.goo`) === 8, 'wrong recipe charge');
+  check(await game(page, `JSON.parse(localStorage.getItem('sprout-quest-save')).owned.includes('fluffvest')`), 'craft was not saved before animation');
+  check(!await page.locator('[data-dialog="equip"]').isVisible(), 'equip offered before assembly');
+  await page.waitForSelector('.craft-flight');
+  if (SHOTS) await page.screenshot({ path: `${OUT}fluffy-flight.png` });
+  await page.waitForSelector('.craft-ready', { timeout: 8000 });
+  check(await page.textContent('[data-count="fluff"]') === '12', 'bag display did not end at real inventory count');
+  check(await page.textContent('[data-count="goo"]') === '8', 'goo display did not end at real inventory count');
+  if (SHOTS) await page.screenshot({ path: `${OUT}fluffy-complete.png` });
+  await page.click('[data-dialog="equip"]');
+  await waitFor(page, 'equipped vest', async () => await game(page, `g.save.equip.armor`) === 'fluffvest');
+  check(await game(page, `g.save.mats.fluff`) === 12, 'equip charged the recipe again');
+});
+
+scenario('Fluffy crafting skips safely, ignores repeated craft requests, and keeps the vest', fluffySeed, async (page) => {
+  await openFluffyCraft(page);
+  // A queued second hook invocation may arrive after the first has already swapped out the Forge.
+  await run(page, `void g.ui.hooks.craftGear('fluffvest'); void g.ui.hooks.craftGear('jellywhip')`);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.craft-ready');
+  check(await game(page, `g.save.equip.armor`) === 'tunic', 'skip also equipped the vest');
+  check(!await game(page, `g.save.owned.includes('jellywhip')`), 'second recipe raced the active reveal');
+  await page.click('[data-dialog="later"]');
+  await page.waitForTimeout(3500);
+  check(await game(page, `g.save.equip.armor`) === 'tunic', 'keep unexpectedly equipped');
+  check(await game(page, `g.save.owned.filter((id) => id === 'fluffvest').length`) === 1, 'duplicate ownership');
+  check(await game(page, `g.save.mats.fluff`) === 12 && await game(page, `g.save.mats.goo`) === 8, 'double craft spent twice');
+  check(await page.locator('.craft-flight').count() === 0, 'leftover ingredient animation');
+});
+
+scenario('Fluffy crafting respects reduced motion and fits a small phone', fluffySeed, async (page) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openFluffyCraft(page);
+  await page.waitForSelector('.craft-ready');
+  check(await page.locator('.craft-flight').count() === 0, 'reduced-motion flight still played');
+  check(!await page.locator('[data-craft-skip]').isVisible(), 'reduced-motion flow still waiting for animation');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+  check(!overflow, 'craft screen overflows horizontally on 320px phone');
+  await page.locator('[data-dialog="equip"]').scrollIntoViewIfNeeded();
+  const button = await page.locator('[data-dialog="equip"]').boundingBox();
+  check(button && button.y >= 0 && button.y + button.height <= 568, 'equip button is unreachable on small phone');
+  if (SHOTS) await page.screenshot({ path: `${OUT}fluffy-small-phone.png` });
+  await page.click('[data-dialog="equip"]');
+});
+
+scenario('Fluffy crafting survives reloading during assembly', fluffySeed, async (page) => {
+  await openFluffyCraft(page);
+  await page.reload();
+  await page.waitForSelector('.title-btns:not([hidden])');
+  await page.click('#btn-continue');
+  await page.waitForTimeout(1500);
+  await closeDialogs(page);
+  check(await game(page, `g.save.owned.includes('fluffvest')`), 'reload lost crafted vest');
+  check(await game(page, `g.save.mats.fluff`) === 12 && await game(page, `g.save.mats.goo`) === 8, 'reload changed charged materials');
+  check(await game(page, `g.save.equip.armor`) === 'tunic', 'reload chose equip without player choice');
+});
+
 // The 3D characters: every model loads, and the hero, villagers and monsters render (in software WebGL here) without
 // errors, on the map and in a fight.
 const GL_NAME = 'characters are drawn in 3D: every model loads and renders on the map and in a fight';
 if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, run: async () => {
   const name = GL_NAME;
-  const gl = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const gl = await chromium.launch({ executablePath, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await (await gl.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   const errors: string[] = [];
+  const weaponRequests = new Set<string>();
+  page.on('request', (r) => {
+    const id = /\/models\/wpn_([^/]+)\.glb/.exec(r.url())?.[1];
+    if (id) weaponRequests.add(id);
+  });
   page.on('pageerror', (e) => errors.push(String(e)));
   // (The preset link reloads the page once, cutting off the first page's downloads; those get retried.)
   page.on('console', (m) => { if (m.type() === 'error' || (m.type() === 'warning' && /model/.test(m.text()) && !/Failed to fetch/.test(m.text()))) errors.push(m.text()); });
@@ -1171,6 +1334,12 @@ if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, r
     if (SHOTS) await page.screenshot({ path: `${OUT}3d-map.png` });
     const map = await game<number>(page, 'g.modelStats.renders');
     check(map > 0, 'nothing was rendered in 3D on the map');
+    // A weapon acquired after startup must load when equipped, without a reload or startup prewarming.
+    const fresh = Object.values(GEAR).find((g) => g.slot === 'weapon' && !weaponRequests.has(g.id))!;
+    check(!!fresh, 'no fresh weapon available for the loading check');
+    const downloaded = page.waitForResponse((r) => r.url().endsWith(`/models/wpn_${fresh.id}.glb`) && r.status() === 200, { timeout: 30000 });
+    await run(page, `g.save.owned.push('${fresh.id}'); g.save.equip.weapon = '${fresh.id}'`);
+    await downloaded;
     await run(page, `g.fight('bunny', 3, 2)`);
     await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`), 20000);
     await page.waitForTimeout(3000);

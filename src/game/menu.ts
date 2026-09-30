@@ -1,15 +1,21 @@
 // What the menu's buttons do: crafting, building, equipping, travel, settings and the play report.
-import { GEAR, PROJECTS, POTION_HEAL, TOOLS, zoneById, type ZoneId } from '../data';
+import { GEAR, PROJECTS, POTION_HEAL, POTION_RECIPES, TOOLS, zoneById, type Style, type ZoneId } from '../data';
 import { build, craftGear, craftPotion, craftTool, equip, playerStats, revealed } from '../rules';
 import { copyText, shareOrDownload } from '../share';
 import { logEvent, reportText, summaryText } from '../stats';
 import { clearState, newState } from '../state';
 import type { UIHooks } from '../ui';
 import { G, applySound, menuCtx, paused, persist, showZoneBanner, syncWorld, transition } from './context';
+import { craftPresentation } from '../crafting';
 import { VERSION } from '../version';
 import { newlyRevealed } from './rewards';
 import { activeStory, storyLog } from './stories';
 import { progressQuests } from './story';
+import { moveAt } from '../battle/demo';
+import { showPreview } from './preview';
+
+/** One transaction/reveal at a time, including taps queued while the Forge is being replaced. */
+let craftingItem = false;
 
 /** Travel (by warp or fast travel) with an iris transition, landing somewhere safe in the area. */
 /** Off to an area in a flash: its campfire, or Sowerby's entrance. */
@@ -50,17 +56,25 @@ export const menuHooks: UIHooks = {
   busy: () => G.mode !== 'world' || !!G.trans || !!G.swoop,
 
   async craftGear(id) {
+    if (craftingItem || !GEAR[id]) return;
     const s = G.save, g = GEAR[id];
     const current = g.slot === 'charm' ? (s.equip.charm ? GEAR[s.equip.charm] : null) : GEAR[s.equip[g.slot]];
+    const before = { ...s.mats };
     if (craftGear(s, id) !== 'ok') return;
-    logEvent(s, { kind: 'craft', id });
-    G.audio.play('craft');
-    persist();
-    const choice = await G.ui.newGear(g, current);
-    if (choice === 'equip' && equip(s, id)) G.audio.play('levelup');
-    persist();
-    const advanced = await progressQuests();
-    if (!advanced) G.ui.openMenu(menuCtx(true), 'forge');
+    craftingItem = true;
+    try {
+      logEvent(s, { kind: 'craft', id });
+      if (!craftPresentation(g)) G.audio.play('craft');
+      // Ownership and the cost survive a reload, skipped animation or backgrounded phone.
+      persist();
+      const choice = await G.ui.newGear(g, current, before);
+      if (choice === 'equip' && equip(s, id)) G.audio.play('levelup');
+      persist();
+      const advanced = await progressQuests();
+      if (!advanced) G.ui.openMenu(menuCtx(true), 'forge');
+    } finally {
+      craftingItem = false;
+    }
   },
 
   build(id) {
@@ -79,21 +93,40 @@ export const menuHooks: UIHooks = {
   },
 
   async craftTool(id) {
+    if (craftingItem) return;
+    const before = { ...G.save.mats };
     if (craftTool(G.save, id) !== 'ok') return;
-    logEvent(G.save, { kind: 'craft', id });
-    const t = TOOLS.find((t) => t.id === id)!;
-    G.audio.play('craft');
-    persist();
-    G.ui.closeMenu(true);
-    const what = t.skill === 'wood' ? 'Walk up to a tree with a ribbon on it and chop!' : 'Walk up to a rock with a ribbon on it and break it!';
-    await paused(() => G.ui.itemFound(t.id, t.name, `${t.desc} ${what}`, t.icon, t.tier === 1 ? 'Good as new' : 'You crafted'));
-    void progressQuests();
+    craftingItem = true;
+    try {
+      logEvent(G.save, { kind: 'craft', id });
+      const t = TOOLS.find((t) => t.id === id)!;
+      if (!craftPresentation(t)) G.audio.play('craft');
+      persist();
+      G.ui.closeMenu(true);
+      const what = t.skill === 'wood' ? 'Walk up to a tree with a ribbon on it and chop!' : 'Walk up to a rock with a ribbon on it and break it!';
+      await paused(() => G.ui.madeItem(t, before, `${t.desc} ${what}`, t.icon, t.tier === 1 ? 'Good as new' : 'You crafted'));
+      void progressQuests();
+    } finally {
+      craftingItem = false;
+    }
   },
 
-  craftPotion(id) {
+  async craftPotion(id) {
+    if (craftingItem) return;
+    const before = { ...G.save.mats };
     if (craftPotion(G.save, id) !== 'ok') return;
-    G.audio.play('craft');
-    persist();
+    craftingItem = true;
+    try {
+      const p = POTION_RECIPES.find((r) => r.id === id)!;
+      if (!craftPresentation(p)) G.audio.play('craft');
+      persist();
+      if (craftPresentation(p)) {
+        await G.ui.madeItem(p, before, `One more potion in your bag. Restores ${Math.round(POTION_HEAL * 100)}% of max HP when you drink it.`, '🧪', 'You brewed', 'Keep in bag');
+        G.ui.openMenu(menuCtx(true), 'forge');
+      }
+    } finally {
+      craftingItem = false;
+    }
   },
 
   equip(id) {
@@ -125,6 +158,17 @@ export const menuHooks: UIHooks = {
   },
 
   soundSettings: () => G.sound,
+
+  async preview(key: string) {
+    const [style, lv] = key.split(':');
+    const m = moveAt(style as Style, Number(lv));
+    if (!m) return;
+    const tab = G.ui.openTab ?? 'items';
+    await showPreview(m);
+    // Back to the path you were looking at.
+    G.ui.openMenu(menuCtx(), tab);
+    G.ui.showPath(style as Style);
+  },
 
   async resetSave() {
     G.mode = 'dialog';

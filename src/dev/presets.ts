@@ -6,7 +6,6 @@ import { GEAR, MAX_POTIONS, forgeLevelFor, MAT_ORDER, PROJECTS, QUESTS, TOOLS, Z
 import { playerStats } from '../rules';
 import { newState, type SaveState } from '../state';
 import { GATE_Y, World } from '../world';
-import { LESSONS } from '../lessons';
 
 export interface Preset {
   id: string;
@@ -39,7 +38,7 @@ function reach(s: SaveState, questId: string) {
   s.quest = i;
   if (s.flags.includes('village')) s.flags.push('oldtools');
   // No tutorial popups or chapter intros you'd have seen already.
-  s.tips.push('moved', 'chopped', 'mined', 'coach-potion', ...LESSONS, ...QUESTS.slice(0, i + 1).map((q) => `elder:${q.id}`));
+  s.tips.push('moved', 'chopped', 'mined', 'coach-potion', ...QUESTS.slice(0, i + 1).map((q) => `elder:${q.id}`));
   s.wins = Math.max(s.wins, 3 + i * 4);
 }
 
@@ -127,6 +126,16 @@ function bram(step: number, flags: string[], x: number, y: number, then?: (s: Sa
 }
 
 export const PRESETS: Preset[] = [
+  {
+    id: 'fluffy-craft', name: 'Make a Fluffy Vest', desc: 'At the Forge with 12 Bunny Fluff and 4 Slime Goo. Try the automatic crafting reveal.',
+    make: () => base('cottage', 'meadow', zoneById('village').x0 + 7, 10.7, (s) => {
+      s.build.forge = 1;
+      s.lv = 4;
+      s.equip.armor = 'tunic';
+      s.owned = s.owned.filter((id) => id !== 'fluffvest');
+      Object.assign(s.mats, { fluff: GEAR.fluffvest.recipe!.fluff, goo: GEAR.fluffvest.recipe!.goo });
+    }),
+  },
   {
     id: 'village', name: 'Just reached the village', desc: 'Prologue done, Lv 2, Twig Sword. The first chapter starts.',
     make: () => base('meadow', 'meadow', zoneById('village').x0 + 4.5, 13.5, (s) => (s.lv = 2)),

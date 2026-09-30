@@ -1,6 +1,8 @@
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
-import { xpBloops } from './audio';
+import { xpBloops, type Sfx } from './audio';
+import { craftMarkup, craftPresentation, playCraft } from './crafting';
+import type { CraftItem, CraftPresentation } from './crafting/types';
 import {
   GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
   STYLE_NAMES, TOOLS, ZONES, type SkillId, type Style, type Gear, type MatId, type MonsterKind, type ProjectId, type Quest, type Recipe, type Slot, type ZoneId,
@@ -54,7 +56,7 @@ export interface UIHooks {
   /** Opens a menu tab from the map (an unlock card's "tap to open"). */
   openTab(tab: Tab): void;
   /** Sounds for reward moments: a named effect, or the XP bar's rising tone (seconds, from and to 0–1 up the bar). */
-  sound(s: 'ding' | 'handlingDing' | 'tick' | 'treasure' | 'keyItem' | 'levelup'): void;
+  sound(s: Sfx): void;
   sweep(dur: number, from: number, to: number, voice?: 'xp' | 'handling'): void;
   craftGear(id: string): void;
   craftTool(id: string): void;
@@ -63,6 +65,8 @@ export interface UIHooks {
   build(id: ProjectId): void;
   drink(): void;
   toggleMute(): void;
+  /** Plays the preview of the move a handling level unlocked ("sword:3"), from the Skills menu's path. */
+  preview(key: string): void;
   /** A sound volume moved (0 to 1); `done` when the slider's let go. */
   setVolume(kind: 'music' | 'effects', v: number, done: boolean): void;
   soundSettings(): SoundSettings;
@@ -78,7 +82,7 @@ export interface UIHooks {
 }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+export const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 /** Are there patch notes you haven't read? */
 export const hasNews = (s: SaveState) => newerThan(VERSION, s.seenVersion);
 const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', meadow: '🌼', woods: '🌲', cave: '🪨', hollow: '💎', peak: '🌋' };
@@ -86,7 +90,7 @@ const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', mea
 /** Blender-rendered icon with the emoji as a fallback if the image is missing. */
 export function icon(id: string, emoji: string, cls = 'icon') {
   // decoding="sync": paint the (already downloaded and decoded) icon with the menu, not a moment after.
-  return `<img class="${cls}" src="${iconUrl(id)}" alt="" decoding="sync" onerror="this.outerHTML='${emoji}'">`;
+  return `<img class="${cls}" src="${iconUrl(id)}" alt="" decoding="sync" data-fallback="${esc(emoji)}" onerror="const fallback=document.createElement('span'); fallback.className=this.className+' icon-fallback'; fallback.textContent=this.dataset.fallback; this.replaceWith(fallback)">`;
 }
 
 export function gearStats(g: Gear): string {
@@ -157,7 +161,7 @@ function goalIcon(q: Quest): string {
   if (g.type === 'boss') return bossIcon(g.kind, 'icon xl');
   if (g.type === 'build') return icon(`b_${g.project === 'forge' ? forgeArt(g.level) : g.project + g.level}`, PROJECTS[g.project].icon, 'icon xl');
   if (g.type === 'kills') return icon('goo', '⚔️', 'icon xl');
-  if (g.type === 'craft') return icon('jelly', '⚒', 'icon xl');
+  if (g.type === 'craft') return icon('stonehammer', '⚒', 'icon xl');
   if (g.type === 'mend') return icon('axe1', '🪓', 'icon xl');
   return icon('npc_elder', '🌿', 'icon xl');
 }
@@ -168,6 +172,7 @@ export function allIconIds(): string[] {
     ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`))];
   return [
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
+    ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
     ...buildings.map((b) => `b_${b}`), 'npc_elder',
     // Story portraits and keepsakes.
@@ -233,8 +238,10 @@ function handlingTree(s: SaveState, style: Style): string {
     const w = weaponAt(style, at);
     const tag = w ? `<span class="htag">${icon(w.id, w.icon, 'icon sm')} Can wield the ${esc(w.name)} ${'★'.repeat(w.tier ?? 0)}</span>` : '';
     const progress = state === 'next' ? `<div class="pbar"><i style="width:${(100 * m.xp) / need}%"></i></div><small class="hxp">${m.xp}/${need} XP</small>` : '';
+    // A special rank or the trick you've unlocked: watch it again, as often as you like.
+    const watch = state === 'done' && (step === 'skill' || step === 'trick') ? `<button class="go ghost hwatch" data-preview="${style}:${at}">▶ Watch</button>` : '';
     return `<li class="hnode ${state} ${step ?? 'start'}"><span class="hdot">${step ? STEP_ICON[step] : CLASS_EMOJI[style]}</span>
-      <div class="htext"><div class="hlv">Lv ${at}${at === MASTERY_MAX ? ' · Mastery' : ''}${state === 'done' ? ' ✓' : ''}</div><b>${esc(title)}</b><small>${esc(note)}</small>${tag}${progress}</div></li>`;
+      <div class="htext"><div class="hlv">Lv ${at}${at === MASTERY_MAX ? ' · Mastery' : ''}${state === 'done' ? ' ✓' : ''}</div><b>${esc(title)}</b><small>${esc(note)}</small>${tag}${progress}${watch}</div></li>`;
   }).join('');
   return `<div class="htree">
     <div class="htabs">${tabs}</div>
@@ -780,12 +787,20 @@ export class UI {
       e.stopImmediatePropagation();
     };
     if (this.resolveDialog) {
+      // During assembly these keys skip to the finished piece. The same press never also equips it.
+      const skip = this.sheet.querySelector<HTMLButtonElement>('[data-craft-skip]:not([hidden])');
+      if (skip && ['Enter', 'Space', 'KeyE', 'NumpadEnter', 'Escape'].includes(k)) {
+        swallow();
+        skip.click();
+        return;
+      }
       const btns = [...this.sheet.querySelectorAll<HTMLButtonElement>('[data-dialog]')];
       const primary = btns[btns.length - 1], secondary = btns.length > 1 ? btns[0] : null;
       if (k === 'Enter' || k === 'Space' || k === 'KeyE' || k === 'NumpadEnter') {
         swallow();
         this.armed = true;
-        primary?.click();
+        const focused = btns.find((b) => b === document.activeElement && !b.closest('[hidden]'));
+        (k === 'KeyE' ? primary : focused ?? primary)?.click();
       } else if (k === 'Escape' && secondary) {
         swallow();
         this.armed = true;
@@ -880,6 +895,12 @@ export class UI {
     this.armed = false;
     this.modal.hidden = false;
     this.renderMenu(true);
+  }
+
+  /** Shows a weapon class's handling path in the open menu (coming back to it after watching a move). */
+  showPath(style: Style) {
+    this.pick.hpath = style;
+    this.renderMenu(false);
   }
 
   /** `silent` closes without notifying the game (used when a story dialog takes over). */
@@ -1131,8 +1152,8 @@ export class UI {
       rows = POTION_RECIPES.map((p) => {
         const can = at && hasMats(s, p.recipe) && s.potions < MAX_POTIONS;
         return {
-          id: p.id, art: '<span class="emo">🧪</span>', name: p.name, tier: 0, owned: false, lock: null, can,
-          tag: () => tagCard('<span class="emo big-emo">🧪</span>', esc(p.name), `<div class="desc">You carry ${s.potions}/${MAX_POTIONS}.</div><div class="chips">${costChips(s, p.recipe)}</div>`,
+          id: p.id, art: icon(p.id, '🧪'), name: p.name, tier: 0, owned: false, lock: null, can,
+          tag: () => tagCard(icon(p.id, '🧪'), esc(p.name), `<div class="desc">You carry ${s.potions}/${MAX_POTIONS}.</div><div class="chips">${costChips(s, p.recipe)}</div>`,
             `<button class="go" data-potion="${p.id}" ${can ? '' : 'disabled'}>${s.potions >= MAX_POTIONS ? 'Full' : 'Brew'}</button>`),
         };
       });
@@ -1277,6 +1298,7 @@ export class UI {
       this.renderMenu(true);
       return;
     }
+    if (d.preview) return this.hooks.preview(d.preview);
     if (d.pick) {
       const k = d.pick.indexOf(':');
       this.pick[d.pick.slice(0, k)] = d.pick.slice(k + 1);
@@ -1541,13 +1563,19 @@ export class UI {
   }
 
   /** Shown right after crafting: celebrate the new item and offer to equip it on the spot. */
-  newGear(g: Gear, current: Gear | null) {
+  async newGear(g: Gear, current: Gear | null, before: Recipe = {}) {
     const cmp = (k: 'atk' | 'def' | 'hp') => {
       const a = current?.[k] ?? 0, b = g[k] ?? 0;
       if (!a && !b) return '';
       const d = b - a;
       return `<span class="chip ${d >= 0 ? 'ok' : 'miss'}">${k.toUpperCase()} ${a} → <b>${b}</b></span>`;
     };
+    const presentation = craftPresentation(g);
+    if (presentation && g.recipe) {
+      return this.showCraft({ ...g, recipe: g.recipe }, presentation, before,
+        `<div class="chips">${cmp('atk')}${cmp('def')}${cmp('hp')}</div>`,
+        [['later', 'Keep in bag'], ['equip', 'Equip now!']]);
+    }
     this.hooks.sound('treasure');
     return this.dialog(
       `${ribbon(`New ${g.slot}!`)}${stage(icon(g.id, g.icon, 'icon xxl'))}
@@ -1557,6 +1585,25 @@ export class UI {
       [['later', 'Keep in bag'], ['equip', 'Equip now!']],
       'celebrate',
     );
+  }
+
+  /** Tools are already repaired/upgraded; potions/meals are already saved when this opens. */
+  madeItem(item: CraftItem, before: Recipe, text: string, emoji: string, heading = 'You crafted', label = 'Take it!') {
+    const presentation = craftPresentation(item);
+    if (!presentation) return this.itemFound(item.iconId ?? item.id, item.name, text, emoji, heading);
+    return this.showCraft(item, presentation, before, `<p>${esc(text)}</p>`, [['ok', label]]);
+  }
+
+  private async showCraft(item: CraftItem, presentation: CraftPresentation, before: Recipe, details: string, choices: [string, string, string?][]) {
+    const choice = this.dialog(`${craftMarkup(item, presentation, before)}<div class="craft-details" hidden>${details}</div>`, choices, 'crafting');
+    const buttons = this.sheet.querySelector<HTMLElement>('.btns')!;
+    buttons.hidden = true;
+    const craft = playCraft(this.sheet, presentation, item.recipe, before, (s) => this.hooks.sound(s), () => {
+      this.sheet.querySelector<HTMLElement>('.craft-details')!.hidden = false;
+      buttons.hidden = false;
+    });
+    try { return await choice; }
+    finally { craft.dispose(); }
   }
 
   challenge(kind: MonsterKind, name: string, title: string, lv: number, playerLv: number, zoneName: string) {

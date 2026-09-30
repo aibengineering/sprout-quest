@@ -1,0 +1,93 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "wing-back-left": {
+      "src": "assets/crafting/batcloak-wing-back-left.webp",
+      "center": [
+        0.2949,
+        0.4688
+      ],
+      "bounds": [
+        45,
+        127,
+        257,
+        353
+      ]
+    },
+    "wing-back-right": {
+      "src": "assets/crafting/batcloak-wing-back-right.webp",
+      "center": [
+        0.7051,
+        0.4688
+      ],
+      "bounds": [
+        255,
+        127,
+        467,
+        353
+      ]
+    },
+    "wing-lapels": {
+      "src": "assets/crafting/batcloak-wing-lapels.webp",
+      "center": [
+        0.5,
+        0.5029
+      ],
+      "bounds": [
+        71,
+        143,
+        441,
+        372
+      ]
+    },
+    "wing-collar": {
+      "src": "assets/crafting/batcloak-wing-collar.webp",
+      "center": [
+        0.5,
+        0.3115
+      ],
+      "bounds": [
+        136,
+        121,
+        376,
+        198
+      ]
+    },
+    "fang-clasps": {
+      "src": "assets/crafting/batcloak-fang-clasps.webp",
+      "center": [
+        0.5,
+        0.5068
+      ],
+      "bounds": [
+        194,
+        189,
+        318,
+        330
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/batcloak-complete.webp",
+      "center": [
+        0.5,
+        0.4814
+      ],
+      "bounds": [
+        45,
+        121,
+        467,
+        372
+      ]
+    }
+  },
+  "stack": [
+    "wing-back-left",
+    "wing-back-right",
+    "wing-lapels",
+    "wing-collar",
+    "fang-clasps"
+  ]
+}

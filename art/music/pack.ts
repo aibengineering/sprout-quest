@@ -9,7 +9,7 @@
 import { $ } from 'bun';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { samplesFor, type SampleIndex } from '../../src/music/orchestra';
+import { orchestrate, pick, samplesFor, type SampleIndex } from '../../src/music/orchestra';
 import { THEMES } from '../../src/music/scores';
 
 const CACHE = 'art/music/cache';
@@ -18,6 +18,30 @@ const DEST = 'public/music';
 const BITRATE = '64k';
 
 const uv = (args: string[]) => $`uv run --quiet --with numpy --with soundfile --with imageio-ffmpeg ${args}`;
+
+// Score-only revisions can reuse the encoded bank exactly, pruning unused files without a source download or
+// lossy re-encode. Refuse missing/range-stretched notes; those require the full source packer below.
+if (process.argv.includes('--reuse-shipped')) {
+  if (process.argv.includes('--fresh')) throw new Error('Choose --fresh or --reuse-shipped, not both');
+  const index = JSON.parse(await readFile(`${DEST}/index.json`, 'utf8')) as SampleIndex;
+  for (const [id, score] of Object.entries(THEMES)) for (const n of orchestrate(score).notes) {
+    const sample = pick(index, n.inst, n.midi, n.vel);
+    if (!sample || !existsSync(`${DEST}/${sample.file}`) ||
+        (n.midi != null && Math.abs(n.midi - sample.midi!) > (n.inst === 'horn' ? 7 : 4))) {
+      throw new Error(`${id}: ${n.inst} ${n.midi} needs a full sample rebuild`);
+    }
+  }
+  const needed = new Set(Object.values(THEMES).flatMap((s) => [...samplesFor(index, s)]));
+  for (const [inst, entries] of Object.entries(index)) {
+    for (const e of entries) if (!needed.has(e.file)) await rm(`${DEST}/${e.file}`);
+    index[inst] = entries.filter((e) => needed.has(e.file));
+    if (!index[inst].length) delete index[inst];
+  }
+  await writeFile(`${DEST}/index.json`, JSON.stringify(index));
+  const bytes = (await Promise.all([...needed].map(async (f) => (await stat(`${DEST}/${f}`)).size))).reduce((a, b) => a + b, 0);
+  console.log(`MUSIC ${needed.size} existing recordings, ${(bytes / 1024 / 1024).toFixed(3)} MiB; no new downloads`);
+  process.exit(0);
+}
 
 if (process.argv.includes('--fresh') || !existsSync(`${CACHE}/catalog.json`)) await uv(['art/music/samples.py']);
 const catalog = JSON.parse(await readFile(`${CACHE}/catalog.json`, 'utf8')) as SampleIndex;
