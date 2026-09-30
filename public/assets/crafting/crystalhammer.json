@@ -1,0 +1,79 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "iron-shaft": {
+      "src": "assets/crafting/crystalhammer-iron-shaft.webp",
+      "center": [
+        0.4648,
+        0.5
+      ],
+      "bounds": [
+        34,
+        235,
+        442,
+        277
+      ]
+    },
+    "crystal-lower": {
+      "src": "assets/crafting/crystalhammer-crystal-lower.webp",
+      "center": [
+        0.8164,
+        0.6406
+      ],
+      "bounds": [
+        358,
+        270,
+        478,
+        386
+      ]
+    },
+    "crystal-upper": {
+      "src": "assets/crafting/crystalhammer-crystal-upper.webp",
+      "center": [
+        0.8164,
+        0.3594
+      ],
+      "bounds": [
+        358,
+        126,
+        478,
+        242
+      ]
+    },
+    "iron-yoke": {
+      "src": "assets/crafting/crystalhammer-iron-yoke.webp",
+      "center": [
+        0.8184,
+        0.5146
+      ],
+      "bounds": [
+        354,
+        134,
+        484,
+        393
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/crystalhammer-complete.webp",
+      "center": [
+        0.5059,
+        0.5068
+      ],
+      "bounds": [
+        34,
+        126,
+        484,
+        393
+      ]
+    }
+  },
+  "stack": [
+    "iron-shaft",
+    "crystal-lower",
+    "crystal-upper",
+    "iron-yoke"
+  ]
+}
