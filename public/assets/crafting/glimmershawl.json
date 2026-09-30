@@ -4,90 +4,90 @@
     512
   ],
   "parts": {
-    "wing-left": {
-      "src": "assets/crafting/glimmershawl-wing-left.webp",
-      "center": [
-        0.4756,
-        0.5186
-      ],
-      "bounds": [
-        49,
-        144,
-        438,
-        387
-      ]
-    },
-    "wing-right": {
-      "src": "assets/crafting/glimmershawl-wing-right.webp",
-      "center": [
-        0.7012,
-        0.5391
-      ],
-      "bounds": [
-        255,
-        165,
-        463,
-        387
-      ]
-    },
-    "jelly-weave": {
-      "src": "assets/crafting/glimmershawl-jelly-weave.webp",
+    "jelly-drape": {
+      "src": "assets/crafting/glimmershawl-jelly-drape.webp",
       "center": [
         0.5,
-        0.5273
+        0.5
       ],
       "bounds": [
-        107,
-        192,
-        405,
-        348
+        72,
+        142,
+        440,
+        370
       ]
     },
-    "jelly-edging": {
-      "src": "assets/crafting/glimmershawl-jelly-edging.webp",
+    "jelly-collar": {
+      "src": "assets/crafting/glimmershawl-jelly-collar.webp",
       "center": [
         0.5,
-        0.5371
+        0.4883
       ],
       "bounds": [
-        45,
-        166,
-        467,
-        384
+        133,
+        142,
+        379,
+        358
+      ]
+    },
+    "shard-left": {
+      "src": "assets/crafting/glimmershawl-shard-left.webp",
+      "center": [
+        0.1719,
+        0.3613
+      ],
+      "bounds": [
+        13,
+        104,
+        163,
+        266
+      ]
+    },
+    "shard-right": {
+      "src": "assets/crafting/glimmershawl-shard-right.webp",
+      "center": [
+        0.8281,
+        0.3613
+      ],
+      "bounds": [
+        349,
+        104,
+        499,
+        266
       ]
     },
     "core-brooch": {
       "src": "assets/crafting/glimmershawl-core-brooch.webp",
       "center": [
         0.5,
-        0.4453
+        0.4688
       ],
       "bounds": [
-        215,
-        188,
-        297,
-        268
+        218,
+        203,
+        294,
+        277
       ]
     },
     "complete": {
       "src": "assets/crafting/glimmershawl-complete.webp",
       "center": [
         0.5,
-        0.5186
+        0.4629
       ],
       "bounds": [
-        45,
-        144,
-        467,
-        387
+        13,
+        104,
+        499,
+        370
       ]
     }
   },
   "stack": [
-    "wing-left",
-    "wing-right",
-    "jelly-weave",
-    "jelly-edging",
+    "jelly-drape",
+    "jelly-collar",
+    "shard-left",
+    "shard-right",
     "core-brooch"
   ]
 }

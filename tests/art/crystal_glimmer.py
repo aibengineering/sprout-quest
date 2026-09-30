@@ -21,8 +21,10 @@ for item_id in ('crystalsword', 'crystalhammer', 'glimmerwhip', 'glimmerwand'):
     assert tuple(parts) == item.PARTS
     assert all(obj.parent is root for obj in listed), 'Attachment origin changed'
     if item_id == 'glimmerwhip':
-        for obj in parts['wing-lash']:
-            assert min((obj.matrix_world @ vertex.co).x for vertex in obj.data.vertices) > .225, 'Membrane coil survives uncoiling'
+        for obj in parts['jelly-lash'] + parts['shard-tip']:
+            assert min((obj.matrix_world @ vertex.co).x for vertex in obj.data.vertices) > .225, 'Lash coil survives uncoiling'
+        grip_max = max((obj.matrix_world @ vertex.co).x for obj in parts['glass-grip'] for vertex in obj.data.vertices)
+        assert grip_max < .225, 'Grip reaches into the uncoiled lash'
         core_max = max((obj.matrix_world @ vertex.co).x for obj in parts['core-anchor'] for vertex in obj.data.vertices)
         assert core_max < .225, 'Core disappears when uncoiled'
     print('PASS geometry layers and attachment graph:', item_id, flush=True)
