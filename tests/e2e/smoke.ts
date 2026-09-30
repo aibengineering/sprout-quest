@@ -489,8 +489,9 @@ scenario('travel: a campfire takes you home to Sowerby, and the Waystone takes y
     await page.waitForTimeout(400);
     await page.keyboard.press('KeyE');
   };
-  // The woods' roaming monsters leave you be: one catching you at the campfire starts a fight instead.
-  await run(page, 'g.over.roamers.calm = 1e9');
+  // This scenario tests object interaction, not encounters. Calm still permits KeyE surprise attacks on nearby
+  // monsters, and teleport resets it, so remove random roamers and suppress their refill for this fixture.
+  await run(page, 'g.over.roamers.list = []; g.over.roamers.respawn = 1e9');
   // The Journal's map no longer warps you anywhere.
   await run(page, `g.ui.openMenu({ atForge: false, inVillage: false }, 'journey')`);
   check(!(await page.$('#modal [data-travel], #modal [data-do="home"]')), 'the Journal still has warp buttons');
@@ -1162,15 +1163,21 @@ const fluffySeed = (g: any) => {
   Object.assign(g.save.mats, { fluff: 24, goo: 12 });
 };
 async function openFluffyCraft(page: Page) {
+  const selectRecipe = async (id: string) => {
+    const tile = page.locator(`[data-pick="${id}"]`);
+    await tile.waitFor({ state: 'visible' });
+    // Selected cards bob forever. They already show this recipe, so don't wait for a redundant click to stabilize.
+    if (!await tile.evaluate((el) => el.classList.contains('sel'))) await tile.click();
+  };
   await run(page, `const forge = g.over.world.objs.find((o) => o.kind === 'forge'); g.over.teleport(forge.x + forge.w / 2, forge.y + forge.h + .7)`);
   await page.waitForTimeout(300);
   await page.keyboard.press('KeyE');
   await page.waitForSelector('[data-sub="forge:armor"]');
   await page.click('[data-sub="forge:weapon"]');
-  await page.click('[data-pick="forge-weapon:jellywhip"]');
+  await selectRecipe('forge-weapon:jellywhip');
   check(await page.locator('[data-craft="jellywhip"]').isEnabled(), 'second recipe must be craftable to exercise the mutex');
   await page.click('[data-sub="forge:armor"]');
-  await page.click('[data-pick="forge-armor:fluffvest"]');
+  await selectRecipe('forge-armor:fluffvest');
   await page.click('[data-craft="fluffvest"]');
   await page.waitForSelector('.sheet.crafting');
 }
