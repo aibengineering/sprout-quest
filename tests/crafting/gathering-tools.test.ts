@@ -11,8 +11,8 @@ import type { CraftPresentation } from '../../src/crafting/types';
 const presentations: CraftPresentation[] = [axe1, axe2, pick1, pick2, pick3, pick4];
 
 type ArtManifest = { size: number[]; stack: string[]; existing: string[]; parts: Record<string, { src: string; center: number[]; bounds: number[] }> };
-const ids = ['axe1', 'axe2', 'pick1', 'pick2', 'pick3', 'pick4'];
-const recipes = [{ goo: 2, fluff: 1 }, { copper: 3, bark: 4 }, { goo: 2, fluff: 2 }, { copper: 4, bark: 3 }, { iron: 4, pine: 3 }, { crystal: 4, iron: 3 }];
+const ids = ['axe1', 'axe2', 'axe3', 'axe4', 'pick1', 'pick2', 'pick3', 'pick4'];
+const recipes = [{ goo: 2, fluff: 1 }, { copper: 3, bark: 4 }, { iron: 3, pine: 3 }, { crystal: 3, glimwood: 3 }, { goo: 2, fluff: 2 }, { copper: 4, bark: 3 }, { iron: 4, pine: 3 }, { crystal: 4, iron: 3 }];
 const dimensions = (path: string): [number, number] => {
   const b = readFileSync(path);
   expect(b.toString('ascii', 0, 4)).toBe('RIFF');
@@ -60,8 +60,7 @@ describe('recipe-led gathering tool art', () => {
       expect(p.duration).toBeGreaterThanOrEqual(reveal.at + 600);
     }
   });
-  test('all six original recipe costs stay intact', () => {
-    // (Later tools, like the Iron and Crystal Axes, come after these; the originals keep their order and recipes.)
+  test('every gathering tool keeps its recipe', () => {
     expect(ids.filter((id) => !TOOLS.some((t) => t.id === id))).toEqual([]);
     expect(ids.map((id) => TOOLS.find((t) => t.id === id)!.recipe)).toEqual(recipes);
   });
