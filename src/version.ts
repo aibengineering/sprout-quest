@@ -36,6 +36,21 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.5',
+    date: '2026-09-30',
+    title: 'Strike Up the Band',
+    notes: [
+      "🎻 Music: a real orchestra, with its own theme for every area and fight",
+      "🔊 Sound settings: mute, plus separate music and effects volume sliders",
+      "🪓 Chops and clinks sound right as you tap",
+      "🔥 Light each campfire yourself, to a warm little fanfare",
+      "🧭 Campfires take you home, and Sowerby's Waystone to any lit campfire",
+      "🗝️ Key items like the Twig Sword and Granny's gifts get their own fanfare",
+      "🍄 Whisper Woods eases off: shorter spore poison, fewer packs of three",
+      "🐾 A group marked ×3 now really brings all three monsters",
+    ],
+  },
+  {
     version: '0.3.4',
     date: '2026-09-29',
     title: 'Learn the Fight',

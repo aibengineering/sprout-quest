@@ -10,9 +10,13 @@ licence is needed.
 
 | Theme | Plays |
 |---|---|
-| `glade` | In the Quiet Glade, and on the title screen when the save is there |
-| `sowerby` | In the village |
-| `meadow` | In the Sunny Meadow, and for now in every area that has no theme of its own |
+| `glade` | In the Quiet Glade: a lullaby for waking up |
+| `sowerby` | In the village: home |
+| `meadow` | In the Sunny Meadow, and anywhere without a theme of its own (the tower's camp) |
+| `woods` | In Whisper Woods: curious, a little mysterious |
+| `cave` | In Echo Cavern: sparse, with drips that echo |
+| `hollow` | In Glimmer Hollow: a crystalline waltz |
+| `peak` | On Ember Peak: the climb to the dragon |
 | `battle` | In every regular and story fight |
 | `guardian` | In boss fights |
 
@@ -33,7 +37,7 @@ fight or area theme.
 ## Samples
 
 `bun run music` runs `art/music/pack.ts`. It ships **only the recordings the scores play**, as 64 kbps mono AAC in
-`public/music/`, with an `index.json` that the player reads. It currently ships about 130 recordings, 2.5 MB in all,
+`public/music/`, with an `index.json` that the player reads. It currently ships about 160 recordings, 3.2 MB in all,
 and about 1.4 MB for the opening.
 
 The first run, and any run with `--fresh`, calls `art/music/samples.py` through `uv`. That script:

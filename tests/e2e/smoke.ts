@@ -1041,7 +1041,7 @@ scenario('music: it gets ready on the title (where you are first), plays from th
   await winFight(page);
   await waitFor(page, "back to the meadow's theme", async () => (await game<string>(page, 'g.music.current')) === 'meadow');
   const loaded = await game<string[]>(page, 'g.music.loaded');
-  check(loaded.slice(0, 3).join() === 'meadow,glade,battle' && loaded.length === 5, `themes loaded in the wrong order: ${loaded.join()}`);
+  check(loaded.slice(0, 3).join() === 'meadow,glade,battle' && loaded.length === 9, `themes loaded in the wrong order, or not all: ${loaded.join()}`);
 });
 
 scenario('dev builds: a Battle Tower run climbs floor after floor from its camp, in its own slot', (g) => {
