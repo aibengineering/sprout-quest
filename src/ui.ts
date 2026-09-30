@@ -168,7 +168,7 @@ function goalIcon(q: Quest): string {
 
 /** Every icon the menus can show (materials, gear, tools, guardians, buildings, the Elder), for preloading. */
 export function allIconIds(): string[] {
-  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'sawmill0', 'sawmill1', 'bramhut',
+  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'sawmill0', 'sawmill1', 'bramhut', 'cottage1',
     ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`))];
   return [
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
@@ -177,7 +177,7 @@ export function allIconIds(): string[] {
     ...buildings.map((b) => `b_${b}`), 'npc_elder',
     // Story portraits and keepsakes.
     'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots',
-    'npc_bram', 'npc_bram_happy', 'npc_bram_hurt', 'pie', ...Object.keys(MEALS).map((m) => `meal_${m}`),
+    'npc_bram', 'npc_bram_happy', 'npc_bram_hurt', 'pie', 'npc_pip', 'npc_pip_wow', ...Object.keys(MEALS).map((m) => `meal_${m}`),
   ];
 }
 
@@ -279,6 +279,7 @@ function handlingPace(style: Style, lv: number): string {
 const PLOT_OPENS: Partial<Record<UnlockId, string>> = {
   plots: 'The plot opens once you beat the Slime King', warpplot: 'The ruins open up once you beat the Alpha Woolf',
   sawmill: 'Someone who knows timber could build one. Granny might know who.',
+  cottage: 'It needs timber, and someone to saw it. Once Bram is settled in…',
 };
 
 function buildingIcon(id: ProjectId, level: number): string {
@@ -648,9 +649,9 @@ export class UI {
   }
 
   /** The tab each unlock opens when you tap its card (the weapon skill lives in fights, so it has none). */
-  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', trick: 'items', sawmill: 'village', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
+  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', trick: 'items', sawmill: 'village', cottage: 'village', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
   /** The corner button that leads there, which bounces while its card is up. */
-  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', trick: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag' };
+  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', trick: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag', cottage: 'btn-bag' };
 
   /**
    * You've been to a menu tab: any unlock card pointing there (showing, or waiting its turn) has done its job, so it

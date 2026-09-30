@@ -13,7 +13,7 @@ import bpy
 import gear_parts
 import lib
 
-IDS = ('jellypot','shroombrew','embertonic','pancakes','tea','goojelly','stew')
+IDS = ('jellypot','shroombrew','embertonic','pancakes','tea','goojelly','stew','rockcandy')
 for item_id in IDS:
     lib.reset()
     module = gear_parts.item_module(item_id)

@@ -57,7 +57,7 @@ describe('potion and Granny meal ingredient art', () => {
     });
   }
 
-  test('all seven layer sets together fit below 768KiB', () => {
+  test('all the layer sets together fit below 768KiB', () => {
     const bytes = ids.reduce((total, id) => total + Object.values(manifest(id).parts).reduce((n: number, part: any) => n + statSync(`public/${part.src}`).size, 0), 0);
     expect(bytes).toBeLessThan(768 * 1024);
   });

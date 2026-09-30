@@ -24,7 +24,7 @@ describe('rendered assets', () => {
 
   test('every monster and villager has a 3D model, and their old sprites are no longer shipped', () => {
     for (const kind of Object.keys(MONSTERS)) expect({ kind, model: model(`mon_${kind}`) }).toEqual({ kind, model: true });
-    for (const n of ['elder', 'granny', 'poppy', 'poppy_hug', 'bram', 'bram_hurt']) expect({ n, model: model(`npc_${n}`) }).toEqual({ n, model: true });
+    for (const n of ['elder', 'granny', 'poppy', 'poppy_hug', 'bram', 'bram_hurt', 'pip']) expect({ n, model: model(`npc_${n}`) }).toEqual({ n, model: true });
     expect(Object.keys(atlas.frames).filter((k) => /^(hero|mon|npc)\//.test(k))).toEqual([]);
   });
 

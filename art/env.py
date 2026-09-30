@@ -780,6 +780,63 @@ def bramhut():
     return root
 
 
+def cottage():
+    """Sowerby's Guest Cottage, built from Bram's planks: oak plank walls on a stone footing, a rusty-red shingle roof, a
+    round green door (mole-sized), a copper lantern and weathervane, and a window box of flowers."""
+    root = empty('cottage')
+    w, d = 2.2 * TILE * 0.9, 1.4 * TILE * 0.8
+    # A footing of rounded stones.
+    for i in range(9):
+        x = -w / 2 + (i + 0.5) * w / 9
+        sphere((x, -d / 2 + 0.02, 0.12), (0.22, 0.14, 0.14), toon('#9a9aa8' if i % 2 else '#8a8a98'), root, line=0.012)
+    box((0, 0, 0.12), (w, d, 0.24), toon('#8a8a98'), root, bevel=0.06, line=0)
+    # Plank walls: board after board, two shades of oak.
+    for i in range(6):
+        z = 0.34 + i * 0.22
+        box((0, 0, z), (w - 0.05, d - 0.05, 0.2), toon('#d8a868' if i % 2 else '#c8955a'), root, bevel=0.03, line=0.008)
+    # Corner posts.
+    for x in (-w / 2, w / 2):
+        box((x, -d / 2, 0.9), (0.16, 0.16, 1.3), toon('#9a6a44'), root, bevel=0.03, line=0.01)
+    # A steep roof with dark eaves, and a little round attic window in the gable.
+    profile([(-w / 2 - 0.3, 1.5), (0, 2.65), (w / 2 + 0.3, 1.5)], d + 0.5, toon('#d8664a'), root, bevel=0.08)
+    for side in (-1, 1):
+        box((side * (w / 4 + 0.15), -d / 2 - 0.27, 2.09), (w / 2 + 0.55, 0.08, 0.12), toon('#8a5a3a'), root,
+            rot=(0, side * math.atan2(1.15, w / 2 + 0.3), 0), bevel=0.02, line=0.01)
+    torus((0, -d / 2 - 0.26, 1.95), 0.16, 0.04, toon('#8a5a3a'), root, rot=(math.pi / 2, 0, 0), line=0.01)
+    cylinder((0, -d / 2 - 0.25, 1.95), 0.14, 0.03, toon('#ffe9a0', rim=0.4, emit=0.3), root, rot=(math.pi / 2, 0, 0), seg=20, line=0)
+    # A stone chimney, and a copper weathervane (a little pick) on the peak.
+    box((-w / 2 + 0.55, 0.25, 2.3), (0.34, 0.34, 1.0), toon('#9aa0b0'), root, bevel=0.06)
+    box((-w / 2 + 0.55, 0.25, 2.84), (0.42, 0.42, 0.1), toon('#8a8a98'), root, bevel=0.03, line=0.01)
+    vane = -d / 2 - 0.2
+    cylinder((0, vane, 2.9), 0.025, 0.5, toon('#c8743a'), root, seg=6, line=0.006)
+    sphere((0, vane, 2.7), 0.07, toon('#e8904a', rim=0.4), root, line=0.008)
+    profile([(-0.26, 0.0), (0, 0.09), (0.26, 0.0), (0.26, -0.045), (0, 0.035), (-0.26, -0.045)], 0.04, toon('#e8904a', rim=0.4), root,
+            loc=(0, vane, 3.14), bevel=0.01, line=0.01)
+    # The round green door with a copper knob, under a little plank lintel.
+    cylinder((0.25, -d / 2 - 0.02, 0.62), 0.38, 0.08, toon('#6a4a2a'), root, rot=(math.pi / 2, 0, 0), seg=28, line=0.012)
+    cylinder((0.25, -d / 2 - 0.06, 0.62), 0.32, 0.06, toon('#5ab86a'), root, rot=(math.pi / 2, 0, 0), seg=28, line=0.01)
+    box((0.25, -d / 2 - 0.12, 0.26), (0.66, 0.12, 0.08), toon('#8a8a98'), root, bevel=0.03, line=0.01)  # doorstep
+    for dx in (-0.12, 0, 0.12):
+        box((0.25 + dx, -d / 2 - 0.1, 0.62), (0.015, 0.02, 0.52), toon('#4a9a5a'), root, bevel=0.005, line=0)
+    sphere((0.43, -d / 2 - 0.12, 0.58), 0.045, toon('#e8904a', rim=0.4), root, line=0.008)
+    # A copper lantern beside the door, lit.
+    lamp = empty('lantern', root, (0.8, -d / 2 - 0.1, 1.05))
+    box((0, 0, 0), (0.16, 0.16, 0.2), toon('#ffe9a0', rim=0.4, emit=0.5), lamp, bevel=0.03, line=0.01)
+    cone((0, 0, 0.16), 0.13, 0.1, toon('#e8904a'), lamp, seg=4, rot=(0, 0, math.pi / 4), line=0.008)
+    box((0, 0.1, 0.05), (0.04, 0.12, 0.04), toon('#c8743a'), lamp, bevel=0.01, line=0.006)
+    # A round window with a flower box.
+    torus((-0.55, -d / 2 - 0.04, 1.05), 0.22, 0.05, toon('#9a6a44'), root, rot=(math.pi / 2, 0, 0), line=0.01)
+    cylinder((-0.55, -d / 2 - 0.02, 1.05), 0.2, 0.03, toon('#bfe8ff', rim=0.4), root, rot=(math.pi / 2, 0, 0), seg=20, line=0)
+    box((-0.55, -d / 2 - 0.14, 0.76), (0.56, 0.18, 0.14), toon('#9a6a44'), root, bevel=0.03, line=0.01)
+    for k, col in enumerate(('#ff8ab0', '#ffd35a', '#ffffff', '#ff8ab0')):
+        sphere((-0.76 + k * 0.14, -d / 2 - 0.16, 0.87), 0.065, toon(col), root, line=0.008)
+    # A fresh molehill by the step, and a pebble or two.
+    sphere((0.95, -d / 2 - 0.45, 0.02), (0.26, 0.22, 0.15), toon('#9a7050'), root, line=0.012)
+    for x, y in ((0.7, -0.62), (1.2, -0.3)):
+        sphere((x, y - d / 2, 0.04), (0.07, 0.06, 0.05), toon('#9aa0b0'), root, line=0.008)
+    return root
+
+
 def camp_stump():
     """The huge old stump at Bram's camp, his axe still buried in it."""
     root = empty('campstump')
@@ -867,6 +924,7 @@ SCENERY['sawmill0'] = (lambda: sawmill(0), 320, 220)
 SCENERY['sawmill1'] = (lambda: sawmill(1), 360, 340)
 SCENERY['sawmill2'] = (lambda: sawmill(2), 380, 340)
 SCENERY['bramhut'] = (bramhut, 230, 260)
+SCENERY['cottage1'] = (cottage, 260, 290)
 SCENERY['prop_campstump'] = (camp_stump, 170, 150)
 SCENERY['prop_campmill'] = (camp_mill, 330, 230)
 SCENERY['prop_logs'] = (lambda: log_pile(None, 3), 150, 130)

@@ -34,8 +34,8 @@ async function begin(page: Page, id: string, twice = false) {
     for (const k in s.mastery) s.mastery[k].lv = 10;
     for (const k in s.skills) s.skills[k].lv = 10;
     s.lv = 20; s.build.forge = 5; s.stories.poppy = 6;
-    for (const flag of ['oldtools', 'bram:pie', 'bram:stew']) if (!s.flags.includes(flag)) s.flags.push(flag);
-    if (['pancakes', 'tea', 'goojelly', 'stew'].includes(id)) {
+    for (const flag of ['oldtools', 'bram:pie', 'bram:stew', 'pip:candy']) if (!s.flags.includes(flag)) s.flags.push(flag);
+    if (['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy'].includes(id)) {
       void g.over.actors.get('granny:granny').talk();
     } else {
       g.ui.openMenu({ atForge: true, inVillage: true }, 'forge');
@@ -84,7 +84,7 @@ async function finish(page: Page, id: string, equip = true, fallback = false) {
 }
 
 try {
-  if (Object.keys(CRAFT_PRESENTATIONS).length !== 47 || items.length !== 47) throw Error('Expected complete 47-item coverage');
+  if (Object.keys(CRAFT_PRESENTATIONS).length !== 50 || items.length !== 50) throw Error('Expected complete 50-item coverage');
   // Parallel pages are independent saves, and each runs the actual normal timeline.
   await Promise.all([320, 390].map(async width => {
     const page = await boot(width);

@@ -1,6 +1,7 @@
 // Pure game rules: stats, damage, leveling, drops and crafting. No DOM access, so it's unit-testable.
 import { GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MAX_POTIONS, NODES, POTION_RECIPES, PROJECTS, SKILL_MAX, SLOW_TOOL, TOOLS, forgeLevelFor, type Gear, type Tool, type MatId, type MonsterDef, type NodeKind, type ProjectId, type Recipe, type SkillId, type Style, type Zone } from './data';
 import type { SaveState } from './state';
+import { oreBoost } from './kitchen';
 import { has, type UnlockId } from './unlocks';
 
 export type Rng = () => number;
@@ -158,12 +159,17 @@ export function potionRefill(s: SaveState): number {
 }
 
 /** The unlock that opens a project's plot: the Garden and Training Yard after the Slime King, the Waystone after the Alpha Woolf. */
-export const PLOT_UNLOCK: Partial<Record<ProjectId, UnlockId>> = { garden: 'plots', training: 'plots', warp: 'warpplot', sawmill: 'sawmill' };
+export const PLOT_UNLOCK: Partial<Record<ProjectId, UnlockId>> = { garden: 'plots', training: 'plots', warp: 'warpplot', sawmill: 'sawmill', cottage: 'cottage' };
+
+/** Bram's settled in Sowerby (his Sawmill built, his cabin up): there are planks for a Guest Cottage. */
+export const cottageDue = (s: SaveState) => s.flags.includes('bram:hut') && s.build.sawmill > 0;
 
 /** Whether a project's plot is open (on the map and in the building plans). Anything already built stays open. */
 export const plotOpen = (s: SaveState, id: ProjectId) => {
   // Bram's Sawmill opens the moment he's moved in (the unlock card follows).
   if (id === 'sawmill') return s.flags.includes('bram:home') || s.build.sawmill > 0;
+  // The Guest Cottage, once he's settled in: his Sawmill up and his cabin built.
+  if (id === 'cottage') return cottageDue(s) || s.build.cottage > 0;
   const u = PLOT_UNLOCK[id];
   return !u || has(s, u) || s.build[id] > 0;
 };
@@ -363,11 +369,12 @@ export function revealed(s: SaveState): Set<string> {
 
 export interface GatherReward { drops: Partial<Record<MatId, number>>; xp: number; levels: number }
 
-/** Fells a tree or breaks a rock: pays out its material (+1 for a flawless job), a grass node's rare find, skill XP, and starts regrowth. */
+/** Fells a tree or breaks a rock: pays out its material (+1 for a flawless job, +1 ore on Rock Candy), a grass node's rare find, skill XP, and starts regrowth. */
 export function harvest(s: SaveState, kind: NodeKind, nodeId: string, grass: boolean, flawless: boolean, rng: Rng = Math.random, now = Date.now()): GatherReward {
   const n = NODES[kind];
   const spot = grass ? n.grass : n.safe;
-  const drops: Partial<Record<MatId, number>> = { [n.mat]: spot.yield + (flawless ? 1 : 0) };
+  // Rock Candy (Pip's, from Granny's kitchen) gets an extra ore out of every rock.
+  const drops: Partial<Record<MatId, number>> = { [n.mat]: spot.yield + (flawless ? 1 : 0) + (n.skill === 'mine' ? oreBoost(s) : 0) };
   if (grass && rng() < n.grass.rare.chance) drops[n.grass.rare.mat] = (drops[n.grass.rare.mat] ?? 0) + 1;
   mergeDrops(s.mats, drops);
   s.nodes[nodeId] = now + spot.regrow * 1000;

@@ -89,6 +89,32 @@ describe('village', () => {
     expect(plotOpen(early, 'garden')).toBe(false);
   });
 
+  test("the Guest Cottage opens once Bram's settled in (his Sawmill built and his cabin up), and its card follows", () => {
+    const s = newState();
+    for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 99;
+    expect(plotOpen(s, 'cottage')).toBe(false);
+    expect(build(s, 'cottage')).toBe('locked');
+    // Moved in, with the Sawmill up but no cabin yet: not yet.
+    s.flags.push('bram:home');
+    s.build.sawmill = 1;
+    expect(plotOpen(s, 'cottage')).toBe(false);
+    expect(checkUnlocks(s).map((u) => u.id)).not.toContain('cottage');
+    s.flags.push('bram:hut');
+    expect(plotOpen(s, 'cottage')).toBe(true);
+    expect(checkUnlocks(s).map((u) => u.id)).toContain('cottage');
+    expect(build(s, 'cottage')).toBe('ok');
+    expect(s.build.cottage).toBe(1);
+    expect(build(s, 'cottage')).toBe('maxed');
+    // Its plot is on the map, in Sowerby, clear of the Waystone.
+    const w = new World(), plot = w.obj('plot', 'cottage')!;
+    expect(plot).toBeDefined();
+    const village = ZONES.find((z) => z.id === 'village')!;
+    expect(plot.x).toBeGreaterThanOrEqual(village.x0);
+    expect(plot.x + plot.w).toBeLessThanOrEqual(village.x0 + village.w);
+    const stone = w.obj('plot', 'warp')!;
+    expect(plot.y + plot.h <= stone.y || plot.x >= stone.x + stone.w || plot.x + plot.w <= stone.x).toBe(true);
+  });
+
   test('forge level gates higher-tier recipes', () => {
     const s = newState();
     for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 99;

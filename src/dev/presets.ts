@@ -125,6 +125,18 @@ function bram(step: number, flags: string[], x: number, y: number, then?: (s: Sa
   });
 }
 
+/** Pip's story at a step: Bram's story done (his Sawmill and cabin built), by the Guest Cottage's plot. */
+function pip(step: number, then?: (s: SaveState) => void) {
+  const flags = ['bram:pie', 'bram:met', 'bram:wave1', 'bram:wave2', 'bram:scar', 'bram:ambush1', 'bram:ambush2', 'bram:home', 'bram:hut', 'bram:stew'];
+  return bram(9, flags, zoneById('village').x0 + 19.9, 6.7, (s) => {
+    tools(s, 2, 2);
+    s.build.sawmill = 1;
+    s.unlocked.push('sawmill', 'cottage');
+    s.stories.pip = step;
+    then?.(s);
+  });
+}
+
 export const PRESETS: Preset[] = [
   {
     id: 'fluffy-craft', name: 'Make a Fluffy Vest', desc: 'At the Forge with 12 Bunny Fluff and 4 Slime Goo. Try the automatic crafting reveal.',
@@ -179,6 +191,18 @@ export const PRESETS: Preset[] = [
     }),
   },
   {
+    id: 'pip-cottage', name: 'Pip: the Guest Cottage', desc: "Bram's settled in, with his Sawmill and cabin: build the Guest Cottage and see who moves in.",
+    make: () => pip(0, (s) => Object.assign(s.mats, { plank: 1, pine: 8, stone: 6, copper: 2 })),
+  },
+  {
+    id: 'pip-home', name: 'Pip: moved in', desc: 'Pip lives in the Guest Cottage and Granny knows his Rock Candy. A copper pick, and stone and copper to cook with.',
+    make: () => pip(1, (s) => {
+      s.build.cottage = 1;
+      s.flags.push('pip:candy');
+      Object.assign(s.mats, { stone: 12, copper: 6 });
+    }),
+  },
+  {
     id: 'kingslime', name: 'Slime King', desc: 'Lv 4, Stone Sword and Fluff Vest, at the Whisper Woods gate.',
     make: () => base('kingslime', 'woods', gate('woods').x, gate('woods').y, (s) => tools(s, 1, 1)),
   },
@@ -214,6 +238,9 @@ export const PRESETS: Preset[] = [
       for (const m of MAT_ORDER) s.mats[m as MatId] = 99;
       for (const st of Object.values(s.mastery)) st.lv = 10;
       for (const [id, p] of Object.entries(PROJECTS)) s.build[id as keyof typeof s.build] = p.levels.length;
+      // With the Guest Cottage built, Pip lives in it (rather than arriving the moment you start).
+      s.stories.pip = 1;
+      s.flags.push('pip:candy');
       // Past the last chapter, so nothing pops up.
       s.quest = QUESTS.length;
     }),
