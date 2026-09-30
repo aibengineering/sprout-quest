@@ -8,11 +8,11 @@ import type { Input } from '../src/input';
 import { Battle } from '../src/battle/battle';
 import { lashCrackAt, lashRope } from '../src/battle/pose';
 import type { Swing } from '../src/battle/types';
-import { battleWeapon } from '../src/battle/weaponPose';
+import { WHIP_REST, battleWeapon } from '../src/battle/weaponPose';
 import { GEAR, zoneById } from '../src/data';
 import { newState } from '../src/state';
 import { MOVESETS, skillAt, tierScale, type SkillRank } from '../src/weapons';
-import { MODEL_ELEVATION, carriedMount, carriedWeapon, hammerHead, heldPoint, heroBody, weaponHand, weaponRotation, weaponDirection } from '../src/weaponPose';
+import { HERO_BATTLE_UNIT, MODEL_ELEVATION, WHIP_CARRIED_SCALE, carriedMount, carriedWeapon, hammerHead, heldPoint, heroBody, weaponHand, weaponRotation, weaponDirection } from '../src/weaponPose';
 
 const fighter = (face = 0) => ({ face, moving: false, swing: null as Swing | null, whirlT: 0, whirlAng: 0 });
 const swing = (s: Swing['s'], t: number, aim = 0): Swing => ({ s, t, aim, id: 2, prevAng: null, impacted: false, skill: false, finisher: true, trail: [] });
@@ -40,6 +40,37 @@ describe('weapon attachments', () => {
       expect(m.position.y).toBeGreaterThan(0.1);
       expect(m.rotation.toArray().every(Number.isFinite)).toBe(true);
     }
+  });
+
+  test('a carried whip is a readable size, its grip out sideways at the hip with the coils hanging', () => {
+    for (const g of Object.values(GEAR).filter((g) => g.style === 'whip')) {
+      const h = carriedWeapon(g, MOVESETS.whip.size), m = carriedMount(h);
+      expect(h.scale).toBeCloseTo(WHIP_CARRIED_SCALE * MOVESETS.whip.size, 6);
+      expect(h.scale).toBeGreaterThan(0.7);
+      const grip = new Vector3(1, 0, 0).applyQuaternion(m.rotation);
+      // Mostly across the screen (not pointed at the camera), and level: the coils hang straight down under it.
+      expect(Math.abs(grip.x)).toBeGreaterThan(Math.abs(grip.z));
+      expect(Math.abs(grip.y)).toBeLessThan(0.05);
+      expect(new Vector3(0, -1, 0).applyQuaternion(m.rotation).y).toBeLessThan(-0.99);
+      expect(m.position.y).toBeCloseTo(0.44, 6);
+    }
+  });
+
+  test('a whip at rest in a fight is held out, larger, pointing away from the body; lashes keep their size', () => {
+    const g = GEAR.glimmerwhip, m = MOVESETS.whip, base = (34 * m.size) / HERO_BATTLE_UNIT;
+    // Facing the camera the hand is on screen right, facing away on screen left: the whip points outward from it.
+    for (const [face, ang] of [[Math.PI / 2, WHIP_REST.ang], [-Math.PI / 2, Math.PI - WHIP_REST.ang], [0, WHIP_REST.ang], [Math.PI, Math.PI - WHIP_REST.ang]]) {
+      const rest = battleWeapon(g, m, 1, fighter(face), 0).held;
+      expect(rest.uncoiled).toBe(false);
+      expect(rest.scale).toBeCloseTo(base * WHIP_REST.scale, 6);
+      expect(rest.lift).toBeCloseTo(WHIP_REST.lift, 6);
+      expect(rest.ang).toBeCloseTo(ang, 6);
+    }
+    const p = fighter(0), s = m.combo[0];
+    p.swing = swing(s, lashCrackAt(s));
+    expect(battleWeapon(g, m, 1, p, 0).held.scale).toBeCloseTo(base, 6);
+    // Other weapons keep the shared rest pose.
+    expect(battleWeapon(GEAR.ironsword, MOVESETS.sword, 1, fighter(Math.PI / 2), 0).held.ang).toBeCloseTo(Math.PI - 0.75, 6);
   });
 
   test('a blade aimed directly at the camera has a finite orientation', () => {

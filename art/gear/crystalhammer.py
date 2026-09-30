@@ -22,5 +22,7 @@ def build_weapon(root):
     return build_parts(root)
 
 
-CAMERA = dict(ppu=320, anchor=(0.49, 0, 0), elevation=0.15707963267948966)
+# Assembly camera after the standard diagonal weapon presentation (root Y=-pi/4,
+# scale=(1,1.25,1.25)), so the reveal matches the tilted inventory icon.
+CAMERA = dict(ppu=340, anchor=(0.433, 0, 0.443), elevation=0.15707963267948966)
 LENGTH = 1.5

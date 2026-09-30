@@ -6,10 +6,10 @@ export default {
   complete: src('complete'),
   roles: { iron: 'Shaft, grip collars & head yoke', crystal: 'Twin faceted striking blocks' },
   targets: [
-    { material: 'iron', part: 'iron-shaft', at: 180, duration: 430, x: .4648, y: .5, contact: 'solid', sound: 'craftStitch' },
-    { material: 'crystal', part: 'crystal-lower', at: 720, duration: 460, x: .8164, y: .6406, contact: 'solid', sound: 'tick' },
-    { material: 'crystal', part: 'crystal-upper', at: 1200, duration: 460, x: .8164, y: .3594, contact: 'solid', sound: 'tick' },
-    { material: 'iron', part: 'iron-yoke', at: 1800, duration: 430, x: .8184, y: .5, contact: 'solid', sound: 'craftStitch' },
+    { material: 'iron', part: 'iron-shaft', at: 180, duration: 430, x: .4164, y: .5893, contact: 'solid', sound: 'craftStitch' },
+    { material: 'crystal', part: 'crystal-lower', at: 720, duration: 460, x: .7875, y: .4311, contact: 'solid', sound: 'tick' },
+    { material: 'crystal', part: 'crystal-upper', at: 1200, duration: 460, x: .5764, y: .2227, contact: 'solid', sound: 'tick' },
+    { material: 'iron', part: 'iron-yoke', at: 1800, duration: 430, x: .682, y: .3268, contact: 'solid', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'shape', text: 'Iron, forming a sturdy shaft…' },

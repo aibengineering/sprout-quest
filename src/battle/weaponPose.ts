@@ -1,19 +1,28 @@
 import type { Gear } from '../data';
 import type { Moveset } from '../weapons';
-import { HERO_BATTLE_UNIT, hammerHead, heldPoint, projectWeaponPoint, weaponHand, weaponLength, type Held } from '../weaponPose';
+import { HERO_BATTLE_UNIT, hammerHead, heroYaw, heldPoint, projectWeaponPoint, weaponHand, weaponLength, type Held } from '../weaponPose';
 import { pose } from './pose';
 import { clamp01, easeIn, easeOut, type Swing } from './types';
+
+/**
+ * A whip held at rest in a fight: the grip held out to the side, larger than its lash grip, so the coils hang below a
+ * grip you can see instead of sitting on the tunic as a blob. Lashes, Whirl and casts keep the regular numbers.
+ */
+export const WHIP_REST = { ang: 0.3, lift: 0.35, scale: 1.6 };
 
 interface FighterPose { face: number; moving: boolean; swing: Swing | null; whirlT: number; whirlAng: number; castT?: number; castAng?: number }
 
 export function battleWeapon(g: Gear, moves: Moveset, reach: number, p: FighterPose, t: number) {
   const sw = p.swing, casting = (p.castT ?? 0) > 0, idle = !sw && p.whirlT <= 0 && !casting;
   const side = Math.sin(p.face) < -0.5 ? 1 : Math.sin(p.face) > 0.5 ? -1 : Math.cos(p.face) >= 0 ? 1 : -1;
-  const rest = g.style === 'hammer' ? 0.5 : 0.75;
-  const ps = sw ? pose(sw, reach) : { ang: casting ? p.castAng ?? p.face : idle ? side > 0 ? rest : Math.PI - rest : p.whirlAng, off: 0, scale: 1 };
+  const whipRest = g.style === 'whip' && idle;
+  const rest = g.style === 'hammer' ? 0.5 : whipRest ? WHIP_REST.ang : 0.75;
+  // A resting whip points away from the body on its hand's side, not across the tunic.
+  const handSide = Math.cos(heroYaw(p.face)), restSide = whipRest && Math.abs(handSide) > 0.3 ? Math.sign(handSide) : side;
+  const ps = sw ? pose(sw, reach) : { ang: casting ? p.castAng ?? p.face : idle ? restSide > 0 ? rest : Math.PI - rest : p.whirlAng, off: 0, scale: 1 };
   const held: Held = {
-    id: `wpn_${g.id}`, at: 'hand', ang: ps.ang, lift: idle ? 0.35 : 0.15,
-    scale: (34 * moves.size) / HERO_BATTLE_UNIT,
+    id: `wpn_${g.id}`, at: 'hand', ang: ps.ang, lift: whipRest ? WHIP_REST.lift : idle ? 0.35 : 0.15,
+    scale: (34 * moves.size) / HERO_BATTLE_UNIT * (whipRest ? WHIP_REST.scale : 1),
     off: ps.off / HERO_BATTLE_UNIT,
     uncoiled: g.style === 'whip' && !idle,
   };
