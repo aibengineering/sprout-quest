@@ -1,0 +1,93 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "wing-left": {
+      "src": "assets/crafting/glimmershawl-wing-left.webp",
+      "center": [
+        0.4756,
+        0.5186
+      ],
+      "bounds": [
+        49,
+        144,
+        438,
+        387
+      ]
+    },
+    "wing-right": {
+      "src": "assets/crafting/glimmershawl-wing-right.webp",
+      "center": [
+        0.7012,
+        0.5391
+      ],
+      "bounds": [
+        255,
+        165,
+        463,
+        387
+      ]
+    },
+    "jelly-weave": {
+      "src": "assets/crafting/glimmershawl-jelly-weave.webp",
+      "center": [
+        0.5,
+        0.5273
+      ],
+      "bounds": [
+        107,
+        192,
+        405,
+        348
+      ]
+    },
+    "jelly-edging": {
+      "src": "assets/crafting/glimmershawl-jelly-edging.webp",
+      "center": [
+        0.5,
+        0.5371
+      ],
+      "bounds": [
+        45,
+        166,
+        467,
+        384
+      ]
+    },
+    "core-brooch": {
+      "src": "assets/crafting/glimmershawl-core-brooch.webp",
+      "center": [
+        0.5,
+        0.4453
+      ],
+      "bounds": [
+        215,
+        188,
+        297,
+        268
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/glimmershawl-complete.webp",
+      "center": [
+        0.5,
+        0.5186
+      ],
+      "bounds": [
+        45,
+        144,
+        467,
+        387
+      ]
+    }
+  },
+  "stack": [
+    "wing-left",
+    "wing-right",
+    "jelly-weave",
+    "jelly-edging",
+    "core-brooch"
+  ]
+}
