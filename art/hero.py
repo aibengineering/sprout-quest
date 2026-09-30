@@ -2,6 +2,7 @@
 import math
 
 from lib import box, cone, crystal, cylinder, empty, profile, sphere, toon, torus
+from gear_parts import item_module
 
 SKIN = '#ffe2c8'
 
@@ -146,6 +147,8 @@ def build(armor):
     still read apart at phone size, where the torso is only a few pixels tall.
     """
     a = ARMORS[armor]
+    contribution = item_module(armor)
+    custom = contribution is not None and hasattr(contribution, 'build_armor')
     P = {}
     root = P['root'] = empty('hero')
     bodyp = P['body'] = empty('bodyPivot', root)
@@ -159,12 +162,12 @@ def build(armor):
         sphere((0, -0.03, 0.06), (0.11, 0.14, 0.08), boot, f)
 
     # Body: a touch bigger than a pure chibi so the armor has room to show.
-    if armor != 'fluffvest':
+    if armor != 'fluffvest' and not custom:
         sphere((0, 0, 0.33), (0.3, 0.25, 0.27), body_m, bodyp)
         torus((0, 0, 0.2), 0.26, 0.04, trim_m, bodyp)
     for side in (-1, 1):
         arm = P[f'arm{side}'] = empty(f'arm{side}', bodyp, (0.29 * side, 0, 0.37))
-        if armor != 'fluffvest':
+        if armor != 'fluffvest' and not custom:
             sphere((0.02 * side, 0, -0.04), (0.09, 0.09, 0.11), body_m, arm)
         sphere((0.03 * side, -0.01, -0.14), 0.07, skin, arm)
 
@@ -178,7 +181,7 @@ def build(armor):
         sphere((0.21 * side, -0.27, -0.11), (0.055, 0.02, 0.03), toon('#ff9aaa', rim=0), head, line=0)
     sphere((0, -0.33, -0.12), (0.03, 0.012, 0.014), toon('#8a3a4a', rim=0), head, line=0)
 
-    helm = armor in ('shroomhood', 'dragonmail', 'ironplate')
+    helm = getattr(contribution, 'HELMET', armor in ('shroomhood', 'dragonmail', 'ironplate'))
     # Hair: a cap over the back/top of the head plus soft bangs.
     sphere((0, 0.05, 0.07), (0.39, 0.34, 0.31), hair, head, seg=32)
     if not helm:
@@ -199,7 +202,9 @@ def build(armor):
         profile([(-0.3, 0.56), (0.3, 0.56), (0.4, bottom), (0.2, bottom + 0.06), (0.0, bottom - 0.02), (-0.2, bottom + 0.06), (-0.4, bottom)],
                 0.1, toon(color), bodyp, loc=(0, 0.2, 0.02))
 
-    if armor == 'fluffvest':
+    if custom:
+        contribution.build_armor(P)
+    elif armor == 'fluffvest':
         build_fluffvest(bodyp, {side: P[f'arm{side}'] for side in (-1, 1)})
     elif armor == 'shroomhood':
         cap = toon('#e8505a')
