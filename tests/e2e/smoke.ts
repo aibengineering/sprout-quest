@@ -1004,6 +1004,28 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.flag === 'bram:ambush2').hidden`), 'the second ambush vanished');
 });
 
+scenario('sound settings: mute everything, or turn the music and the effects up and down, and they stay that way', null, async (page) => {
+  await openMore(page);
+  const slider = (kind: string) => `#modal:not([hidden]) input[data-vol="${kind}"]`;
+  const slide = (kind: string, v: number) => page.$eval(slider(kind), (el, v) => {
+    (el as HTMLInputElement).value = String(v);
+    for (const t of ['input', 'change']) el.dispatchEvent(new Event(t, { bubbles: true }));
+  }, v);
+  check((await page.inputValue(slider('music'))) === '70' && (await page.inputValue(slider('effects'))) === '100', 'the sliders do not start at music 70%, effects 100%');
+  await slide('music', 0);
+  await slide('effects', 40);
+  check(await game<boolean>(page, 'g.music.volume === 0 && g.audio.effects === 0.4'), 'the sliders did not set the volumes');
+  check(/Off/.test((await page.textContent('#modal .mcard.sound')) ?? ''), 'music at zero does not read Off');
+  await page.click('#modal:not([hidden]) .mcard.sound [data-do="mute"]');
+  check(await game<boolean>(page, 'g.audio.muted') && (await page.isDisabled(slider('effects'))), 'muting did not mute, or left the sliders live');
+  await page.click('#modal:not([hidden]) .mcard.sound [data-do="mute"]');
+  check(await game<boolean>(page, '!g.audio.muted'), 'unmuting did not unmute');
+  // A device setting: it outlives a reload, whichever save is loaded.
+  await page.reload();
+  await page.waitForSelector('.title-btns:not([hidden])');
+  check(await game<boolean>(page, 'g.sound.music === 0 && g.sound.effects === 0.4 && !g.sound.muted && g.audio.effects === 0.4'), 'the settings were not kept');
+});
+
 scenario('music: the orchestra loads the opening first, then plays the area, a fight, and the area again', null, async (page) => {
   // Music is off in automated browsers unless the page asks for it.
   await page.goto(`${page.url().split('?')[0]}?music`);

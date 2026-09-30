@@ -5,7 +5,7 @@ import { copyText, shareOrDownload } from '../share';
 import { logEvent, reportText, summaryText } from '../stats';
 import { clearState, newState } from '../state';
 import type { UIHooks } from '../ui';
-import { G, menuCtx, paused, persist, showZoneBanner, syncWorld, transition } from './context';
+import { G, applySound, menuCtx, paused, persist, showZoneBanner, syncWorld, transition } from './context';
 import { VERSION } from '../version';
 import { newlyRevealed } from './rewards';
 import { activeStory, storyLog } from './stories';
@@ -113,10 +113,18 @@ export const menuHooks: UIHooks = {
 
 
   toggleMute() {
-    G.save.muted = !G.save.muted;
-    G.audio.muted = G.save.muted;
-    persist();
+    G.sound.muted = !G.sound.muted;
+    applySound();
   },
+
+  setVolume(kind: 'music' | 'effects', v: number, done: boolean) {
+    G.sound[kind] = v;
+    applySound(done);
+    // A blip at the new level when you let go, so you can hear where the effects sit.
+    if (kind === 'effects' && done) G.audio.play('ui');
+  },
+
+  soundSettings: () => G.sound,
 
   async resetSave() {
     G.mode = 'dialog';

@@ -5,8 +5,10 @@ import type { Audio } from '../audio';
 import { orchestrate, pick, samplesFor, type Note, type SampleIndex, type Score } from './orchestra';
 import { FIRST_THEMES, THEMES, type ThemeId } from './scores';
 
-/** The music's overall level, under the sound effects. */
-const VOLUME = 0.55;
+/** The music's overall level: background, well under the sound effects. */
+const VOLUME = 0.3;
+/** Fights are the busiest for sound effects (hits, dodges, spells), so their themes sit lower still. */
+const THEME_LEVEL: Partial<Record<ThemeId, number>> = { battle: 0.65, guardian: 0.75 };
 const FADE = 1.2;
 /** How far ahead notes are scheduled (seconds), and how often the scheduler looks. */
 const AHEAD = 0.35;
@@ -61,7 +63,10 @@ export class Music {
   private ready = new Set<ThemeId>();
   private playing: Playing | null = null;
   private wanted: ThemeId | null = null;
-  private muted = false;
+  /** The level the music's heading for (0 when muted or turned down to off). */
+  private level = -1;
+  /** The music's volume, 0 (off) to 1 (the sound settings). */
+  volume = 1;
   /** Off in automated browsers (the tests), unless a page asks for it with `?music`. */
   private enabled = typeof navigator === 'undefined' || !navigator.webdriver || new URLSearchParams(location.search).has('music');
 
@@ -72,13 +77,14 @@ export class Music {
   /** Called every frame with the theme that fits what's happening (null for none). */
   want(id: ThemeId | null) {
     if (!this.enabled) return;
+    const target = this.audio.muted ? 0 : VOLUME * this.volume;
     if (!this.ctx) {
-      // Sound unlocks on the first tap; the music starts loading then.
+      // Sound unlocks on the first tap; the music starts loading then (unless it's turned off: then it never downloads).
       const ctx = this.audio.context;
-      if (!ctx) return;
+      if (!ctx || !target) return;
       this.setup(ctx);
     }
-    this.setMuted(this.audio.muted);
+    this.setLevel(target);
     if (id === this.wanted) return;
     this.wanted = id;
     if (this.playing?.id === id) return;
@@ -98,7 +104,7 @@ export class Music {
   private setup(ctx: AudioContext) {
     this.ctx = ctx;
     this.bus = ctx.createGain();
-    this.bus.gain.value = VOLUME;
+    this.bus.gain.value = 0;
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -12;
     comp.ratio.value = 2.5;
@@ -144,7 +150,7 @@ export class Music {
     const dry = ctx.createGain(), wet = ctx.createGain();
     for (const g of [dry, wet]) {
       g.gain.setValueAtTime(0, ctx.currentTime);
-      g.gain.linearRampToValueAtTime(1, ctx.currentTime + FADE);
+      g.gain.linearRampToValueAtTime(THEME_LEVEL[id] ?? 1, ctx.currentTime + FADE);
     }
     dry.connect(this.bus);
     wet.connect(this.reverb);
@@ -225,21 +231,21 @@ export class Music {
     return d.dry;
   }
 
-  private setMuted(m: boolean) {
-    if (m === this.muted || !this.ctx) return;
-    this.muted = m;
+  private setLevel(v: number) {
+    if (v === this.level || !this.ctx) return;
+    this.level = v;
     const t = this.ctx.currentTime;
     this.bus.gain.cancelScheduledValues(t);
-    this.bus.gain.setTargetAtTime(m ? 0 : VOLUME, t, 0.1);
+    this.bus.gain.setTargetAtTime(v, t, 0.1);
   }
 
   /** Makes room for a jingle: the music dips, then comes back. */
   duck(secs: number) {
-    if (!this.ctx || this.muted) return;
+    if (!this.ctx || !this.level) return;
     const g = this.bus.gain, t = this.ctx.currentTime;
     g.cancelScheduledValues(t);
-    g.setTargetAtTime(VOLUME * 0.25, t, 0.05);
-    g.setTargetAtTime(VOLUME, t + secs, 0.4);
+    g.setTargetAtTime(this.level * 0.25, t, 0.05);
+    g.setTargetAtTime(this.level, t + secs, 0.4);
   }
 }
 

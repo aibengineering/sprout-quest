@@ -4,7 +4,7 @@ import { modelStats, tickModels } from './models';
 import type { Battle } from './battle/battle';
 import { drawBattle } from './battle/render';
 import { MAX_POTIONS, MONSTERS, QUESTS, ZONES, zoneById, type MonsterKind, type ZoneId } from './data';
-import { G, busy, menuCtx, persist, showZoneBanner, syncWorld } from './game/context';
+import { G, applySound, busy, menuCtx, persist, showZoneBanner, syncWorld } from './game/context';
 import { canRun, challengeFoe, coachBattle, startBattle, startFieldBattle } from './game/fights';
 import { revive, spirit } from './game/death';
 import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/gathering';
@@ -62,6 +62,8 @@ bind('btn-potion', 'potion');
 bind('btn-run', 'run');
 bind('btn-act', 'act');
 // Any touch also unlocks audio on iOS.
+// Sound settings apply from the start (turned-off music must never begin downloading on the title screen's first tap).
+applySound(false);
 window.addEventListener('pointerdown', () => G.audio.unlock(), { passive: true });
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden || G.mode === 'title') return;
@@ -259,6 +261,8 @@ requestAnimationFrame(frame);
   get modelStats() { return modelStats; },
   get xpRate() { return G.xpRate; },
   get music() { return G.music; },
+  get audio() { return G.audio; },
+  get sound() { return G.sound; },
   set zoom(z: number) { debugZoom = z; },
   /** A regular grass encounter right here (or in `zone`). */
   encounter(zone?: ZoneId) {

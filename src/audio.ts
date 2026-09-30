@@ -21,12 +21,16 @@ export type Sfx =
 /** How many bubbles an XP fill of `dur` seconds plays, evenly spaced (the HUD pops a notch onto the bar with each). */
 export const xpBloops = (dur: number) => Math.max(2, Math.round(dur / 0.075));
 
+/** The effects' level at full volume. */
+const LOUDNESS = 0.35;
+
 /** The jingles the music makes room for, and for how long (seconds). */
 const FANFARES: Partial<Record<Sfx, number>> = { victory: 1.4, lose: 1.2, levelup: 0.8, treasure: 1.1, keyItem: 2.2, kindle: 2.2 };
 
 export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private level = 1;
   muted = false;
   /** Called when a fanfare plays, with how long it rings (the music ducks under it). */
   onFanfare: ((secs: number) => void) | null = null;
@@ -36,6 +40,15 @@ export class Audio {
     return this.ctx;
   }
 
+  /** The sound effects' volume, 0 (off) to 1. */
+  get effects() {
+    return this.level;
+  }
+  set effects(v: number) {
+    this.level = v;
+    if (this.master) this.master.gain.value = LOUDNESS * v;
+  }
+
   /** Must be called from a user gesture on iOS before any sound can play. */
   unlock() {
     if (!this.ctx) {
@@ -43,7 +56,7 @@ export class Audio {
       if (!AC) return;
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.35;
+      this.master.gain.value = LOUDNESS * this.level;
       this.master.connect(this.ctx.destination);
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
@@ -90,7 +103,7 @@ export class Audio {
    * which builds anticipation), and it gets louder as the bar fills.
    */
   sweep(dur: number, from: number, to: number, voice: 'xp' | 'handling' = 'xp') {
-    if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
+    if (this.muted || !this.level || !this.ctx || this.ctx.state !== 'running') return;
     const t0 = this.ctx.currentTime + 0.01;
     const n = xpBloops(dur), step = dur / n;
     // Weapon handling's fill: a fourth lower, with a warmer, woodier triangle tone, so the two bars sound apart.
@@ -133,7 +146,7 @@ export class Audio {
   }
 
   play(s: Sfx) {
-    if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
+    if (this.muted || !this.level || !this.ctx || this.ctx.state !== 'running') return;
     if (FANFARES[s]) this.onFanfare?.(FANFARES[s]);
     const notes = (fs: number[], step: number, type: OscillatorType = 'square', vol = 0.12) =>
       fs.forEach((f, i) => this.tone(f, step * 1.6, type, vol, undefined, i * step));

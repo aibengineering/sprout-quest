@@ -7,6 +7,7 @@ import { Input } from '../input';
 import { Music } from '../music/player';
 import { Overworld } from '../overworld';
 import { loadState, newState, saveState, type SaveState } from '../state';
+import { loadSound, saveSound, type SoundSettings } from '../sound';
 import type { UI } from '../ui';
 import { has } from '../unlocks';
 import { plotOpen } from '../rules';
@@ -28,6 +29,8 @@ class GameState {
   readonly input = new Input(document.getElementById('touch')!, document.getElementById('joy')!, document.getElementById('joy-knob')!);
   readonly world = new World();
   save: SaveState = loadState() ?? newState();
+  /** Mute and volumes: the device's, shared by every save slot. */
+  sound: SoundSettings = loadSound(this.save.muted);
   over = new Overworld(this.world, this.save);
   battle: Battle | null = null;
   mode: Mode = 'title';
@@ -76,6 +79,15 @@ export async function paused<T>(show: () => Promise<T>, after: Mode = 'world'): 
 export function persist() {
   G.save.pos = { x: G.over.x, y: G.over.y };
   saveState(G.save);
+}
+
+/** Applies the sound settings to the effects and the music, and keeps them. */
+export function applySound(keep = true) {
+  const { muted, music, effects } = G.sound;
+  G.audio.muted = muted;
+  G.audio.effects = effects;
+  G.music.volume = music;
+  if (keep) saveSound(G.sound);
 }
 
 /** A one-time hint toast. */

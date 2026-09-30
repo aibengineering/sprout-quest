@@ -7,7 +7,7 @@ import { clearLog, logEvent } from '../stats';
 import { clearState, loadState, newState, saveState } from '../state';
 import { allIconIds, hasNews } from '../ui';
 import { VERSION } from '../version';
-import { G, persist, showZoneBanner } from './context';
+import { G, applySound, persist, showZoneBanner } from './context';
 import { setUpStories } from './stories';
 import { progressQuests, unlocks } from './story';
 
@@ -90,7 +90,7 @@ function startGame(fresh: boolean) {
     G.restart(s);
   }
   const s = G.save;
-  G.audio.muted = s.muted;
+  applySound(false);
   logEvent(s, { kind: 'session', action: fresh ? 'new' : 'start' });
   G.mode = 'world';
   G.ui.setMode('world');

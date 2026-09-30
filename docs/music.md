@@ -52,3 +52,12 @@ The first run, and any run with `--fresh`, calls `art/music/samples.py` through 
 
 Try themes in the music lab before they come into the game. It lives in the story bible repo, in
 `music-lab/` (run `bun server.ts` there). It uses the same score format and lets you mute each section.
+
+## Volume
+
+- **The music sits well under the sound effects.** `VOLUME` in `player.ts` sets its overall level. Fight themes play
+  lower still (`THEME_LEVEL`), because fights are the busiest for sound effects.
+- **Players set their own levels** in the menu's More tab, under Sound. There's a mute for everything, plus a slider
+  each for the music (default 70%) and the effects.
+- These are device settings in `src/sound.ts`, not part of the save, so every save slot sounds the same.
+- With the music at Off, its recordings are never downloaded.
