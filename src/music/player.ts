@@ -64,6 +64,9 @@ export class Music {
   private index: SampleIndex | null = null;
   private buffers = new Map<string, { buf: AudioBuffer; start: number }>();
   private ready = new Set<ThemeId>();
+  private loading: Promise<void> | null = null;
+  /** What decodes the recordings: an offline context before sound unlocks, the real one after. */
+  private decoder: BaseAudioContext | null = null;
   private playing: Playing | null = null;
   private wanted: ThemeId | null = null;
   /** The level the music's heading for (0 when muted or turned down to off). */
@@ -118,19 +121,42 @@ export class Music {
     const wet = ctx.createGain();
     wet.gain.value = 0.32;
     this.reverb.connect(wet).connect(this.bus);
-    void this.loadAll();
+    this.loading ??= this.loadAll();
+    // Anything already in (preloaded on the title screen) plays straight away.
+    if (this.wanted && this.ready.has(this.wanted)) this.start(this.wanted);
   }
 
   /** The opening's themes first, then the rest, one theme at a time. Each one plays from the moment it's in. */
+  /**
+   * Starts downloading and decoding before sound is unlocked (decoding needs no tap), beginning with `first`, so the
+   * music is ready the moment you tap Continue. Skipped when the music's off: then nothing downloads.
+   */
+  preload(first: ThemeId) {
+    if (!this.enabled || !this.volume || this.audio.muted || this.loading) return;
+    try {
+      this.decoder = new OfflineAudioContext(1, 1, 44100);
+    } catch {
+      return; // No offline decoding here: loading waits for the tap instead.
+    }
+    this.wanted ??= first;
+    this.loading = this.loadAll();
+  }
+
+  /**
+   * Loads theme by theme: whichever the game wants right now if it isn't in yet (so a reload in the woods gets the
+   * woods' music first), otherwise the opening's themes, then the rest. Each one plays from the moment it's in.
+   */
   private async loadAll() {
     try {
       this.index = (await (await fetch('music/index.json')).json()) as SampleIndex;
-      const order = [...FIRST_THEMES, ...(Object.keys(THEMES) as ThemeId[]).filter((id) => !FIRST_THEMES.includes(id))];
-      for (const id of order) {
+      const queue = [...FIRST_THEMES, ...(Object.keys(THEMES) as ThemeId[]).filter((id) => !FIRST_THEMES.includes(id))];
+      while (queue.length) {
+        const id = this.wanted && !this.ready.has(this.wanted) && queue.includes(this.wanted) ? this.wanted : queue[0];
+        queue.splice(queue.indexOf(id), 1);
         await this.load(THEMES[id]);
         this.ready.add(id);
         // Still waiting for it? It comes in now.
-        if (this.wanted === id && !this.playing) this.start(id);
+        if (this.ctx && this.wanted === id && !this.playing) this.start(id);
       }
     } catch (e) {
       // No music (offline, or a browser that can't decode the recordings): the game plays on in silence.
@@ -140,9 +166,9 @@ export class Music {
 
   private async load(score: Score) {
     const files = [...samplesFor(this.index!, score)].filter((f) => !this.buffers.has(f));
-    const ctx = this.ctx!;
     const one = async (f: string) => {
-      const buf = await ctx.decodeAudioData(await (await fetch(`music/${f}`)).arrayBuffer());
+      const bytes = await (await fetch(`music/${f}`)).arrayBuffer();
+      const buf = await (this.decoder ?? this.ctx!).decodeAudioData(bytes);
       this.buffers.set(f, { buf, start: onset(buf) });
     };
     for (let i = 0; i < files.length; i += PARALLEL) await Promise.all(files.slice(i, i + PARALLEL).map(one));

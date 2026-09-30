@@ -1026,23 +1026,22 @@ scenario('sound settings: mute everything, or turn the music and the effects up 
   check(await game<boolean>(page, 'g.sound.music === 0 && g.sound.effects === 0.4 && !g.sound.muted && g.audio.effects === 0.4'), 'the settings were not kept');
 });
 
-scenario('music: the orchestra loads the opening first, then plays the area, a fight, and the area again', null, async (page) => {
+scenario('music: it gets ready on the title (where you are first), plays from the first tap, and follows you into a fight and back', null, async (page) => {
   // Music is off in automated browsers unless the page asks for it.
   await page.goto(`${page.url().split('?')[0]}?music`);
   await page.waitForSelector('.title-btns:not([hidden])');
+  // The save stands in the meadow: its theme loads first, before any tap, then the opening's.
+  await waitFor(page, "the meadow's theme to load on the title", async () => (await game<string[]>(page, 'g.music.loaded'))[0] === 'meadow', 30000);
   await page.click('#btn-continue');
-  await page.waitForTimeout(1500);
+  await waitFor(page, "the meadow's theme straight after Continue", async () => (await game<string>(page, 'g.music.current')) === 'meadow', 2500);
   await closeDialogs(page);
-  await waitFor(page, 'the opening themes to load first', async () => {
-    const loaded = await game<string[]>(page, 'g.music.loaded');
-    return loaded.length >= 2 && loaded[0] === 'glade' && loaded[1] === 'battle';
-  }, 30000);
-  await waitFor(page, "the meadow's theme", async () => (await game<string>(page, 'g.music.current')) === 'meadow', 30000);
+  await waitFor(page, "the fight's theme to load", async () => (await game<string[]>(page, 'g.music.loaded')).includes('battle'), 30000);
   await run(page, `g.fight('slime', 1, 1)`);
   await waitFor(page, "the fight's theme", async () => (await game<string>(page, 'g.music.current')) === 'battle');
   await winFight(page);
   await waitFor(page, "back to the meadow's theme", async () => (await game<string>(page, 'g.music.current')) === 'meadow');
-  check((await game<string[]>(page, 'g.music.loaded')).length === 5, 'not every theme loaded');
+  const loaded = await game<string[]>(page, 'g.music.loaded');
+  check(loaded.slice(0, 3).join() === 'meadow,glade,battle' && loaded.length === 5, `themes loaded in the wrong order: ${loaded.join()}`);
 });
 
 scenario('dev builds: a Battle Tower run climbs floor after floor from its camp, in its own slot', (g) => {

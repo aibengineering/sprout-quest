@@ -22,8 +22,10 @@ fight or area theme.
 ## Loading
 
 - Nothing waits for the music.
-- The recordings start downloading when sound unlocks, on the first tap.
-- They load one theme at a time: the opening's themes first (`FIRST_THEMES`: glade and battle), then the rest.
+- The recordings download and decode while the title screen is up (decoding needs no tap), so the music can start on
+  the first tap, which is when browsers allow sound.
+- They load one theme at a time: the theme for where you are first, then the opening's (`FIRST_THEMES`: glade and
+  battle), then the rest.
 - A theme that hasn't loaded yet is silent. It fades in as soon as it's ready, if it's still the one playing.
 - Themes crossfade, and the music ducks under fanfares (the jingles listed in `FANFARES` in `audio.ts`).
 - Automated browsers (the e2e tests) get no music unless the URL has `?music`.

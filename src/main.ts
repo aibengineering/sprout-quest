@@ -61,10 +61,11 @@ bind('btn-dodge', 'dodge');
 bind('btn-potion', 'potion');
 bind('btn-run', 'run');
 bind('btn-act', 'act');
-// Any touch also unlocks audio on iOS.
 // Sound settings apply from the start (turned-off music must never begin downloading on the title screen's first tap).
 applySound(false);
-window.addEventListener('pointerdown', () => G.audio.unlock(), { passive: true });
+// Browsers only allow sound after you've touched the page, and phones count a touch when the finger lifts, not when it
+// lands: listen for both (and keys), so the very first tap unlocks it.
+for (const ev of ['pointerdown', 'pointerup', 'touchend', 'keydown']) window.addEventListener(ev, () => G.audio.unlock(), { passive: true });
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden || G.mode === 'title') return;
   persist();
