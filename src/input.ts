@@ -143,11 +143,6 @@ export class Input {
     return had;
   }
 
-  /** Was this pressed, without using the press up (the fight's lesson pause waits on it). */
-  peek(a: Action): boolean {
-    return this.enabled && this.pressed.has(a);
-  }
-
   isHeld(a: Action): boolean {
     return this.enabled && this.held.has(a);
   }

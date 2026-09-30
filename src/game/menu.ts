@@ -1,5 +1,5 @@
 // What the menu's buttons do: crafting, building, equipping, travel, settings and the play report.
-import { GEAR, PROJECTS, POTION_HEAL, POTION_RECIPES, TOOLS, zoneById, type ZoneId } from '../data';
+import { GEAR, PROJECTS, POTION_HEAL, POTION_RECIPES, TOOLS, zoneById, type Style, type ZoneId } from '../data';
 import { build, craftGear, craftPotion, craftTool, equip, playerStats, revealed } from '../rules';
 import { copyText, shareOrDownload } from '../share';
 import { logEvent, reportText, summaryText } from '../stats';
@@ -11,6 +11,8 @@ import { VERSION } from '../version';
 import { newlyRevealed } from './rewards';
 import { activeStory, storyLog } from './stories';
 import { progressQuests } from './story';
+import { moveAt } from '../battle/demo';
+import { showPreview } from './preview';
 
 /** One transaction/reveal at a time, including taps queued while the Forge is being replaced. */
 let craftingItem = false;
@@ -156,6 +158,17 @@ export const menuHooks: UIHooks = {
   },
 
   soundSettings: () => G.sound,
+
+  async preview(key: string) {
+    const [style, lv] = key.split(':');
+    const m = moveAt(style as Style, Number(lv));
+    if (!m) return;
+    const tab = G.ui.openTab ?? 'items';
+    await showPreview(m);
+    // Back to the path you were looking at.
+    G.ui.openMenu(menuCtx(), tab);
+    G.ui.showPath(style as Style);
+  },
 
   async resetSave() {
     G.mode = 'dialog';

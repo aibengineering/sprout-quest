@@ -21,8 +21,7 @@ try {
     await page.evaluate(() => {
       const g = (window as any).game;
       g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellywand');
-      g.save.tips.push('teach:skill:sword', 'teach:skill:hammer', 'teach:skill:whip', 'teach:skill:wand', 'teach:riposte', 'teach:stagger', 'teach:snare', 'teach:blink');
-      g.over.roamers.calm = 9999;
+        g.over.roamers.calm = 9999;
     });
     for (const id of ids) {
       await page.evaluate((id) => { (window as any).game.save.equip.weapon = id; }, id);

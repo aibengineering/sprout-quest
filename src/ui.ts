@@ -65,6 +65,8 @@ export interface UIHooks {
   build(id: ProjectId): void;
   drink(): void;
   toggleMute(): void;
+  /** Plays the preview of the move a handling level unlocked ("sword:3"), from the Skills menu's path. */
+  preview(key: string): void;
   /** A sound volume moved (0 to 1); `done` when the slider's let go. */
   setVolume(kind: 'music' | 'effects', v: number, done: boolean): void;
   soundSettings(): SoundSettings;
@@ -80,7 +82,7 @@ export interface UIHooks {
 }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+export const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 /** Are there patch notes you haven't read? */
 export const hasNews = (s: SaveState) => newerThan(VERSION, s.seenVersion);
 const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', meadow: '🌼', woods: '🌲', cave: '🪨', hollow: '💎', peak: '🌋' };
@@ -236,8 +238,10 @@ function handlingTree(s: SaveState, style: Style): string {
     const w = weaponAt(style, at);
     const tag = w ? `<span class="htag">${icon(w.id, w.icon, 'icon sm')} Can wield the ${esc(w.name)} ${'★'.repeat(w.tier ?? 0)}</span>` : '';
     const progress = state === 'next' ? `<div class="pbar"><i style="width:${(100 * m.xp) / need}%"></i></div><small class="hxp">${m.xp}/${need} XP</small>` : '';
+    // A special rank or the trick you've unlocked: watch it again, as often as you like.
+    const watch = state === 'done' && (step === 'skill' || step === 'trick') ? `<button class="go ghost hwatch" data-preview="${style}:${at}">▶ Watch</button>` : '';
     return `<li class="hnode ${state} ${step ?? 'start'}"><span class="hdot">${step ? STEP_ICON[step] : CLASS_EMOJI[style]}</span>
-      <div class="htext"><div class="hlv">Lv ${at}${at === MASTERY_MAX ? ' · Mastery' : ''}${state === 'done' ? ' ✓' : ''}</div><b>${esc(title)}</b><small>${esc(note)}</small>${tag}${progress}</div></li>`;
+      <div class="htext"><div class="hlv">Lv ${at}${at === MASTERY_MAX ? ' · Mastery' : ''}${state === 'done' ? ' ✓' : ''}</div><b>${esc(title)}</b><small>${esc(note)}</small>${tag}${progress}${watch}</div></li>`;
   }).join('');
   return `<div class="htree">
     <div class="htabs">${tabs}</div>
@@ -893,6 +897,12 @@ export class UI {
     this.renderMenu(true);
   }
 
+  /** Shows a weapon class's handling path in the open menu (coming back to it after watching a move). */
+  showPath(style: Style) {
+    this.pick.hpath = style;
+    this.renderMenu(false);
+  }
+
   /** `silent` closes without notifying the game (used when a story dialog takes over). */
   closeMenu(silent = false) {
     if (!this.menuOpen) return;
@@ -1288,6 +1298,7 @@ export class UI {
       this.renderMenu(true);
       return;
     }
+    if (d.preview) return this.hooks.preview(d.preview);
     if (d.pick) {
       const k = d.pick.indexOf(':');
       this.pick[d.pick.slice(0, k)] = d.pick.slice(k + 1);

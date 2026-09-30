@@ -6,7 +6,6 @@ import { GEAR, MAX_POTIONS, forgeLevelFor, MAT_ORDER, PROJECTS, QUESTS, TOOLS, Z
 import { playerStats } from '../rules';
 import { newState, type SaveState } from '../state';
 import { GATE_Y, World } from '../world';
-import { LESSONS } from '../lessons';
 
 export interface Preset {
   id: string;
@@ -39,7 +38,7 @@ function reach(s: SaveState, questId: string) {
   s.quest = i;
   if (s.flags.includes('village')) s.flags.push('oldtools');
   // No tutorial popups or chapter intros you'd have seen already.
-  s.tips.push('moved', 'chopped', 'mined', 'coach-potion', ...LESSONS, ...QUESTS.slice(0, i + 1).map((q) => `elder:${q.id}`));
+  s.tips.push('moved', 'chopped', 'mined', 'coach-potion', ...QUESTS.slice(0, i + 1).map((q) => `elder:${q.id}`));
   s.wins = Math.max(s.wins, 3 + i * 4);
 }
 

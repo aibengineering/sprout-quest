@@ -93,12 +93,7 @@ export class Battle implements FoeWorld, HitWorld {
   private hitCounter = 1;
   /** How many times the player has landed a hit (drives the first-battle tutorial). */
   hits = 0;
-  /**
-   * A lesson's pause (teaching a newly unlocked move, see coachBattle): the fight stands still until you press this.
-   * Other presses meanwhile are dropped.
-   */
-  lesson: 'attack' | 'dodge' | 'skill' | null = null;
-  /** Each class ability landing, for the lessons to see it worked. */
+  /** Each class ability landing (for the play report and the tests). */
   ripostes = 0;
   staggers = 0;
   snares = 0;
@@ -222,13 +217,6 @@ export class Battle implements FoeWorld, HitWorld {
     if (this.hitstop > 0) {
       this.hitstop -= dt;
       return;
-    }
-    if (this.lesson) {
-      if (!this.input.peek(this.lesson)) {
-        this.input.flush();
-        return;
-      }
-      this.lesson = null;
     }
     this.updatePlayer(dt);
     for (const e of this.enemies) this.updateEnemy(e, dt);

@@ -23,7 +23,6 @@ try {
     g.over.teleport(34.5, 12.5);
     g.save.equip.armor = 'fluffvest';
     g.save.owned.push('coppersword', 'copperhammer', 'sporewhip', 'sporewand');
-    g.save.tips.push('teach:skill:sword', 'teach:skill:hammer', 'teach:skill:whip', 'teach:skill:wand', 'teach:riposte', 'teach:stagger', 'teach:snare', 'teach:blink');
     for (const m of Object.values(g.save.mastery) as any[]) m.lv = 10;
   });
   await page.waitForTimeout(1500);

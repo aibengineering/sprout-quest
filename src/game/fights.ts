@@ -45,7 +45,6 @@ function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Pa
   G.ui.setMode('battle');
   G.input.reset();
   coachStep = 0;
-  lesson = { step: 0, at: 0, count: 0 };
   if (foes.some((f) => f.golden)) G.ui.toast('✨ A golden monster! Double loot!');
 }
 
@@ -220,92 +219,6 @@ function swoopOut() {
 
 let coachStep = 0;
 
-/** Where the current lesson has got to, and when that step began (reset with each fight). */
-let lesson = { step: 0, at: 0, count: 0 };
-
-/**
- * The first fight after a move unlocks teaches it, once: when the moment's right, the fight stops, the coach says what
- * to press, and it carries on when you do. Then it watches for the move landing; if it didn't (a dodge that missed
- * the attack, say), it waits for the next chance. Specials first, then each class's ability. Returns whether a lesson
- * is running (so no other tip shows).
- */
-function teach(b: Battle): boolean {
-  const s = G.save, ui = G.ui, style = b.weapon.style ?? 'sword';
-  const done = (tip: string) => {
-    s.tips.push(tip);
-    lesson = { step: 0, at: 0, count: 0 };
-    ui.coach(null);
-    return false;
-  };
-  const near = (lo: number, hi: number, winding: boolean) =>
-    b.enemies.some((e) => !e.dead && (!winding || e.windup > 0.3) && Math.hypot(e.x - b.p.x, e.y - b.p.y) - e.r >= lo && Math.hypot(e.x - b.p.x, e.y - b.p.y) - e.r <= hi);
-  // Stop the fight and say what to press; `step` moves on once it's pressed.
-  const pause = (what: 'attack' | 'dodge' | 'skill', text: string, button: string) => {
-    if (lesson.step % 2 === 0) {
-      b.lesson = what;
-      lesson.step++;
-    }
-    if (b.lesson) {
-      ui.coach(text, button);
-      return true;
-    }
-    lesson.step++;
-    lesson.at = b.t;
-    ui.coach(null);
-    return true;
-  };
-
-  // The weapon's special, the first fight after it unlocks.
-  const skillTip = `teach:skill:${style}`;
-  if (b.skillNow && !s.tips.includes(skillTip)) {
-    if (lesson.step === 0 && (b.t < 0.8 || b.skillFrac > 0)) return false;
-    if (lesson.step <= 1) return pause('skill', `New! ${press('L', '✨')} for ${b.skillNow.name}: ${b.skillNow.note.charAt(0).toLowerCase()}${b.skillNow.note.slice(1)}.`, 'btn-skill');
-    return done(skillTip);
-  }
-
-  const trick = b.trick;
-  if (!trick || s.tips.includes(`teach:${trick}`)) return false;
-  const tip = `teach:${trick}`;
-  switch (trick) {
-    case 'riposte':
-      // Dodge through an attack, then strike while the Riposte is ready.
-      if (lesson.step === 0 && !near(0, 150, true)) return false;
-      if (lesson.step <= 1) return pause('dodge', `It's about to attack! ${press('K', '💨')} to dodge right through it.`, 'btn-dodge');
-      if (lesson.step === 2) {
-        if (b.p.riposte > 0 && b.canStrike) return pause('attack', `Riposte ready! ${press('J', '⚔️')} now for a sure critical hit.`, 'btn-attack');
-        if (b.t - lesson.at > 1.2) lesson.step = 0;
-        return false;
-      }
-      if (lesson.step === 3) return pause('attack', `Riposte ready! ${press('J', '⚔️')} now for a sure critical hit.`, 'btn-attack');
-      if (b.ripostes > 0) return done(tip);
-      if (b.t - lesson.at > 1.5) lesson.step = 0;
-      return false;
-    case 'stagger':
-    case 'snare': {
-      // Stagger: slam a monster as it winds up. Snare: crack one at the tip of your reach.
-      const ready = trick === 'stagger' ? near(0, 95, true) : near(80, 125, false);
-      const count = trick === 'stagger' ? b.staggers : b.snares;
-      if (lesson.step === 0) {
-        if (!ready || !b.canStrike) return false;
-        lesson.count = count;
-      }
-      if (lesson.step <= 1) {
-        return pause('attack', trick === 'stagger'
-          ? `It's winding up! ${press('J', '⚔️')}: slam it now to Stagger it out of its attack.`
-          : `It's right at the tip of your whip. ${press('J', '⚔️')}: a crack at the tip Snares it in.`, 'btn-attack');
-      }
-      if (count > lesson.count) return done(tip);
-      if (b.t - lesson.at > 1.5) lesson.step = 0;
-      return false;
-    }
-    case 'blink':
-      if (lesson.step === 0 && !near(0, 150, true)) return false;
-      if (lesson.step <= 1) return pause('dodge', `Incoming! ${press('K', '💨')}: Magic's dodge is a Blink, a short teleport.`, 'btn-dodge');
-      return done(tip);
-  }
-  return false;
-}
-
 /** "Tap ⚔️" on touch screens, "Press J" with a keyboard. */
 const press = (key: string, emoji: string) => (usingKeyboard() ? `Press ${key}` : `Tap ${emoji}`);
 
@@ -329,7 +242,6 @@ export function coachBattle(b: Battle) {
     }
     return ui.coach(null);
   }
-  if (teach(b)) return;
   if (has(s, 'bag') && s.potions > 0 && b.p.hp < b.stats.maxHp * 0.4 && !s.tips.includes('coach-potion')) {
     if (b.p.potionCd > 0) s.tips.push('coach-potion');
     return ui.coach(`Low HP! ${press('H', '🧪')} to drink a potion.`, 'btn-potion');

@@ -13,6 +13,7 @@ import { availableParallelism } from 'node:os';
 import { startServer } from '../../server';
 import { GEAR, MONSTERS } from '../../src/data';
 import { MOVESETS, comboTime } from '../../src/weapons';
+import { masteryXpToNext } from '../../src/rules';
 
 const SHOTS = process.argv.includes('--shots');
 const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].toLowerCase() : null;
@@ -54,7 +55,7 @@ async function boot(seed: Seed) {
 /** A save past the prologue, standing in the meadow, with the Forge built. */
 const base = (g: any) => {
   const s = g.save;
-  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined', 'teach:skill:sword', 'teach:skill:hammer', 'teach:skill:whip', 'teach:skill:wand', 'teach:riposte', 'teach:stagger', 'teach:snare', 'teach:blink'] });
+  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined'] });
   s.build.forge = 1;
   s.pos = { x: 50.5, y: 18 };
   s.unlocked.push('forge', 'bag', 'journal');
@@ -384,37 +385,43 @@ scenario('every weapon waits between strikes, and handling shortens the wait', (
   }
 });
 
-scenario('a newly unlocked move is taught in the next fight: the fight waits for you to try it', (g) => {
-  g.save.mastery.sword = { lv: 3, xp: 0 };
-  // (Past the first two fights' own tutorial.)
+scenario("a new move plays its preview when handling unlocks it, and watches again from the Skills menu's path", (g) => {
+  g.save.mastery.sword = { lv: 2, xp: 0 };
   g.save.wins = 5;
-  g.save.tips = g.save.tips.filter((t: string) => t !== 'teach:skill:sword' && t !== 'teach:riposte');
 }, async (page) => {
-  await run(page, `g.fight('slime', 1, 1)`);
+  // Win a fight that takes sword handling from Lv 2 to Lv 3: its level-up screen, then the Riposte's preview.
+  await run(page, `g.save.mastery.sword.xp = ${masteryXpToNext(2) - 1}; g.fight('slime', 1, 1)`);
   await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 8000);
-  await run(page, `const e = g.battle.enemies[0]; e.hp = e.maxHp = 1e6; e.state = 'held'; e.t = 99; e.x = g.battle.p.x + 200`);
-  // The special first: once it's ready, the fight stops and asks for it.
-  await waitFor(page, 'the special lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'skill', 5000);
-  check(/Spin/.test((await page.textContent('#coach')) ?? ''), "the lesson doesn't name the special");
-  const frozen = await game<string>(page, 'JSON.stringify([g.battle.enemies[0].x, g.battle.enemies[0].y, g.battle.p.skillCd])');
-  await page.waitForTimeout(500);
-  check(await game<string>(page, 'JSON.stringify([g.battle.enemies[0].x, g.battle.enemies[0].y, g.battle.p.skillCd])') === frozen && await game<string>(page, 'g.battle.lesson') === 'skill', 'the fight kept going during the lesson');
-  await page.keyboard.press('KeyL');
-  await waitFor(page, 'the special lesson done', async () => game<boolean>(page, `g.save.tips.includes('teach:skill:sword')`), 3000);
-  check(await game<number>(page, 'g.battle.log.skills') >= 1, "pressing the special didn't use it");
-  // The Riposte: a monster winding up next to you…
-  await page.waitForTimeout(600);
-  await run(page, `const b = g.battle, e = b.enemies[0]; e.stun = 0; e.x = b.p.x; e.y = b.p.y - 50; e.windup = 0.8`);
-  await waitFor(page, 'the dodge lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'dodge', 5000);
-  await page.keyboard.press('KeyK');
-  await page.waitForTimeout(60);
-  // …its blow passing through your dodge…
-  await run(page, `const b = g.battle; b.hurtPlayer(5, 1, b.p.x, b.p.y - 20, 'test'); b.enemies[0].windup = 0`);
-  await waitFor(page, 'the riposte lesson', async () => (await game<string>(page, 'g.battle.lesson')) === 'attack', 3000);
-  await run(page, `const b = g.battle, e = b.enemies[0]; b.p.dodgeT = 0; e.x = b.p.x; e.y = b.p.y - 50; b.p.face = -Math.PI / 2`);
-  await page.keyboard.press('KeyJ');
-  await waitFor(page, 'the Riposte landing', async () => game<boolean>(page, `g.save.tips.includes('teach:riposte')`), 3000);
-  check(await game<number>(page, 'g.battle.ripostes') >= 1, 'no Riposte landed');
+  await endFight(page);
+  await waitFor(page, 'the Riposte preview', async () => {
+    const btn = await page.$('#modal:not([hidden]) .sheet:not(.preview) [data-dialog]:last-of-type');
+    if (btn) await btn.click().catch(() => {});
+    return !!(await page.$('#modal:not([hidden]) .sheet.preview canvas.demo-cv'));
+  }, 20000);
+  check(/Riposte/.test((await page.textContent('#modal .sheet.preview')) ?? ''), "the preview doesn't name the Riposte");
+  // It's really playing: the demo battle draws frames into its window.
+  const frame = () => page.$eval('#modal .sheet.preview canvas.demo-cv', (c) => (c as HTMLCanvasElement).toDataURL().length);
+  const f1 = await frame();
+  await page.waitForTimeout(400);
+  check(f1 > 2000 && (await frame()) !== f1, 'the preview is not animating');
+  await page.click('#modal .sheet.preview [data-dialog="ok"]');
+  await waitFor(page, 'back on the map', async () => {
+    await closeDialogs(page);
+    return game<boolean>(page, `g.mode === 'world' && !g.battle`);
+  }, 10000);
+  check(await game<number>(page, 'g.save.mastery.sword.lv') >= 3, 'sword handling did not reach Lv 3');
+  // The Skills menu's sword path: each unlocked special rank and the trick can be watched again.
+  await run(page, `g.ui.openMenu({ atForge: false, inVillage: false }, 'items')`);
+  await page.click('#modal [data-sub="items:skills"]');
+  await page.click('#modal [data-pick="hpath:sword"]');
+  check((await page.$$('#modal [data-preview]')).length === 2, 'the path should offer Spin and Riposte to watch');
+  await page.click('#modal [data-preview="sword:2"]');
+  await page.waitForSelector('#modal .sheet.preview canvas.demo-cv');
+  check(/Spin/.test((await page.textContent('#modal .sheet.preview')) ?? ''), "the replay doesn't show Spin");
+  await page.click('#modal .sheet.preview [data-dialog="ok"]');
+  // Back on the same path afterwards.
+  await page.waitForSelector('#modal .htree');
+  check(!!(await page.$('#modal .htab.on[data-pick="hpath:sword"]')), 'did not come back to the sword path');
 });
 
 scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its special fires", (g) => {

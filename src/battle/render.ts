@@ -54,20 +54,27 @@ function drawLoot(b: Battle, ctx: Ctx, vw: number, toScreen: (x: number, y: numb
   st.fx.draw(ctx);
 }
 
-export function drawBattle(b: Battle, ctx: Ctx, vw: number, vh: number) {
+/**
+ * Draws a fight. `closeUp` frames it for a small window instead (a move's preview): zoomed that much on you, with no
+ * room kept for the fight's buttons and HUD.
+ */
+export function drawBattle(b: Battle, ctx: Ctx, vw: number, vh: number, closeUp = 0) {
   const th = b.setup.zone.theme;
-  const { k: k0, cx, cy } = layout(vw, vh);
+  const sw = ARENA_RX * 2 + 24, sh = ARENA_RY * 2 + 24;
+  const { k: k0, cx, cy } = closeUp ? { k: Math.min(vw / sw, vh / sh) * closeUp, cx: vw / 2, cy: vh / 2 } : layout(vw, vh);
   // Swooping in or out: zoom toward you, and fade through white to meet the overworld's own zoom.
   const q = b.swoop;
   const z = 1 + (ZOOM - 1) * q;
   const k = k0 * z * (1 + b.punch);
+  // How far the view centres on you: a close-up always does, a fight only as it swoops.
+  const f = closeUp ? 1 : q;
   ctx.fillStyle = th.outside;
   ctx.fillRect(0, 0, vw, vh);
   const sx = (Math.random() - 0.5) * b.shake, sy = (Math.random() - 0.5) * b.shake;
   ctx.save();
   ctx.translate(cx + sx, cy + sy);
   ctx.scale(k, k);
-  ctx.translate(-b.p.x * q, -(b.p.y - 20) * q);
+  ctx.translate(-b.p.x * f, -(b.p.y - 20) * f);
   drawArena(b, ctx, (vw / k) * 1.6, (vh / k) * 1.6);
   drawField(b, ctx);
   drawAmbient(b, ctx);
@@ -77,7 +84,7 @@ export function drawBattle(b: Battle, ctx: Ctx, vw: number, vh: number) {
     ctx.fillRect(0, 0, vw, vh);
   }
   drawOverlay(b, ctx, vw, vh);
-  drawLoot(b, ctx, vw, (x, y) => ({ x: cx + sx + (x - b.p.x * q) * k, y: cy + sy + (y - (b.p.y - 20) * q) * k }));
+  drawLoot(b, ctx, vw, (x, y) => ({ x: cx + sx + (x - b.p.x * f) * k, y: cy + sy + (y - (b.p.y - 20) * f) * k }));
 }
 
 /** Everything that happens on the battlefield: telegraphs, fighters, shots and effects. */
