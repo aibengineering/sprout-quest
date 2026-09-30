@@ -488,6 +488,8 @@ scenario('travel: a campfire takes you home to Sowerby, and the Waystone takes y
     await page.waitForTimeout(400);
     await page.keyboard.press('KeyE');
   };
+  // The woods' roaming monsters leave you be: one catching you at the campfire starts a fight instead.
+  await run(page, 'g.over.roamers.calm = 1e9');
   // The Journal's map no longer warps you anywhere.
   await run(page, `g.ui.openMenu({ atForge: false, inVillage: false }, 'journey')`);
   check(!(await page.$('#modal [data-travel], #modal [data-do="home"]')), 'the Journal still has warp buttons');
