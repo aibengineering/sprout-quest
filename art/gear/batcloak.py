@@ -22,7 +22,7 @@ def build(body, arms=None, head=None):
                     toon('#9874c5'), body, loc=(0, -.09, 0), bevel=.018, line=.012,
                     name='folded_wing_collar'))
         for z in (.275, .37, .465):
-            fang(parts, 'fang-clasps', body, (side * .057, -.27, z), .063, side * .65)
+            fang(parts, 'fang-clasps', body, (side * .075, -.272, z), .095, side * .45)
     return parts
 
 

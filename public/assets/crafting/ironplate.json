@@ -8,26 +8,26 @@
       "src": "assets/crafting/ironplate-pine-braces.webp",
       "center": [
         0.5,
-        0.4844
+        0.4824
       ],
       "bounds": [
-        163,
-        41,
-        349,
-        455
+        155,
+        34,
+        357,
+        460
       ]
     },
     "iron-shell": {
       "src": "assets/crafting/ironplate-iron-shell.webp",
       "center": [
         0.5,
-        0.7441
+        0.7432
       ],
       "bounds": [
         91,
         295,
         421,
-        467
+        466
       ]
     },
     "iron-helmet": {
@@ -46,14 +46,14 @@
     "stone-guards": {
       "src": "assets/crafting/ironplate-stone-guards.webp",
       "center": [
-        0.5,
+        0.499,
         0.7891
       ],
       "bounds": [
-        111,
-        339,
-        401,
-        469
+        104,
+        332,
+        407,
+        476
       ]
     },
     "copper-rivets": {
@@ -63,10 +63,10 @@
         0.6318
       ],
       "bounds": [
-        159,
-        189,
-        353,
-        458
+        156,
+        184,
+        356,
+        463
       ]
     },
     "complete": {
@@ -77,9 +77,9 @@
       ],
       "bounds": [
         91,
-        41,
+        34,
         421,
-        469
+        476
       ]
     }
   },

@@ -60,13 +60,13 @@
       "src": "assets/crafting/shroomhood-fang-toggles.webp",
       "center": [
         0.499,
-        0.7344
+        0.7129
       ],
       "bounds": [
-        225,
-        343,
-        286,
-        409
+        208,
+        314,
+        303,
+        416
       ]
     },
     "complete": {

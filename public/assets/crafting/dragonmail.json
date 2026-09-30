@@ -17,19 +17,6 @@
         457
       ]
     },
-    "front-scales": {
-      "src": "assets/crafting/dragonmail-front-scales.webp",
-      "center": [
-        0.4805,
-        0.5088
-      ],
-      "bounds": [
-        116,
-        67,
-        376,
-        454
-      ]
-    },
     "back-scales": {
       "src": "assets/crafting/dragonmail-back-scales.webp",
       "center": [
@@ -41,6 +28,19 @@
         22,
         396,
         415
+      ]
+    },
+    "front-scales": {
+      "src": "assets/crafting/dragonmail-front-scales.webp",
+      "center": [
+        0.4805,
+        0.5088
+      ],
+      "bounds": [
+        116,
+        67,
+        376,
+        454
       ]
     },
     "left-mantle": {
@@ -85,14 +85,14 @@
     "crystal-clasps": {
       "src": "assets/crafting/dragonmail-crystal-clasps.webp",
       "center": [
-        0.502,
-        0.582
+        0.5039,
+        0.585
       ],
       "bounds": [
-        182,
-        151,
-        332,
-        445
+        177,
+        146,
+        339,
+        453
       ]
     },
     "complete": {

@@ -1,11 +1,6 @@
 import type { CraftPresentation } from '../types';
 
 const src = (part: string) => `assets/crafting/barkvest-${part}.webp`;
-const buttons = [-1, 1].flatMap((side) => [0, 1, 2].map((row) => ({
-  id: `stone-${side < 0 ? 'left' : 'right'}-${row}`,
-  x: side < 0 ? .465 : .535, y: .40 + row * .135,
-  clip: `inset(${row === 0 ? 0 : row === 1 ? 47 : 60.5}% ${side < 0 ? 50 : 0}% ${row === 0 ? 53 : row === 1 ? 39.5 : 0}% ${side < 0 ? 0 : 50}%)`,
-})));
 
 export default {
   id: 'barkvest', duration: 3400,
@@ -13,7 +8,7 @@ export default {
     ...['oak-back', 'oak-left', 'oak-right'].map(id => ({ id, src: src(id) })),
     { id: 'shoulder-left', src: src('oak-shoulders'), clip: 'inset(0 50% 0 0)' },
     { id: 'shoulder-right', src: src('oak-shoulders'), clip: 'inset(0 0 0 50%)' },
-    ...buttons.map(b => ({ id: b.id, src: src('stone-fasteners'), clip: b.clip })),
+    { id: 'stone-fasteners', src: src('stone-fasteners') },
   ],
   complete: src('complete'),
   roles: { bark: 'Oak shingles & end grain shoulders', stone: 'Six smooth stone fasteners' },
@@ -23,8 +18,7 @@ export default {
     { material: 'bark', part: 'oak-right', at: 460, duration: 480, x: .651, y: .519, contact: 'solid', sound: 'craftStitch' },
     { material: 'bark', part: 'shoulder-left', at: 600, duration: 480, x: .14, y: .437, contact: 'solid', sound: 'craftFluff' },
     { material: 'bark', part: 'shoulder-right', at: 740, duration: 480, x: .86, y: .437, contact: 'solid', sound: 'craftFluff' },
-    ...buttons.map((b, i) => ({ material: 'stone' as const, part: b.id, at: 1300 + i * 125,
-      duration: 380, x: b.x, y: b.y, contact: 'solid' as const, sound: 'craftStitch' as const })),
+    { material: 'stone', part: 'stone-fasteners', at: 1300, duration: 760, x: .525, y: .533, contact: 'solid', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'shape', text: 'Oak Logs, split into overlapping shingles…' },

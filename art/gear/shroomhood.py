@@ -37,8 +37,8 @@ def build(body, arms=None, head=None):
                                seg=12, line=.003))
         add(parts, key, sphere((side * .16, -.245, .285), (.116, .037, .13), red, body,
                                seg=20, line=.01, name='cap_panel'))
-        for z in (.31, .44):
-            fang(parts, 'fang-toggles', body, (side * .062, -.275, z), .068, side * .32)
+        for z in (.33, .475):
+            fang(parts, 'fang-toggles', body, (side * .07, -.315, z), .135, side * .3)
     return parts
 
 

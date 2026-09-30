@@ -24,8 +24,12 @@ def vest(parts, key, body, arms, color):
 def fang(parts, key, parent, loc, size=.075, tilt=0):
     """Rounded ivory fang toggle, root above and tapered tip pointing down."""
     mat = toon('#fff2d7', rim=.1)
-    add(parts, key, cone(loc, size * .3, size, mat, parent, seg=10,
-                         rot=(math.pi, tilt, 0), line=.008, r2=.002, name='wolf_fang_toggle'))
+    add(parts, key, cone(loc, size * .42, size, mat, parent, seg=12,
+                         rot=(math.pi, tilt, 0), line=.01, r2=.004, name='wolf_fang_toggle'))
+    # A warm knot at the root: the fang is visibly tied on, and the toggle reads at icon size.
+    root = (loc[0] - math.sin(tilt) * size * .5, loc[1] - .004, loc[2] + math.cos(tilt) * size * .5)
+    add(parts, key, sphere(root, (size * .36, size * .24, size * .3), toon('#8a5a3c', rim=.08), parent,
+                           seg=12, line=.008, name='wolf_fang_knot'))
 
 
 def membrane(parts, key, body, side, color, front=False):
