@@ -1,0 +1,79 @@
+{
+  "size": [
+    640,
+    480
+  ],
+  "parts": {
+    "base": {
+      "src": "assets/buildings/forge4-base.webp",
+      "center": [
+        0.4203,
+        0.4844
+      ],
+      "bounds": [
+        9,
+        57,
+        529,
+        408
+      ]
+    },
+    "crystal-kiln": {
+      "src": "assets/buildings/forge4-crystal-kiln.webp",
+      "center": [
+        0.8828,
+        0.5896
+      ],
+      "bounds": [
+        499,
+        194,
+        631,
+        372
+      ]
+    },
+    "glimmer-glaze": {
+      "src": "assets/buildings/forge4-glimmer-glaze.webp",
+      "center": [
+        0.8852,
+        0.6396
+      ],
+      "bounds": [
+        499,
+        258,
+        634,
+        356
+      ]
+    },
+    "echo-vane": {
+      "src": "assets/buildings/forge4-echo-vane.webp",
+      "center": [
+        0.8742,
+        0.4115
+      ],
+      "bounds": [
+        507,
+        162,
+        612,
+        233
+      ]
+    },
+    "complete": {
+      "src": "assets/buildings/forge4-complete.webp",
+      "center": [
+        0.5023,
+        0.4844
+      ],
+      "bounds": [
+        9,
+        57,
+        634,
+        408
+      ]
+    }
+  },
+  "stack": [
+    "base",
+    "crystal-kiln",
+    "glimmer-glaze",
+    "echo-vane"
+  ]
+}

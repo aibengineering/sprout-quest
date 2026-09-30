@@ -1,0 +1,65 @@
+{
+  "size": [
+    640,
+    480
+  ],
+  "parts": {
+    "base": {
+      "src": "assets/buildings/garden3-base.webp",
+      "center": [
+        0.5,
+        0.6208
+      ],
+      "bounds": [
+        92,
+        146,
+        548,
+        450
+      ]
+    },
+    "glim-arbour": {
+      "src": "assets/buildings/garden3-glim-arbour.webp",
+      "center": [
+        0.5,
+        0.3375
+      ],
+      "bounds": [
+        77,
+        31,
+        563,
+        293
+      ]
+    },
+    "ember-blooms": {
+      "src": "assets/buildings/garden3-ember-blooms.webp",
+      "center": [
+        0.5016,
+        0.424
+      ],
+      "bounds": [
+        143,
+        76,
+        499,
+        331
+      ]
+    },
+    "complete": {
+      "src": "assets/buildings/garden3-complete.webp",
+      "center": [
+        0.5,
+        0.501
+      ],
+      "bounds": [
+        77,
+        31,
+        563,
+        450
+      ]
+    }
+  },
+  "stack": [
+    "base",
+    "glim-arbour",
+    "ember-blooms"
+  ]
+}

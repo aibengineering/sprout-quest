@@ -6,7 +6,7 @@ import { logEvent, reportText, summaryText } from '../stats';
 import { clearState, newState } from '../state';
 import type { UIHooks } from '../ui';
 import { G, applySound, menuCtx, paused, persist, showZoneBanner, syncWorld, transition } from './context';
-import { craftPresentation } from '../crafting';
+import { buildPresentation, craftPresentation } from '../crafting';
 import { VERSION } from '../version';
 import { newlyRevealed } from './rewards';
 import { activeStory, storyLog } from './stories';
@@ -77,19 +77,33 @@ export const menuHooks: UIHooks = {
     }
   },
 
-  build(id) {
-    const s = G.save, shown = revealed(s);
+  async build(id) {
+    if (craftingItem) return;
+    const s = G.save, shown = revealed(s), before = { ...s.mats };
     if (build(s, id) !== 'ok') return;
-    logEvent(s, { kind: 'build', id, lv: s.build[id] });
-    G.audio.play('levelup');
-    const lvl = PROJECTS[id].levels[s.build[id] - 1];
-    const fresh = newlyRevealed(shown).length;
-    G.ui.toast(`🏗 Built the ${lvl.name}! ${lvl.perk}${fresh ? ` · ${fresh} new recipe${fresh > 1 ? 's' : ''} in the Forge!` : ''}`, 3600);
-    // Upgrades that raise max HP also top you up.
-    s.hp = Math.min(playerStats(s).maxHp, s.hp + 10);
-    persist();
-    syncWorld();
-    void progressQuests();
+    craftingItem = true;
+    try {
+      const lv = s.build[id], lvl = PROJECTS[id].levels[lv - 1];
+      logEvent(s, { kind: 'build', id, lv });
+      const fresh = newlyRevealed(shown).length;
+      const perk = `${lvl.perk}${fresh ? ` · ${fresh} new recipe${fresh > 1 ? 's' : ''} in the Forge!` : ''}`;
+      // Upgrades that raise max HP also top you up.
+      s.hp = Math.min(playerStats(s).maxHp, s.hp + 10);
+      // Built and saved before the scene plays, and the map already shows it behind the scene.
+      persist();
+      syncWorld();
+      if (!buildPresentation(id, lv)) {
+        G.audio.play('levelup');
+        G.ui.toast(`🏗 Built the ${lvl.name}! ${perk}`, 3600);
+        void progressQuests();
+        return;
+      }
+      await G.ui.built(id, lv, before, perk);
+      const advanced = await progressQuests();
+      if (!advanced) G.ui.openMenu(menuCtx(), 'village', id);
+    } finally {
+      craftingItem = false;
+    }
   },
 
   async craftTool(id) {

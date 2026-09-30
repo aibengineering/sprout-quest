@@ -1,0 +1,79 @@
+{
+  "size": [
+    640,
+    480
+  ],
+  "parts": {
+    "base": {
+      "src": "assets/buildings/forge3-base.webp",
+      "center": [
+        0.5398,
+        0.475
+      ],
+      "bounds": [
+        68,
+        23,
+        623,
+        433
+      ]
+    },
+    "pine-fuel": {
+      "src": "assets/buildings/forge3-pine-fuel.webp",
+      "center": [
+        0.1406,
+        0.7125
+      ],
+      "bounds": [
+        16,
+        256,
+        164,
+        428
+      ]
+    },
+    "iron-bands": {
+      "src": "assets/buildings/forge3-iron-bands.webp",
+      "center": [
+        0.5398,
+        0.6948
+      ],
+      "bounds": [
+        101,
+        269,
+        590,
+        398
+      ]
+    },
+    "golem-core": {
+      "src": "assets/buildings/forge3-golem-core.webp",
+      "center": [
+        0.7055,
+        0.6823
+      ],
+      "bounds": [
+        375,
+        310,
+        528,
+        345
+      ]
+    },
+    "complete": {
+      "src": "assets/buildings/forge3-complete.webp",
+      "center": [
+        0.4992,
+        0.475
+      ],
+      "bounds": [
+        16,
+        23,
+        623,
+        433
+      ]
+    }
+  },
+  "stack": [
+    "base",
+    "pine-fuel",
+    "iron-bands",
+    "golem-core"
+  ]
+}

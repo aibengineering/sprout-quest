@@ -242,8 +242,8 @@ elif GROUP == 'icons2':
         lib.render_fit(path, 128, math.radians(12))
         frames.append({'name': 'icon/npc_elder', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
     for name in ('home1', 'home2', 'home3', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'garden1', 'garden2', 'garden3',
-                 'training1', 'training2', 'training3', 'warp0', 'warp1', 'campfire', 'plot', 'sawmill0', 'sawmill1', 'sawmill2', 'bramhut',
-                 'cottage1'):
+                 'training1', 'training2', 'training3', 'warp0', 'warp1', 'campfire', 'plot', 'sawmill0', 'sawmill1', 'sawmill2', 'sawmill3',
+                 'sawmill4', 'bramhut', 'cottage1'):
         if not wanted(name):
             continue
         lib.clear_objects()

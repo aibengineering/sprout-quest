@@ -1,0 +1,79 @@
+{
+  "size": [
+    640,
+    480
+  ],
+  "parts": {
+    "base": {
+      "src": "assets/buildings/training3-base.webp",
+      "center": [
+        0.4898,
+        0.6271
+      ],
+      "bounds": [
+        99,
+        187,
+        528,
+        415
+      ]
+    },
+    "pine-deck": {
+      "src": "assets/buildings/training3-pine-deck.webp",
+      "center": [
+        0.5,
+        0.4906
+      ],
+      "bounds": [
+        63,
+        63,
+        577,
+        408
+      ]
+    },
+    "iron-gong": {
+      "src": "assets/buildings/training3-iron-gong.webp",
+      "center": [
+        0.5,
+        0.2896
+      ],
+      "bounds": [
+        92,
+        91,
+        548,
+        187
+      ]
+    },
+    "imp-horns": {
+      "src": "assets/buildings/training3-imp-horns.webp",
+      "center": [
+        0.5,
+        0.1281
+      ],
+      "bounds": [
+        84,
+        30,
+        556,
+        93
+      ]
+    },
+    "complete": {
+      "src": "assets/buildings/training3-complete.webp",
+      "center": [
+        0.5,
+        0.4635
+      ],
+      "bounds": [
+        63,
+        30,
+        577,
+        415
+      ]
+    }
+  },
+  "stack": [
+    "base",
+    "pine-deck",
+    "iron-gong",
+    "imp-horns"
+  ]
+}

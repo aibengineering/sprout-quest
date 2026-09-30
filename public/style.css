@@ -1394,6 +1394,18 @@ body.kbd .drag-hint .keys { display: flex; }
   .sheet.crafting, .crafting *, .crafting *::before, .crafting *::after { animation: none !important; transition: none !important; }
   .craft-scene[data-stage="ready"] .craft-garment { transform: none; }
 }
+/* Village buildings rise on a grassy plot from a blueprint, on a wider 4:3 canvas. */
+.craft-building { height: 262px; }
+.craft-building .craft-garment, .craft-building .craft-fallback { width: 344px; height: 258px; margin-left: -172px; top: -2px; }
+.craft-building .craft-bench { left: 3%; right: 3%; height: 96px; border-color: #6f8a4e; background: radial-gradient(ellipse at 50% 45%, #c9a57a 0 38%, #a8c878 40%, #93b866 100%); box-shadow: 0 8px 0 #7a9a58, 0 11px 0 #5e7a46, 0 20px 20px #71413b1a, inset 0 3px 0 #c8e0a0; transform: none; }
+.craft-building .craft-bench i { background: #6f8a4e55; }
+.craft-building .craft-pattern { bottom: 14px; left: 24%; right: 24%; height: 60px; border-color: #5a86b866; color: #5a86b8; background: #e6f0fa99; transform: none; }
+.craft-perk { font-weight: 800; color: #6f8062; }
+@media (max-width: 380px), (max-height: 700px) {
+  .craft-building { height: 218px; }
+  .craft-building .craft-garment, .craft-building .craft-fallback { width: 288px; height: 216px; margin-left: -144px; top: -4px; }
+  .craft-building .craft-bench { height: 80px; }
+}
 .craft-complete { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; z-index: 4; transition: opacity .25s; }
 .craft-scene[data-stage="reveal"] .craft-complete, .craft-scene[data-stage="ready"] .craft-complete { opacity: 1; }
 

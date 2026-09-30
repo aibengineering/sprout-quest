@@ -1,0 +1,79 @@
+{
+  "size": [
+    640,
+    480
+  ],
+  "parts": {
+    "base": {
+      "src": "assets/buildings/forge5-base.webp",
+      "center": [
+        0.5023,
+        0.4844
+      ],
+      "bounds": [
+        9,
+        57,
+        634,
+        408
+      ]
+    },
+    "obsidian": {
+      "src": "assets/buildings/forge5-obsidian.webp",
+      "center": [
+        0.5156,
+        0.8
+      ],
+      "bounds": [
+        207,
+        353,
+        453,
+        415
+      ]
+    },
+    "glim-gable": {
+      "src": "assets/buildings/forge5-glim-gable.webp",
+      "center": [
+        0.4555,
+        0.5792
+      ],
+      "bounds": [
+        51,
+        171,
+        532,
+        385
+      ]
+    },
+    "king-crystal": {
+      "src": "assets/buildings/forge5-king-crystal.webp",
+      "center": [
+        0.4547,
+        0.2792
+      ],
+      "bounds": [
+        249,
+        87,
+        333,
+        181
+      ]
+    },
+    "complete": {
+      "src": "assets/buildings/forge5-complete.webp",
+      "center": [
+        0.5023,
+        0.4917
+      ],
+      "bounds": [
+        9,
+        57,
+        634,
+        415
+      ]
+    }
+  },
+  "stack": [
+    "base",
+    "obsidian",
+    "glim-gable",
+    "king-crystal"
+  ]
+}

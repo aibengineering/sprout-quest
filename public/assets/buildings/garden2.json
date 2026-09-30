@@ -1,0 +1,79 @@
+{
+  "size": [
+    640,
+    480
+  ],
+  "parts": {
+    "base": {
+      "src": "assets/buildings/garden2-base.webp",
+      "center": [
+        0.5,
+        0.6146
+      ],
+      "bounds": [
+        50,
+        201,
+        590,
+        389
+      ]
+    },
+    "stone-path": {
+      "src": "assets/buildings/garden2-stone-path.webp",
+      "center": [
+        0.5,
+        0.7625
+      ],
+      "bounds": [
+        45,
+        311,
+        595,
+        421
+      ]
+    },
+    "plank-trellis": {
+      "src": "assets/buildings/garden2-plank-trellis.webp",
+      "center": [
+        0.5,
+        0.2823
+      ],
+      "bounds": [
+        79,
+        53,
+        561,
+        218
+      ]
+    },
+    "shroom-berries": {
+      "src": "assets/buildings/garden2-shroom-berries.webp",
+      "center": [
+        0.5,
+        0.4313
+      ],
+      "bounds": [
+        69,
+        67,
+        571,
+        347
+      ]
+    },
+    "complete": {
+      "src": "assets/buildings/garden2-complete.webp",
+      "center": [
+        0.5,
+        0.4938
+      ],
+      "bounds": [
+        45,
+        53,
+        595,
+        421
+      ]
+    }
+  },
+  "stack": [
+    "base",
+    "stone-path",
+    "plank-trellis",
+    "shroom-berries"
+  ]
+}

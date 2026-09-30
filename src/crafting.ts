@@ -2,9 +2,10 @@
 // Every flight accounts for real ingredients. Animations never grant, charge or equip gear.
 import { iconUrl } from './assets';
 import type { Sfx } from './audio';
-import { GEAR, MATS, type Gear, type MatId, type Recipe } from './data';
+import { GEAR, MATS, PROJECTS, type Gear, type MatId, type ProjectId, type Recipe } from './data';
 import fluffvest from './crafting/items/fluffvest';
 import { CRAFT_PRESENTATIONS } from './crafting/catalog';
+import { BUILD_PRESENTATIONS } from './crafting/building-catalog';
 import type { CraftFlight, CraftItem, CraftPresentation } from './crafting/types';
 export type { CraftFlight, CraftPresentation } from './crafting/types';
 export { FLUFFY_PARTS, FLUFFY_BINDINGS, FLUFFY_DURATION } from './crafting/items/fluffvest';
@@ -23,10 +24,21 @@ export function craftFlights(item: CraftPresentation, recipe: Recipe): CraftFlig
   }).filter((f) => f.count > 0);
 }
 
+/** Every material of the recipe lands somewhere, or the scene isn't ready for it. */
+const covers = (item: CraftPresentation | undefined, recipe?: Recipe) =>
+  recipe && item && Object.keys(recipe).every((id) => item.targets.some((t) => t.material === id)) ? item : undefined;
+
 /** Leave recipes without a ready, complete contribution on the existing celebration. */
 export function craftPresentation(g: Pick<Gear, 'id' | 'recipe'>): CraftPresentation | undefined {
-  const item = CRAFT_PRESENTATIONS[g.id];
-  return g.recipe && item && Object.keys(g.recipe).every((id) => item.targets.some((t) => t.material === id)) ? item : undefined;
+  return covers(CRAFT_PRESENTATIONS[g.id], g.recipe);
+}
+
+/**
+ * A village project level rising from its materials, keyed `<project><level>` (the Cottage is `home2`). Like gear, a
+ * level whose cost gains a material its scene doesn't place yet keeps the old toast until the scene catches up.
+ */
+export function buildPresentation(project: ProjectId, level: number): CraftPresentation | undefined {
+  return covers(BUILD_PRESENTATIONS[`${project}${level}`], PROJECTS[project].levels[level - 1]?.cost);
 }
 
 export function craftMarkup(g: CraftItem, item: CraftPresentation, before: Recipe): string {
@@ -34,10 +46,11 @@ export function craftMarkup(g: CraftItem, item: CraftPresentation, before: Recip
   const bag = (id: MatId) => `<div class="craft-material" data-material="${id}">
     <img src="${iconUrl(id)}" alt="" class="craft-source"><div><b>${esc(MATS[id].name)}</b><small>${esc(item.roles[id] ?? '')}</small></div>
     <span class="craft-count"><b data-count="${id}">${before[id] ?? recipe[id] ?? 0}</b><small>−${recipe[id] ?? 0}</small></span></div>`;
+  const building = item.scene === 'building';
   return `<div class="craft-heading"><span class="craft-eyebrow">${esc(item.eyebrow ?? 'THE FORGE · HANDMADE')}</span><h2>${esc(g.name)}</h2></div>
-    <div class="craft-scene" data-stage="gather" data-item="${esc(g.id)}" aria-label="${esc(item.sceneLabel)}">
+    <div class="craft-scene${building ? ' craft-building' : ''}" data-stage="gather" data-item="${esc(g.id)}" aria-label="${esc(item.sceneLabel)}">
       <div class="craft-halo"></div><div class="craft-bench"><i></i><i></i><i></i></div>
-      <div class="craft-pattern" aria-hidden="true">✂<span>${esc(item.pattern)}</span></div>
+      <div class="craft-pattern" aria-hidden="true">${building ? '📐' : '✂'}<span>${esc(item.pattern)}</span></div>
       <div class="craft-garment" aria-hidden="true">${item.layers.map((p) => {
         const initial = p.initial ?? (p.showAt === undefined && !item.targets.some((t) => t.part === p.id));
         const style = `${p.clip ? `clip-path:${p.clip};` : ''}${initial ? 'opacity:1;' : ''}`;
@@ -104,7 +117,7 @@ export function playCraft(root: HTMLElement, item: CraftPresentation, recipe: Re
     root.classList.add('craft-ready');
     skip.hidden = true;
     status.textContent = item.finished;
-    root.querySelector('.craft-eyebrow')!.textContent = 'MADE BY YOU';
+    root.querySelector('.craft-eyebrow')!.textContent = item.scene === 'building' ? 'BUILT BY YOU' : 'MADE BY YOU';
     if (audible) sound('treasure');
     ready();
   };

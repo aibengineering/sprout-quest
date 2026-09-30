@@ -1,0 +1,79 @@
+{
+  "size": [
+    640,
+    480
+  ],
+  "parts": {
+    "base": {
+      "src": "assets/buildings/sawmill4-base.webp",
+      "center": [
+        0.4875,
+        0.4802
+      ],
+      "bounds": [
+        21,
+        35,
+        603,
+        426
+      ]
+    },
+    "glimplank-trim": {
+      "src": "assets/buildings/sawmill4-glimplank-trim.webp",
+      "center": [
+        0.4625,
+        0.4177
+      ],
+      "bounds": [
+        75,
+        173,
+        517,
+        228
+      ]
+    },
+    "emberwood-logs": {
+      "src": "assets/buildings/sawmill4-emberwood-logs.webp",
+      "center": [
+        0.1125,
+        0.7417
+      ],
+      "bounds": [
+        38,
+        303,
+        106,
+        409
+      ]
+    },
+    "obsidian-blade": {
+      "src": "assets/buildings/sawmill4-obsidian-blade.webp",
+      "center": [
+        0.5813,
+        0.5365
+      ],
+      "bounds": [
+        302,
+        197,
+        442,
+        318
+      ]
+    },
+    "complete": {
+      "src": "assets/buildings/sawmill4-complete.webp",
+      "center": [
+        0.4875,
+        0.4802
+      ],
+      "bounds": [
+        21,
+        35,
+        603,
+        426
+      ]
+    }
+  },
+  "stack": [
+    "base",
+    "glimplank-trim",
+    "emberwood-logs",
+    "obsidian-blade"
+  ]
+}

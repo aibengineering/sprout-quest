@@ -1,7 +1,7 @@
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
 import { xpBloops, type Sfx } from './audio';
-import { craftMarkup, craftPresentation, playCraft } from './crafting';
+import { buildPresentation, craftMarkup, craftPresentation, playCraft } from './crafting';
 import type { CraftItem, CraftPresentation } from './crafting/types';
 import {
   GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
@@ -160,7 +160,7 @@ const bossIcon = (k: MonsterKind, cls = 'icon') => icon(`boss_${k}`, MONSTERS[k]
 function goalIcon(q: Quest): string {
   const g = q.goal;
   if (g.type === 'boss') return bossIcon(g.kind, 'icon xl');
-  if (g.type === 'build') return icon(`b_${g.project === 'forge' ? forgeArt(g.level) : g.project + g.level}`, PROJECTS[g.project].icon, 'icon xl');
+  if (g.type === 'build') return icon(`b_${buildingArt(g.project, g.level)}`, PROJECTS[g.project].icon, 'icon xl');
   if (g.type === 'kills') return icon('goo', '⚔️', 'icon xl');
   if (g.type === 'craft') return icon('stonehammer', '⚒', 'icon xl');
   if (g.type === 'mend') return icon('axe1', '🪓', 'icon xl');
@@ -169,8 +169,8 @@ function goalIcon(q: Quest): string {
 
 /** Every icon the menus can show (materials, gear, tools, guardians, buildings, the Elder), for preloading. */
 export function allIconIds(): string[] {
-  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'sawmill0', 'sawmill1', 'bramhut', 'cottage1',
-    ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`))];
+  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'bramhut', 'cottage1',
+    ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`)), ...[0, 1, 2, 3, 4].map((l) => `sawmill${l}`)];
   return [
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
     ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
@@ -283,11 +283,13 @@ const PLOT_OPENS: Partial<Record<UnlockId, string>> = {
   cottage: 'It needs timber, and someone to saw it. Once Bram is settled in…',
 };
 
+/** A building's art (icon `b_<name>`, map sprite `env/<name>`) at a level. */
+const buildingArt = (id: ProjectId, level: number) => (id === 'forge' ? forgeArt(level) : `${id}${level}`);
+
 function buildingIcon(id: ProjectId, level: number): string {
   // Before it's built: the old forge's ruins, the Waystone's broken stones, or an empty plot.
   if (level === 0) return icon(id === 'warp' ? 'b_warp0' : id === 'forge' ? 'b_forge0' : id === 'sawmill' ? 'b_sawmill0' : 'b_plot', PROJECTS[id].icon, 'icon lg');
-  const name = id === 'forge' ? forgeArt(level) : `${id}${level}`;
-  return icon(`b_${name}`, PROJECTS[id].icon, 'icon lg');
+  return icon(`b_${buildingArt(id, level)}`, PROJECTS[id].icon, 'icon lg');
 }
 
 /** A round saw blade, spun by CSS while the Sawmill is working (tinted copper or iron). */
@@ -1679,6 +1681,18 @@ export class UI {
     const presentation = craftPresentation(item);
     if (!presentation) return this.itemFound(item.iconId ?? item.id, item.name, text, emoji, heading);
     return this.showCraft(item, presentation, before, `<p>${esc(text)}</p>`, [['ok', label]]);
+  }
+
+  /**
+   * Shown right after building a village project level (already paid for and saved): the building rises from its
+   * materials. Resolves false straight away if this level has no scene yet, for the old toast instead.
+   */
+  async built(id: ProjectId, level: number, before: Recipe, text: string): Promise<boolean> {
+    const presentation = buildPresentation(id, level), lvl = PROJECTS[id].levels[level - 1];
+    if (!presentation) return false;
+    const item: CraftItem = { id: presentation.id, name: lvl.name, recipe: lvl.cost, iconId: `b_${buildingArt(id, level)}` };
+    await this.showCraft(item, presentation, before, `<p class="craft-perk">⬆ ${esc(text)}</p>`, [['ok', 'Wonderful!']]);
+    return true;
   }
 
   private async showCraft(item: CraftItem, presentation: CraftPresentation, before: Recipe, details: string, choices: [string, string, string?][]) {

@@ -19,42 +19,46 @@ HERE = os.path.dirname(__file__)
 OUT = os.path.join(HERE, 'out', 'crafting')
 DEST = os.path.join(HERE, '..', 'public', 'assets', 'crafting')
 PARTS = ('left-panel', 'right-panel', 'left-cuff', 'right-cuff', 'collar', 'goo-seams')
+# Village buildings rise on a wider 4:3 canvas and have their own folder (their map icons come from the atlas).
+BUILDINGS = os.path.join(HERE, '..', 'public', 'assets', 'buildings')
+BUILDING_SIZE = (640, 480)
 
 
-def pack(item_id="fluffvest", parts=PARTS, icon_id=None, quality=100):
+def pack(item_id="fluffvest", parts=PARTS, icon_id=None, quality=100, src=OUT, dest=DEST, size=(512, 512), icon=True):
     import bpy
     import numpy as np
-    os.makedirs(DEST, exist_ok=True)
+    os.makedirs(dest, exist_ok=True)
+    folder = os.path.basename(os.path.normpath(dest))
     sc = bpy.context.scene
     sc.view_settings.view_transform = 'Standard'
     sc.render.image_settings.file_format = 'WEBP'
     sc.render.image_settings.color_mode = 'RGBA'
     sc.render.image_settings.quality = quality
-    manifest = {'size': [512, 512], 'parts': {}, 'stack': list(parts)}
+    manifest = {'size': list(size), 'parts': {}, 'stack': list(parts)}
     for name in (*parts, 'complete'):
-        image = bpy.data.images.load(os.path.join(OUT, f'{item_id}-{name}.png'))
+        image = bpy.data.images.load(os.path.join(src, f'{item_id}-{name}.png'))
         width, height = image.size
         pixels = np.array(image.pixels[:], dtype=np.float32).reshape(height, width, 4)[::-1]
         ys, xs = np.where(pixels[..., 3] > 0)
         if not len(xs):
             raise ValueError(item_id + '-' + name + ': no visible pixels in registered camera')
-        if width != 512 or height != 512:
-            raise ValueError(item_id + '-' + name + ': components must share a 512-square canvas')
+        if (width, height) != tuple(size):
+            raise ValueError(item_id + '-' + name + f': components must share a {size[0]}x{size[1]} canvas')
         x0, y0, x1, y1 = int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
-        image.save_render(os.path.join(DEST, f'{item_id}-{name}.webp'), scene=sc)
+        image.save_render(os.path.join(dest, f'{item_id}-{name}.webp'), scene=sc)
         manifest['parts'][name] = {
-            'src': f'assets/crafting/{item_id}-{name}.webp',
-            'center': [round((x0 + x1) / 1024, 4), round((y0 + y1) / 1024, 4)],
+            'src': f'assets/{folder}/{item_id}-{name}.webp',
+            'center': [round((x0 + x1) / 2 / width, 4), round((y0 + y1) / 2 / height, 4)],
             'bounds': [x0, y0, x1, y1],
         }
-        if name == 'complete':
+        if name == 'complete' and icon:
             image.scale(128, 128)
-            image.save_render(os.path.join(DEST, '..', 'icons', (icon_id or item_id) + '.webp'), scene=sc)
+            image.save_render(os.path.join(dest, '..', 'icons', (icon_id or item_id) + '.webp'), scene=sc)
         bpy.data.images.remove(image)
-    with open(os.path.join(DEST, item_id + '.json'), 'w') as file:
+    with open(os.path.join(dest, item_id + '.json'), 'w') as file:
         json.dump(manifest, file, indent=2)
         file.write('\n')
-    print('PACKED ' + item_id + ' crafting layers and standalone inventory icon')
+    print('PACKED ' + item_id + (' crafting layers and standalone inventory icon' if icon else ' assembly layers'))
 
 
 def render():
@@ -119,9 +123,54 @@ def render_item(item_id):
     pack(item_id, tuple(parts), icon_id, getattr(item, 'WEBP_QUALITY', 100))
 
 
+def render_building(building_id):
+    """A village building rising from its materials: one shared camera, each layer on its own.
+
+    Unlike gear, a building's parts stand in front of one another, and layers stack in build order. So each layer is
+    rendered with the layers already laid as holdouts: what they hide is cut away, and what comes later simply draws
+    on top. The stack then matches the complete render, which is also the map sprite (env.SCENERY uses this builder).
+    """
+    sys.path.insert(0, HERE)
+    import bpy
+    import buildings
+    import lib
+
+    item = buildings.module(building_id)
+    if item is None:
+        raise ValueError('No building module for ' + building_id)
+    lib.reset()
+    root = lib.empty('build_' + building_id)
+    parts = item.build_building(root)
+    if not parts or any(not objects for objects in parts.values()):
+        raise ValueError(building_id + ': every layer must contain visible geometry')
+    if any(not name or any(c not in 'abcdefghijklmnopqrstuvwxyz0123456789-' for c in name)
+           or name == 'complete' for name in parts):
+        raise ValueError(building_id + ': layer ids must be lowercase letters/digits/hyphens, except complete')
+    sc = bpy.context.scene
+    if hasattr(sc, 'eevee'):
+        sc.eevee.taa_render_samples = int(os.environ.get('BUILDING_SAMPLES', 64))  # fewer for quick looks
+    camera = dict(ppu=80, anchor=(0, 0, 1.2), elevation=lib.ELEVATION, fit_origin=.5)
+    camera.update(getattr(item, 'CAMERA', {}))
+    names = list(parts)
+    for i, name in enumerate((*names, 'complete')):
+        for j, key in enumerate(names):
+            for obj in parts[key]:
+                obj.hide_render = name != 'complete' and j > i
+                obj.is_holdout = name != 'complete' and j < i
+        lib.render(os.path.join(OUT, 'buildings', f'{building_id}-{name}.png'), *BUILDING_SIZE, **camera)
+        print('RENDERED buildings/' + building_id + '-' + name)
+    pack(building_id, tuple(names), quality=getattr(item, 'WEBP_QUALITY', 80), src=os.path.join(OUT, 'buildings'),
+         dest=BUILDINGS, size=BUILDING_SIZE, icon=False)
+
+
 if __name__ == '__main__':
     args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
-    if args == ['pack']:
+    if args[:1] == ['buildings']:
+        sys.path.insert(0, HERE)
+        import buildings
+        for building_id in (args[1].split(',') if len(args) > 1 and args[1] != 'all' else buildings.ids()):
+            render_building(building_id)
+    elif args == ['pack']:
         pack()
     elif not args or args == ['all']:
         # Keep the pilot's exact camera and geometry unchanged.

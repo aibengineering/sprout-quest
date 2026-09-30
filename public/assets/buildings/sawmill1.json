@@ -1,0 +1,93 @@
+{
+  "size": [
+    640,
+    480
+  ],
+  "parts": {
+    "site": {
+      "src": "assets/buildings/sawmill1-site.webp",
+      "center": [
+        0.4305,
+        0.6542
+      ],
+      "bounds": [
+        25,
+        220,
+        526,
+        408
+      ]
+    },
+    "stone-floor": {
+      "src": "assets/buildings/sawmill1-stone-floor.webp",
+      "center": [
+        0.5,
+        0.6802
+      ],
+      "bounds": [
+        104,
+        247,
+        536,
+        406
+      ]
+    },
+    "pine-frame": {
+      "src": "assets/buildings/sawmill1-pine-frame.webp",
+      "center": [
+        0.5,
+        0.4219
+      ],
+      "bounds": [
+        112,
+        51,
+        528,
+        354
+      ]
+    },
+    "pine-roof": {
+      "src": "assets/buildings/sawmill1-pine-roof.webp",
+      "center": [
+        0.5,
+        0.2031
+      ],
+      "bounds": [
+        87,
+        20,
+        553,
+        175
+      ]
+    },
+    "copper-blade": {
+      "src": "assets/buildings/sawmill1-copper-blade.webp",
+      "center": [
+        0.6281,
+        0.5385
+      ],
+      "bounds": [
+        331,
+        197,
+        473,
+        320
+      ]
+    },
+    "complete": {
+      "src": "assets/buildings/sawmill1-complete.webp",
+      "center": [
+        0.4516,
+        0.4458
+      ],
+      "bounds": [
+        25,
+        20,
+        553,
+        408
+      ]
+    }
+  },
+  "stack": [
+    "site",
+    "stone-floor",
+    "pine-frame",
+    "pine-roof",
+    "copper-blade"
+  ]
+}

@@ -924,7 +924,12 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   await page.keyboard.press('KeyE');
   await waitFor(page, 'the plans', async () => !!(await page.$('#modal:not([hidden]) [data-build="sawmill"]:not([disabled])')));
   await page.click('#modal [data-build="sawmill"]');
+  // The Sawmill rises from its materials (skipped here), then it's back to the plans: close them.
+  await page.waitForSelector('.craft-building');
   await page.keyboard.press('Escape');
+  await page.click('#modal [data-dialog="ok"]');
+  await page.waitForTimeout(400);
+  if (await page.$('#modal:not([hidden]) .sheet.menu')) await page.keyboard.press('Escape');
   await playUntil('the Sawmill', async () => (await step()) === 8 && (await game<string>(page, 'g.mode')) === 'world');
   // Saw six planks (the clock wound on, rather than waiting three minutes), take them, and bring them to Bram.
   await talk('bram:bram');
@@ -1457,6 +1462,82 @@ scenario('Fluffy crafting survives reloading during assembly', fluffySeed, async
   check(await game(page, `g.save.owned.includes('fluffvest')`), 'reload lost crafted vest');
   check(await game(page, `g.save.mats.fluff`) === 12 && await game(page, `g.save.mats.goo`) === 8, 'reload changed charged materials');
   check(await game(page, `g.save.equip.armor`) === 'tunic', 'reload chose equip without player choice');
+});
+
+// Village building plays the crafting scene: the Cottage rises from stone, oak and a clover.
+const cottageSeed = (g: any) => {
+  g.save.build.home = 1;
+  Object.assign(g.save.mats, { bark: 10, stone: 4, clover: 2 });
+};
+async function buildFromPlot(page: Page, project: string) {
+  await run(page, `const o = g.over.world.objs.find((o) => o.kind === 'plot' && o.project === '${project}'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.6)`);
+  await page.waitForTimeout(400);
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'the plans', async () => !!(await page.$(`#modal:not([hidden]) [data-build="${project}"]:not([disabled])`)));
+  await page.click(`#modal [data-build="${project}"]`);
+  await page.waitForSelector('.sheet.crafting .craft-building');
+}
+const homeSprite = (page: Page) => game<string>(page, `g.over.buildingSprite(g.over.world.objs.find((o) => o.kind === 'plot' && o.project === 'home')).name`);
+
+scenario('building the Cottage raises it from its materials, and the house on the map upgrades', cottageSeed, async (page) => {
+  check(await homeSprite(page) === 'home1', 'the tent is not on the map to start with');
+  await buildFromPlot(page, 'home');
+  check(await game(page, `g.save.build.home`) === 2, 'the Cottage was not built');
+  check(await game(page, `JSON.parse(localStorage.getItem('sprout-quest-save')).build.home`) === 2, 'the build was not saved before the scene');
+  check(await game(page, `g.save.mats.bark`) === 2 && await game(page, `g.save.mats.stone`) === 0 && await game(page, `g.save.mats.clover`) === 1, 'wrong cost charged');
+  check(await homeSprite(page) === 'home2', 'the map still shows the tent behind the scene');
+  check(await page.locator('.craft-part').count() === 6, 'the Cottage should rise in six layers');
+  check(!await page.locator('[data-dialog="ok"]').isVisible(), 'the button showed before the building rose');
+  await page.waitForSelector('.craft-flight');
+  if (SHOTS) await page.screenshot({ path: `${OUT}cottage-rising.png` });
+  await page.waitForSelector('.craft-ready', { timeout: 10000 });
+  check(await page.textContent('.craft-eyebrow') === 'BUILT BY YOU', 'the finished building is not marked built');
+  check(await page.textContent('[data-count="bark"]') === '2' && await page.textContent('[data-count="stone"]') === '0', 'the bag display did not end at the real counts');
+  check(await page.locator('.craft-part[style*="opacity: 1"]').count() === 6, 'not every layer of the Cottage is showing');
+  if (SHOTS) await page.screenshot({ path: `${OUT}cottage-built.png` });
+  await page.click('[data-dialog="ok"]');
+  // Building the Cottage is the current chapter's goal: its celebration follows, then back to the map.
+  await closeDialogs(page);
+  await waitFor(page, 'back on the map', async () => {
+    await closeDialogs(page);
+    if (await page.$('#modal:not([hidden]) .sheet.menu')) await page.keyboard.press('Escape');
+    return game<boolean>(page, `g.mode === 'world'`);
+  }, 8000);
+  check(await game(page, `g.save.build.home`) === 2 && await game(page, `g.save.mats.bark`) === 2, 'the scene changed the build or the bag');
+});
+
+scenario('building skips safely, ignores a second build request, and respects reduced motion on a small phone', (g) => {
+  g.save.build.home = 1;
+  Object.assign(g.save.mats, { bark: 30, stone: 12, clover: 3, royaljelly: 1, copper: 4 });
+}, async (page) => {
+  await buildFromPlot(page, 'home');
+  // A second tap while the first scene plays does nothing: no Smithy, nothing spent twice.
+  await run(page, `void g.ui.hooks.build('forge'); void g.ui.hooks.build('home')`);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.craft-ready');
+  check(await page.locator('.craft-flight').count() === 0, 'leftover material flights after skipping');
+  check(await game(page, `g.save.build.forge`) === 1 && await game(page, `g.save.build.home`) === 2, 'a second build raced the scene');
+  check(await game(page, `g.save.mats.bark`) === 22, 'a build was charged twice');
+  await page.click('[data-dialog="ok"]');
+  await closeDialogs(page);
+  if (await page.$('#modal:not([hidden]) .sheet.menu')) await page.keyboard.press('Escape');
+  await waitFor(page, 'back on the map', async () => game<boolean>(page, `g.mode === 'world'`), 8000);
+  // Reduced motion, on a small phone: the Smithy is simply there, with the button in reach.
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await run(page, `const o = g.over.world.objs.find((o) => o.kind === 'forge'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.7); g.mode = 'dialog'; g.ui.openMenu({ atForge: false, inVillage: true }, 'village', 'forge')`);
+  await waitFor(page, 'the plans', async () => !!(await page.$('#modal:not([hidden]) [data-build="forge"]:not([disabled])')));
+  await page.click('#modal [data-build="forge"]');
+  await page.waitForSelector('.craft-ready');
+  check(await page.locator('.craft-flight').count() === 0, 'reduced-motion flight still played');
+  check(!await page.locator('[data-craft-skip]').isVisible(), 'reduced-motion scene still waiting on the animation');
+  check(await game(page, `g.save.build.forge`) === 2, 'the Smithy was not built');
+  check(!await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), 'the building scene overflows a 320px phone');
+  await page.locator('[data-dialog="ok"]').scrollIntoViewIfNeeded();
+  const button = await page.locator('[data-dialog="ok"]').boundingBox();
+  check(button && button.y >= 0 && button.y + button.height <= 568, 'the button is out of reach on a small phone');
+  if (SHOTS) await page.screenshot({ path: `${OUT}smithy-small-phone.png` });
+  await page.click('[data-dialog="ok"]');
 });
 
 // The 3D characters: every model loads, and the hero, villagers and monsters render (in software WebGL here) without

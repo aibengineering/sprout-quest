@@ -47,6 +47,8 @@ export interface CraftPresentation {
   finished: string;
   /** Defaults to the Forge heading; meals may name Granny's kitchen instead. */
   eyebrow?: string;
+  /** Village buildings rise on a plot, on a wider 4:3 canvas (640×480), instead of the Forge's bench. */
+  scene?: 'building';
 }
 
 export interface CraftItem {

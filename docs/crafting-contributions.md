@@ -112,3 +112,20 @@ when available; report any unavailable visual/audio checks honestly.
 Work on isolated branches from fresh `dev`. Only the parent grants dev publication
 slots. Fetch again before integration, preserve all other contributions, push
 without force, verify CI, and do not change `main` or bump versions.
+
+## Village buildings
+
+Building a village project level plays the same scene: its cost's materials fly in and the building rises layer by
+layer on a plot. Each level with a cost has `src/crafting/buildings/<project><level>.ts` (the Cottage is `home2`, the
+repaired Forge `forge1`), a `CraftPresentation` with `scene: 'building'` and the `SOWERBY · BUILT BY HAND` eyebrow,
+registered by the same `scripts/register-crafting.ts` into `src/crafting/building-catalog.ts`. The same rules apply:
+every material of `PROJECTS[project].levels[level - 1].cost` needs a role and a target (a new material in a cost
+just needs a role and a target on a layer), and a level whose scene doesn't cover its cost keeps the old toast.
+Layers without a target are only `base` (what stood before the upgrade) or `site` (what waited on the plot).
+
+Geometry is `art/buildings/<project><level>.py`, exporting `build_building(root)` (layers in build order) and
+`CAMERA`. Assembly art is a 640×480 canvas in `public/assets/buildings/`: `bun run art buildings [id,...]`. Unlike
+gear, building parts stand in front of one another, so each layer renders with the earlier layers as holdouts and
+the stack matches the complete render. The map sprite (`env/<name>`) and menu icon (`b_<name>`) come from the same
+builder through `env.SCENERY`; re-render them with `bun run art env <names>` and `bun run art icons2 <names>` when a
+building changes.

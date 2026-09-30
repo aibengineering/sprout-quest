@@ -1,0 +1,107 @@
+{
+  "size": [
+    640,
+    480
+  ],
+  "parts": {
+    "stone-footing": {
+      "src": "assets/buildings/home2-stone-footing.webp",
+      "center": [
+        0.5,
+        0.7375
+      ],
+      "bounds": [
+        111,
+        269,
+        529,
+        439
+      ]
+    },
+    "oak-frame": {
+      "src": "assets/buildings/home2-oak-frame.webp",
+      "center": [
+        0.5,
+        0.6792
+      ],
+      "bounds": [
+        118,
+        253,
+        522,
+        399
+      ]
+    },
+    "oak-walls": {
+      "src": "assets/buildings/home2-oak-walls.webp",
+      "center": [
+        0.5,
+        0.5594
+      ],
+      "bounds": [
+        120,
+        136,
+        520,
+        401
+      ]
+    },
+    "roof": {
+      "src": "assets/buildings/home2-roof.webp",
+      "center": [
+        0.5,
+        0.3229
+      ],
+      "bounds": [
+        87,
+        29,
+        553,
+        281
+      ]
+    },
+    "chimney": {
+      "src": "assets/buildings/home2-chimney.webp",
+      "center": [
+        0.6367,
+        0.1854
+      ],
+      "bounds": [
+        381,
+        37,
+        434,
+        141
+      ]
+    },
+    "clover": {
+      "src": "assets/buildings/home2-clover.webp",
+      "center": [
+        0.5,
+        0.6802
+      ],
+      "bounds": [
+        165,
+        287,
+        475,
+        366
+      ]
+    },
+    "complete": {
+      "src": "assets/buildings/home2-complete.webp",
+      "center": [
+        0.5,
+        0.4875
+      ],
+      "bounds": [
+        87,
+        29,
+        553,
+        439
+      ]
+    }
+  },
+  "stack": [
+    "stone-footing",
+    "oak-frame",
+    "oak-walls",
+    "roof",
+    "chimney",
+    "clover"
+  ]
+}

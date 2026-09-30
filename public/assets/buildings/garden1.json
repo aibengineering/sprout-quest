@@ -1,0 +1,51 @@
+{
+  "size": [
+    640,
+    480
+  ],
+  "parts": {
+    "oak-beds": {
+      "src": "assets/buildings/garden1-oak-beds.webp",
+      "center": [
+        0.5,
+        0.5896
+      ],
+      "bounds": [
+        35,
+        184,
+        605,
+        382
+      ]
+    },
+    "clover-sprouts": {
+      "src": "assets/buildings/garden1-clover-sprouts.webp",
+      "center": [
+        0.5,
+        0.5156
+      ],
+      "bounds": [
+        80,
+        188,
+        560,
+        307
+      ]
+    },
+    "complete": {
+      "src": "assets/buildings/garden1-complete.webp",
+      "center": [
+        0.5,
+        0.5896
+      ],
+      "bounds": [
+        35,
+        184,
+        605,
+        382
+      ]
+    }
+  },
+  "stack": [
+    "oak-beds",
+    "clover-sprouts"
+  ]
+}

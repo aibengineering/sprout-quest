@@ -1,0 +1,79 @@
+{
+  "size": [
+    640,
+    480
+  ],
+  "parts": {
+    "base": {
+      "src": "assets/buildings/sawmill2-base.webp",
+      "center": [
+        0.4172,
+        0.45
+      ],
+      "bounds": [
+        21,
+        35,
+        513,
+        397
+      ]
+    },
+    "stone-ramp": {
+      "src": "assets/buildings/sawmill2-stone-ramp.webp",
+      "center": [
+        0.2437,
+        0.7844
+      ],
+      "bounds": [
+        103,
+        334,
+        209,
+        419
+      ]
+    },
+    "pine-store": {
+      "src": "assets/buildings/sawmill2-pine-store.webp",
+      "center": [
+        0.8633,
+        0.5073
+      ],
+      "bounds": [
+        502,
+        162,
+        603,
+        325
+      ]
+    },
+    "iron-blade": {
+      "src": "assets/buildings/sawmill2-iron-blade.webp",
+      "center": [
+        0.4625,
+        0.5365
+      ],
+      "bounds": [
+        100,
+        200,
+        492,
+        315
+      ]
+    },
+    "complete": {
+      "src": "assets/buildings/sawmill2-complete.webp",
+      "center": [
+        0.4875,
+        0.4729
+      ],
+      "bounds": [
+        21,
+        35,
+        603,
+        419
+      ]
+    }
+  },
+  "stack": [
+    "base",
+    "stone-ramp",
+    "pine-store",
+    "iron-blade"
+  ]
+}

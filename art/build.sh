@@ -4,6 +4,7 @@
 #        bun run art monsters   (one group; the rest are reused from art/out)
 #        bun run art models     (just the 3D character models)
 #        bun run art crafting   (registered assembly layers and icons [id,id,...])
+#        bun run art buildings  (village buildings rising from their materials [id,id,...])
 set -euo pipefail
 cd "$(dirname "$0")"
 BLENDER="${BLENDER:-blender}"
@@ -38,6 +39,13 @@ crafting() {
 
 if [ "${1:-}" = crafting ]; then
   crafting "${2:-all}"
+  exit 0
+fi
+
+# Village buildings rising from their materials (art/buildings), into public/assets/buildings. Their map sprites and
+# menu icons are the same models: re-render those with `bun run art env <names>` and `bun run art icons2 <names>`.
+if [ "${1:-}" = buildings ]; then
+  "$BLENDER" -b --factory-startup --python-exit-code 1 -P crafting.py -- buildings "${2:-all}"
   exit 0
 fi
 
