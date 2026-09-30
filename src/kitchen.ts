@@ -5,7 +5,7 @@ import type { Recipe } from './data';
 import { hasMats, spend } from './rules';
 import type { SaveState } from './state';
 
-export type MealId = 'pancakes' | 'tea' | 'goojelly' | 'stew';
+export type MealId = 'pancakes' | 'tea' | 'goojelly' | 'stew' | 'rockcandy';
 
 export interface Meal {
   id: MealId;
@@ -37,12 +37,16 @@ export const MEALS: Record<MealId, Meal> = {
     id: 'stew', name: "Woodcutter's Stew", icon: '🍲', recipe: { pine: 3, cap: 2 },
     desc: 'A wider sweet spot when chopping, for 4 minutes.', seconds: 240, from: 'Bram',
   },
+  rockcandy: {
+    id: 'rockcandy', name: 'Rock Candy', icon: '🍬', recipe: { stone: 4, copper: 2 },
+    desc: 'An extra ore from every rock you mine, for 4 minutes.', seconds: 240, from: 'Pip',
+  },
 };
 
-export const MEAL_ORDER: MealId[] = ['pancakes', 'tea', 'goojelly', 'stew'];
+export const MEAL_ORDER: MealId[] = ['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy'];
 
 /** The flag that teaches Granny a newcomer's recipe. */
-const TAUGHT: Partial<Record<MealId, string>> = { stew: 'bram:stew' };
+const TAUGHT: Partial<Record<MealId, string>> = { stew: 'bram:stew', rockcandy: 'pip:candy' };
 
 /** The kitchen opens once Mr. Floppers is home (Poppy's story finished). */
 export const kitchenOpen = (s: SaveState) => (s.stories.poppy ?? 0) >= 6;
@@ -87,6 +91,9 @@ export function mealTick(s: SaveState, dt: number) {
 
 /** Woodcutter's Stew widens the sweet spot on trees. */
 export const sweetBoost = (s: SaveState) => (eating(s, 'stew') ? 1.3 : 1);
+
+/** Rock Candy: extra ore from every rock you break (see rules.ts, harvest). */
+export const oreBoost = (s: SaveState) => (eating(s, 'rockcandy') ? 1 : 0);
 
 /** What's left of your meal, for the HUD ("🥞 3"). */
 export function mealLeft(s: SaveState): { icon: string; name: string; left: string } | null {

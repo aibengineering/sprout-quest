@@ -549,6 +549,75 @@ def build_granny(mood='happy'):
     return P
 
 
+def build_pip(mood='happy'):
+    """Pip, the mole miner: small and round, soft brown fur, a big pink nose, tiny bead eyes, a yellow hard hat with a
+    lamp, big pink digging paws, a satchel on a strap and a little pick on his back.
+
+    Same part names as the hero, so he walks with `pose`. Moods: happy (a smile) and wow (brows up, an "o" mouth).
+    """
+    P = {}
+    root = P['root'] = empty('pip')
+    bodyp = P['body'] = empty('bodyPivot', root)
+    fur, belly, pink = toon('#8a6248'), toon('#d8b090'), toon('#ff9ab0')
+    for side in (-1, 1):
+        f = P[f'foot{side}'] = empty(f'foot{side}', root, (0.13 * side, 0, 0))
+        sphere((0, -0.05, 0.045), (0.09, 0.12, 0.05), pink, f)
+    # A round little body with a pale belly.
+    sphere((0, 0, 0.32), (0.32, 0.29, 0.31), fur, bodyp, seg=32)
+    sphere((0, -0.18, 0.29), (0.21, 0.14, 0.21), belly, bodyp, line=0.012)
+    # A satchel on a strap across his chest, and a little pick slung on his back.
+    torus((0, 0, 0.36), 0.33, 0.022, toon('#6a4a2a'), bodyp, rot=(0, 0.55, 0), line=0.008)
+    bag = empty('satchel', bodyp, (0.3, -0.06, 0.18))
+    box((0, 0, 0), (0.12, 0.2, 0.18), toon('#b8783a'), bag, bevel=0.03, line=0.012)
+    box((-0.005, -0.01, 0.06), (0.13, 0.21, 0.08), toon('#a0642e'), bag, bevel=0.02, line=0.01)
+    sphere((0.065, -0.01, 0.03), 0.02, toon('#ffd35a'), bag, line=0.006)
+    pick = empty('pick', bodyp, (-0.05, 0.3, 0.4))
+    pick.rotation_euler = (0, 0.6, 0)
+    cylinder((0, 0, 0), 0.025, 0.62, toon('#c89a6a'), pick, seg=8, line=0.01)
+    profile([(-0.2, 0.0), (0, 0.06), (0.2, 0.0), (0.2, -0.03), (0, 0.02), (-0.2, -0.03)], 0.05, toon('#9aa4b8', rim=0.35), pick,
+            loc=(0, 0, 0.3), bevel=0.01, line=0.012)
+    for side in (-1, 1):
+        # Stubby arms, and the big pink digging paws of a mole, with pale claws.
+        arm = P[f'arm{side}'] = empty(f'arm{side}', bodyp, (0.29 * side, -0.02, 0.4))
+        sphere((0.03 * side, 0, -0.04), (0.085, 0.085, 0.1), fur, arm)
+        paw = empty(f'paw{side}', arm, (0.06 * side, -0.05, -0.13))
+        sphere((0, 0, 0), (0.1, 0.06, 0.09), pink, paw)
+        for k in (-1, 0, 1):
+            cone((0.035 * k, -0.02, -0.09), 0.02, 0.06, toon('#fff6e8'), paw, rot=(math.pi, 0, 0), seg=8, line=0.006)
+    head = P['head'] = empty('head', bodyp, (0, 0, 0.72))
+    sphere((0, 0, 0), (0.34, 0.31, 0.29), fur, head, seg=32)
+    # A long soft snout, ending in the big pink nose.
+    sphere((0, -0.24, -0.07), (0.13, 0.14, 0.1), belly, head, line=0.012)
+    sphere((0, -0.38, -0.05), (0.09, 0.07, 0.075), pink, head, line=0.014)
+    sphere((-0.03, -0.43, -0.02), (0.025, 0.012, 0.02), toon('#ffffff', rim=0), head, line=0)
+    eye = toon('#2a2233', rim=0)
+    for side in (-1, 1):
+        big = 1.35 if mood == 'wow' else 1
+        sphere((0.12 * side, -0.27, 0.05), (0.034 * big, 0.02, 0.04 * big), eye, head, line=0)
+        sphere((0.12 * side - 0.012, -0.29, 0.068), 0.011 * big, toon('#ffffff', rim=0), head, line=0)
+        sphere((0.21 * side, -0.22, -0.06), (0.055, 0.02, 0.03), toon('#ff8aa0', rim=0), head, line=0)  # rosy cheeks
+        # Little round ears peeking out from under the hat.
+        sphere((0.3 * side, 0.02, 0.06), (0.05, 0.035, 0.05), fur, head, line=0.01)
+        if mood == 'wow':
+            sphere((0.12 * side, -0.26, 0.15), (0.045, 0.012, 0.014), toon('#4a3222', rim=0), head, line=0)
+    if mood == 'wow':
+        sphere((0, -0.29, -0.17), (0.045, 0.02, 0.05), toon('#8a3a4a', rim=0), head, line=0)  # "o"
+    else:
+        for side in (-1, 1):
+            sphere((0.03 * side, -0.29, -0.16), (0.035, 0.012, 0.012), toon('#8a3a4a', rim=0), head, rot=(0, 0.45 * side, 0), line=0)
+    # The yellow hard hat, with its brim and a lamp on the front.
+    hat = empty('hat', head, (0, 0.02, 0.13))
+    if mood == 'wow':
+        hat.rotation_euler = (-0.3, 0, 0)  # pushed up in surprise
+    sphere((0, 0, 0.04), (0.29, 0.27, 0.2), toon('#ffd35a'), hat, seg=32)
+    cylinder((0, -0.02, 0.0), 0.33, 0.035, toon('#f2c240'), hat, seg=32, line=0.012)
+    box((0, 0.0, 0.2), (0.05, 0.4, 0.05), toon('#f2c240'), hat, bevel=0.02, line=0.008)  # ridge
+    cylinder((0, -0.27, 0.1), 0.065, 0.07, toon('#6a6a78'), hat, rot=(math.pi / 2, 0, 0), seg=16, line=0.01)
+    cylinder((0, -0.31, 0.1), 0.05, 0.012, toon('#fff6c8', emit=0.6), hat, rot=(math.pi / 2, 0, 0), seg=16, line=0.006)
+    root.scale = (0.8, 0.8, 0.8)
+    return P
+
+
 def build_boots():
     """Trail Boots: sturdy little brown boots with green laces and a leaf charm."""
     root = empty('boots')

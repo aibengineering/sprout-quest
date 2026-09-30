@@ -54,7 +54,7 @@ const chat = (lines: [Speaker, string, string?][]) => paused(async () => {
 });
 
 const ROAD = ["Easy. Easy on the leg.", "Clover's going to fuss. She always fussed.", "You're stronger than you look, kid.", "Mind the grass. Fangs in the grass."];
-const MILL_LINES = ["Two logs, one plank. I'll saw while you're out.", 'Good wood in the meadow. Oak, straight grain.', "Clover's stew's coming along. Don't tell her I said so."];
+const MILL_LINES = ["Two logs, one plank. I'll saw while you're out.", 'Good wood in the meadow. Oak, straight grain.', "Clover's stew's coming along. Don't tell her I said so.", "Sowerby could use a guest cottage. Build one, and folk'll come."];
 let line = 0;
 
 /** Bram's Sawmill: hand him logs, take your planks. */

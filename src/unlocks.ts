@@ -3,7 +3,7 @@
 import { QUESTS, TOOLS } from './data';
 import type { SaveState } from './state';
 
-export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'trick' | 'forge' | 'village' | 'plots' | 'warpplot' | 'kitchen' | 'sawmill';
+export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'trick' | 'forge' | 'village' | 'plots' | 'warpplot' | 'kitchen' | 'sawmill' | 'cottage';
 
 export interface Unlock {
   id: UnlockId;
@@ -72,6 +72,11 @@ export const UNLOCKS: Unlock[] = [
     id: 'sawmill', icon: '🪚', title: "Bram's Sawmill",
     text: 'Bram wants to build a Sawmill in Sowerby. Find it in the village plans, beside the Forge.',
     when: (s) => s.flags.includes('bram:home'),
+  },
+  {
+    id: 'cottage', icon: '🏡', title: 'A Guest Cottage',
+    text: "Now Bram's mill is running, Sowerby can build a cottage for a newcomer. Find it in the village plans.",
+    when: (s) => s.flags.includes('bram:hut') && s.build.sawmill > 0,
   },
 ];
 

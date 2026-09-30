@@ -219,6 +219,8 @@ export class World {
     // Bram's corner, once he's moved in (his story): the Sawmill beside the Forge, and his cabin below it.
     add({ kind: 'plot', project: 'sawmill', x: V + 1.1, y: 5.5, w: 3.4, h: 2, label: 'Build', text: 'Sawmill' });
     add({ kind: 'prop', id: 'bramhut', x: V + 1.5, y: 9, w: 2, h: 1.3, label: '' });
+    // The Guest Cottage, up in the north-east corner behind the Waystone: once Bram's settled in, for whoever comes next.
+    add({ kind: 'plot', project: 'cottage', x: V + 18.8, y: 4.5, w: 2.2, h: 1.4, label: 'Build', text: 'Guest Cottage' });
     // Bram's old logging camp, in the Woods' north-west corner: the stump with his axe in it, the caved-in mill, logs.
     const W = ZONES.find((z) => z.id === 'woods')!.x0;
     add({ kind: 'prop', id: 'prop_campmill', zone: 'woods', x: W + 3.8, y: 3.2, w: 2.6, h: 1, label: '' }, false);

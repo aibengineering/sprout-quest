@@ -99,7 +99,7 @@ export function newState(): SaveState {
     talked: false,
     crafted: 0,
     bosses: [],
-    build: { home: 1, forge: 0, garden: 0, training: 0, warp: 0, sawmill: 0 },
+    build: { home: 1, forge: 0, garden: 0, training: 0, warp: 0, sawmill: 0, cottage: 0 },
     camps: [],
     respawn: 'glade',
     unlocked: [],

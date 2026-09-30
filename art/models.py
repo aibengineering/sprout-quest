@@ -84,6 +84,7 @@ CHARACTERS = {
     'npc_granny': lambda: (hero.build_granny(), {'idle': (lambda P, t: breathe(P, t, head='head'), 32)}),
     'npc_bram': lambda: (hero.build_bram(), walker_anims()),
     'npc_bram_hurt': lambda: (hero.build_bram('hurt', hurt=True), walker_anims()),
+    'npc_pip': lambda: (hero.build_pip(), walker_anims()),
     **{f'mon_{k}': monster(k) for k in monsters.BUILDERS},
     **{f'wpn_{w}': (lambda w=w: weapon(w)) for w in weapons.WEAPONS},
 }

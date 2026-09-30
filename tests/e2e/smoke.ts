@@ -11,7 +11,7 @@ import { chromium, type Page } from 'playwright-core';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { startServer } from '../../server';
-import { GEAR, MONSTERS } from '../../src/data';
+import { GEAR, MONSTERS, NODES } from '../../src/data';
 import { MOVESETS, comboTime } from '../../src/weapons';
 import { masteryXpToNext } from '../../src/rules';
 
@@ -951,6 +951,98 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   await talk('bram:bram');
   await playUntil('the cabin', async () => (await step()) === 9 && (await game<string>(page, 'g.mode')) === 'world');
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'bramhut').hidden && g.save.flags.includes('bram:stew')`), 'no cabin, or no stew');
+});
+
+scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra ore out of a rock", (g) => {
+  const s = g.save;
+  s.lv = 6;
+  s.bosses.push('kingslime');
+  s.camps.push('woods');
+  s.visited.push('meadow', 'woods');
+  s.quest = g.quests.findIndex((q: any) => q.id === 'smithy');
+  s.stories.poppy = 6;
+  s.stories.bram = 9;
+  s.flags.push('poppy:returned', 'bram:pie', 'bram:met', 'bram:home', 'bram:hut', 'bram:stew');
+  s.build.sawmill = 1;
+  s.tools = { wood: 2, mine: 1 };
+  Object.assign(s.mats, { plank: 1, pine: 8, stone: 12, copper: 6 });
+  s.pos = { x: 35.9, y: 6.7 };
+}, async (page) => {
+  const said: string[] = [];
+  /** Clicks through scenes and cards (noting what's said), until `until` holds. */
+  const playUntil = async (what: string, until: () => Promise<boolean>, ms = 30000) => {
+    await waitFor(page, what, async () => {
+      if (await until()) return true;
+      const b = await page.$('#modal:not([hidden]) [data-dialog]:last-of-type');
+      if (b) {
+        said.push((await page.textContent('#modal .sheet')) ?? '');
+        await b.dispatchEvent('pointerdown');
+        await b.click().catch(() => {});
+      }
+      await page.waitForTimeout(250);
+      return false;
+    }, ms);
+  };
+  const step = () => game<number>(page, 'g.save.stories.pip ?? 0');
+  // Bram's settled in: the Guest Cottage's plot is open. Build it from the village plans.
+  await playUntil('the cottage plot', async () => game<boolean>(page, `g.mode === 'world' && !g.over.world.objs.find((o) => o.project === 'cottage').hidden`));
+  check(!(await game<boolean>(page, `!!g.over.actors.get('pip:pip')`)), 'Pip is here before his cottage');
+  await run(page, `const o = g.over.world.objs.find((o) => o.project === 'cottage'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5)`);
+  await page.waitForTimeout(400);
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'the plans', async () => !!(await page.$('#modal:not([hidden]) [data-build="cottage"]:not([disabled])')));
+  await page.click('#modal [data-build="cottage"]');
+  await page.keyboard.press('Escape');
+  // He pops up by the door, moves in and teaches Granny his Rock Candy.
+  await playUntil('Pip moving in', async () => (await step()) === 1 && (await game<string>(page, 'g.mode')) === 'world' && !(await page.$('#modal:not([hidden])')));
+  check(said.some((t) => t.includes("I'm Pip")), 'Pip never introduced himself');
+  check(await game<boolean>(page, `g.save.build.cottage === 1 && g.save.flags.includes('pip:candy') && !!g.over.actors.get('pip:pip')`), 'Pip did not move in');
+  // He has a few things to say, the Obsidian on Ember Peak among them.
+  for (let i = 0; i < 5; i++) {
+    await run(page, `void g.over.actors.get('pip:pip').talk()`);
+    await playUntil('Pip to finish', async () => (await game<string>(page, 'g.mode')) === 'world' && !(await page.$('#modal:not([hidden])')), 8000);
+  }
+  check(said.some((t) => t.includes('Obsidian')), 'Pip never mentioned the Obsidian');
+  // Granny cooks it (and plays its presentation), and it's what you're eating.
+  await run(page, 'g.over.teleport(31.8, 11.4)');
+  await page.waitForTimeout(300);
+  const mats = () => game<number[]>(page, '[g.save.mats.stone, g.save.mats.copper]');
+  const cost = await mats();
+  await run(page, `void g.over.actors.get('granny:granny').talk()`);
+  await waitFor(page, 'Rock Candy on the menu', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="cook:rockcandy"]:not([disabled])')));
+  await page.click('[data-dialog="cook:rockcandy"]');
+  await playUntil('Rock Candy eaten', async () => (await game<boolean>(page, `g.save.meal?.id === 'rockcandy' && g.mode === 'world'`)) && !(await page.$('#modal:not([hidden])')));
+  check(JSON.stringify(await mats()) === JSON.stringify([cost[0] - 4, cost[1] - 2]), 'Rock Candy did not cost 4 stone and 2 copper');
+  // Out to a meadow rock: one miss (so it isn't flawless), then clean strikes until it breaks.
+  const placed = await game<boolean>(page, `(() => {
+    const o = g.over, w = o.world;
+    for (const r of w.objs.filter((x) => x.kind === 'node' && x.node === 'rock' && !x.grass && x.id.startsWith('meadow:'))) {
+      for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1]]) {
+        const x = r.x + 0.4 + dx * 0.95, y = r.y + 0.6 + dy * 0.95;
+        if (w.blocked(x, y, 0.28)) continue;
+        o.teleport(x, y);
+        o.roamers.calm = 999;
+        if (o.nearbyObject() === r) return true;
+      }
+    }
+    return false;
+  })()`);
+  check(placed, 'no open spot next to a meadow rock');
+  const before = await game<number>(page, 'g.save.mats.stone');
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'the mining minigame', async () => (await game<string>(page, 'g.mode')) === 'gather');
+  await waitFor(page, 'a miss', async () => game<boolean>(page, `(() => { const c = g.chop.game; return Math.abs(c.pos - c.center) > c.width * 1.5 && c.lock <= 0; })()`), 8000);
+  await page.keyboard.press('KeyE');
+  await page.waitForTimeout(80);
+  for (let i = 0; i < 40 && !(await game<boolean>(page, 'g.chop?.game.done ?? true')); i++) {
+    await waitFor(page, 'the sweet spot', async () => game<boolean>(page, `(() => { const c = g.chop?.game; return !c || c.done || (Math.abs(c.pos - c.center) < c.width * 0.3 && c.lock <= 0); })()`), 8000);
+    await page.keyboard.press('KeyE');
+    await page.waitForTimeout(60);
+  }
+  await waitFor(page, 'the rock to break', async () => (await game<string>(page, 'g.mode')) !== 'gather', 5000);
+  const gained = (await game<number>(page, 'g.save.mats.stone')) - before;
+  check(gained === NODES.rock.safe.yield + 1, `a rock on Rock Candy gave ${gained} stone, not ${NODES.rock.safe.yield} + 1`);
+  await closeDialogs(page);
 });
 
 scenario('fainting: back as a spirit at the checkpoint, walk to your body to wake, never onto a story fight', null, async (page) => {

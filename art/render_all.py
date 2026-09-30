@@ -223,7 +223,8 @@ elif GROUP == 'icons2':
                         ('npc_granny', lambda: hero.build_granny()), ('npc_granny_worried', lambda: hero.build_granny('worried')),
                         ('floppers', lambda: hero.toy_bunny(None)), ('trailboots', hero.build_boots),
                         ('npc_bram', lambda: hero.build_bram('grumpy')), ('npc_bram_happy', lambda: hero.build_bram('happy')),
-                        ('npc_bram_hurt', lambda: hero.build_bram('hurt', hurt=True))):
+                        ('npc_bram_hurt', lambda: hero.build_bram('hurt', hurt=True)),
+                        ('npc_pip', lambda: hero.build_pip('happy')), ('npc_pip_wow', lambda: hero.build_pip('wow'))):
         if not wanted(name):
             continue
         lib.clear_objects()
@@ -241,7 +242,8 @@ elif GROUP == 'icons2':
         lib.render_fit(path, 128, math.radians(12))
         frames.append({'name': 'icon/npc_elder', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
     for name in ('home1', 'home2', 'home3', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'garden1', 'garden2', 'garden3',
-                 'training1', 'training2', 'training3', 'warp0', 'warp1', 'campfire', 'plot', 'sawmill0', 'sawmill1', 'sawmill2', 'bramhut'):
+                 'training1', 'training2', 'training3', 'warp0', 'warp1', 'campfire', 'plot', 'sawmill0', 'sawmill1', 'sawmill2', 'bramhut',
+                 'cottage1'):
         if not wanted(name):
             continue
         lib.clear_objects()

@@ -1,4 +1,4 @@
-"""Render only the seven potion/Kitchen items, without touching shared atlases.
+"""Render only the potion/Kitchen items, without touching shared atlases.
 
 blender -b --factory-startup --python-exit-code 1 -P art/gear/_render_consumables.py
 blender -b --factory-startup --python-exit-code 1 -P art/gear/_render_consumables.py -- tea
@@ -22,7 +22,7 @@ import lib
 
 DEST = os.path.join(ART, '..', 'public', 'assets', 'crafting')
 OUT = os.path.join(ART, 'out', 'consumables')
-ITEMS = ('jellypot', 'shroombrew', 'embertonic', 'pancakes', 'tea', 'goojelly', 'stew')
+ITEMS = ('jellypot', 'shroombrew', 'embertonic', 'pancakes', 'tea', 'goojelly', 'stew', 'rockcandy')
 ICON_IDS = {key: 'meal_'+key if key in ITEMS[3:] else key for key in ITEMS}
 ROLES = {
     'jellypot': {'goo': ['goo-infusion'], 'fluff': ['fluff-foam']},
@@ -32,6 +32,7 @@ ROLES = {
     'tea': {'clover': ['clover-infusion','clover-leaves']},
     'goojelly': {'goo': ['jelly-base','jelly-belly','jelly-top']},
     'stew': {'pine': ['pine-fuel'], 'cap': ['cap-broth','shroom-caps']},
+    'rockcandy': {'stone': ['pebbles-back','pebbles-front'], 'copper': ['copper-sticks']},
 }
 
 

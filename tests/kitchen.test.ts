@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { afterWin, cook, kitchenOpen, knownMeals, mealLeft, mealTick, repelBelow, sweetBoost, xpBoost } from '../src/kitchen';
+import { afterWin, cook, kitchenOpen, knownMeals, mealLeft, mealTick, oreBoost, repelBelow, sweetBoost, xpBoost } from '../src/kitchen';
+import { NODES, type NodeKind } from '../src/data';
+import { harvest } from '../src/rules';
 import { newState } from '../src/state';
 
 /** A save that's finished Poppy's story, with plenty of everything. */
@@ -84,5 +86,39 @@ describe("Granny's Kitchen", () => {
     expect(sweetBoost(s)).toBeGreaterThan(1);
     mealTick(s, 241);
     expect(sweetBoost(s)).toBe(1);
+  });
+
+  test("Pip teaches her Rock Candy when he moves in: stone and copper", () => {
+    const s = fed();
+    expect(cook(s, 'rockcandy')).toBe('unknown');
+    s.flags.push('pip:candy');
+    expect(knownMeals(s)).toContain('rockcandy');
+    expect(cook(s, 'rockcandy')).toBe('ok');
+    expect({ stone: s.mats.stone, copper: s.mats.copper }).toEqual({ stone: 46, copper: 48 });
+    expect(mealLeft(s)?.left).toBe('4m');
+  });
+
+  test('Rock Candy: an extra ore from every rock you mine for four minutes, and nothing extra from trees', () => {
+    const s = fed();
+    s.flags.push('pip:candy');
+    const mines = (Object.keys(NODES) as NodeKind[]).filter((k) => NODES[k].skill === 'mine');
+    expect(mines).toEqual(expect.arrayContaining(['rock', 'copper', 'iron', 'crystal', 'obsidian']));
+    const plain = (kind: NodeKind) => harvest(s, kind, `plain:${kind}`, false, false, () => 1, 0).drops[NODES[kind].mat];
+    const before = Object.fromEntries(mines.map((k) => [k, plain(k)]));
+    const oak = plain('oak');
+    cook(s, 'rockcandy');
+    expect(oreBoost(s)).toBe(1);
+    for (const kind of mines) {
+      const mat = NODES[kind].mat, had = s.mats[mat];
+      const r = harvest(s, kind, `candy:${kind}`, false, false, () => 1, 0);
+      expect({ kind, got: r.drops[mat] }).toEqual({ kind, got: before[kind]! + 1 });
+      expect(s.mats[mat]).toBe(had + before[kind]! + 1);
+    }
+    // A flawless job still adds its own extra on top.
+    expect(harvest(s, 'rock', 'flawless', false, true, () => 1, 0).drops.stone).toBe(NODES.rock.safe.yield + 2);
+    expect(harvest(s, 'oak', 'candy:oak', false, false, () => 1, 0).drops.bark).toBe(oak);
+    mealTick(s, 241);
+    expect(oreBoost(s)).toBe(0);
+    expect(harvest(s, 'rock', 'after', false, false, () => 1, 0).drops.stone).toBe(before.rock);
   });
 });

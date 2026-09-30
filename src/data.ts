@@ -445,7 +445,7 @@ export const NODE_SPAWNS: Partial<Record<ZoneId, { kind: NodeKind; safe: number;
 
 // ----------------------------------------------------------------------------- village construction
 
-export type ProjectId = 'home' | 'forge' | 'garden' | 'training' | 'warp' | 'sawmill';
+export type ProjectId = 'home' | 'forge' | 'garden' | 'training' | 'warp' | 'sawmill' | 'cottage';
 
 export interface ProjectLevel {
   name: string;
@@ -510,6 +510,12 @@ export const PROJECTS: Record<ProjectId, Project> = {
       { name: 'Obsidian Sawmill', cost: { obsidian: 4, emberwood: 6, glimplank: 4 }, perk: 'An obsidian blade: saws Emberwood into Emberwood Planks, fastest of all' },
     ],
   },
+  // Once Bram's settled in: a pine frame and a plank from his mill, and someone moves in (Pip's story). Oak is already
+  // at the edge of the farming budget (see balance.ts), so it's just the one plank.
+  cottage: {
+    name: 'Guest Cottage', icon: '🏡',
+    levels: [{ name: 'Guest Cottage', cost: { plank: 1, pine: 8, stone: 6, copper: 2 }, perk: 'A home for a newcomer' }],
+  },
 };
 
 /**
@@ -519,7 +525,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
 export const BRAM_CABIN_PLANKS = 6;
 export const BRIDGE_COST: Recipe = { plank: 8 };
 
-export const PROJECT_ORDER: ProjectId[] = ['home', 'forge', 'garden', 'training', 'warp', 'sawmill'];
+export const PROJECT_ORDER: ProjectId[] = ['home', 'forge', 'garden', 'training', 'warp', 'sawmill', 'cottage'];
 
 // ----------------------------------------------------------------------------- story
 

@@ -12,6 +12,7 @@ import { travelTo } from './menu';
 import { tryGather } from './gathering';
 import { progressQuests, talkToElder } from './story';
 import { openSawmill, sawmillBuilt } from './stories/bram';
+import { visitPip } from './stories/pip';
 
 /** Opens the menu with the world waiting behind it. */
 function openMenu(...args: Parameters<typeof G.ui.openMenu>) {
@@ -63,6 +64,8 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     if (o.project === 'warp' && G.save.build.warp > 0) return waystone();
     // Bram's Sawmill, once it's built: his bench, logs in and planks out.
     if (o.project === 'sawmill' && sawmillBuilt()) return openSawmill();
+    // The Guest Cottage, once Pip's moved in: a knock on his door.
+    if (o.project === 'cottage' && (G.save.stories.pip ?? 0) >= 1) return visitPip();
     openMenu(menuCtx(), 'village', o.project);
   },
 

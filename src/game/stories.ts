@@ -7,6 +7,7 @@ import type { WorldObj } from '../world';
 import { G, persist, syncWorld } from './context';
 import { BRAM_STORY } from './stories/bram';
 import { GRANNY_STORY } from './stories/granny';
+import { PIP_STORY } from './stories/pip';
 import { POPPY } from './stories/poppy';
 
 export interface StoryStep {
@@ -50,7 +51,7 @@ export interface Story {
   fainted?: () => void;
 }
 
-export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY];
+export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY, PIP_STORY];
 
 /** How far through a story you are (0 = not started; the step count = finished). */
 export const stepOf = (id: string) => G.save.stories[id] ?? 0;
