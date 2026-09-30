@@ -1,0 +1,65 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "parts": {
+    "pine-shaft": {
+      "src": "assets/crafting/ironhammer-pine-shaft.webp",
+      "bounds": [
+        57,
+        142,
+        370,
+        455
+      ],
+      "center": [
+        0.417,
+        0.583
+      ]
+    },
+    "iron-head": {
+      "src": "assets/crafting/ironhammer-iron-head.webp",
+      "bounds": [
+        218,
+        59,
+        453,
+        294
+      ],
+      "center": [
+        0.6553,
+        0.3447
+      ]
+    },
+    "iron-collars": {
+      "src": "assets/crafting/ironhammer-iron-collars.webp",
+      "bounds": [
+        52,
+        189,
+        323,
+        460
+      ],
+      "center": [
+        0.3662,
+        0.6338
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/ironhammer-complete.webp",
+      "bounds": [
+        52,
+        59,
+        453,
+        460
+      ],
+      "center": [
+        0.4932,
+        0.5068
+      ]
+    }
+  },
+  "stack": [
+    "pine-shaft",
+    "iron-head",
+    "iron-collars"
+  ]
+}
