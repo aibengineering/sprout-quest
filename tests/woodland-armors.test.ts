@@ -58,7 +58,7 @@ describe('ingredient-led woodland armor assets', () => {
       { id: 'barkvest', recipe: { bark: 12, stone: 6 }, def: 4, hp: 6, spd: undefined, regen: undefined },
       { id: 'shroomhood', recipe: { cap: 12, fang: 4 }, def: 6, hp: 12, spd: undefined, regen: undefined },
       { id: 'batcloak', recipe: { wing: 12, fang: 6 }, def: 10, hp: 10, spd: 12, regen: undefined },
-      { id: 'glimmershawl', recipe: { glimmer: 12, wing: 6, core: 1 }, def: 15, hp: 22, spd: undefined, regen: 1 },
+      { id: 'glimmershawl', recipe: { glimmer: 16, core: 1 }, def: 15, hp: 22, spd: undefined, regen: 1 },
     ]);
   });
 

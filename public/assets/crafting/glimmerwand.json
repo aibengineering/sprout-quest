@@ -4,76 +4,76 @@
     512
   ],
   "parts": {
-    "wing-stem": {
-      "src": "assets/crafting/glimmerwand-wing-stem.webp",
+    "glass-shaft": {
+      "src": "assets/crafting/glimmerwand-glass-shaft.webp",
       "center": [
-        0.4121,
-        0.5
+        0.3857,
+        0.6221
       ],
       "bounds": [
-        48,
-        235,
-        374,
-        277
+        81,
+        202,
+        314,
+        435
       ]
     },
-    "wing-frame": {
-      "src": "assets/crafting/glimmerwand-wing-frame.webp",
+    "shard-crown": {
+      "src": "assets/crafting/glimmerwand-shard-crown.webp",
       "center": [
-        0.7471,
-        0.5
+        0.6914,
+        0.3164
       ],
       "bounds": [
-        325,
-        150,
-        440,
-        362
+        255,
+        63,
+        453,
+        261
       ]
     },
     "core-heart": {
       "src": "assets/crafting/glimmerwand-core-heart.webp",
       "center": [
-        0.7891,
-        0.499
+        0.7266,
+        0.2822
       ],
       "bounds": [
-        368,
-        209,
-        440,
-        302
+        342,
+        114,
+        402,
+        175
       ]
     },
-    "jelly-star": {
-      "src": "assets/crafting/glimmerwand-jelly-star.webp",
+    "jelly-orb": {
+      "src": "assets/crafting/glimmerwand-jelly-orb.webp",
       "center": [
-        0.6377,
-        0.5078
+        0.7256,
+        0.2822
       ],
       "bounds": [
-        189,
-        187,
-        464,
-        333
+        309,
+        82,
+        434,
+        207
       ]
     },
     "complete": {
       "src": "assets/crafting/glimmerwand-complete.webp",
       "center": [
-        0.5,
-        0.5
+        0.5215,
+        0.4863
       ],
       "bounds": [
-        48,
-        150,
-        464,
-        362
+        81,
+        63,
+        453,
+        435
       ]
     }
   },
   "stack": [
-    "wing-stem",
-    "wing-frame",
+    "glass-shaft",
+    "shard-crown",
     "core-heart",
-    "jelly-star"
+    "jelly-orb"
   ]
 }

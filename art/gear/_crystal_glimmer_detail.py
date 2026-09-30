@@ -6,14 +6,19 @@ transparent materials, or animation nodes are needed in the equipped model.
 import math
 
 import bpy
-from lib import _finish, _link, cylinder, profile, sphere, toon
+from lib import _finish, _link, cylinder, lathe, profile, sphere, toon
 
 X = (0, math.pi / 2, 0)
 IRON = '#7a8498'
 IRON_LIGHT = '#cbd9e5'
-WING = '#59426f'
-WING_RIB = '#967ab7'
 JELLY = '#c8b0ff'  # Keep the current coil color: the combat renderer removes it.
+# Glimmer Jelly hardened into glass: luminous lilac/pink bodies with pale icy facets.
+GLOW = '#f1c4ff'
+GLOW_PINK = '#ffd3ef'
+GLOW_DEEP = '#d59cf2'
+ICE = '#d8f8ff'
+ICE_MID = '#a6e6f6'
+SHINE = '#fff6ff'
 
 
 def facet(points, root, colors=('#9ae6ff', '#72bddc', '#dcf7ff'), depth=.07):
@@ -45,5 +50,17 @@ def bead(root, x, z=0, radius=.025):
                   root, seg=8, line=0)
 
 
-def wing_panel(root, points, depth=.04):
-    return profile(points, depth, toon(WING, rim=.18), root, bevel=0, line=.014)
+def glow(color=GLOW, emit=.22, rim=.3):
+    """Lit-from-within jelly: pale shadow so it never goes dusky like bat membrane."""
+    return toon(color, shade='#c79ae8' if color != ICE else '#86c9e6', rim=rim, emit=emit)
+
+
+def shard(root, loc, radius, back, front, color, rot=(0, 0, 0), sides=6, line=.010, mid=None):
+    """Double-pointed faceted shard along local Z (back tip at -back, front tip at +front)."""
+    body = front * .55 if mid is None else mid
+    obj = lathe([(.0001, -back), (radius, 0), (radius, body), (.0001, front)],
+                color if not isinstance(color, str) else glow(color), root, loc=loc,
+                seg=sides, rot=rot, line=line, name='glimmer_shard')
+    for p in obj.data.polygons:
+        p.use_smooth = False
+    return obj
