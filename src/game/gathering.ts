@@ -1,7 +1,7 @@
 // Chopping and mining: starting the timing minigame at a tree or rock, playing it, paying out, and node labels.
 import { NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind } from '../data';
 import { Chop, GatherView, type Look } from '../gather';
-import type { RockColors } from '../nodeart';
+import { isTreeKind, type RockColors, type RockKind, type TreeKind } from '../nodeart';
 import { usingKeyboard } from '../input';
 import { canGather, harvest, hasOldTools, revealed, sweetWidth, toolPower, type GatherReward } from '../rules';
 import { logEvent } from '../stats';
@@ -20,12 +20,16 @@ const NOISE: Record<'perfect' | 'hit' | 'miss', number> = { perfect: 0, hit: 0.1
 let chopStart = 0;
 
 /** Colors for each kind of rock in the mining minigame: its face on the bar, and the chips that fly off it. */
-const ROCK_COLORS: Record<Exclude<NodeKind, 'oak' | 'pine'>, RockColors> = {
+const ROCK_COLORS: Record<RockKind, RockColors> = {
   rock: { body: '#9a9aa8', dark: '#6a6a78', fleck: '#d8d8e0' },
   copper: { body: '#8a7a6a', dark: '#5e5048', fleck: '#ff9a4a' },
   iron: { body: '#5e6272', dark: '#40434f', fleck: '#c8d8f0' },
   crystal: { body: '#7a6a9a', dark: '#4e4468', fleck: '#9af0ff' },
+  obsidian: { body: '#3a3248', dark: '#1c1822', fleck: '#ff8a3a' },
 };
+/** Every gathering node has close-up art: a tree in nodeart's TREES, or a rock kind with colors above. */
+const everyNodeHasArt: Exclude<NodeKind, TreeKind | RockKind> extends never ? true : false = true;
+void everyNodeHasArt;
 
 const timeLeft = (ms: number) => {
   const secs = Math.ceil(ms / 1000);
@@ -52,9 +56,9 @@ export function tryGather(o: WorldObj) {
     return;
   }
   const tool = s.tools[n.skill];
-  const look: Look = o.node === 'oak' || o.node === 'pine'
+  const look: Look = isTreeKind(o.node!)
     ? { kind: 'wood', tree: o.node, tool }
-    : { kind: 'mine', rock: o.node!, tool, ...ROCK_COLORS[o.node!] };
+    : { kind: 'mine', rock: o.node as RockKind, tool, ...ROCK_COLORS[o.node as RockKind] };
   const view = new GatherView(look);
   view.onSound = (sfx) => G.audio.play(sfx);
   // Woodcutter's Stew (Granny's) widens the sweet spot on trees.

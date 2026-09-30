@@ -60,16 +60,106 @@ def pine_node():
     return root
 
 
-def stump(bark, heart):
+def stump(bark, heart, ring='#c8a070', sprout=('#4fae4f', '#62c060'), glow=0.0):
     root = empty('stump')
     cylinder((0, 0, 0.11), 0.2, 0.22, toon(bark), root, seg=16, r2=0.17)
-    cylinder((0, 0, 0.225), 0.165, 0.02, toon(heart), root, seg=16, line=0.012)
-    torus((0, 0, 0.237), 0.09, 0.012, toon('#c8a070'), root, seg=20, line=0)
+    cylinder((0, 0, 0.225), 0.165, 0.02, toon(heart, emit=glow), root, seg=16, line=0.012)
+    torus((0, 0, 0.237), 0.09, 0.012, toon(ring, emit=glow), root, seg=20, line=0)
     for a in (0.4, 2.3, 4.2):
         cylinder((math.cos(a) * 0.2, math.sin(a) * 0.2, 0.04), 0.05, 0.18, toon(bark), root, seg=8, rot=(math.pi / 2, 0, a + math.pi / 2), line=0.014)
     # A little sprout: it's growing back.
-    cylinder((0.06, -0.05, 0.3), 0.012, 0.12, toon('#4fae4f'), root, seg=6, line=0.008)
-    sphere((0.1, -0.05, 0.36), (0.06, 0.03, 0.035), toon('#62c060'), root, seg=10, rot=(0, -0.5, 0), line=0.01)
+    cylinder((0.06, -0.05, 0.3), 0.012, 0.12, toon(sprout[0]), root, seg=6, line=0.008)
+    sphere((0.1, -0.05, 0.36), (0.06, 0.03, 0.035), toon(sprout[1], emit=glow), root, seg=10, rot=(0, -0.5, 0), line=0.01)
+    return root
+
+
+# Palettes shared by the map sprites and the minigame close-ups (art/gather.py) for the tier 3 and 4 trees.
+GLIM = {'bark': '#e4e0f0', 'ridge': '#b4acd0', 'heart': '#f6f2ff', 'ring': '#c0b0f0',
+        'leaves': ('#9a82e8', '#b8a0ff', '#9ae6ff', '#d8c8ff')}
+EMBER = {'bark': '#3a3238', 'ridge': '#ff7a2a', 'heart': '#ffb45a', 'ring': '#e0602a',
+         'leaves': ('#8a2a26', '#c8402a', '#ff7a3a', '#ffb45a')}
+
+
+def _glow_line(root, pts, color, y, w=0.035, emit=0.9):
+    """A bright crack drawn along a polyline on the front face (ember grain, obsidian veins)."""
+    for a, b in zip(pts, pts[1:]):
+        profile([a, (a[0] + w, a[1]), (b[0] + w, b[1]), b], 0.03, toon(color, emit=emit), root, loc=(0, y, 0), bevel=0, line=0)
+
+
+def glimwood(seed=0):
+    """A Glimmerwood tree: a pale, silvery trunk that forks into two limbs, crowned with glowing lilac and cyan leaf
+    clusters and little crystal leaves poking out of them."""
+    root = empty('glimwood')
+    g = GLIM
+    cylinder((0, 0, 0.35), 0.13, 0.7, toon(g['bark'], rim=0.4), root, seg=12, r2=0.1)
+    for sx in (-1, 1):
+        cylinder((sx * 0.12, 0, 0.78), 0.06, 0.34, toon(g['bark'], rim=0.4), root, seg=8, r2=0.035, rot=(0, sx * 0.6, 0), line=0.016)
+    # Silver streaks up the bark.
+    for x in (-0.05, 0.05):
+        cylinder((x, -0.12, 0.36), 0.012, 0.5, toon(g['ridge']), root, seg=6, line=0)
+    dark, mid, cyan, pale = g['leaves']
+    # Leaf clusters back to front: deep lilac behind, lighter lilac, then small glowing cyan puffs in front.
+    for x, y, z, s, col in ((-0.36, 0.14, 1.04, 0.3, dark), (0.36, 0.14, 1.08, 0.3, dark), (0, 0.16, 1.42, 0.34, dark),
+                            (-0.22, -0.04, 1.26, 0.27, mid), (0.24, -0.04, 1.3, 0.26, mid), (0.02, -0.02, 1.02, 0.28, mid),
+                            (-0.3, -0.26, 1.02, 0.15, cyan), (0.28, -0.24, 1.14, 0.14, cyan), (0.0, -0.24, 1.46, 0.14, cyan)):
+        sphere((x, y, z), s, toon(col, rim=0.5, emit=0.22 if col != cyan else 0.4), root, seg=20)
+    # Little crystal leaves tucked into the clusters, leaning out toward you.
+    for x, z, tilt in ((-0.5, 1.2, -0.9), (0.5, 1.26, 0.9), (-0.16, 1.66, -0.5), (0.2, 1.68, 0.5)):
+        crystal((x, -0.1, z), 0.05, 0.18, toon(pale, rim=0.5, emit=0.35), root, rot=(-0.5, tilt, 0), sides=5, line=0.012)
+    for x, z in ((-0.12, 1.2), (0.14, 1.38), (-0.32, 1.3)):
+        sphere((x, -0.34, z), 0.035, toon('#ffffff', emit=0.6), root, line=0.008)
+    return root
+
+
+def emberwood(seed=0):
+    """An Emberwood tree: a gnarled, charcoal-black trunk split by glowing ember grain, bare twisting limbs and a few
+    smouldering red-orange tufts, flat-topped like it grew up in the heat."""
+    root = empty('emberwood')
+    e = EMBER
+    lathe([(0.0001, 0), (0.24, 0), (0.18, 0.1), (0.14, 0.4), (0.12, 0.72), (0.0001, 0.72)], toon(e['bark']), root, seg=14)
+    _glow_line(root, ((-0.06, 0.05), (-0.03, 0.22), (-0.07, 0.4), (-0.04, 0.6)), e['ridge'], -0.155)
+    _glow_line(root, ((0.05, 0.08), (0.03, 0.3), (0.06, 0.5)), e['ridge'], -0.15)
+    # Twisting bare limbs.
+    for x, z, tilt, l in ((-0.2, 0.86, -1.0, 0.46), (0.22, 0.9, 1.05, 0.5), (0.02, 0.98, 0.15, 0.4)):
+        cylinder((x, 0, z), 0.06, l, toon(e['bark']), root, seg=8, r2=0.03, rot=(0, tilt, 0), line=0.016)
+    dark, red, orange, hot = e['leaves']
+    # A smouldering tuft at the end of each limb: a dark red puff, a brighter one and a hot glowing heart.
+    for cx, cz, k in ((-0.42, 1.06, 1.0), (0.44, 1.12, 1.0), (0.04, 1.26, 1.15)):
+        for dx, dy, dz, s, col, glow in ((0, 0.06, 0.02, 0.2, dark, 0.2), (-0.1, -0.02, -0.02, 0.15, red, 0.35), (0.1, -0.02, 0.0, 0.14, red, 0.35),
+                                         (0, -0.1, 0.06, 0.13, orange, 0.6), (0.02, -0.18, 0.02, 0.07, hot, 0.8)):
+            sphere((cx + dx * k, dy * k, cz + dz * k), (s * k, s * k * 0.85, s * k * 0.8), toon(col, emit=glow), root, seg=16, line=0.016)
+    for x, z in ((-0.2, 1.42), (0.18, 1.5), (0.02, 1.62)):
+        sphere((x, -0.2, z), 0.04, toon('#ffd07a', emit=0.9), root, line=0.01)
+    return root
+
+
+def glimwood_node():
+    root = glimwood(0)
+    ribbon(root, 0.3, 0.12)
+    return root
+
+
+def emberwood_node():
+    root = emberwood(0)
+    ribbon(root, 0.3, 0.155)
+    return root
+
+
+def obsidian_node():
+    """An obsidian seam: a squat heap of glossy black glass shards, split by glowing ember veins."""
+    root = empty('obsidian')
+    glass, dark, vein = '#3a3248', '#241e2c', '#ff8a3a'
+    sphere((0, 0, 0.22), (0.5, 0.42, 0.28), toon(dark, rim=0.6), root, seg=12, rot=(0, 0, 0.4))
+    for x, y, h, tilt, r in ((-0.24, 0.04, 0.6, -0.45, 0.19), (0.1, 0.0, 0.74, 0.12, 0.21), (0.36, 0.06, 0.48, 0.6, 0.17)):
+        crystal((x, y, 0.16), r, h, toon(glass, rim=0.9), root, rot=(0, tilt, 0), sides=5)
+    # Glassy glints on the shards' faces.
+    for pts in (((-0.3, 0.42), (-0.24, 0.44), (-0.33, 0.62)), ((0.06, 0.5), (0.12, 0.52), (0.08, 0.74)), ((0.38, 0.36), (0.43, 0.38), (0.44, 0.5))):
+        profile(list(pts), 0.01, toon('#b8b0d8', emit=0.3), root, loc=(0, -0.24, 0), bevel=0, line=0)
+    # Glowing veins across the front of the heap, and a couple of hot nuggets.
+    for pts in (((-0.32, 0.12), (-0.2, 0.24), (-0.24, 0.36)), ((0.0, 0.1), (0.1, 0.26), (0.06, 0.4)), ((0.3, 0.1), (0.38, 0.26))):
+        _glow_line(root, pts, vein, -0.38)
+    for x, z, s in ((-0.1, 0.3, 0.05), (0.22, 0.34, 0.055)):
+        crystal((x, -0.4, z), s, s * 1.8, toon('#ffb45a', emit=0.6, rim=0.5), root, rot=(0.9, 0.2 * x, 0), sides=5, line=0.012)
     return root
 
 
@@ -740,6 +830,12 @@ for i in range(3):
     SCENERY[f'boulder{i}'] = (lambda i=i: rock(i, ('#8a8e9e', '#7a7e8e', '#9498a8')), 130, 110)
 SCENERY['crystal_node'] = (lambda: crystal_node(), 130, 150)
 SCENERY['crystal_rubble'] = (lambda: rubble('#8e89ad', '#9ae6ff'), 80, 60)
+SCENERY['glimwood_node'] = (glimwood_node, 150, 200)
+SCENERY['glimwood_stump'] = (lambda: stump(GLIM['bark'], GLIM['heart'], GLIM['ring'], ('#b4acd0', '#b8a0ff'), 0.2), 80, 70)
+SCENERY['emberwood_node'] = (emberwood_node, 150, 190)
+SCENERY['emberwood_stump'] = (lambda: stump(EMBER['bark'], EMBER['heart'], EMBER['ring'], ('#3a3238', '#ff7a3a'), 0.4), 80, 70)
+SCENERY['obsidian_node'] = (obsidian_node, 130, 140)
+SCENERY['obsidian_rubble'] = (lambda: rubble('#2e2836', '#ff8a3a'), 80, 60)
 SCENERY['forge0'] = (forge_ruins, 480, 380)
 SCENERY['forge'] = (forge, 480, 420)
 SCENERY['forge2'] = (lambda: forge(2), 520, 420)

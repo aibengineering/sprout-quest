@@ -1,0 +1,52 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "stack": [
+    "pine-haft",
+    "iron-head"
+  ],
+  "existing": [],
+  "parts": {
+    "pine-haft": {
+      "src": "assets/crafting/axe3-pine-haft.webp",
+      "bounds": [
+        231,
+        87,
+        281,
+        487
+      ],
+      "center": [
+        0.5,
+        0.5605
+      ]
+    },
+    "iron-head": {
+      "src": "assets/crafting/axe3-iron-head.webp",
+      "bounds": [
+        94,
+        9,
+        328,
+        244
+      ],
+      "center": [
+        0.4121,
+        0.2471
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/axe3-complete.webp",
+      "bounds": [
+        94,
+        9,
+        328,
+        487
+      ],
+      "center": [
+        0.4121,
+        0.4844
+      ]
+    }
+  }
+}

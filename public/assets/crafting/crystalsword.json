@@ -4,8 +4,8 @@
     512
   ],
   "parts": {
-    "pine-grip": {
-      "src": "assets/crafting/crystalsword-pine-grip.webp",
+    "glimwood-grip": {
+      "src": "assets/crafting/crystalsword-glimwood-grip.webp",
       "center": [
         0.2305,
         0.7666
@@ -58,7 +58,7 @@
     }
   },
   "stack": [
-    "pine-grip",
+    "glimwood-grip",
     "iron-cradle",
     "crystal-edge"
   ]

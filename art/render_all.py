@@ -253,9 +253,9 @@ elif GROUP == 'icons2':
 elif GROUP == 'gather':
     # Close-ups for the chop/mine minigame, big and nearly side-on (see art/gather.py).
     pieces = [(f'{kind}_{part}', lambda k=kind, p=part: getattr(gather, k)(p), 520, 560)
-              for kind in ('oak', 'pine') for part in ('whole', 'stump', 'top')]
+              for kind in ('oak', 'pine', 'glimwood', 'emberwood') for part in ('whole', 'stump', 'top')]
     pieces += [(name, lambda n=name: gather.boulder(n), 420, 320) for name in gather.ROCKS]
-    pieces += [('crystal', gather.crystal_rock, 420, 400)]
+    pieces += [('crystal', gather.crystal_rock, 420, 400), ('obsidian', gather.obsidian_rock, 420, 400)]
     for name, fn, w, h in pieces:
         if not wanted(name):
             continue

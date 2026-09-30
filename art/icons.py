@@ -238,13 +238,68 @@ def kingcrystal():
     return r
 
 
-def plank():
-    """Two sawn planks, crossed."""
+def plank(face='#e8c890', mark='#c8a070', grain=None, emit=0.0, knot=None):
+    """Two sawn planks, crossed, tipped toward you so their faces show. Oak by default; other woods pass their colours,
+    long grain lines along the boards (`grain`, glowing with `emit`) and a knot."""
     r = empty('i')
     for rot, z in ((0.35, -0.05), (-0.35, 0.05)):
-        box((0, 0, z), (1.1, 0.26, 0.08), toon('#e8c890'), r, rot=(0, 0, rot), bevel=0.02)
+        box((0, 0, z), (1.1, 0.26, 0.08), toon(face), r, rot=(0, 0, rot), bevel=0.02)
         for k in (-0.3, 0.1, 0.4):
-            box((k * math.cos(rot), k * math.sin(rot), z + 0.045), (0.08, 0.2, 0.01), toon('#c8a070', rim=0), r, rot=(0, 0, rot), bevel=0.003, line=0)
+            box((k * math.cos(rot), k * math.sin(rot), z + 0.045), (0.08, 0.2, 0.01), toon(mark, rim=0), r, rot=(0, 0, rot), bevel=0.003, line=0)
+        if grain:
+            for off, a, b in ((-0.07, -0.5, -0.05), (0.02, -0.2, 0.3), (0.08, 0.15, 0.5)):
+                mid, ln = (a + b) / 2, b - a
+                x, y = mid * math.cos(rot) - off * math.sin(rot), mid * math.sin(rot) + off * math.cos(rot)
+                box((x, y, z + 0.046), (ln, 0.018, 0.01), toon(grain, rim=0, emit=emit), r, rot=(0, 0, rot), bevel=0, line=0)
+        if knot:
+            k = -0.12
+            sphere((k * math.cos(rot) + 0.03 * math.sin(rot), k * math.sin(rot) - 0.03 * math.cos(rot), z + 0.045),
+                   (0.045, 0.028, 0.008), toon(knot, rim=0, emit=emit), r, rot=(0, 0, rot), line=0)
+    r.rotation_euler = (0.6, 0, 0)
+    return r
+
+
+def _log(bark_col, end, ring, grain=(), emit=0.0):
+    """A log like the bark and pine icons: a chunky tilted log, its cut end showing, with lines of grain along it."""
+    r = empty('i')
+    log = empty('log', r)
+    log.rotation_euler = (0, 0.3, 0)
+    box((0, 0, 0), (0.7, 0.3, 0.34), toon(bark_col), log, bevel=0.1)
+    cylinder((0.35, 0, 0), 0.18, 0.08, toon(end, emit=emit * 0.4), log, rot=(0, math.pi / 2, 0), seg=20)
+    torus((0.395, 0, 0), 0.1, 0.014, toon(ring, emit=emit * 0.5), log, rot=(0, math.pi / 2, 0), seg=20, line=0)
+    for z, x0, x1, col in grain:
+        box(((x0 + x1) / 2, -0.152, z), (x1 - x0, 0.01, 0.028), toon(col, rim=0, emit=emit), log, bevel=0, line=0)
+    return r
+
+
+def glimwood_log():
+    r = _log('#e4e0f0', '#f6f2ff', '#c0b0f0', ((0.07, -0.26, 0.12, '#b8a0ff'), (-0.06, -0.12, 0.26, '#9ae6ff')), 0.45)
+    for x, a, col in ((-0.12, -0.5, '#d8c8ff'), (0.02, 0.2, '#9ae6ff')):
+        crystal((x, -0.04, 0.2), 0.05, 0.2, toon(col, rim=0.5, emit=0.35), r, rot=(0.2, a, 0), sides=5, line=0.012)
+    return r
+
+
+def emberwood_log():
+    r = _log('#3a3238', '#ffb45a', '#e0602a', ((0.08, -0.28, -0.02, '#ff7a2a'), (0.03, -0.04, 0.2, '#ff7a2a'),
+                                                (-0.07, -0.18, 0.1, '#ffb45a')), 0.9)
+    sphere((0.0, -0.1, 0.3), 0.04, toon('#ffd07a', emit=0.9), r, line=0.01)
+    sphere((0.14, -0.1, 0.38), 0.03, toon('#ffd07a', emit=0.9), r, line=0.008)
+    return r
+
+
+def obsidian():
+    """A chunk of glossy black volcanic glass with glowing ember veins."""
+    r = empty('i')
+    glass = '#3a3248'
+    crystal((0, 0, -0.4), 0.3, 0.82, toon(glass, rim=0.9), r, rot=(0, 0.15, 0), sides=5)
+    crystal((-0.26, 0.04, -0.42), 0.18, 0.5, toon(glass, rim=0.9), r, rot=(0, -0.5, 0), sides=5)
+    crystal((0.28, 0.04, -0.42), 0.16, 0.42, toon(glass, rim=0.9), r, rot=(0, 0.55, 0), sides=5)
+    profile([(-0.02, 0.1), (0.05, 0.12), (-0.04, 0.36)], 0.01, toon('#c8c0e8', emit=0.3), r, loc=(0, -0.3, 0), bevel=0, line=0)
+    for pts in (((-0.1, -0.36), (0.02, -0.16), (-0.04, 0.02)), ((0.02, -0.16), (0.14, -0.06))):
+        for a, b in zip(pts, pts[1:]):
+            profile([a, (a[0] + 0.045, a[1]), (b[0] + 0.045, b[1]), b], 0.02, toon('#ff8a3a', emit=0.9), r, loc=(0, -0.3, 0),
+                    bevel=0, line=0)
+    r.scale = (0.85,) * 3
     return r
 
 
@@ -317,10 +372,16 @@ MATERIALS = {
     'glimmer': glimmer_jelly, 'copper': lambda: ore('#8a7a6a', '#ff9a4a'), 'iron': lambda: ore('#5e6272', '#c8dcf8'),
     'crystal': crystal_mat, 'core': core, 'ember': ember, 'horn': horn, 'scale': scale,
     'royaljelly': royaljelly, 'alphapelt': alphapelt, 'echowing': echowing, 'kingcrystal': kingcrystal, 'plank': plank,
+    'glimwood': glimwood_log, 'emberwood': emberwood_log, 'obsidian': obsidian,
+    'pineplank': lambda: plank('#e0a060', '#b0703a', '#a8643a', knot='#7a4424'),
+    'glimplank': lambda: plank('#ece6fa', '#c0b0f0', '#b8a0ff', emit=0.45),
+    'emberplank': lambda: plank('#3e353c', '#5a4a50', '#ff7a2a', emit=0.9),
 }
 TOOLS = {
     'axe1': lambda: axe('#9aa0b0', [(0.32, 0.03), (0.46, 0.03), (0.56, 0.3), (0.48, 0.37), (0.4, 0.38), (0.32, 0.37), (0.24, 0.3)]),
     'axe2': lambda: axe('#e8904a', [(0.32, 0.03), (0.46, 0.03), (0.56, 0.3), (0.48, 0.37), (0.4, 0.38), (0.32, 0.37), (0.24, 0.3)], '#8a5a3a'),
+    'axe3': lambda: axe('#c8d4e8', [(0.32, 0.03), (0.46, 0.03), (0.56, 0.3), (0.48, 0.37), (0.4, 0.38), (0.32, 0.37), (0.24, 0.3)], '#5e6272'),
+    'axe4': lambda: axe('#9ae6ff', [(0.32, 0.03), (0.46, 0.03), (0.56, 0.3), (0.48, 0.37), (0.4, 0.38), (0.32, 0.37), (0.24, 0.3)], '#b8a0ff'),
     'pick1': lambda: pick('#9aa0b0'),
     'pick2': lambda: pick('#e8904a', '#8a5a3a'),
     'pick3': lambda: pick('#c8d4e8', '#5e6272'),

@@ -4,8 +4,8 @@
     512
   ],
   "parts": {
-    "pine": {
-      "src": "assets/crafting/dragontail-pine.webp",
+    "emberwood": {
+      "src": "assets/crafting/dragontail-emberwood.webp",
       "center": [
         0.3545,
         0.3145
@@ -71,7 +71,7 @@
     }
   },
   "stack": [
-    "pine",
+    "emberwood",
     "horn",
     "scale",
     "ember"

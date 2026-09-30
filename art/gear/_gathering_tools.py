@@ -1,15 +1,17 @@
-"""Recipe-led geometry for all six gathering tools, sharing their established grip and contact points.
+"""Recipe-led geometry for all eight gathering tools, sharing their established grip and contact points.
 
 No economy changes. The stone tier repairs Oswin's existing tool: only its goo
 joint and wool binding are new. All other components are made from their recipe.
 Builders return separate meshes for registered assembly layers, and the complete
 root can be used by the gathering sprite renderer without a second model.
+The Iron Axe (axe3) shares the Iron Pick's pine haft and iron head; the Crystal
+Axe (axe4) sets its crystal head on a pale, glowing Glimmerwood haft.
 """
 import math
 from lib import box, cylinder, empty, profile, sphere, toon, torus
 from gather import HANDLE, HEAD_SCALE, _curve
 
-IDS = ('axe1', 'axe2', 'pick1', 'pick2', 'pick3', 'pick4')
+IDS = ('axe1', 'axe2', 'axe3', 'axe4', 'pick1', 'pick2', 'pick3', 'pick4')
 
 
 def build(item_id, parent=None):
@@ -56,6 +58,17 @@ def build(item_id, parent=None):
         knot = add(shaft_key, torus((.006, -.047, .29), .018, .004,
                                    toon('#684525'), root, seg=12, line=0, rot=(math.pi / 2, 0, 0)))
         knot.scale = (.65, 1.5, 1)
+    elif axe:
+        # Crystal Axe: a pale, silvery Glimmerwood haft with softly glowing
+        # lilac and cyan grain, and a turned Glimmerwood grip.
+        shaft_key = 'glimwood-haft'
+        add(shaft_key, cylinder((0, 0, HANDLE / 2 - .02), .046, HANDLE + .06,
+                               toon('#e4e0f0', rim=.4), root, seg=12, line=.014))
+        for x, col in ((-.022, '#b8a0ff'), (.017, '#9ae6ff')):
+            add(shaft_key, box((x, -.044, .36), (.006, .006, .46),
+                               toon(col, emit=.45), root, bevel=.002, line=0))
+        for z in (.04, .1, .16):
+            add(shaft_key, torus((0, 0, z), .049, .009, toon('#c0b0f0', emit=.2), root, seg=14, line=.002))
     else:
         shaft_key = 'iron-haft'
         add(shaft_key, cylinder((0, 0, HANDLE / 2 - .02), .041, HANDLE + .06,
@@ -86,8 +99,16 @@ def build(item_id, parent=None):
     add(head_key, profile(points, .055, toon(color, rim=.4, emit=.10 if tier == 4 else 0),
                           head, bevel=.005 if tier == 4 else .01, line=.014))
     if axe:
-        add(head_key, profile(edge, .060, toon('#c8c8d2' if tier == 1 else '#ffe0b8', rim=.2),
+        edge_color = {1: '#c8c8d2', 2: '#ffe0b8', 3: '#f6faff', 4: '#eafcff'}[tier]
+        add(head_key, profile(edge, .060, toon(edge_color, rim=.2, emit=.2 if tier == 4 else 0),
                               head, bevel=0, line=0))
+        if tier == 4:
+            # Broad cut facets across the blade: the whole head is crystal.
+            for pts, shade in (([(-.10, -.19), (-.22, -.07), (-.07, -.03)], '#dffaff'),
+                               ([(-.07, -.03), (-.21, .09), (-.09, .04)], '#7ecdf0'),
+                               ([(.02, -.14), (.02, .03), (-.06, -.03)], '#5ab0e0')):
+                add(head_key, profile(pts, .004, toon(shade, emit=.10), head,
+                                      loc=(0, -.031, 0), bevel=0, line=0))
     elif tier == 4:
         # Three large front facets keep the whole working head crystalline at
         # phone size, rather than placing a token gem on a generic metal pick.
@@ -121,8 +142,9 @@ def build(item_id, parent=None):
             add('fluff-binding', sphere((x, -.061, z), (.009, .007, .014),
                                         toon('#fff1e6'), head, line=.002))
     else:
-        socket_key = 'iron-socket' if tier == 4 else head_key
-        socket_color = '#8390a4' if tier == 4 else dark
+        # The Crystal Pick's socket is iron (its recipe); the Crystal Axe's is grown from the same crystal as its head.
+        socket_key = 'iron-socket' if tier == 4 and not axe else head_key
+        socket_color = '#8390a4' if tier == 4 and not axe else dark
         add(socket_key, box((.055 if axe else 0, 0, -.06 if axe else .035),
                             (.10 if axe else .115, .085, .135), toon(socket_color, rim=.3),
                             head, bevel=.015, line=.012))

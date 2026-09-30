@@ -138,7 +138,7 @@ const WORDS: Record<Look['kind'], Record<Strike, string>> = {
  * chops down and in at the notch; the pick comes down point-first on the rock.
  */
 const SWINGS = {
-  wood: { ready: 0.35, strike: -0.75, tip: { x: -29, y: -65 }, sprite: 'axe', tiers: 2 },
+  wood: { ready: 0.35, strike: -0.75, tip: { x: -29, y: -65 }, sprite: 'axe', tiers: 4 },
   mine: { ready: 0.3, strike: -0.85, tip: { x: -40, y: -57 }, sprite: 'pick', tiers: 4 },
 } as const;
 /** Illustration pixels per Blender unit for the tool sprites (see art/gather.py), and the illustration's scale. */

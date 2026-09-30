@@ -1,0 +1,52 @@
+{
+  "size": [
+    512,
+    512
+  ],
+  "stack": [
+    "glimwood-haft",
+    "crystal-head"
+  ],
+  "existing": [],
+  "parts": {
+    "glimwood-haft": {
+      "src": "assets/crafting/axe4-glimwood-haft.webp",
+      "bounds": [
+        225,
+        87,
+        287,
+        487
+      ],
+      "center": [
+        0.5,
+        0.5605
+      ]
+    },
+    "crystal-head": {
+      "src": "assets/crafting/axe4-crystal-head.webp",
+      "bounds": [
+        94,
+        8,
+        328,
+        246
+      ],
+      "center": [
+        0.4121,
+        0.248
+      ]
+    },
+    "complete": {
+      "src": "assets/crafting/axe4-complete.webp",
+      "bounds": [
+        94,
+        8,
+        328,
+        487
+      ],
+      "center": [
+        0.4121,
+        0.4834
+      ]
+    }
+  }
+}

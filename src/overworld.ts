@@ -20,7 +20,9 @@ import { hash2, T, type World, type WorldObj } from './world';
 
 const TAU = Math.PI * 2;
 /** Chip colors when mining each kind of rock. */
-const ROCK_CHIPS: Partial<Record<string, string>> = { rock: '#9a9aa8', copper: '#e8904a', iron: '#b8c8e0' };
+const ROCK_CHIPS: Partial<Record<string, string>> = { rock: '#9a9aa8', copper: '#e8904a', iron: '#b8c8e0', obsidian: '#ff8a3a' };
+/** The leaves a felled tree sheds on the map (green by default). */
+const TREE_LEAVES: Partial<Record<string, string>> = { pine: '#2f7a45', glimwood: '#b8a0ff', emberwood: '#ff7a3a' };
 /** Chance per tile walked in tall grass of being ambushed by monsters you didn't see. */
 const ENCOUNTER_CHANCE = 0.06;
 /** Map tiles are 1.6 Blender units wide. */
@@ -145,7 +147,7 @@ export class Overworld {
         this.fx.burst(x, y + ts * 0.4, ROCK_CHIPS[o.node!] ?? '#9a9aa8', 20, ts * 3, { size: ts * 0.1, life: 0.8 });
         this.fx.burst(x, y + ts * 0.4, '#e8e0d8', 10, ts * 2, { size: ts * 0.12, life: 0.9, grav: -ts * 0.5 });
       } else {
-        this.fx.burst(x, y, o.node === 'pine' ? '#2f7a45' : '#5ab85a', 22, ts * 3, { size: ts * 0.1, life: 0.9 });
+        this.fx.burst(x, y, TREE_LEAVES[o.node!] ?? '#5ab85a', 22, ts * 3, { size: ts * 0.1, life: 0.9 });
         this.fx.burst(x, y + ts * 0.6, '#c89a6a', 8, ts * 2, { size: ts * 0.07, life: 0.6 });
       }
     }
