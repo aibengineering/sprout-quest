@@ -61,8 +61,9 @@ describe('recipe-led gathering tool art', () => {
     }
   });
   test('all six original recipe costs stay intact', () => {
-    expect(TOOLS.map((t) => t.id)).toEqual(ids);
-    expect(TOOLS.map((t) => t.recipe)).toEqual(recipes);
+    // (Later tools, like the Iron and Crystal Axes, come after these; the originals keep their order and recipes.)
+    expect(ids.filter((id) => !TOOLS.some((t) => t.id === id))).toEqual([]);
+    expect(ids.map((id) => TOOLS.find((t) => t.id === id)!.recipe)).toEqual(recipes);
   });
   test('every assembly layer stays on its registered 512-square canvas', () => {
     for (const id of ids) {

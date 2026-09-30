@@ -37,7 +37,7 @@ describe('route maps', () => {
       expect(rows.length).toBe(WORLD_H);
       for (const r of rows) {
         expect(r.length).toBe(zone.w);
-        expect(r).toMatch(/^[#.,=~*ESCLkKpPrRuUiIyY]+$/);
+        expect(r).toMatch(/^[#.,=~*ESCLkKpPrRuUiIyYgGfFoO]+$/);
       }
       expect(find(rows, 'E').length).toBe(1);
       if (!zone.theme.pool) expect(rows.join('')).not.toContain('~');

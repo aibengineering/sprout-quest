@@ -24,13 +24,15 @@ const ROUTE_TILE: Record<string, number> = {
   '#': T.OBST, '.': T.GROUND, ',': T.GRASS, '=': T.PATH, '~': T.POOL, '*': T.DECOR,
   E: T.PATH, S: T.GROUND, C: T.GROUND, L: T.GROUND, k: T.GROUND, p: T.GROUND, K: T.GRASS, P: T.GRASS,
   r: T.GROUND, u: T.GROUND, i: T.GROUND, y: T.GROUND, R: T.GRASS, U: T.GRASS, I: T.GRASS, Y: T.GRASS,
+  g: T.GROUND, f: T.GROUND, o: T.GROUND, G: T.GRASS, F: T.GRASS, O: T.GRASS,
 };
 
 /** Route map markers for gathering nodes: [character, node, out in the grass]. */
 const NODE_MARKS: [string, NodeKind, boolean][] = [
   ['k', 'oak', false], ['K', 'oak', true], ['p', 'pine', false], ['P', 'pine', true],
   ['r', 'rock', false], ['R', 'rock', true], ['u', 'copper', false], ['U', 'copper', true], ['i', 'iron', false], ['I', 'iron', true],
-  ['y', 'crystal', false], ['Y', 'crystal', true],
+  ['y', 'crystal', false], ['Y', 'crystal', true], ['g', 'glimwood', false], ['G', 'glimwood', true],
+  ['f', 'emberwood', false], ['F', 'emberwood', true], ['o', 'obsidian', false], ['O', 'obsidian', true],
 ];
 
 /** 'prop': scenery drawn from its `id`'s sprite (Bram's camp, his hut). */

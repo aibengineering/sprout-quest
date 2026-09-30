@@ -13,7 +13,7 @@ const presentations = [crystalsword, crystalhammer, glimmerwhip, glimmerwand];
 
 const ids = ['crystalsword', 'crystalhammer', 'glimmerwhip', 'glimmerwand'] as const;
 const expected = {
-  crystalsword: { crystal: 5, iron: 3, pine: 2 },
+  crystalsword: { crystal: 5, iron: 3, glimwood: 2 },
   crystalhammer: { crystal: 6, iron: 3 },
   glimmerwhip: { glimmer: 8, core: 1 },
   glimmerwand: { glimmer: 7, core: 1 },

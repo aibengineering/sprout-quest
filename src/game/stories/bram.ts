@@ -3,8 +3,8 @@
 // that comes anyway, and after he's hurt charging in to help, you walk him home. He stays, builds the Sawmill, and
 // teaches Granny his stew. See the story bible (Side quests).
 import type { ActorSpec } from '../../actors';
-import { BRAM_CABIN_PLANKS, ZONES, zoneById, type MonsterKind } from '../../data';
-import { sawCollect, sawOrder } from '../../sawmill';
+import { BRAM_CABIN_PLANKS, MATS, ZONES, zoneById, type MatId, type MonsterKind } from '../../data';
+import { SAW_LOGS, sawCollect, sawOrder, type SawLog } from '../../sawmill';
 import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { challengeFoe, startBattle } from '../fights';
@@ -64,14 +64,14 @@ export function openSawmill(greeting = MILL_LINES[line++ % MILL_LINES.length]) {
       const r = await G.ui.sawmill(G.save, greeting);
       if (r.startsWith('saw:')) {
         const [, count, log] = r.split(':');
-        const n = sawOrder(G.save, Number(count), log === 'pine' ? 'pine' : 'bark');
+        const n = SAW_LOGS.includes(log as SawLog) ? sawOrder(G.save, Number(count), log as SawLog) : 0;
         if (n) G.audio.play('chop');
         greeting = n ? `Right. ${n} plank${n > 1 ? 's' : ''} coming up.` : "You'll need more logs than that.";
       } else if (r === 'collect') {
-        const n = sawCollect(G.save);
-        if (n) {
+        const got = Object.entries(sawCollect(G.save)) as [MatId, number][];
+        if (got.length) {
           G.audio.play('pickup');
-          G.ui.toast(`🪵 +${n} Plank${n > 1 ? 's' : ''}`);
+          G.ui.toast(got.map(([p, n]) => `${MATS[p].icon} +${n} ${MATS[p].name}${n > 1 ? 's' : ''}`).join(' · '));
         }
         greeting = 'There you go. Straight and true.';
       } else break;

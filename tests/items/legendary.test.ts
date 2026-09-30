@@ -15,7 +15,7 @@ const ids = ['emberblade', 'wyrmbreaker', 'dragontail', 'wyrmfire'] as const;
 const recipes = {
   emberblade: { ember: 8, horn: 4, crystal: 4, iron: 4 },
   wyrmbreaker: { scale: 3, ember: 6, crystal: 4, iron: 6 },
-  dragontail: { scale: 3, ember: 6, horn: 4, pine: 2 },
+  dragontail: { scale: 3, ember: 6, horn: 4, emberwood: 2 },
   wyrmfire: { scale: 2, horn: 4, ember: 6, crystal: 3 },
 };
 

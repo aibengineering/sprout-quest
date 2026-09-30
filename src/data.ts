@@ -4,11 +4,11 @@ export type MatId =
   | 'goo' | 'fluff' | 'clover'
   | 'cap' | 'bark' | 'pine' | 'fang'
   | 'stone' | 'copper' | 'iron'
-  | 'wing' | 'crystal' | 'core' | 'glimmer'
-  | 'ember' | 'horn' | 'scale'
+  | 'wing' | 'crystal' | 'core' | 'glimmer' | 'glimwood'
+  | 'ember' | 'horn' | 'scale' | 'emberwood' | 'obsidian'
   | 'royaljelly' | 'alphapelt' | 'echowing' | 'kingcrystal'
-  /** Sawn at Bram's Sawmill from Oak Logs. */
-  | 'plank';
+  /** Sawn at Bram's Sawmill, one kind from each wood (see sawmill.ts). */
+  | 'plank' | 'pineplank' | 'glimplank' | 'emberplank';
 
 export type Recipe = Partial<Record<MatId, number>>;
 
@@ -27,14 +27,20 @@ export const MATS: Record<MatId, { name: string; icon: string; where: string }> 
   wing: { name: 'Bat Wing', icon: '🦇', where: 'Flappers · Cavern & Hollow' },
   core: { name: 'Golem Core', icon: '🔮', where: 'Pebblors · Cavern' },
   glimmer: { name: 'Glimmer Jelly', icon: '✨', where: 'Glimmer Slimes · Hollow' },
+  glimwood: { name: 'Glimmerwood Log', icon: '🌳', where: 'Glimmerwood trees · Glimmer Hollow' },
   ember: { name: 'Ember', icon: '🔥', where: 'Ember Peak' },
   horn: { name: 'Imp Horn', icon: '😈', where: 'Impys · Peak' },
   scale: { name: 'Dragon Scale', icon: '🐉', where: 'Emberwyrm' },
+  emberwood: { name: 'Emberwood Log', icon: '🌋', where: 'Emberwood trees · Ember Peak' },
+  obsidian: { name: 'Obsidian', icon: '⬛', where: 'Obsidian seams · Ember Peak' },
   royaljelly: { name: 'Royal Jelly', icon: '👑', where: 'Trophy · Slime King' },
   alphapelt: { name: 'Alpha Pelt', icon: '🐺', where: 'Trophy · Alpha Woolf' },
   echowing: { name: 'Echo Wing', icon: '🦇', where: 'Trophy · Echo Queen' },
   kingcrystal: { name: 'King Crystal', icon: '💠', where: 'Trophy · Crystal King' },
-  plank: { name: 'Plank', icon: '🪵', where: "Bram's Sawmill · Sowerby" },
+  plank: { name: 'Oak Plank', icon: '🪵', where: "Bram's Sawmill · Sowerby" },
+  pineplank: { name: 'Pine Plank', icon: '🟫', where: "Bram's Iron Sawmill · Sowerby" },
+  glimplank: { name: 'Glimmerwood Plank', icon: '🟪', where: "Bram's Crystal Sawmill · Sowerby" },
+  emberplank: { name: 'Emberwood Plank', icon: '🟧', where: "Bram's Obsidian Sawmill · Sowerby" },
 };
 
 export const MAT_ORDER = Object.keys(MATS) as MatId[];
@@ -189,13 +195,13 @@ const GEAR_LIST: Gear[] = [
   W('ironhammer', 'Iron Hammer', 'hammer', 3, 28, 'metal', '#9aa4b8', '#e8eef8', 'Every slam shakes the ground.', { iron: 6, pine: 3 }, { mine: 6 }),
   W('batwhip', 'Batwing Whip', 'whip', 3, 24, 'bat', '#7a5ab8', '#c8a8ff', 'Hungry lashes: each hit heals you a little.', { wing: 6, core: 1, fang: 2 }),
   W('batwand', 'Bat Wand', 'wand', 3, 20, 'bat', '#7a5ab8', '#c8a8ff', 'Bolts that swerve after foes and drain their life.', { wing: 5, core: 2 }),
-  W('crystalsword', 'Crystal Sword', 'sword', 4, 32, 'crystal', '#9ae6ff', '#e0f8ff', 'A crystal edge: lands more critical hits.', { crystal: 5, iron: 3, pine: 2 }, { mine: 8 }),
+  W('crystalsword', 'Crystal Sword', 'sword', 4, 32, 'crystal', '#9ae6ff', '#e0f8ff', 'A crystal edge: lands more critical hits.', { crystal: 5, iron: 3, glimwood: 2 }, { mine: 8 }),
   W('crystalhammer', 'Crystal Hammer', 'hammer', 4, 40, 'crystal', '#8ad8f0', '#e0f8ff', 'Shatters the ground into shards.', { crystal: 6, iron: 3 }, { mine: 8 }),
   W('glimmerwhip', 'Glimmer Whip', 'whip', 4, 35, 'glimmer', '#c8b0ff', '#f0e0ff', 'Sparks leap from each lash to a second foe.', { glimmer: 8, core: 1 }),
   W('glimmerwand', 'Glimmer Wand', 'wand', 4, 29, 'glimmer', '#c8b0ff', '#f0e0ff', 'Sparkles that jump to a second foe.', { glimmer: 7, core: 1 }),
   W('emberblade', 'Ember Blade', 'sword', 5, 56, 'fire', '#ff8a3a', '#ffb03a', 'Sets foes ablaze in a long fiery arc.', { ember: 8, horn: 4, crystal: 4, iron: 4 }, { mine: 8 }),
   W('wyrmbreaker', 'Wyrmbreaker', 'hammer', 5, 62, 'dragon', '#c83a3a', '#ffb03a', 'Legendary. Each slam breathes a fan of dragonfire.', { scale: 3, ember: 6, crystal: 4, iron: 6 }, { mine: 9 }, { breath: true }),
-  W('dragontail', 'Dragontail Whip', 'whip', 5, 63, 'dragon', '#ff5a4a', '#ffb03a', 'A lash of living flame that bursts on impact.', { scale: 3, ember: 6, horn: 4, pine: 2 }, { wood: 8 }),
+  W('dragontail', 'Dragontail Whip', 'whip', 5, 63, 'dragon', '#ff5a4a', '#ffb03a', 'A lash of living flame that bursts on impact.', { scale: 3, ember: 6, horn: 4, emberwood: 2 }, { wood: 8 }),
   W('wyrmfire', 'Wyrmfire Wand', 'wand', 5, 64, 'dragon', '#ff5a4a', '#ffd35a', 'Hurls fireballs that burst into dragonfire.', { scale: 2, horn: 4, ember: 6, crystal: 3 }, { mine: 8 }),
   // Armor
   { id: 'tunic', name: 'Cozy Tunic', slot: 'armor', icon: '👕', def: 1, color: '#6fa8ff', desc: 'Smells like home.' },
@@ -352,13 +358,15 @@ export const TOOLS: Tool[] = [
   // glue the heads back on, Bunny Fluff to wrap the grips). The rest are crafted at the Forge.
   { id: 'axe1', name: 'Stone Axe', skill: 'wood', tier: 1, icon: '🪓', desc: 'Chops oak. Can hack at pine, slowly.', recipe: { goo: 2, fluff: 1 }, level: 1 },
   { id: 'axe2', name: 'Copper Axe', skill: 'wood', tier: 2, icon: '🪓', desc: 'Bites through pine, and chops oak faster.', recipe: { copper: 3, bark: 4 }, level: 4 },
+  { id: 'axe3', name: 'Iron Axe', skill: 'wood', tier: 3, icon: '🪓', desc: 'Fells Glimmerwood. Can hack at Emberwood, slowly.', recipe: { iron: 3, pine: 3 }, level: 6 },
+  { id: 'axe4', name: 'Crystal Axe', skill: 'wood', tier: 4, icon: '🪓', desc: 'Cuts Emberwood cleanly, and everything else in a blink.', recipe: { crystal: 3, glimwood: 3 }, level: 9 },
   { id: 'pick1', name: 'Stone Pick', skill: 'mine', tier: 1, icon: '⛏️', desc: 'Breaks rocks. Can chip copper, slowly.', recipe: { goo: 2, fluff: 2 }, level: 1 },
   { id: 'pick2', name: 'Copper Pick', skill: 'mine', tier: 2, icon: '⛏️', desc: 'Cracks copper veins. Can chip iron, slowly.', recipe: { copper: 4, bark: 3 }, level: 3 },
   { id: 'pick3', name: 'Iron Pick', skill: 'mine', tier: 3, icon: '⛏️', desc: 'Splits iron veins. Can chip crystal, slowly.', recipe: { iron: 4, pine: 3 }, level: 6 },
   { id: 'pick4', name: 'Crystal Pick', skill: 'mine', tier: 4, icon: '⛏️', desc: 'Mines crystal cleanly, and everything else in a blink.', recipe: { crystal: 4, iron: 3 }, level: 9 },
 ];
 
-export type NodeKind = 'oak' | 'pine' | 'rock' | 'copper' | 'iron' | 'crystal';
+export type NodeKind = 'oak' | 'pine' | 'glimwood' | 'emberwood' | 'rock' | 'copper' | 'iron' | 'crystal' | 'obsidian';
 
 export interface NodeDef {
   name: string;
@@ -385,6 +393,16 @@ export const NODES: Record<NodeKind, NodeDef> = {
     safe: { yield: 1, xp: 25, regrow: 180 },
     grass: { yield: 2, xp: 35, regrow: 75, rare: { mat: 'clover', chance: 0.1 } },
   },
+  glimwood: {
+    name: 'Glimmerwood', skill: 'wood', tier: 3, mat: 'glimwood', hp: 8,
+    safe: { yield: 1, xp: 40, regrow: 180 },
+    grass: { yield: 2, xp: 55, regrow: 75, rare: { mat: 'glimmer', chance: 0.1 } },
+  },
+  emberwood: {
+    name: 'Emberwood', skill: 'wood', tier: 4, mat: 'emberwood', hp: 10,
+    safe: { yield: 1, xp: 70, regrow: 180 },
+    grass: { yield: 2, xp: 90, regrow: 75, rare: { mat: 'ember', chance: 0.15 } },
+  },
   rock: {
     name: 'Rock', skill: 'mine', tier: 1, mat: 'stone', hp: 4,
     safe: { yield: 1, xp: 10, regrow: 180 },
@@ -405,6 +423,11 @@ export const NODES: Record<NodeKind, NodeDef> = {
     safe: { yield: 1, xp: 70, regrow: 180 },
     grass: { yield: 2, xp: 90, regrow: 75, rare: { mat: 'glimmer', chance: 0.15 } },
   },
+  obsidian: {
+    name: 'Obsidian Seam', skill: 'mine', tier: 4, mat: 'obsidian', hp: 12,
+    safe: { yield: 1, xp: 80, regrow: 180 },
+    grass: { yield: 2, xp: 100, regrow: 75, rare: { mat: 'ember', chance: 0.2 } },
+  },
 };
 
 /** Damage per clean strike with a tool: faster on lower tiers, a slow grind on the next tier up. */
@@ -416,8 +439,8 @@ export const NODE_SPAWNS: Partial<Record<ZoneId, { kind: NodeKind; safe: number;
   // (Woods pines: four of the six by the path stand in Bram's camp.)
   woods: [{ kind: 'oak', safe: 2, grass: 2 }, { kind: 'pine', safe: 6, grass: 5 }, { kind: 'rock', safe: 1, grass: 2 }, { kind: 'copper', safe: 2, grass: 3 }],
   cave: [{ kind: 'copper', safe: 2, grass: 2 }, { kind: 'iron', safe: 2, grass: 4 }],
-  hollow: [{ kind: 'crystal', safe: 2, grass: 4 }, { kind: 'iron', safe: 1, grass: 2 }],
-  peak: [{ kind: 'iron', safe: 2, grass: 3 }, { kind: 'crystal', safe: 1, grass: 2 }],
+  hollow: [{ kind: 'crystal', safe: 2, grass: 4 }, { kind: 'iron', safe: 1, grass: 2 }, { kind: 'glimwood', safe: 3, grass: 3 }],
+  peak: [{ kind: 'iron', safe: 2, grass: 3 }, { kind: 'crystal', safe: 1, grass: 2 }, { kind: 'emberwood', safe: 3, grass: 3 }, { kind: 'obsidian', safe: 2, grass: 3 }],
 };
 
 // ----------------------------------------------------------------------------- village construction
@@ -443,7 +466,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
     levels: [
       { name: 'Tent', cost: {}, perk: 'A cozy tent to call your own.' },
       { name: 'Cottage', cost: { bark: 8, stone: 4, clover: 1 }, perk: '+10% max HP' },
-      { name: 'Manor', cost: { plank: 5, pine: 4, iron: 6, crystal: 6, ember: 6 }, perk: '+20% max HP' },
+      { name: 'Manor', cost: { glimplank: 4, emberplank: 4, obsidian: 4, crystal: 4 }, perk: '+20% max HP' },
     ],
   },
   forge: {
@@ -454,7 +477,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
       { name: 'Smithy', cost: { royaljelly: 1, bark: 4, copper: 4 }, perk: 'Craft ★★ gear from copper and woods finds' },
       { name: 'Iron Smithy', cost: { iron: 6, core: 2, pine: 4 }, perk: 'Craft ★★★ gear from iron and cavern finds' },
       { name: 'Crystal Kiln', cost: { crystal: 6, glimmer: 4, echowing: 1 }, perk: 'Craft ★★★★ gear from crystal and glimmer' },
-      { name: 'Master Forge', cost: { kingcrystal: 1, pine: 6, crystal: 6 }, perk: 'Craft legendary ★★★★★ gear' },
+      { name: 'Master Forge', cost: { kingcrystal: 1, glimplank: 4, obsidian: 3 }, perk: 'Craft legendary ★★★★★ gear' },
     ],
   },
   garden: {
@@ -462,7 +485,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
     levels: [
       { name: 'Sprout Patch', cost: { bark: 4, clover: 1 }, perk: 'Fountain refills potions to 3' },
       { name: 'Berry Garden', cost: { cap: 4, plank: 3, stone: 4 }, perk: 'Fountain refills potions to 4' },
-      { name: 'Bloom Garden', cost: { plank: 3, ember: 4 }, perk: 'Fountain refills potions to 5' },
+      { name: 'Bloom Garden', cost: { glimplank: 3, ember: 4 }, perk: 'Fountain refills potions to 5' },
     ],
   },
   training: {
@@ -470,7 +493,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
     levels: [
       { name: 'Straw Dummy', cost: { bark: 5, fluff: 3 }, perk: '+5% attack' },
       { name: 'Training Yard', cost: { fang: 6, royaljelly: 1, copper: 3 }, perk: '+10% attack' },
-      { name: 'Dojo', cost: { plank: 3, horn: 4, iron: 4 }, perk: '+15% attack' },
+      { name: 'Dojo', cost: { pineplank: 4, horn: 4, iron: 2 }, perk: '+15% attack' },
     ],
   },
   warp: {
@@ -482,7 +505,9 @@ export const PROJECTS: Record<ProjectId, Project> = {
     name: 'Sawmill', icon: '🪚',
     levels: [
       { name: 'Sawmill', cost: { pine: 6, stone: 6, copper: 3 }, perk: 'A copper blade: Bram saws your Oak Logs into Planks, even while you\'re away' },
-      { name: 'Iron Sawmill', cost: { iron: 2, pine: 8, stone: 6 }, perk: 'An iron blade: saws Pine Logs too, and faster' },
+      { name: 'Iron Sawmill', cost: { iron: 2, pine: 8, stone: 6 }, perk: 'An iron blade: saws Pine Logs into Pine Planks too, and faster' },
+      { name: 'Crystal Sawmill', cost: { crystal: 4, glimwood: 6, pineplank: 4 }, perk: 'A crystal blade: saws Glimmerwood into Glimmerwood Planks, faster still' },
+      { name: 'Obsidian Sawmill', cost: { obsidian: 4, emberwood: 6, glimplank: 4 }, perk: 'An obsidian blade: saws Emberwood into Emberwood Planks, fastest of all' },
     ],
   },
 };
