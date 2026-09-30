@@ -1251,6 +1251,11 @@ if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, r
   const gl = await chromium.launch({ executablePath, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await (await gl.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   const errors: string[] = [];
+  const weaponRequests = new Set<string>();
+  page.on('request', (r) => {
+    const id = /\/models\/wpn_([^/]+)\.glb/.exec(r.url())?.[1];
+    if (id) weaponRequests.add(id);
+  });
   page.on('pageerror', (e) => errors.push(String(e)));
   // (The preset link reloads the page once, cutting off the first page's downloads; those get retried.)
   page.on('console', (m) => { if (m.type() === 'error' || (m.type() === 'warning' && /model/.test(m.text()) && !/Failed to fetch/.test(m.text()))) errors.push(m.text()); });
@@ -1262,6 +1267,12 @@ if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, r
     if (SHOTS) await page.screenshot({ path: `${OUT}3d-map.png` });
     const map = await game<number>(page, 'g.modelStats.renders');
     check(map > 0, 'nothing was rendered in 3D on the map');
+    // A weapon acquired after startup must load when equipped, without a reload or startup prewarming.
+    const fresh = Object.values(GEAR).find((g) => g.slot === 'weapon' && !weaponRequests.has(g.id))!;
+    check(!!fresh, 'no fresh weapon available for the loading check');
+    const downloaded = page.waitForResponse((r) => r.url().endsWith(`/models/wpn_${fresh.id}.glb`) && r.status() === 200, { timeout: 30000 });
+    await run(page, `g.save.owned.push('${fresh.id}'); g.save.equip.weapon = '${fresh.id}'`);
+    await downloaded;
     await run(page, `g.fight('bunny', 3, 2)`);
     await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`), 20000);
     await page.waitForTimeout(3000);

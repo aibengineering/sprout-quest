@@ -7,7 +7,7 @@
 // flipping, hit flashes, tints, squash and stretch, fading) works unchanged. An image is only re-rendered when its
 // pose, facing or size changes.
 import {
-  AnimationMixer, BackSide, Box3, BufferAttribute, BufferGeometry, Color, DirectionalLight, Float32BufferAttribute, LoopRepeat,
+  AnimationMixer, BackSide, Box3, BufferAttribute, BufferGeometry, Color, CylinderGeometry, DirectionalLight, Float32BufferAttribute, LoopRepeat,
   Matrix4, Mesh, Object3D, OrthographicCamera, PCFShadowMap, Quaternion, Scene, ShaderMaterial, UniformsLib, UniformsUtils, Vector2, Vector3, WebGLRenderer,
   type AnimationAction, type AnimationClip,
 } from 'three';
@@ -15,12 +15,15 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { DrawOpts, Frame } from './assets';
+import { GEAR } from './data';
+import { MODEL_ELEVATION, carriedMount, weaponDirection, weaponRotation, type Held } from './weaponPose';
+export type { Held } from './weaponPose';
 
 // ------------------------------------------------------------------------------------------------------------ look
 
 /** The Blender scenes' key light (upper left, in front of the camera), in three.js axes. */
 const LIGHT = new Vector3(-0.439, 0.643, 0.627).normalize();
-const ELEVATION = (30 * Math.PI) / 180;
+const ELEVATION = MODEL_ELEVATION;
 const OUTLINE = new Color('#3a2448');
 /** The Blender outline shells read thinner than their nominal width; this matches them. */
 const OUTLINE_SCALE = 0.6;
@@ -120,6 +123,8 @@ const outlineMaterial = new ShaderMaterial({
 
 interface Model {
   root: Object3D;
+  /** Whips also have a grip without their stowed coils. */
+  grip?: Object3D;
   clips: Record<string, AnimationClip>;
   /** Where the model can reach across all its animations: its radius around the up axis, and its height. */
   radius: number;
@@ -152,6 +157,23 @@ function indexed(g: BufferGeometry) {
 function mergeParts(root: Object3D, clips: AnimationClip[]) {
   const moving = new Set(clips.flatMap((c) => c.tracks.map((t) => t.name.slice(0, t.name.lastIndexOf('.')))));
   root.updateMatrixWorld(true);
+  // Preserve the hand as a joint so thrusts move both the weapon and the hand, without stretching the shoulder.
+  const arm = root.getObjectByName('arm1');
+  if (arm) {
+    const mesh = arm.children.find((o) => {
+      const box = new Box3().setFromObject(o, true);
+      return !box.isEmpty() && box.getCenter(new Vector3()).applyMatrix4(arm.matrixWorld.clone().invert()).y < -0.1;
+    });
+    if (mesh) {
+      const hand = new Object3D();
+      hand.name = 'weaponHand';
+      hand.position.set(0.03, -0.14, 0.01);
+      arm.add(hand);
+      hand.attach(mesh);
+      moving.add(hand.name);
+      root.updateMatrixWorld(true);
+    }
+  }
   const groups = new Map<Object3D, { toon: BufferGeometry[]; outline: BufferGeometry[] }>();
   const meshes: Mesh[] = [];
   root.traverse((o) => { if ((o as Mesh).isMesh) meshes.push(o as Mesh); });
@@ -197,6 +219,37 @@ function mergeParts(root: Object3D, clips: AnimationClip[]) {
   }
 }
 
+/** The optimized whip meshes merge coils into the grip: split out the handle once, before cloning it for a lash. */
+function whipGrip(root: Object3D, color: string): Object3D {
+  const grip = new Object3D(), coil = new Color(color);
+  root.traverse((o) => {
+    const m = o as Mesh;
+    if (!m.isMesh || m.material !== toonMaterial) return;
+    const g = m.geometry, pos = g.getAttribute('position'), base = g.getAttribute('toonBase');
+    const indices: number[] = [];
+    for (let i = 0; i < (g.index?.count ?? pos.count); i += 3) {
+      const ids = [0, 1, 2].map((k) => g.index ? g.index.getX(i + k) : i + k);
+      if (ids.some((k) => pos.getX(k) > 0.225)) continue;
+      const k = ids[0];
+      if (Math.hypot(base.getX(k) - coil.r, base.getY(k) - coil.g, base.getZ(k) - coil.b) < 0.025) continue;
+      indices.push(...ids);
+    }
+    const selected = g.clone();
+    selected.setIndex(indices);
+    const body = selected.toNonIndexed();
+    selected.dispose();
+    grip.add(new Mesh(body, toonMaterial));
+    const shell = new BufferGeometry();
+    shell.setAttribute('position', body.getAttribute('position').clone());
+    shell.setIndex(Array.from({ length: body.attributes.position.count }, (_, i) => i));
+    const smooth = mergeVertices(shell, 1e-4);
+    smooth.computeVertexNormals();
+    smooth.setAttribute('thickness', new Float32BufferAttribute(new Float32Array(smooth.attributes.position.count).fill(0.014), 1));
+    grip.add(new Mesh(smooth, outlineMaterial));
+  });
+  return grip;
+}
+
 /** How far the model reaches across all its animations, so its image is always big enough. */
 function measure(root: Object3D, clips: Record<string, AnimationClip>) {
   const mixer = new AnimationMixer(root), box = new Box3(), tmp = new Box3();
@@ -228,7 +281,9 @@ export function loadModel(id: string): Promise<Model | null> {
     p = loader.loadAsync(`assets/models/${id}.glb`).then((gltf) => {
       const clips = Object.fromEntries(gltf.animations.map((c) => [c.name, c]));
       mergeParts(gltf.scene, gltf.animations);
-      const m: Model = { root: gltf.scene, clips, ...measure(gltf.scene, clips) };
+      const gear = GEAR[id.replace(/^wpn_/, '')];
+      const grip = gear?.style === 'whip' ? whipGrip(gltf.scene, gear.id === 'dragontail' ? '#c83a3a' : gear.color!) : undefined;
+      const m: Model = { root: gltf.scene, grip, clips, ...measure(gltf.scene, clips) };
       models.set(id, m);
       return m;
     }).catch((e) => {
@@ -314,8 +369,10 @@ interface Slot {
   seen: number;
   /** Walkers only: the weapon hand's arm, and where a weapon goes in the hand, on the back and at the hip. */
   arm?: Object3D;
+  handJoint?: Object3D;
+  armBridge?: Mesh;
   mounts?: { hand: Object3D; back: Object3D; hip: Object3D };
-  weapon?: { id: string; obj: Object3D };
+  weapon?: { id: string; obj: Object3D; uncoiled: boolean };
   /** Where the hand was on the last render, in model units from the feet, on screen (y down). */
   hand: { x: number; y: number };
 }
@@ -342,35 +399,43 @@ function slotFor(name: string, id: string, model: Model): Slot {
     };
     // The hand sits at the end of the arm (art/hero.py: a sphere 0.14 below the shoulder, in glTF axes).
     s.arm = arm;
-    s.mounts = { hand: mount(arm, 0.03, -0.15, 0.01), back: mount(body, 0.2, 0.52, -0.27), hip: mount(body, 0.29, 0.14, -0.02) };
+    s.handJoint = arm.getObjectByName('weaponHand');
+    s.mounts = { hand: s.handJoint ? mount(s.handJoint, 0, -0.01, 0) : mount(arm, 0.03, -0.15, 0.01), back: mount(body, 0, 0, 0), hip: mount(body, 0, 0, 0) };
+    if (s.handJoint) {
+      const shoulder = arm.children.find((o) => (o as Mesh).isMesh) as Mesh | undefined;
+      const color = shoulder?.geometry.getAttribute('toonBase');
+      const g = new CylinderGeometry(0.04, 0.045, 1, 8);
+      const colors = new Float32Array(g.attributes.position.count * 3), params = new Float32Array(colors.length);
+      for (let i = 0; i < colors.length; i += 3) {
+        colors.set([color?.getX(0) ?? 0.2, color?.getY(0) ?? 0.1, color?.getZ(0) ?? 0.3], i);
+        params.set([0.22, 0, 0.012], i);
+      }
+      g.setAttribute('toonBase', new Float32BufferAttribute(colors, 3));
+      g.setAttribute('toonParams', new Float32BufferAttribute(params, 3));
+      s.armBridge = new Mesh(g, toonMaterial);
+      arm.add(s.armBridge);
+    }
   }
   slots.set(name, s);
   return s;
 }
 
-/**
- * Something held or carried: a weapon model (wpn_<id>), in the hand pointing along `ang` on the ground (radians: 0 to
- * the right, π/2 toward the camera) raised by `lift`, or on the back, or at the hip (`hipDown`: pointing down, like
- * a wand in a belt, rather than hanging sideways like a coiled whip). `scale`: its size in the character's units.
- */
-export interface Held { id: string; at: 'hand' | 'back' | 'hip'; ang?: number; lift?: number; scale: number; hipDown?: boolean; headUp?: boolean }
-
 const DOWN = new Vector3(0, -1, 0);
-/** The camera looks down 30° from the front: blades turn their flat side toward it, as the sprites were drawn. */
-const TO_CAMERA = new Vector3(0, Math.sin(ELEVATION), Math.cos(ELEVATION));
-const tmpQ = new Quaternion(), tmpV = new Vector3(), tmpM = new Matrix4();
+const tmpQ = new Quaternion(), tmpV = new Vector3();
 
 /** Puts the weapon in the right place for this render: in the hand (turning the arm to hold it out), or stowed. */
 function placeHeld(s: Slot, held: Held | undefined) {
   if (!s.mounts || !s.arm) return;
   const wanted = held && models.get(held.id);
   if (held && !wanted) void loadModel(held.id);
-  if (s.weapon && (!wanted || s.weapon.id !== held!.id)) {
+  if (s.handJoint) s.handJoint.position.set(0.03, -0.14, 0.01);
+  if (s.armBridge) s.armBridge.visible = held?.at === 'hand';
+  if (s.weapon && (!wanted || s.weapon.id !== held!.id || s.weapon.uncoiled !== !!held?.uncoiled)) {
     s.weapon.obj.removeFromParent();
     s.weapon = undefined;
   }
   if (!wanted || !held) return;
-  if (!s.weapon) s.weapon = { id: held.id, obj: wanted.root.clone(true) };
+  if (!s.weapon) s.weapon = { id: held.id, obj: (held.uncoiled && wanted.grip ? wanted.grip : wanted.root).clone(true), uncoiled: !!held.uncoiled };
   const w = s.weapon.obj;
   w.scale.setScalar(held.scale);
   s.mounts[held.at].add(w);
@@ -379,29 +444,33 @@ function placeHeld(s: Slot, held: Held | undefined) {
     w.position.set(0, 0, 0);
     // Where the weapon points, in the world: along the ground at `ang`, tilted up by `lift`.
     const lift = held.lift ?? 0, ang = held.ang ?? 0;
-    const dir = new Vector3(Math.cos(ang) * Math.cos(lift), Math.sin(lift), Math.sin(ang) * Math.cos(lift)).normalize();
+    const dir = weaponDirection(ang, lift);
     // The arm reaches out that way (a little below it, as an arm would), turned in the body's frame.
     const armDir = tmpV.copy(dir).addScaledVector(DOWN, 0.55).normalize();
     const parentQ = s.arm.parent!.getWorldQuaternion(new Quaternion());
     s.arm.quaternion.copy(parentQ.invert().multiply(tmpQ.setFromUnitVectors(DOWN, armDir)));
     s.root.updateMatrixWorld(true);
+    if (s.handJoint) {
+      const inv = s.arm.matrixWorld.clone().invert();
+      const hand = s.mounts.hand.getWorldPosition(new Vector3());
+      const delta = hand.clone().addScaledVector(dir, held.off ?? 0).applyMatrix4(inv).sub(hand.applyMatrix4(inv));
+      s.handJoint.position.add(delta);
+      if (s.armBridge) {
+        const from = new Vector3(0.02, -0.04, 0), end = s.handJoint.position;
+        s.armBridge.position.copy(from).add(end).multiplyScalar(0.5);
+        s.armBridge.scale.y = from.distanceTo(end);
+        s.armBridge.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), end.clone().sub(from).normalize());
+      }
+      s.root.updateMatrixWorld(true);
+    }
     // The blade along `dir`, its flat side turned toward the camera.
-    const normal = TO_CAMERA.clone().addScaledVector(dir, -TO_CAMERA.dot(dir)).normalize();
-    const side = new Vector3().crossVectors(normal, dir);
-    const worldQ = new Quaternion().setFromRotationMatrix(tmpM.makeBasis(dir, side, normal));
+    const worldQ = weaponRotation(dir);
     const mountQ = s.mounts.hand.getWorldQuaternion(new Quaternion());
     w.quaternion.copy(mountQ.invert().multiply(worldQ));
-  } else if (held.at === 'back') {
-    // Strapped across the back. A blade goes hilt up over the right shoulder (so it shows from the front) and down to
-    // the left hip; a hammer goes the other way up, its grip low at the right hip and its head up behind the left
-    // shoulder, where it peeks out from every side.
-    w.position.set(0, held.headUp ? -0.3 : 0, 0);
-    // (The hammer leans well out to the side, or the big head hides it from the front.)
-    w.quaternion.setFromUnitVectors(new Vector3(1, 0, 0), held.headUp ? new Vector3(-0.95, 0.7, -0.25).normalize() : new Vector3(-0.62, -1, -0.12).normalize());
   } else {
-    w.position.set(0, 0, 0);
-    // At the right hip: a wand tucked in the belt pointing down, or a whip's coils hanging flat against the thigh.
-    w.quaternion.setFromUnitVectors(new Vector3(1, 0, 0), held.hipDown ? new Vector3(0.1, -1, 0.2).normalize() : new Vector3(0.1, -0.35, 1).normalize());
+    const mount = carriedMount(held);
+    w.position.copy(mount.position);
+    w.quaternion.copy(mount.rotation);
   }
 }
 
@@ -444,7 +513,7 @@ export function drawModel(ctx: CanvasRenderingContext2D, slot: string, id: strin
   const clip = model.clips[pose.anim] ?? Object.values(model.clips)[0];
   const step = Math.floor((((pose.phase % 1) + 1) % 1) * clip.duration * 24);
   const yaw = Math.round(pose.yaw * 36 / Math.PI);
-  const h = pose.held, heldKey = h && models.has(h.id) ? `${h.id}|${h.at}|${Math.round((h.ang ?? 0) * 36 / Math.PI)}|${Math.round((h.lift ?? 0) * 20)}|${h.scale.toFixed(2)}` : '';
+  const h = pose.held, heldKey = h && models.has(h.id) ? `${h.id}|${h.at}|${(h.ang ?? 0).toFixed(4)}|${(h.lift ?? 0).toFixed(4)}|${h.scale.toFixed(2)}|${(h.off ?? 0).toFixed(3)}|${h.uncoiled ? 1 : 0}|${h.hipDown ? 1 : 0}|${h.headUp ? 1 : 0}` : '';
   if (h && !models.has(h.id)) void loadModel(h.id);
   const key = `${clip.name}|${step}|${yaw}|${ppu}|${pose.gold ? 1 : 0}|${pose.bold ? 1 : 0}|${heldKey}`;
   if (key !== s.key) {
@@ -464,7 +533,7 @@ function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, ya
   const t0 = performance.now();
   modelStats.renders++;
   // A weapon in hand or on the back reaches further than the character does: grow the image to fit it.
-  const reachOut = held ? (models.get(held.id)?.radius ?? 0) * held.scale : 0;
+  const reachOut = held ? (models.get(held.id)?.radius ?? 0) * held.scale + Math.abs(held.off ?? 0) : 0;
   const radius = s.model.radius + reachOut, height = s.model.height + reachOut * 0.8;
   const sin = Math.sin(ELEVATION), cos = Math.cos(ELEVATION);
   // The image covers the model's reach in every animation and facing, plus a margin for the outline.
@@ -525,4 +594,3 @@ export function tickModels() {
   clock++;
   for (const [name, s] of slots) if (clock - s.seen > 120) slots.delete(name);
 }
-

@@ -2,7 +2,9 @@
 // state and never changes the simulation (it only adds cosmetic particles).
 import { ARENA_RX, ARENA_RY } from '../arena';
 import { drawFrame, drawHero as drawHeroSprite, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from '../assets';
-import { handOf, hasModel, type Held } from '../models';
+import { hasModel, loadModel } from '../models';
+import { HERO_BATTLE_UNIT, HERO_MODEL_SCALE, weaponLength } from '../weaponPose';
+import { battleWeapon } from './weaponPose';
 import { GEAR, type ZoneId } from '../data';
 import { drawMonster, drawPlayer, drawWeapon, rrect, shadow } from '../sprites';
 import { SKILL_DATA } from '../weapons';
@@ -12,12 +14,12 @@ import { drawBubble } from '../bubble';
 import { Particles } from '../particles';
 import { BURN_COLOR, ELEMENTS } from './elements';
 import { MONSTER_AI, spriteScale } from './monsters';
-import { lashCrackAt, lashRope, pose } from './pose';
-import { TAU, UNIT, ZOOM, ZOOM_T, clamp01, easeIn, easeOut, rand, type Enemy, type Spark, type Spike, type Swing } from './types';
+import { lashCrackAt, lashRope } from './pose';
+import { TAU, UNIT, ZOOM, ZOOM_T, clamp01, easeOut, rand, type Enemy, type Spark, type Spike, type Swing } from './types';
 
 type Ctx = CanvasRenderingContext2D;
 /** You're drawn a little bigger than your hitbox, like the monsters, so you stand out in the clearing. */
-const HERO_SCALE = 1.2;
+const HERO_SCALE = HERO_MODEL_SCALE;
 
 /** Where the arena sits on screen: portrait leaves room for the HUD above and the buttons below. */
 function layout(vw: number, vh: number) {
@@ -607,20 +609,17 @@ function drawThrustTrail(b: Battle, ctx: Ctx, sw: Swing) {
 
 function drawHero(b: Battle, ctx: Ctx) {
   const p = b.p;
+  const attachment = battleWeapon(b.weapon, b.moves, b.reach, p, b.t), held = attachment.held;
   const style = b.weapon.style ?? 'sword';
   const blink = p.iframes > 0 && p.dodgeT <= 0 && Math.floor(b.t * 20) % 2 === 0;
   const alpha = blink ? 0.35 : 1;
   const cosF = Math.cos(p.face), sinF = Math.sin(p.face);
-  const heavy = style === 'hammer';
-  // At rest the weapon hangs from your sword hand, blade down and out: on your right when facing away, your left
-  // when facing the camera, and in front in profile.
+  // At rest the weapon stays out to the sword-hand side, with enough lift to clear the ground.
   const side = sinF < -0.5 ? 1 : sinF > 0.5 ? -1 : cosF >= 0 ? 1 : -1;
-  let ang = side > 0 ? (heavy ? 0.5 : 0.75) : Math.PI - (heavy ? 0.5 : 0.75);
-  let off = 0, scale = 1, flipY = side > 0 ? 1 : -1;
+  let ang = held.ang!, flipY = side > 0 ? 1 : -1;
   const sw = p.swing;
-  const idle = !sw && p.whirlT <= 0;
+  const idle = attachment.idle;
   if (sw) {
-    ({ ang, off, scale } = pose(sw, b.reach));
     if (sw.s.shape === 'arc') {
       const d = sw.s.anim === 'slashL' || sw.s.anim === 'backchop' ? -1 : 1;
       flipY = d > 0 ? -1 : 1;
@@ -631,7 +630,6 @@ function drawHero(b: Battle, ctx: Ctx) {
   } else if (p.whirlT > 0) {
     ang = p.whirlAng;
     flipY = -1;
-    scale = 1.05;
     ctx.save();
     ctx.globalAlpha = 0.35;
     ctx.strokeStyle = b.weapon.trail ?? '#fff';
@@ -644,36 +642,34 @@ function drawHero(b: Battle, ctx: Ctx) {
     }
     ctx.restore();
   }
-  // Swings pivot around the same point the hitboxes use (p.y - 10); at rest the hand sits at your side, by the hip.
-  const handX = idle ? p.x + side * (Math.abs(sinF) > 0.5 ? 10 : 6) : p.x + Math.cos(ang) * (7 + off);
-  const handY = idle ? p.y - 8 : p.y - 10 + Math.sin(ang) * (4 + off * 0.8);
+  // Both rendering paths start at the same grip and account for the model camera's foreshortening.
+  const handX = p.x + attachment.hand.x, handY = p.y + attachment.hand.y;
+  const dx = attachment.tip.x - attachment.hand.x, dy = attachment.tip.y - attachment.hand.y;
+  const projectedAng = Math.atan2(dy, dx);
   const behind = idle ? sinF < -0.5 : Math.sin(ang) < -0.35 && !(sw && sw.s.anim === 'slam' && sw.t > sw.s.windup);
   const wf = frame(`wpn/${b.weapon.id}`);
-  const weaponUnit = 34 * b.moves.size * scale;
-  const lashing = style === 'whip' && sw?.s.shape === 'lash';
+  const weaponUnit = HERO_BATTLE_UNIT * held.scale;
+  const projectedScale = Math.hypot(dx, dy) / (weaponLength(b.weapon) * weaponUnit);
+  const lashing = style === 'whip' && !idle;
   const drawW = () => {
-    if (style === 'whip') drawLash(b, ctx, handX, handY, ang, sw, idle, side);
+    if (style === 'whip') drawLash(b, ctx, p.x + attachment.tip.x, p.y + attachment.tip.y, ang, sw, idle, side);
     // Mid-lash the coils are out as the rope, so only the grip is in your hand.
-    if (lashing) drawGrip(ctx, handX, handY, ang, b.weapon.color ?? '#ccc', alpha);
-    else if (wf) drawFrame(ctx, wf, handX, handY, weaponUnit, { rot: ang, sy: flipY, alpha });
-    else drawWeapon(ctx, style === 'whip' ? 'sword' : style, handX, handY, ang, 12 * scale, b.weapon.color ?? '#ccc');
+    if (lashing) drawGrip(ctx, handX, handY, projectedAng, b.weapon.color ?? '#ccc', alpha, Math.hypot(dx, dy));
+    else if (wf) drawFrame(ctx, wf, handX, handY, weaponUnit, { rot: projectedAng, sx: projectedScale, sy: flipY, alpha });
+    else drawWeapon(ctx, style === 'whip' ? 'sword' : style, handX, handY, projectedAng, 12, b.weapon.color ?? '#ccc');
   };
   shadow(ctx, p.x, p.y, 14);
   const armor = b.save.equip.armor;
   // In 3D the weapon is in the hero's own hand: the arm turns to follow the swing's angle (the same one the hitboxes
-  // use), hangs down at rest, and rises for the heavy wind-ups (the sprites grew for those).
+  // use), clears the ground at rest, and rises for the heavy wind-ups (the sprites grew for those).
   // (Its size stays put: the 2D sprite grew to fake height, the 3D one really goes up.)
-  const held: Held = {
-    id: `wpn_${b.weapon.id}`, at: 'hand', ang, lift: idle ? -1.15 : swingLift(sw),
-    scale: (34 * b.moves.size) / (UNIT * HERO_SCALE),
-  };
+  if (!hasModel(held.id)) void loadModel(held.id);
   const heroOpts = { alpha, flash: p.hurtT > 0 ? 0.7 : 0, sx: p.dodgeT > 0 ? 1.2 : 1, sy: p.dodgeT > 0 ? 0.82 : 1 };
   if (hasModel(`wpn_${b.weapon.id}`) && hasModel(`hero_${armor}`)) {
     const drawn = drawHeroSprite(ctx, armor, p.x, p.y, UNIT * HERO_SCALE, p.face, p.moving && !sw, b.t, heroOpts, 'hero:battle', held);
     if (drawn === 'model') {
       // A whip's rope (or the skill's twirl) starts from the hand you can see.
-      const hand = handOf('hero:battle', UNIT * HERO_SCALE);
-      if (style === 'whip' && hand && !idle) drawLash(b, ctx, p.x + hand.x, p.y + hand.y, ang, sw, false, side);
+      if (style === 'whip' && !idle) drawLash(b, ctx, p.x + attachment.tip.x, p.y + attachment.tip.y, ang, sw, false, side);
       return;
     }
   }
@@ -688,40 +684,12 @@ function drawHero(b: Battle, ctx: Ctx) {
   if (!behind) drawW();
 }
 
-/**
- * How high a weapon in the 3D hand points during a swing (radians above the ground; π/2 is straight up). The swing's
- * angle on the ground comes from pose(); this is the height it doesn't have in 2D. Overhead slams go up behind you,
- * over the top and down into the ground where the impact lands; slashes stay level; thrusts point a touch up.
- */
-function swingLift(sw: Swing | null): number {
-  if (!sw) return 0.1;
-  const s = sw.s;
-  const qw = clamp01(sw.t / Math.max(0.001, s.windup));
-  const qa = clamp01((sw.t - s.windup) / s.active);
-  const qr = clamp01((sw.t - s.windup - s.active) / Math.max(0.001, s.recover));
-  switch (s.anim) {
-    case 'slam':
-    case 'chop':
-    case 'backchop': {
-      if (sw.t < s.windup) return 1.3 * easeOut(qw);
-      if (qa < 1) return qa < 0.35 ? 1.3 + (Math.PI / 2 - 1.3) * (qa / 0.35) : Math.PI / 2 - (Math.PI / 2 + 0.8) * easeIn((qa - 0.35) / 0.65);
-      // Head on the ground at the impact, then heaved back up.
-      return -0.8 + 0.7 * easeOut(qr);
-    }
-    case 'thrust':
-    case 'cast':
-      return 0.1;
-    default:
-      return 0.15;
-  }
-}
-
 /** A whip's grip on its own (the rope is drawn by drawLash): a short wrapped handle pointing along the lash. */
-function drawGrip(ctx: Ctx, x: number, y: number, ang: number, color: string, alpha: number) {
+function drawGrip(ctx: Ctx, x: number, y: number, ang: number, color: string, alpha: number, length: number) {
   ctx.save();
   ctx.globalAlpha *= alpha;
   ctx.lineCap = 'round';
-  const ex = x + Math.cos(ang) * 11, ey = y + Math.sin(ang) * 11;
+  const ex = x + Math.cos(ang) * length, ey = y + Math.sin(ang) * length;
   for (const [w, c] of [[8, '#3a2448'], [5, '#6a3a4a']] as const) {
     ctx.strokeStyle = c;
     ctx.lineWidth = w;
