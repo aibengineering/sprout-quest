@@ -33,7 +33,7 @@ async function begin(page: Page, id: string, twice = false) {
     for (const k in s.mats) s.mats[k] = 100;
     for (const k in s.mastery) s.mastery[k].lv = 10;
     for (const k in s.skills) s.skills[k].lv = 10;
-    s.lv = 20; s.build.forge = 5; s.stories.poppy = 6;
+    s.lv = 20; s.build.forge = 5; s.stories.poppy = 6; s.stories.drums = 4;
     for (const flag of ['oldtools', 'bram:pie', 'bram:stew', 'pip:candy', 'garden:berries']) if (!s.flags.includes(flag)) s.flags.push(flag);
     if (['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy', 'tart'].includes(id)) {
       void g.over.actors.get('granny:granny').talk();
