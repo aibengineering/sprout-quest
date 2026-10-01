@@ -6,7 +6,7 @@ import { vibrate } from '../audio';
 import { GEAR, MONSTERS, POTION_HEAL, type Fx as Element, type Gear, type MatId, type MonsterKind } from '../data';
 import { Fx } from '../fx';
 import type { Input } from '../input';
-import { GENTLE_ATK, MONSTER_HP, calcDamage, levelEdge, xpEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
+import { GENTLE_ATK, MONSTER_HP, calcDamage, dodgeCharges, levelEdge, xpEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
 import { BLINK, MOVESETS, RIPOSTE, SKILL_DATA, STAGGER, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
@@ -14,7 +14,7 @@ import { MONSTER_AI, blinkAway, type FoeWorld } from './monsters';
 import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
 import { battleWeapon } from './weaponPose';
 import {
-  AIM_ASSIST, SKILL_CD, TAU, ZOOM_T, angDiff, clamp01, easeInOut, easeOut, rand,
+  AIM_ASSIST, DODGE_CD, SKILL_CD, TAU, ZOOM_T, angDiff, clamp01, easeInOut, easeOut, rand,
   type BattleLog, type BattleOutcome, type BattleSetup, type Crack, type Enemy, type Flame, type Foe, type Hazard,
   type Proj, type Ring, type Spark, type Spike, type Swing, type Wave, type Zap,
 } from './types';
@@ -52,7 +52,9 @@ export class Battle implements FoeWorld, HitWorld {
   readonly p = {
     x: 0, y: 120, vx: 0, vy: 0, kx: 0, ky: 0, r: 12,
     hp: 0, face: -Math.PI / 2, moving: false,
-    atkBuffer: 0, skillCd: 1, dodgeCd: 0, dodgeT: 0, dodgeDir: 0, iframes: 0, hurtT: 0,
+    atkBuffer: 0, skillCd: 1, dodgeT: 0, dodgeDir: 0, iframes: 0, hurtT: 0,
+    /** Each dodge charge's seconds until it's back: one, or two with the Echo Anklet (see dodgeCharges). */
+    dodgeCds: [0] as number[],
     potionCd: 0, regenAcc: 0,
     /** Rest after a full combo; seconds until the next strike may start, and how much of that comes after the swing. */
     restT: 0, atkCd: 0, atkGap: 0,
@@ -124,6 +126,7 @@ export class Battle implements FoeWorld, HitWorld {
     this.pace = pace(this.handling);
     this.skillNow = skillAt(this.moves.skill, this.handling);
     this.trick = hasTrick(this.handling) ? this.moves.trick : null;
+    this.p.dodgeCds = Array(dodgeCharges(save)).fill(0);
     // Regular fights swoop in and get going at once; bosses keep their dramatic "Boss battle!" beat.
     this.intro = this.dramatic ? 1.2 : ZOOM_T + 0.1;
     const n = setup.foes.length;
@@ -162,7 +165,10 @@ export class Battle implements FoeWorld, HitWorld {
   get skillFrac() { return Math.max(0, this.p.skillCd) / (this.skillNow?.cd ?? SKILL_CD); }
   /** How far the whip's whirl reaches at your rank. */
   get whirlRange() { return SKILL_DATA.whirl.radius * (this.skillNow?.size ?? 1) * this.reach; }
-  get dodgeFrac() { return Math.max(0, this.p.dodgeCd) / 0.7; }
+  /** The dodge button's cooldown: only while no charge is ready, how long until the first one is back. */
+  get dodgeFrac() { return Math.max(0, Math.min(...this.p.dodgeCds)) / DODGE_CD; }
+  /** How many dodges you could make right now. */
+  get dodgesReady() { return this.p.dodgeCds.filter((t) => t <= 0).length; }
   /** How much of the attack cooldown is left, once the swing itself is over: the gap before the next, or the rest after a combo. */
   get attackFrac() {
     const p = this.p, rest = this.moves.rest * this.pace.rest;
@@ -291,7 +297,8 @@ export class Battle implements FoeWorld, HitWorld {
 
   private updatePlayer(dt: number) {
     const p = this.p, st = this.stats, inp = this.input;
-    p.skillCd -= dt; p.dodgeCd -= dt; p.iframes -= dt; p.hurtT -= dt; p.dodging -= dt; p.riposte -= dt; p.dizzy -= dt; p.castT -= dt;
+    for (let i = 0; i < p.dodgeCds.length; i++) p.dodgeCds[i] -= dt;
+    p.skillCd -= dt; p.iframes -= dt; p.hurtT -= dt; p.dodging -= dt; p.riposte -= dt; p.dizzy -= dt; p.castT -= dt;
     if (p.poison > 0) {
       p.poison -= dt;
       p.poisonTick -= dt;
@@ -350,7 +357,9 @@ export class Battle implements FoeWorld, HitWorld {
     if (p.swing) this.updateSwing(dt);
     if (p.whirlT > 0) this.updateWhirl(dt);
 
-    if (inp.consume('dodge') && p.dodgeCd <= 0) {
+    // Any charge that's back will do; each comes back on its own, so two can be spent back to back.
+    const charge = p.dodgeCds.findIndex((t) => t <= 0);
+    if (inp.consume('dodge') && charge >= 0) {
       // Dodging cancels a swing's recovery — but not a committed windup.
       // Blades flow: their dodge cancels a windup too.
       if (!p.swing || p.swing.t > p.swing.s.windup || this.trick === 'riposte') {
@@ -358,7 +367,7 @@ export class Battle implements FoeWorld, HitWorld {
         p.dodgeDir = p.moving ? Math.atan2(a.y, a.x) : p.face + Math.PI;
         p.iframes = Math.max(p.iframes, 0.32);
         p.dodging = 0.32;
-        p.dodgeCd = 0.7;
+        p.dodgeCds[charge] = DODGE_CD;
         this.log.dodges++;
         this.audio.play('dodge');
         if (this.trick === 'blink') this.blink(p.dodgeDir);

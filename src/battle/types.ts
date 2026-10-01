@@ -5,6 +5,8 @@ import type { Strike } from '../weapons';
 export const TAU = Math.PI * 2;
 /** Seconds between weapon skills. */
 export const SKILL_CD = 4.5;
+/** Seconds for a dodge to come back. With the Echo Anklet you have two, each coming back on its own. */
+export const DODGE_CD = 0.7;
 /**
  * Attacks go the way you last moved. An enemy within this angle (radians) of that direction gets lined up
  * with, so thumbsticks don't whiff on something just off-line; anything wider you have to turn to face.

@@ -126,7 +126,7 @@ async function winFight(page: Page) {
 /** Scenarios run from a queue, a few at a time (each has its own browser context, so their saves don't mix). */
 const queue: { name: string; run: () => Promise<void> }[] = [];
 /** The long ones start first, so none is left running alone at the end. */
-const SLOW = ['Poppy', "Bram's story", 'every monster', 'characters are drawn in 3D', 'prologue', 'waits between strikes', 'play report'];
+const SLOW = ['Poppy', "Bram's story", 'drums in the dark', 'every monster', 'characters are drawn in 3D', 'prologue', 'waits between strikes', 'play report'];
 const weight = (name: string) => { const i = SLOW.findIndex((s) => name.includes(s)); return i < 0 ? SLOW.length : i; };
 
 function scenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>) {
@@ -956,6 +956,122 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   await talk('bram:bram');
   await playUntil('the cabin', async () => (await step()) === 9 && (await game<string>(page, 'g.mode')) === 'world');
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'bramhut').hidden && g.save.flags.includes('bram:stew')`), 'no cabin, or no stew');
+});
+
+scenario("The drums in the dark: tail the Pebblors unseen (once spotted and dropped below), and the Echo Anklet dodges twice", (g) => {
+  const s = g.save;
+  s.lv = 9;
+  s.wins = 40;
+  s.bosses.push('kingslime', 'alphawolf');
+  s.camps.push('woods', 'cave');
+  s.visited.push('meadow', 'woods', 'cave');
+  s.quest = g.quests.findIndex((q: any) => q.id === 'warp');
+  s.stories.poppy = 6;
+  s.flags.push('poppy:returned');
+  s.perks.push('trailboots');
+  s.tools = { wood: 2, mine: 2 };
+  s.pos = { x: 29.4, y: 12.6 };
+}, async (page) => {
+  const C = 118;
+  const step = () => game<number>(page, 'g.save.stories.drums ?? 0');
+  const phase = () => game<string>(page, 'g.drums.proc?.phase ?? ""');
+  const goTo = (x: number, y: number) => run(page, `g.over.teleport(${x}, ${y})`);
+  const shot = (name: string) => (SHOTS ? page.screenshot({ path: `${OUT}drums-${name}.png` }) : Promise.resolve());
+  /** Clicks through scenes and popups until `until` holds. */
+  const playUntil = async (what: string, until: () => Promise<boolean>, ms = 40000) => {
+    await waitFor(page, what, async () => {
+      if (await until()) return true;
+      const b = await page.$('#modal:not([hidden]) [data-dialog]:last-of-type');
+      if (b) {
+        await b.dispatchEvent('pointerdown');
+        await b.click().catch(() => {});
+      }
+      await page.waitForTimeout(250);
+      return false;
+    }, ms);
+  };
+  const free = async () => (await game<string>(page, 'g.mode')) === 'world' && !(await game<boolean>(page, '!!document.querySelector("#modal:not([hidden])")'));
+
+  // Back in Sowerby, Granny's beside herself: Poppy's gone after the drums.
+  check(!(await game<boolean>(page, `!!g.over.actors.get('poppy:poppy')`)), 'Poppy is still at home');
+  await goTo(31.6, 11.4);
+  await playUntil("Granny's worry", async () => (await step()) === 1 && (await free()));
+
+  // In the Cavern: up to the shaft, and the procession goes up into the side tunnels.
+  await goTo(C + 23.5, 12.6);
+  await page.waitForTimeout(500);
+  await goTo(C + 25.4, 9.6);
+  await waitFor(page, 'the procession', async () => (await step()) === 2, 8000);
+  await waitFor(page, 'the procession shown', async () => (await game<number>(page, `['drums:g0','drums:g1','drums:g2','drums:g3'].filter((id) => g.over.actors.get(id)).length`)) === 4);
+  await shot('intro');
+  await playUntil('the way up', async () => free());
+
+  // Tail them: three tiles behind the last one, ducking behind a pillar (or round a corner) whenever it looks back,
+  // except the first time, out in the open: it stamps, and down you go.
+  const HIDE = [[C + 27.2, 5.6], [C + 27.5, 6.6], [C + 29.6, 2.5]];
+  let spottedOnce = false;
+  await waitFor(page, 'the procession reaches the chamber', async () => {
+    const p = await phase();
+    if (p === 'arrived') return true;
+    if (!(await free())) return false;
+    if (p === 'warn' || p === 'look') {
+      const i = (await game<number>(page, 'g.drums.proc.looks')) - 1;
+      if (!spottedOnce) {
+        // Right out in the open behind it.
+        const [x, y] = await game<[number, number]>(page, `(() => { const r = g.drums.trail(2); return [r.x, r.y]; })()`);
+        await goTo(x, y);
+        await shot('looking');
+        await waitFor(page, 'the fall', async () => (await game<number>(page, 'g.drums.falls')) === 1, 6000);
+        spottedOnce = true;
+        await waitFor(page, 'down in the pocket', async () => (await free()) && (await game<boolean>(page, `g.over.y > 17.5 && g.over.x < ${C + 11}`)), 6000);
+        await shot('pocket');
+        // Walk the winding tunnel back up to the slope.
+        for (const [x, y] of [[2.5, 19.5], [3.6, 20.5], [5, 21.5], [7.6, 20.5], [8.6, 19.5], [9.9, 18.6]]) {
+          await goTo(C + x, y);
+          await page.waitForTimeout(120);
+        }
+        await waitFor(page, 'back up at the trail', async () => (await free()) && (await game<boolean>(page, `g.over.y < 9 && g.over.x > ${C + 25}`)), 6000);
+        return false;
+      }
+      await goTo(HIDE[i][0], HIDE[i][1]);
+      await page.waitForTimeout(150);
+      return false;
+    }
+    const [x, y] = await game<[number, number]>(page, `(() => { const r = g.drums.trail(3); return [r.x, r.y]; })()`);
+    await goTo(x, y);
+    await page.waitForTimeout(100);
+    return false;
+  }, 90000);
+  check(spottedOnce && (await game<number>(page, 'g.drums.falls')) === 1, `spotted ${await game<number>(page, 'g.drums.falls')} times`);
+  check((await game<number>(page, 'g.drums.proc.looks')) === 3, 'not every look-back happened');
+
+  // In the chamber: Poppy behind her rock, the figure laid down, a new totem, and the Pebblors' gift.
+  await page.waitForTimeout(1500);
+  await goTo(C + 24.9, 3.1);
+  await waitFor(page, 'the quiet scene', async () => (await game<string>(page, 'g.mode')) === 'dialog', 8000);
+  await shot('chamber');
+  await playUntil('the Echo Anklet', async () => (await step()) === 3 && (await free()), 60000);
+  check(await game<boolean>(page, `g.save.perks.includes('echoanklet') && !g.over.actors.get('drums:poppy')`), 'no anklet, or Poppy never left');
+  check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'prop_totem_new').hidden`), 'no new totem in the chamber');
+  check(await game<boolean>(page, `!!g.over.actors.get('poppy:poppy')`), "Poppy isn't home");
+
+  // Home: Poppy's in trouble with Granny.
+  await goTo(31.6, 11.4);
+  await playUntil('home', async () => (await step()) === 4 && (await free()));
+
+  // A fight: dodge, and dodge again straight away (two pips on the button, both spent).
+  await run(page, `g.fight('slime', 9, 1)`);
+  await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 8000);
+  await pinFoes(page);
+  check(await game<number>(page, `document.querySelectorAll('#btn-dodge .dpips:not([hidden]) i.on').length`) === 2, 'no dodge charge pips');
+  await page.keyboard.press('KeyK');
+  await page.waitForTimeout(120);
+  await page.keyboard.press('KeyK');
+  await page.waitForTimeout(60);
+  check(await game<number>(page, 'g.battle.log.dodges') === 2, `dodged ${await game<number>(page, 'g.battle.log.dodges')} times, not twice in a row`);
+  check(await game<number>(page, 'g.battle.dodgesReady') === 0, 'both charges were not spent');
+  await shot('dodges');
+  await winFight(page);
 });
 
 scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra handful of ore out of a rock", (g) => {

@@ -247,6 +247,11 @@ button {
 .btn.md { width: 64px; height: 64px; font-size: 24px; }
 #btn-skill { right: calc(34px + var(--safe-r)); bottom: calc(130px + var(--safe-b)); background: #c8b0ff; }
 #btn-dodge { right: calc(122px + var(--safe-r)); bottom: calc(18px + var(--safe-b)); background: #b0e8ff; }
+/* Dodge charges (the Echo Anklet gives two): a pip each on the rim, lit while it's ready. */
+#btn-dodge .dpips { position: absolute; top: -7px; right: -6px; display: flex; gap: 3px; padding: 3px 4px; border-radius: 9px; background: #fff; box-shadow: 0 0 0 1px rgba(74, 42, 90, 0.25); }
+#btn-dodge .dpips[hidden] { display: none; }
+#btn-dodge .dpips i { width: 9px; height: 9px; border-radius: 50%; background: #d8e8f0; box-shadow: inset 0 0 0 1.5px rgba(74, 42, 90, 0.3); }
+#btn-dodge .dpips i.on { background: #3aa8e0; box-shadow: inset 0 0 0 1.5px rgba(20, 70, 110, 0.5); }
 .btn.sm { width: 52px; height: 52px; font-size: 22px; right: calc(118px + var(--safe-r)); bottom: calc(100px + var(--safe-b)); overflow: visible; }
 .badge {
   position: absolute;

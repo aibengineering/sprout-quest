@@ -125,14 +125,32 @@ function bram(step: number, flags: string[], x: number, y: number, then?: (s: Sa
   });
 }
 
+const BRAM_DONE = ['bram:pie', 'bram:met', 'bram:wave1', 'bram:wave2', 'bram:scar', 'bram:ambush1', 'bram:ambush2', 'bram:home', 'bram:hut', 'bram:stew'];
+
 /** Pip's story at a step: Bram's story done (his Sawmill and cabin built), by the Guest Cottage's plot. */
 function pip(step: number, then?: (s: SaveState) => void) {
-  const flags = ['bram:pie', 'bram:met', 'bram:wave1', 'bram:wave2', 'bram:scar', 'bram:ambush1', 'bram:ambush2', 'bram:home', 'bram:hut', 'bram:stew'];
-  return bram(9, flags, zoneById('village').x0 + 19.9, 6.7, (s) => {
+  return bram(9, BRAM_DONE, zoneById('village').x0 + 19.9, 6.7, (s) => {
     tools(s, 2, 2);
     s.build.sawmill = 1;
     s.unlocked.push('sawmill', 'cottage');
     s.stories.pip = step;
+    then?.(s);
+  });
+}
+
+const C = zoneById('cave').x0;
+
+/** The drums in the dark (Echo Cavern's Pebblors) at a step: the Cavern open, Poppy's and Bram's stories done, in copper gear. */
+function drums(step: number, x: number, y: number, then?: (s: SaveState) => void) {
+  return base('warp', 'cave', x, y, (s) => {
+    tools(s, 2, 2);
+    s.stories.poppy = 6;
+    s.perks.push('trailboots');
+    s.flags.push(...bossFlags, 'poppy:returned', ...BRAM_DONE);
+    s.stories.bram = 9;
+    s.build.sawmill = 1;
+    s.unlocked.push('sawmill');
+    s.stories.drums = step;
     then?.(s);
   });
 }
@@ -201,6 +219,18 @@ export const PRESETS: Preset[] = [
       s.flags.push('pip:candy');
       Object.assign(s.mats, { stone: 36, copper: 18 });
     }),
+  },
+  {
+    id: 'drums', name: 'Drums: Granny is worried', desc: "The Alpha Woolf is beaten and Poppy's home: walk up to Granny, and Poppy's gone after the drums in Echo Cavern.",
+    make: () => drums(0, 29.4, 12.6),
+  },
+  {
+    id: 'drums-tail', name: 'Drums: the procession', desc: 'In Echo Cavern, just along from the side tunnels: walk up to the shaft and tail the Pebblors.',
+    make: () => drums(1, C + 23.5, 12.6),
+  },
+  {
+    id: 'drums-done', name: 'Drums: the Echo Anklet', desc: "Poppy's home and the Pebblors gave you the Echo Anklet: two dodges in a row. In their chamber.",
+    make: () => drums(4, C + 25.6, 3.4, (s) => s.perks.push('echoanklet')),
   },
   {
     id: 'garden', name: "Poppy's Garden", desc: 'Poppy tends the Berry Garden: four empty plots, a handful of every seed, and Bunny Fluff for a Berry Tart.',

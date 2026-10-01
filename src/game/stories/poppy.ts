@@ -4,6 +4,7 @@
 import type { ActorSpec } from '../../actors';
 import { MATS, zoneById, type MonsterKind } from '../../data';
 import { CROPS, CROP_ORDER, gardenOpen, gardenUpdate, isReady, pick, plant, pullWeeds, takeGift, takeWelcome, water, type Crop } from '../../garden';
+import { drumsStep, poppyAway } from '../../procession';
 import { plotOpen } from '../../rules';
 import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
@@ -11,7 +12,7 @@ import { bubble, follow, lookAt, narrate, pan, say, scene, walk, wait, type Spea
 import { stopWaiting, syncStories, waitAt, type Story } from '../stories';
 import { GRANNY, GRANNY_ID } from './granny';
 
-const POPPY_TALK: Speaker = { name: 'Poppy', emoji: '👧', portrait: (m) => (m === 'happy' ? 'npc_poppy' : m === 'hug' ? 'npc_poppy_hug' : `npc_poppy_${m}`) };
+export const POPPY_TALK: Speaker = { name: 'Poppy', emoji: '👧', portrait: (m) => (m === 'happy' ? 'npc_poppy' : m === 'hug' ? 'npc_poppy_hug' : `npc_poppy_${m}`) };
 
 /**
  * The Secret Grove, in route-map tiles of the meadow (see routes.ts): its mouth opens west off the meadow's
@@ -58,6 +59,8 @@ const chat = (lines: [Speaker, string, string?][]) => paused(async () => {
 });
 
 const HOME_LINES = ["Mr. Floppers says hi!", "You can chop the trees in my secret grove. Mr. Floppers says it's okay!", "Granny's baking cookies. Don't tell her I told you.", "When I grow up, I'm going to be a hero too!"];
+/** After the night in Echo Cavern (see drums.ts). */
+const CAVE_LINE = "Granny says no more caves. Ever. Mr. Floppers agrees with Granny.";
 /** Once there's a plot for it: she'd love a garden. */
 const WANT_GARDEN = "There's an empty patch by the fountain. If you built a garden there, I'd look after it every single day!";
 const ROAD_LINES = ["Granny says the tall grass is where the Hopbuns nap.", "Are we nearly there yet?", "You're really brave, you know."];
@@ -263,6 +266,8 @@ export const POPPY: Story = {
 
   cast(step) {
     const cast: ActorSpec[] = [];
+    // Off after the drums in Echo Cavern, until she runs home (drums.ts has her there).
+    if (step >= 6 && poppyAway(G.save)) return cast;
     const at = (mood: string, talk: () => Promise<void> | void): ActorSpec => ({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...HOME, face: Math.PI / 2, mood, label: 'Talk', talk });
     if (step === 1) {
       cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...COWER, face: 0, mood: '😨', label: 'Talk', talk: () => chat([[POPPY_TALK, 'H-help! Please! The slimes!', 'scared']]) });
@@ -292,7 +297,8 @@ export const POPPY: Story = {
     } else if (step >= 6) {
       // Every other chat, once there's a plot for it, she asks for a garden.
       const home = () => {
-        const text = plotOpen(G.save, 'garden') && line % 2 === 0 ? WANT_GARDEN : HOME_LINES[line % HOME_LINES.length];
+        const lines = drumsStep(G.save) >= 4 ? [...HOME_LINES, CAVE_LINE] : HOME_LINES;
+        const text = plotOpen(G.save, 'garden') && line % 2 === 0 ? WANT_GARDEN : lines[line % lines.length];
         line++;
         return chat([[POPPY_TALK, text, 'hug']]);
       };
