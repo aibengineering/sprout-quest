@@ -59,7 +59,7 @@ try {
       }, id);
       await page.waitForFunction(({ renders }) => (window as any).game.modelStats.renders > renders, { renders }, { timeout: 30000 });
       await page.waitForTimeout(900);
-      if (!fetched.has(`hero_${id}.glb`)) throw new Error(`${id}: equipped model was not fetched`);
+      if (!fetched.has(`armor_${id}.glb`)) throw new Error(`${id}: equipped model was not fetched`);
       await page.screenshot({ path: `${out}/${id}-${width}-map.png` });
       await page.keyboard.down('ArrowRight');
       await page.waitForTimeout(180);

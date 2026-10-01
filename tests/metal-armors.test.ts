@@ -68,28 +68,4 @@ describe('ingredient-led ore armor assets', () => {
     }
   });
 
-  test('optimized equipped models retain the animated attachment rig and cel-shader attributes', () => {
-    for (const id of armors) {
-      const data = readFileSync(`public/assets/models/hero_${id}.glb`);
-      expect(data.length).toBeLessThan(140 * 1024);
-      expect(data.readUInt32LE(0)).toBe(0x46546c67);
-      const gltf = JSON.parse(data.subarray(20, 20 + data.readUInt32LE(12)).toString('utf8'));
-      expect(gltf.extensionsRequired).toContain('EXT_meshopt_compression');
-      const names = gltf.nodes.map((node: { name?: string }) => node.name);
-      for (const pivot of ['hero', 'bodyPivot', 'head', 'arm-1', 'arm1', 'foot-1', 'foot1']) expect(names).toContain(pivot);
-      expect(gltf.animations.map((a: { name: string }) => a.name).sort()).toEqual(['idle', 'walk']);
-      for (const mesh of gltf.meshes) for (const primitive of mesh.primitives) {
-        // gltfpack removes all-white COLOR_0 (eye highlights); the renderer
-        // intentionally fills absent base color with white.
-        expect(primitive.attributes.COLOR_1).toBeDefined();
-      }
-      expect(gltf.meshes.some((mesh: { primitives: { attributes: { COLOR_0?: number } }[] }) => mesh.primitives.some((p) => p.attributes.COLOR_0 !== undefined))).toBe(true);
-      for (const arm of ['arm-1', 'arm1']) {
-        const index = names.indexOf(arm);
-        // Shoulder guards and hands travel together; weaponPose attaches to this exact arm.
-        expect(gltf.nodes[index].children.length).toBeGreaterThanOrEqual(3);
-        for (const animation of gltf.animations) expect(animation.channels.some((c: { target: { node: number; path: string } }) => c.target.node === index && c.target.path === 'rotation')).toBe(true);
-      }
-    }
-  });
 });

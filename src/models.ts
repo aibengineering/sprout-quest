@@ -11,7 +11,7 @@ import {
   Matrix4, Mesh, Object3D, OrthographicCamera, PCFShadowMap, Quaternion, Scene, ShaderMaterial, UniformsLib, UniformsUtils, Vector2, Vector3, WebGLRenderer,
   type AnimationAction, type AnimationClip,
 } from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { DrawOpts, Frame } from './assets';
@@ -270,6 +270,38 @@ function measure(root: Object3D, clips: Record<string, AnimationClip>) {
   return { radius: r, height: box.max.y };
 }
 
+/** The hero's moving parts (art/hero.py), which armour hangs on. */
+const HERO_PIVOTS = ['hero', 'bodyPivot', 'arm-1', 'arm1', 'head', 'foot-1', 'foot1'];
+
+/** The base hero and the armours, kept as loaded: every armour's hero is put together from them. */
+const heroParts = new Map<string, Promise<GLTF>>();
+function gltf(name: string): Promise<GLTF> {
+  loader ??= new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  return loader.loadAsync(`assets/models/${name}.glb`);
+}
+function heroPart(name: string): Promise<GLTF> {
+  let p = heroParts.get(name);
+  if (!p) heroParts.set(name, (p = gltf(name)));
+  p.catch(() => heroParts.delete(name));
+  return p;
+}
+
+/**
+ * The hero in an armour (`hero_<armor>`): the base hero (art/hero.py build_base) with each armour piece hung on the
+ * pivot it's named after, as the weapons hang in the hand. A helmet hides the bangs and the leaf sprout.
+ */
+async function dressedHero(armor: string): Promise<{ scene: Object3D; animations: AnimationClip[] }> {
+  const [base, worn] = await Promise.all([heroPart('hero_base'), heroPart(`armor_${armor}`)]);
+  const scene = base.scene.clone(true), armour = worn.scene.clone(true);
+  if (armour.getObjectByName('helmet')) for (const hair of ['bangs', 'sprout']) scene.getObjectByName(hair)?.removeFromParent();
+  // The pieces under each armour pivot sit where they would on the hero's pivot of the same name.
+  for (const name of HERO_PIVOTS) {
+    const from = armour.getObjectByName(name), to = scene.getObjectByName(name);
+    if (from && to) for (const piece of [...from.children]) if (!HERO_PIVOTS.includes(piece.name)) to.add(piece);
+  }
+  return { scene, animations: base.animations };
+}
+
 /** Loads a model (once); resolves null if it can't be (the caller keeps its sprite or drawing). */
 export function loadModel(id: string): Promise<Model | null> {
   const have = models.get(id);
@@ -277,13 +309,13 @@ export function loadModel(id: string): Promise<Model | null> {
   let p = loading.get(id);
   if (!p && (retryAt.get(id) ?? 0) > performance.now()) return Promise.resolve(null);
   if (!p) {
-    loader ??= new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-    p = loader.loadAsync(`assets/models/${id}.glb`).then((gltf) => {
-      const clips = Object.fromEntries(gltf.animations.map((c) => [c.name, c]));
-      mergeParts(gltf.scene, gltf.animations);
+    const armor = /^hero_(.+)$/.exec(id)?.[1];
+    p = (armor ? dressedHero(armor) : gltf(id)).then(({ scene, animations }) => {
+      const clips = Object.fromEntries(animations.map((c) => [c.name, c]));
+      mergeParts(scene, animations);
       const gear = GEAR[id.replace(/^wpn_/, '')];
-      const grip = gear?.style === 'whip' ? whipGrip(gltf.scene, gear.id === 'dragontail' ? '#c83a3a' : gear.color!) : undefined;
-      const m: Model = { root: gltf.scene, grip, clips, ...measure(gltf.scene, clips) };
+      const grip = gear?.style === 'whip' ? whipGrip(scene, gear.id === 'dragontail' ? '#c83a3a' : gear.color!) : undefined;
+      const m: Model = { root: scene, grip, clips, ...measure(scene, clips) };
       models.set(id, m);
       return m;
     }).catch((e) => {

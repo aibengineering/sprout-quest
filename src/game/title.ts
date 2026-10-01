@@ -1,6 +1,6 @@
 // The title screen: loading with real progress, then Continue / New Game.
 import { loadAssets, preloadIcons } from '../assets';
-import { GEAR, MONSTERS, QUESTS } from '../data';
+import { MONSTERS, QUESTS } from '../data';
 import { loadModels, webglAvailable } from '../models';
 import { playerStats } from '../rules';
 import { clearLog, logEvent } from '../stats';
@@ -38,7 +38,8 @@ export async function boot() {
   const mb = (n: number) => (n / 1048576).toFixed(1);
   const ok = await loadAssets((p) => show(0.2 + 0.45 * (p.total ? p.done / p.total : 0), `Fetching scenery… ${mb(p.done)} / ${mb(p.total)} MB`));
   if (!ok) show(0.65, 'Sprites unavailable: using simple drawings');
-  // Characters are 3D models: the hero in their armor, the villagers and every monster. The other armors follow later.
+  // Characters are 3D models: the hero in their armor, the villagers and every monster. Other armour and weapons load
+  // when first worn or held.
   const armor = loadState()?.equip.armor ?? 'tunic';
   const weapon = loadState()?.equip.weapon ?? 'twig';
   const characters = [`hero_${armor}`, `wpn_${weapon}`, 'npc_elder', 'npc_granny', 'npc_poppy', 'npc_poppy_hug', 'npc_bram', 'npc_bram_hurt', 'npc_pip', ...Object.keys(MONSTERS).map((k) => `mon_${k}`)];
@@ -58,10 +59,6 @@ export async function boot() {
   booted = true;
   // The music gets ready while you're on the title (it can only start playing once you tap): where you are first.
   G.music.preload(zoneTheme(G.over.currentZone.id));
-  // Every other armor, quietly, so changing gear shows the new look straight away.
-  void loadModels(Object.values(GEAR).filter((g) => g.slot === 'armor' && g.id !== armor).map((g) => `hero_${g.id}`));
-  // …and every weapon you own, so switching shows it in your hand straight away (others load when first held).
-  void loadModels((loadState()?.owned ?? []).filter((id) => GEAR[id]?.slot === 'weapon' && id !== weapon).map((id) => `wpn_${id}`));
 }
 
 /** The version under the title, with a dot if a saved game hasn't read the newest patch notes. */

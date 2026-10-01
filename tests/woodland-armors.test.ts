@@ -87,21 +87,5 @@ describe('ingredient-led woodland armor assets', () => {
       expect(webpSize(`public/assets/icons/${id}.webp`)).toEqual([128, 128]);
     });
 
-    test(`${id}: original weapon rig, animations and toon vertex attributes survive export`, () => {
-      const model = glb(id);
-      const names = model.nodes.map((n: any) => n.name);
-      for (const name of ['hero', 'bodyPivot', 'head', 'arm-1', 'arm1', 'foot-1', 'foot1']) expect(names).toContain(name);
-      expect(model.animations.map((a: any) => a.name).sort()).toEqual(['idle', 'walk']);
-      for (const animation of model.animations) {
-        const animated = animation.channels.map((c: any) => model.nodes[c.target.node].name);
-        for (const name of ['arm-1', 'arm1', 'bodyPivot', 'foot-1', 'foot1']) expect(animated).toContain(name);
-      }
-      for (const mesh of model.meshes) for (const primitive of mesh.primitives) {
-        // gltfpack omits all-white COLOR_0; the renderer supplies white in that case.
-        if (primitive.attributes.COLOR_0 !== undefined) expect(primitive.attributes.COLOR_0).toBeNumber();
-        expect(primitive.attributes.COLOR_1).toBeNumber();
-      }
-      expect(statSync(`public/assets/models/hero_${id}.glb`).size).toBeLessThan(140 * 1024);
-    });
   }
 });

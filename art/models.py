@@ -1,5 +1,6 @@
-"""Characters as 3D models for the game's real-time renderer (src/models.ts): the hero in every armor, the villagers and
-every monster, each with its animations, written to public/assets/models/<name>.glb.
+"""Characters as 3D models for the game's real-time renderer (src/models.ts): the hero (one base model, hero_base, and a
+small armor_<id> per armour that the game hangs on its pivots), the villagers and every monster, each with its
+animations, written to public/assets/models/<name>.glb.
 
 Every mesh carries its cel-shading settings in its vertex data, its colour (COLOR_0) and its rim light, glow and outline
 width ×10 (COLOR_1), so gltfpack (see build.sh) can merge the pieces that move together and compress the result. Poses come
@@ -75,9 +76,24 @@ def weapon(wid):
     return {'root': root}, {}
 
 
+def armor(a):
+    """One armour on its own, hanging under nodes named after the hero's pivots (bodyPivot, arm-1, arm1, head), each at
+    its rest place: the game hangs each piece on the base hero's matching pivot. A `helmet` node says it hides the hair."""
+    root = lib.empty('hero')
+    body = lib.empty('bodyPivot', root)
+    P = {'root': root, 'body': body, 'head': lib.empty('head', body, (0, 0, 0.8))}
+    for side in (-1, 1):
+        P[f'arm{side}'] = lib.empty(f'arm{side}', body, (0.29 * side, 0, 0.37))
+    hero.build_armor(P, a)
+    if hero.helmet(a):
+        lib.empty('helmet', root)
+    return P, {}
+
+
 # name: () -> (parts, {animation: (pose(parts, phase), frames at 24 fps)})
 CHARACTERS = {
-    **{f'hero_{a}': (lambda a=a: (hero.build(a), walker_anims())) for a in hero.ARMORS},
+    'hero_base': lambda: (hero.build_base(), walker_anims()),
+    **{f'armor_{a}': (lambda a=a: armor(a)) for a in hero.ARMORS},
     'npc_poppy': lambda: (hero.build_poppy(), walker_anims()),
     'npc_poppy_hug': lambda: (hero.build_poppy(hug=True), {'idle': (lambda P, t: breathe(P, t), 32)}),
     'npc_elder': lambda: (hero.build_elder(), {'idle': (lambda P, t: breathe(P, t, head='hat'), 32)}),

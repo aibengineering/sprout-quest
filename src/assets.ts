@@ -1,7 +1,7 @@
 // Loads the Blender-rendered sprite atlas and draws frames. If loading fails the game falls back to the
 // procedural canvas drawings in sprites.ts, so it always stays playable. Characters are drawn in 3D (models.ts) once
 // their models are in, with their sprites as the fallback.
-import { drawModel, hasModel, type Held } from './models';
+import { drawModel, hasModel, loadModel, type Held } from './models';
 
 export interface Frame {
   img: HTMLImageElement | HTMLCanvasElement;
@@ -251,12 +251,17 @@ export function drawWalker(ctx: CanvasRenderingContext2D, prefix: string, x: num
   return 'sprite';
 }
 
+let shownArmor = 'tunic';
+
 /**
  * Draws the hero, with `held` in hand or carried if drawn in 3D. Returns what drew it ('model' or 'sprite'), or false
  * if neither is available so callers can fall back.
  */
 export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}, slot = 'hero', held?: Held): 'model' | 'sprite' | false {
-  const prefix = frame(`hero/${armor}/0/0`) || hasModel(`hero_${armor}`) ? `hero/${armor}` : 'hero/tunic';
+  // Armour loads when first worn: until it's in, the hero keeps the last armour drawn.
+  if (hasModel(`hero_${armor}`)) shownArmor = armor;
+  else void loadModel(`hero_${armor}`);
+  const prefix = frame(`hero/${armor}/0/0`) ? `hero/${armor}` : `hero/${shownArmor}`;
   return drawWalker(ctx, prefix, x, y, unit, face, moving, t, { outline: HERO_OUTLINE, ...o }, slot, held);
 }
 

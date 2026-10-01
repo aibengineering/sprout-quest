@@ -80,25 +80,5 @@ describe('ingredient-built late armor assets', () => {
       expect(statSync(`public/assets/icons/${id}.webp`).size).toBeLessThan(16_000);
     });
 
-    test(`${id} equipped model retains the animated hero and weapon pivots`, () => {
-      const file = readFileSync(`public/assets/models/hero_${id}.glb`);
-      expect(file.toString('ascii', 0, 4)).toBe('glTF');
-      expect(file.length).toBeLessThan(128_000);
-      const gltf = JSON.parse(file.toString('utf8', 20, 20 + file.readUInt32LE(12)));
-      const names = gltf.nodes.map((node: { name?: string }) => node.name);
-      for (const joint of ['hero', 'bodyPivot', 'head', 'arm-1', 'arm1', 'foot-1', 'foot1']) {
-        expect(names).toContain(joint);
-      }
-      expect(gltf.animations.map((animation: { name: string }) => animation.name).sort()).toEqual(['idle', 'walk']);
-      // Toon settings travel in the second color attribute, rather than texture downloads.
-      let colored = 0;
-      for (const mesh of gltf.meshes) for (const primitive of mesh.primitives) {
-        // gltfpack omits COLOR_0 for pure-white eye highlights; the renderer defaults to white.
-        if (primitive.attributes.COLOR_0 !== undefined) colored++;
-        expect(primitive.attributes.COLOR_1).toBeDefined();
-      }
-      expect(colored).toBeGreaterThan(10);
-      expect(gltf.textures ?? []).toHaveLength(0);
-    });
   }
 });

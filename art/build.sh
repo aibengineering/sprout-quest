@@ -20,12 +20,18 @@ export BLENDER
 #   bun run art models [name,name,...]
 models() {
   "$BLENDER" -b --factory-startup -P models.py -- "${1:-}" 2>&1 | grep -E "EXPORTED|Error|Traceback" || true
-  for raw in ../public/assets/models/*.raw.glb; do
+  for raw in ../public/assets/models/*.raw.glb ../public/assets/crafting3d/*.raw.glb; do
     [ -e "$raw" ] || continue
-    bunx gltfpack -i "$raw" -o "${raw%.raw.glb}.glb" -cc > /dev/null
+    # Armour pieces and crafting layers are found by their node names (they have no animations to keep them): keep them.
+    keep=()
+    case "$raw" in */armor_*|*/crafting3d/*) keep=(-kn) ;; esac
+    bunx gltfpack -i "$raw" -o "${raw%.raw.glb}.glb" -cc "${keep[@]}" > /dev/null
     rm "$raw"
   done
   echo "MODELS $(ls ../public/assets/models/*.glb | wc -l) files, $(du -ch ../public/assets/models/*.glb | tail -1 | cut -f1)"
+  if ls ../public/assets/crafting3d/*.glb > /dev/null 2>&1; then
+    echo "CRAFTING $(ls ../public/assets/crafting3d/*.glb | wc -l) files, $(du -ch ../public/assets/crafting3d/*.glb | tail -1 | cut -f1)"
+  fi
 }
 
 if [ "${1:-}" = models ]; then

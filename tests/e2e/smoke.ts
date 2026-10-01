@@ -1706,6 +1706,12 @@ if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, r
     const downloaded = page.waitForResponse((r) => r.url().endsWith(`/models/wpn_${fresh.id}.glb`) && r.status() === 200, { timeout: 30000 });
     await run(page, `g.save.owned.push('${fresh.id}'); g.save.equip.weapon = '${fresh.id}'`);
     await downloaded;
+    // Only the worn armour comes at startup (on the one base hero); another loads when first worn.
+    const armor = await game<string>(page, 'g.save.equip.armor');
+    const other = Object.values(GEAR).find((g) => g.slot === 'armor' && g.id !== armor)!;
+    const dressed = page.waitForResponse((r) => r.url().endsWith(`/models/armor_${other.id}.glb`) && r.status() === 200, { timeout: 30000 });
+    await run(page, `g.save.owned.push('${other.id}'); g.save.equip.armor = '${other.id}'`);
+    await dressed;
     await run(page, `g.fight('bunny', 3, 2)`);
     await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`), 20000);
     await page.waitForTimeout(3000);
