@@ -5,6 +5,7 @@
 #        bun run art models     (just the 3D models: characters, armour, weapons and crafting scenes [name,name,...])
 #        bun run art crafting   (the crafting scenes' 3D models [id,id,...])
 #        bun run art buildings  (the village buildings' 3D models, for their scenes [id,id,...])
+#        bun run art rooms      (the Kitchen's and Sawmill's props and the Garden's tools: their own atlas)
 set -euo pipefail
 cd "$(dirname "$0")"
 BLENDER="${BLENDER:-blender}"
@@ -61,6 +62,15 @@ buildings() {
 
 if [ "${1:-}" = buildings ]; then
   buildings "${2:-all}"
+  exit 0
+fi
+
+# The rooms you walk into (Granny's Kitchen, Bram's Sawmill) and the Garden's hand tools: their own atlas, in
+# public/assets/rooms/ (the main one is left alone).
+if [ "${1:-}" = rooms ]; then
+  rm -rf out/rooms out/rooms.json
+  render rooms
+  "$BLENDER" -b --factory-startup --python-exit-code 1 -P pack.py -- --group rooms 2>&1 | grep -E "PACKED|Error|Traceback"
   exit 0
 fi
 

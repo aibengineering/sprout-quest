@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { afterWin, cook, kitchenOpen, knownMeals, mealLeft, mealTick, oreBoost, repelBelow, sweetBoost, xpBoost } from '../src/kitchen';
+import { addToPot, afterWin, cook, cooked, kitchenOpen, knownMeals, mealLeft, mealTick, oreBoost, repelBelow, startDish, stillNeeded, stir, STIRS, sweetBoost, xpBoost, type Cooking } from '../src/kitchen';
 import { NODES, type NodeKind } from '../src/data';
 import { harvest } from '../src/rules';
 import { newState } from '../src/state';
@@ -121,5 +121,44 @@ describe("Granny's Kitchen", () => {
     mealTick(s, 241);
     expect(oreBoost(s)).toBe(0);
     expect(harvest(s, 'rock', 'after', false, false, () => 1, 0).drops.stone).toBe(before.rock);
+  });
+});
+
+describe('cooking by hand in the Kitchen', () => {
+  test('the book only opens at recipes she knows and you can make', () => {
+    const s = fed();
+    expect(startDish(s, 'stew')).toBe('unknown');
+    s.mats.fluff = 0;
+    expect(startDish(s, 'pancakes')).toBe('missing');
+    expect(startDish(s, 'tea')).toEqual({ dish: 'tea', added: [], stirs: 0 });
+    expect(startDish(newState(), 'tea')).toBe('unknown');
+  });
+
+  test('each ingredient goes in once, in any order, then it takes three good stirs', () => {
+    const c = startDish(fed(), 'pancakes') as Cooking;
+    expect(stillNeeded(c)).toEqual(['fluff', 'goo']);
+    expect(stir(c)).toBe(false);
+    expect(c.stirs).toBe(0);
+    expect(addToPot(c, 'clover')).toBe(false);
+    expect(addToPot(c, 'goo')).toBe(true);
+    expect(addToPot(c, 'goo')).toBe(false);
+    expect(stillNeeded(c)).toEqual(['fluff']);
+    expect(addToPot(c, 'fluff')).toBe(true);
+    for (let i = 1; i < STIRS; i++) expect(stir(c)).toBe(false);
+    expect(cooked(c)).toBe(false);
+    expect(stir(c)).toBe(true);
+    expect(cooked(c)).toBe(true);
+  });
+
+  test('nothing is spent until it is served, and then it costs what her menu does', () => {
+    const s = fed(), byHand = fed();
+    const c = startDish(byHand, 'pancakes') as Cooking;
+    for (const m of stillNeeded(c)) addToPot(c, m);
+    while (!stir(c));
+    expect(byHand.mats).toEqual(s.mats);
+    expect(cook(byHand, c.dish)).toBe('ok');
+    expect(cook(s, 'pancakes')).toBe('ok');
+    expect(byHand.mats).toEqual(s.mats);
+    expect(byHand.meal).toEqual(s.meal);
   });
 });

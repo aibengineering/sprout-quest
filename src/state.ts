@@ -3,6 +3,7 @@ import { VERSION } from './version';
 import type { MealId } from './kitchen';
 import type { SawState } from './sawmill';
 import type { GardenState } from './garden';
+import type { RoomId } from './room';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
 export interface SaveState {
@@ -62,6 +63,8 @@ export interface SaveState {
   sawmill?: SawState;
   /** Poppy's Garden: what's growing in each plot, and when she last brought you Flower Seeds (see garden.ts). */
   garden?: GardenState;
+  /** The room you're in (Granny's Kitchen, Bram's Sawmill): you carry on there. `pos` is then just outside its door. */
+  room?: RoomId;
   /** Set once the Forge has its five levels (older saves had three: Smithy was ★★★–★★★★, Master Forge the third). */
   forgeLevels?: 5;
   /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */

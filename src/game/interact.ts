@@ -11,11 +11,13 @@ import { challengeFoe, startBattle } from './fights';
 import { travelTo } from './menu';
 import { tryGather } from './gathering';
 import { progressQuests, talkToElder } from './story';
-import { openSawmill, sawmillBuilt } from './stories/bram';
+import { sawmillBuilt } from './stories/bram';
 import { visitPip } from './stories/pip';
-import { openGarden } from './stories/poppy';
 import { gardenOpen } from '../garden';
 import { poppyAway } from '../procession';
+import { kitchenOpen } from '../kitchen';
+import { enterRoom, roomAct } from './rooms';
+import { gardenAct, gardenStation } from './gardenWork';
 
 /** Opens the menu with the world waiting behind it. */
 function openMenu(...args: Parameters<typeof G.ui.openMenu>) {
@@ -66,16 +68,26 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     // Veyra's Waystone, once it's rebuilt: out to any campfire you've lit.
     if (o.project === 'warp' && G.save.build.warp > 0) return waystone();
     // Bram's Sawmill, once it's built: his bench, logs in and planks out.
-    if (o.project === 'sawmill' && sawmillBuilt()) return openSawmill();
+    if (o.project === 'sawmill' && sawmillBuilt()) return enterRoom('sawmill');
     // The Guest Cottage, once Pip's moved in: a knock on his door.
     if (o.project === 'cottage' && (G.save.stories.pip ?? 0) >= 1) return visitPip();
     // Poppy's Garden, once she tends it: her plots (not while she's off after the drums in Echo Cavern).
     if (o.project === 'garden' && gardenOpen(G.save) && poppyAway(G.save)) return G.ui.toast("🌷 Poppy's not here. Her garden waits for her.");
-    if (o.project === 'garden' && gardenOpen(G.save)) return openGarden();
+    // Worked by hand: the bed you're nearest that needs something (Poppy still opens her menu when you talk to her).
+    if (o.project === 'garden' && gardenOpen(G.save)) return gardenAct();
     openMenu(menuCtx(), 'village', o.project);
   },
 
   elder: () => talkToElder(),
+
+  /** Granny's blue house: her Kitchen, once she cooks. */
+  house() {
+    if (kitchenOpen(G.save) && !poppyAway(G.save)) enterRoom('kitchen');
+  },
+
+  /** Something to work at by hand in a room, or the way back out. */
+  station: (o) => (o.id?.startsWith('garden:') ? gardenStation(o) : roomAct(o)),
+  door: (o) => roomAct(o),
 
   async pickup() {
     await paused(() => G.ui.itemFound('twig', 'Twig Sword', "It's just a stick… but it feels right in your hand.", '🗡️', 'You found', true));

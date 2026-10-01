@@ -2,14 +2,14 @@
 import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { currentQuest } from './quests';
 import { repelBelow } from './kitchen';
-import { gardenOpen, gardenUpdate, growthStage, plotCount } from './garden';
+import { bedSpot, GARDEN_BEDS, gardenOpen, gardenUpdate, growthStage, plotCount } from './garden';
+import { drawCarried } from './roomArt';
 import { Actors, type Actor } from './actors';
 import { hasModel, loadModel } from './models';
 import { carriedMount, carriedWeapon, heroBody, projectWeaponPoint } from './weaponPose';
 import { Vector3 } from 'three';
 import { forgeArt } from './ui';
 import { drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from './assets';
-import { drawBubble } from './bubble';
 import { spriteScale } from './battle/monsters';
 import { Roamers, type Roamer } from './roamers';
 import { MOVESETS } from './weapons';
@@ -17,7 +17,9 @@ import { Fx } from './fx';
 import type { Input } from './input';
 import { drawPlayer, rrect, shadow } from './sprites';
 import type { SaveState } from './state';
-import { hash2, T, type World, type WorldObj } from './world';
+import { hash2, T, type TileMap, type World, type WorldObj } from './world';
+import { WALL_RISE, type Room } from './room';
+import { drawBubble, drawSpeech } from './bubble';
 
 const TAU = Math.PI * 2;
 /** Chip colors when mining each kind of rock. */
@@ -30,11 +32,6 @@ const ENCOUNTER_CHANCE = 0.06;
 const TILE_BU = 1.6;
 /** Sprites are rendered looking down at 30°: ground depth shows at half its size. */
 const DEPTH = 0.5;
-/**
- * Where each Garden plot's bed sits in its model (art/env.py garden()), in Blender units from the front middle, in
- * planting order: the middle column first, then the left, then the right (two more with each Garden level).
- */
-const GARDEN_BEDS: [number, number][] = [[0, 2], [0, 0.7], [-1.45, 2], [-1.45, 0.7], [1.45, 2], [1.45, 0.7]];
 
 export interface MapLayers {
   ground(ctx: CanvasRenderingContext2D, ts: number): void;
@@ -61,7 +58,7 @@ export class Overworld {
   private stepAcc = 0;
   /** Camera zoom (above 1 while swooping into or out of a fight). */
   zoom = 1;
-  private fx = new Fx();
+  readonly fx = new Fx();
   ts = 40;
   /** Current goal's location in tiles; drawn as a bouncing waypoint arrow. */
   objective: { x: number; y: number } | null = null;
@@ -73,8 +70,14 @@ export class Overworld {
   camTarget: { x: number; y: number } | (() => { x: number; y: number }) | null = null;
   /** During scenes: no action prompt or waypoint arrow. */
   quiet = false;
+  /** Your hands are busy (stirring a pot): no action prompt. */
+  busyHands = false;
+  /** Something you're carrying about on the map (seeds, the watering can), held up over your head. */
+  carried: { icon: string; emoji: string; count?: number } | null = null;
+  /** The Garden bed the action button works on just now (ringed on the map). */
+  gardenBed: number | null = null;
   /** The last frame's view (camera top in pixels, tile size, height), to tell where things are on screen. */
-  private view = { top: 0, ts: 1, vh: 1 };
+  private view = { left: 0, top: 0, ts: 1, vh: 1 };
   /** Story characters on the map. */
   readonly actors = new Actors();
   /**
@@ -84,6 +87,13 @@ export class Overworld {
   layers: MapLayers | null = null;
   /** The camera's extra headroom over the map's top (eased toward what the layers ask for). */
   private headroom = 0;
+  /** The room you've walked into (Granny's Kitchen, Bram's Sawmill), if any: you walk around it instead of the map. */
+  room: Room | null = null;
+  /** Where you'll be back outside when you leave the room. */
+  private outside = { x: 0, y: 0 };
+  /** Where the camera leans while you work somewhere on the map (the Garden), and how far in it zooms. */
+  focus: { x: number; y: number; zoom: number } | null = null;
+  private focusZoom = 1;
   /** Tree being chopped, and how long it keeps shaking from the last strike. */
   chopping: WorldObj | null = null;
   private shakeT = 0;
@@ -108,7 +118,44 @@ export class Overworld {
     return this.zone;
   }
 
+  /** What you're walking around: the room you're in, or the map. */
+  get map(): TileMap {
+    return this.room ?? this.world;
+  }
+
+  /** Who's around you: the room's people, or the map's. */
+  get cast() {
+    return this.room?.actors ?? this.actors;
+  }
+
+  /** Where your save puts you: outside the door while you're in a room (rooms aren't saved positions). */
+  get savedPos() {
+    return this.room ? { ...this.outside } : { x: this.x, y: this.y };
+  }
+
+  /** Steps into a room, from `outside` (where you'll come back out). */
+  enterRoom(room: Room, outside: { x: number; y: number }) {
+    this.outside = { ...outside };
+    this.room = room;
+    const p = room.spawn;
+    this.x = this.camX = p.x;
+    this.y = this.camY = p.y;
+    this.face = -Math.PI / 2;
+    this.moving = false;
+    this.chopping = null;
+  }
+
+  /** Back out of the room's door, facing away from it. */
+  leaveRoom() {
+    if (!this.room) return;
+    this.room = null;
+    this.teleport(this.outside.x, this.outside.y);
+    this.face = Math.PI / 2;
+  }
+
   teleport(x: number, y: number) {
+    // Going anywhere else (a warp, a respawn) takes you out of a room first.
+    this.room = null;
     this.x = x;
     this.y = y;
     this.camX = x;
@@ -185,9 +232,9 @@ export class Overworld {
       const turn = Math.abs(((Math.atan2(a.y - this.y, a.x - this.x) - this.face + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
       return turn < Math.PI / 3;
     };
-    const talk = this.actors.list.find((a) => a.label && Math.hypot(a.x - this.x, a.y - (this.y - 0.2)) < 1.4 && facing(a));
+    const talk = this.cast.list.find((a) => a.label && Math.hypot(a.x - this.x, a.y - (this.y - 0.2)) < 1.4 && facing(a));
     if (talk) return { kind: 'npc', id: talk.id, x: talk.x - 0.35, y: talk.y - 0.45, w: 0.7, h: 0.45, label: talk.label! };
-    return this.world.nearestObj(this.x, this.y - 0.2, 1.4);
+    return this.map.nearestObj(this.x, this.y - 0.2, 1.4);
   }
 
   /** `roam`: monsters keep moving (and can catch you) even while you can't walk, e.g. while chopping. */
@@ -195,7 +242,7 @@ export class Overworld {
     this.t += dt;
     // A spirit walks unseen: nothing notices it, chases it or jumps out at it.
     if (this.save.spirit) this.roamers.calm = Math.max(this.roamers.calm, 0.5);
-    if (roam && this.alert <= 0) {
+    if (roam && this.alert <= 0 && !this.room) {
       const caught = this.roamers.update(dt, this.x, this.y, this.save.wins === 0, repelBelow(this.save));
       if (caught) {
         this.alert = 0.3;
@@ -205,10 +252,11 @@ export class Overworld {
     }
     this.shakeT = Math.max(0, this.shakeT - dt);
     this.fx.update(dt);
-    this.actors.update(dt, this);
+    this.cast.update(dt, this);
     this.headroom += ((this.layers?.headroom() ?? 0) - this.headroom) * (1 - Math.exp(-dt * 3));
-    const target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? { x: this.x, y: this.y };
-    const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : 12));
+    const target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? this.focus ?? { x: this.x, y: this.y };
+    this.focusZoom += ((this.focus?.zoom ?? 1) - this.focusZoom) * (1 - Math.exp(-dt * 4));
+    const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : this.focus ? 4 : 12));
     this.camX += (target.x - this.camX) * k;
     this.camY += (target.y - this.camY) * k;
     if (this.alert > 0) {
@@ -230,9 +278,10 @@ export class Overworld {
     const dx = a.x * speed * dt, dy = a.y * speed * dt;
     const r = 0.28;
     const ox = this.x, oy = this.y;
-    if (!this.world.blocked(this.x + dx, this.y, r)) this.x += dx;
-    if (!this.world.blocked(this.x, this.y + dy, r)) this.y += dy;
+    if (!this.map.blocked(this.x + dx, this.y, r)) this.x += dx;
+    if (!this.map.blocked(this.x, this.y + dy, r)) this.y += dy;
     const moved = Math.hypot(this.x - ox, this.y - oy);
+    if (this.room) return null;
 
     let ev: WorldEvent = null;
     const z = this.world.zoneAt(this.x);
@@ -266,35 +315,48 @@ export class Overworld {
     return (y * this.view.ts - this.view.top) / this.view.vh;
   }
 
+  /** The map spot (in tiles) under a point on the screen, as of the last frame. */
+  toMap(px: number, py: number) {
+    return { x: (px + this.view.left) / this.view.ts, y: (py + this.view.top) / this.view.ts };
+  }
+
   /** Tile size in pixels for this screen (fights on the map zoom in from this). */
   static tileSize(vw: number, vh: number) {
     return Math.round(Math.max(32, Math.min(60, Math.min(vw, vh) / 9.5)));
   }
 
   render(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
-    const ts = (this.ts = Math.round(Overworld.tileSize(vw, vh) * this.zoom));
-    const W = this.world;
+    // Rooms are seen closer up than the map (the camera follows you across a wide one); the Garden draws you in a bit.
+    const ts = (this.ts = Math.round(Overworld.tileSize(vw, vh) * this.zoom * (this.room ? 1.25 : this.focusZoom)));
+    const W = this.map;
     const mapW = W.w * ts, mapH = W.h * ts;
     let camX = this.camX * ts - vw / 2;
     let camY = (this.camY - 0.5) * ts - vh / 2;
     camX = mapW <= vw ? (mapW - vw) / 2 : Math.max(0, Math.min(mapW - vw, camX));
     // The camera can look a little past the top and bottom of the map (the forest carries on out there), so nothing
-    // on the edge rows hides under the HUD or the buttons.
-    const overTop = ts * (OVERSCROLL.top + this.headroom), overBottom = ts * OVERSCROLL.bottom;
-    camY = mapH + overTop + overBottom <= vh ? (mapH - vh) / 2 : Math.max(-overTop, Math.min(mapH - vh + overBottom, camY));
+    // on the edge rows hides under the HUD or the buttons. A room's back wall rises above its top row.
+    const overTop = ts * (this.room ? WALL_RISE + 0.6 : OVERSCROLL.top + this.headroom), overBottom = ts * OVERSCROLL.bottom;
+    const fits = mapH + overTop + overBottom <= vh;
+    // A room sits in the middle of the screen, back wall and all.
+    if (fits) camY = this.room ? ((mapH - WALL_RISE * ts) - vh) / 2 : (mapH - vh) / 2;
+    else camY = Math.max(-overTop, Math.min(mapH - vh + overBottom, camY));
     camX = Math.round(camX);
     camY = Math.round(camY);
-    this.view = { top: camY, ts, vh };
-    this.drawScene(ctx, camX / ts, camY / ts, ts, vw, vh);
+    this.view = { left: camX, top: camY, ts, vh };
+    if (this.room) this.drawRoom(ctx, this.room, camX, camY, ts, vw, vh);
+    else this.drawScene(ctx, camX / ts, camY / ts, ts, vw, vh);
 
     ctx.save();
     ctx.translate(-camX, -camY);
-    if (this.objective && !this.quiet) this.drawObjective(ctx, camX, camY, vw, vh, ts);
+    if (this.objective && !this.quiet && !this.room) this.drawObjective(ctx, camX, camY, vw, vh, ts);
 
     // Interaction hint bubble (not while chopping or mining: the minigame's card is up)
-    const near = this.quiet || this.chopping ? null : this.nearbyObject();
+    const near = this.quiet || this.chopping || this.busyHands ? null : this.nearbyObject();
     if (near && this.alert <= 0) {
-      const bx = (near.x + near.w / 2) * ts, by = near.y * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
+      // A room's doormat says "Leave" under it, not over you standing on it.
+      // At the Garden it's over the bed you'd work on.
+      const bed = near.project === 'garden' && this.gardenBed !== null ? bedSpot(near, this.gardenBed) : null;
+      const bx = (bed ? bed.x : near.x + near.w / 2) * ts, by = (bed ? bed.y - 0.55 : near.kind === 'door' ? near.y + near.h + 0.75 : near.y) * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
       ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
       const label = this.keyHints ? `[E] ${near.label}` : near.label;
       const tw = ctx.measureText(label).width + ts * 0.4;
@@ -368,6 +430,7 @@ export class Overworld {
     if (body) items.push({ y: body.y, draw: () => this.drawBody(ctx, body, ts) });
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
+    if (this.carried) drawCarried(ctx, this.x * ts, this.y * ts, ts, this.carried.icon, this.carried.emoji, this.carried.count, this.t);
     this.fx.draw(ctx);
     this.layers?.over(ctx, ts, { x: camX, y: camY, w: vw, h: vh });
     // Feelings float above everything, so you can read them from across the screen.
@@ -376,10 +439,46 @@ export class Overworld {
       if (!emoji || a.x < x0 - 2 || a.x > x1 + 2) continue;
       drawBubble(ctx, a.x * ts, (a.y - this.actorHeight(a)) * ts, emoji, ts * 0.62, a.bubble ? a.bubble.t : 1 + this.t, a.bubble?.hold ?? Infinity);
     }
+    this.drawSpeeches(ctx, this.actors.list, ts, camX, vw);
     for (const o of W.objs) {
       if (o.hidden || !o.foes || o.x + o.w < x0 - 2 || o.x > x1 + 2) continue;
       drawBubble(ctx, (o.x + o.w / 2) * ts, (o.y + o.h / 2 - (o.boss ? 1.9 : 1.2)) * ts, o.boss ? '😠' : '❗', ts * 0.55, 1 + this.t);
     }
+    ctx.restore();
+  }
+
+  /** What people are saying, over their heads (and over their feelings), kept on screen. */
+  private drawSpeeches(ctx: CanvasRenderingContext2D, list: Actor[], ts: number, camX: number, vw: number) {
+    for (const a of list) {
+      if (!a.speech) continue;
+      const lift = this.actorHeight(a) + (a.bubble || a.mood ? 0.75 : 0);
+      drawSpeech(ctx, a.x * ts, (a.y - lift) * ts, a.speech.text, Math.max(26, ts * 0.55), a.speech.t, a.speech.hold, camX + 8, camX + vw - 8);
+    }
+  }
+
+  /**
+   * Inside a room: its floor and walls, then its stations, its people and you in depth order, then whatever floats
+   * over it all (what you're carrying, a pot's steam, people's feelings and what they say).
+   */
+  private drawRoom(ctx: CanvasRenderingContext2D, R: Room, camX: number, camY: number, ts: number, vw: number, vh: number) {
+    ctx.fillStyle = R.spec.bg;
+    ctx.fillRect(0, 0, vw, vh);
+    ctx.save();
+    ctx.translate(-camX, -camY);
+    R.painter?.floor(ctx, ts);
+    const items: { y: number; draw: () => void }[] = [];
+    for (const o of R.objs) if (!o.hidden && o.kind === 'station') items.push({ y: o.y + o.h, draw: () => R.painter?.obj(ctx, o, ts) });
+    for (const a of R.actors.list) items.push({ y: a.y, draw: () => this.drawActor(ctx, a, ts) });
+    items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
+    items.sort((a, b) => a.y - b.y);
+    for (const it of items) it.draw();
+    this.fx.draw(ctx);
+    R.painter?.over(ctx, ts);
+    for (const a of R.actors.list) {
+      const emoji = a.bubble?.emoji ?? a.mood;
+      if (emoji) drawBubble(ctx, a.x * ts, (a.y - this.actorHeight(a)) * ts, emoji, ts * 0.62, a.bubble ? a.bubble.t : 1 + this.t, a.bubble?.hold ?? Infinity);
+    }
+    this.drawSpeeches(ctx, R.actors.list, ts, camX, vw);
     ctx.restore();
   }
 
@@ -534,7 +633,7 @@ export class Overworld {
     }
     if (away) back();
     // Tall grass hides your feet — cute and tells you you're in encounter territory.
-    if (this.world.tile(Math.floor(this.x), Math.floor(this.y - 0.1)) === T.GRASS) {
+    if (this.map.tile(Math.floor(this.x), Math.floor(this.y - 0.1)) === T.GRASS) {
       const th = this.zone.theme;
       ctx.fillStyle = th.grass;
       for (let i = -2; i <= 2; i++) {
@@ -912,6 +1011,14 @@ export class Overworld {
         return this.drawTree(ctx, o, ts);
       case 'foe':
         return this.drawFoe(ctx, o, ts);
+      case 'station': {
+        // The Garden's water butt and seed basket (from the rooms' props).
+        const f = frame(o.id === 'garden:butt' ? 'room/g_butt' : 'room/g_basket');
+        const ax = (o.x + o.w / 2) * ts, ay = (o.y + o.h - 0.08) * ts;
+        shadow(ctx, ax, ay, o.w * ts * 0.55, 0.2);
+        if (f) drawFrame(ctx, f, ax, ay, (ts / TILE_BU) * 1.15);
+        return;
+      }
     }
     if (!this.drawBuilding(ctx, o, ts)) this.drawBuildingFallback(ctx, o, ts);
   }
@@ -1091,7 +1198,10 @@ export class Overworld {
         const p = o.project!;
         const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Waystone', sawmill: '🪚 Sawmill', cottage: '🏡 Guest Cottage' } as Record<string, string>)[p] ?? '';
         if (p === 'garden' && this.save.build.garden) this.drawGarden(ctx, ax, ay, ts);
-        if (p === 'garden' && gardenOpen(this.save)) this.nameTag(ctx, "🌷 Poppy's Garden", ax, top, ts);
+        if (p === 'garden' && gardenOpen(this.save)) {
+          // (Not while you're working in it: the beds need the room.)
+          if (!this.focus) this.nameTag(ctx, "🌷 Poppy's Garden", ax, top, ts);
+        }
         else if (!this.save.build[p] || p === 'home' || p === 'sawmill') this.nameTag(ctx, name, ax, top, ts);
         break;
       }
@@ -1112,6 +1222,16 @@ export class Overworld {
     for (const i of order) {
       const [bx, by] = GARDEN_BEDS[i], p = plots[i] ?? null, st = growthStage(p);
       const x = ax + bx * unit, y = ay - by * DEPTH * unit;
+      // The bed you'd work on, ringed.
+      if (this.gardenBed === i) {
+        ctx.save();
+        ctx.strokeStyle = `rgba(255,236,140,${0.75 + Math.sin(this.t * 6) * 0.2})`;
+        ctx.lineWidth = Math.max(2, ts * 0.05);
+        ctx.beginPath();
+        ctx.ellipse(x, y - ts * 0.04, 0.7 * unit, 0.36 * unit, 0, 0, TAU);
+        ctx.stroke();
+        ctx.restore();
+      }
       const soil = frame(p?.thirsty ? 'env/soil_dry' : 'env/soil');
       if (soil) drawFrame(ctx, soil, x, y, unit);
       if (!p) continue;

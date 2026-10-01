@@ -85,7 +85,7 @@ export async function loadAssets(onProgress?: (p: LoadProgress) => void, base = 
  * first frame instead of each one being fetched (or re-fetched, on a server that says not to cache) and popping in.
  */
 const iconBlobs = new Map<string, string>();
-const decodedIcons: HTMLImageElement[] = [];
+const decodedIcons = new Map<string, HTMLImageElement>();
 
 export async function preloadIcons(ids: string[], onProgress?: (p: LoadProgress) => void): Promise<void> {
   let done = 0;
@@ -98,7 +98,7 @@ export async function preloadIcons(ids: string[], onProgress?: (p: LoadProgress)
         img.src = url;
         await img.decode();
         iconBlobs.set(id, url);
-        decodedIcons.push(img);
+        decodedIcons.set(id, img);
       }
     } catch {
       // Missing or broken: that icon falls back to its emoji.
@@ -292,6 +292,11 @@ export function drawIdler(ctx: CanvasRenderingContext2D, slot: string, name: str
   if (!f) return false;
   drawFrame(ctx, f, x, y, unit, o);
   return true;
+}
+
+/** A menu icon, decoded and ready to draw on the canvas (undefined if it never loaded: draw its emoji instead). */
+export function iconImage(id: string): HTMLImageElement | undefined {
+  return decodedIcons.get(id);
 }
 
 export function iconUrl(id: string) {

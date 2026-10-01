@@ -169,6 +169,69 @@ export function takeGift(s: SaveState, now = Date.now()): number {
   return FLOWER_GIFT;
 }
 
+// ---------------------------------------------------------------- tending it by hand, on the map
+// Walk up to the Garden and work its beds yourself: seeds from Poppy's basket, water from the butt, weeds tugged out,
+// ripe crops picked. Each is exactly plant / water / pullWeeds / pick above.
+
+/**
+ * Where each plot's bed sits in the Garden's model (art/buildings/_garden.py), in Blender units from its front middle,
+ * in planting order: the middle column first, then the left, then the right (two more with each Garden level).
+ */
+export const GARDEN_BEDS: [number, number][] = [[0, 2], [0, 0.7], [-1.45, 2], [-1.45, 0.7], [1.45, 2], [1.45, 0.7]];
+/** How far the Garden's model stands back from the front of its plot (tiles), as the map draws it. */
+export const GARDEN_BACK = 0.28;
+
+/** Where bed `i` is on the map (in tiles), for the Garden plot `o`: a tile is 1.6 Blender units, depth shows at half. */
+export function bedSpot(o: { x: number; y: number; w: number; h: number }, i: number) {
+  const [bx, by] = GARDEN_BEDS[i];
+  return { x: o.x + o.w / 2 + bx / 1.6, y: o.y + o.h - GARDEN_BACK - (by * 0.5) / 1.6 };
+}
+
+/** Pours in a full watering can, and tugs it takes to get a bed's weeds out. */
+export const CAN_POURS = 3;
+export const WEED_TUGS = 3;
+
+/** What you're holding: a handful of one seed, or the watering can and how many pours are left in it. */
+export type Hand = { seed: Crop } | { can: number } | null;
+
+/** What a bed wants, given what's in your hand (the first four you can do something about). */
+export type BedJob = 'pick' | 'weed' | 'water' | 'plant' | 'thirsty' | 'empty' | 'growing';
+export const DOABLE: BedJob[] = ['pick', 'weed', 'water', 'plant'];
+
+export function bedJob(p: Plot | null, hand: Hand, s: SaveState): BedJob {
+  if (!p) return hand && 'seed' in hand && s.mats[CROPS[hand.seed].seed] > 0 ? 'plant' : 'empty';
+  if (isReady(p)) return 'pick';
+  if (p.weeds) return 'weed';
+  if (p.thirsty) return hand && 'can' in hand && hand.can > 0 ? 'water' : 'thirsty';
+  return 'growing';
+}
+
+/**
+ * The bed the action button works on from (x, y): the nearest within `reach` you can do something at, or failing
+ * that the nearest within reach (to say what it's waiting for). Null if none is in reach.
+ */
+export function targetBed(spots: { x: number; y: number }[], jobs: BedJob[], x: number, y: number, reach: number): number | null {
+  let best: number | null = null, bestD = reach, doable = false;
+  spots.forEach((b, i) => {
+    const d = Math.hypot(b.x - x, (b.y - y) * 1.6), can = DOABLE.includes(jobs[i]);
+    if (d > reach || (doable && !can)) return;
+    if ((can && !doable) || d < bestD) {
+      best = i;
+      bestD = d;
+      doable ||= can;
+    }
+  });
+  return best;
+}
+
+/** The next seed in the basket after `current` (only ones you have), or null if you've none at all. */
+export function nextSeed(s: SaveState, current: Crop | null): Crop | null {
+  const have = CROP_ORDER.filter((c) => s.mats[CROPS[c].seed] > 0);
+  if (!have.length) return null;
+  const at = current ? CROP_ORDER.indexOf(current) : -1;
+  return have.find((c) => CROP_ORDER.indexOf(c) > at) ?? have[0];
+}
+
 /** The Berry Seeds she saved for the Garden's first day, once. */
 export function takeWelcome(s: SaveState): number {
   if (!gardenOpen(s) || s.flags.includes('garden:welcome')) return 0;

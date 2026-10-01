@@ -34,6 +34,8 @@ export class Input {
   private held = new Set<Action>();
   private joy = { id: -1, ox: 0, oy: 0, x: 0, y: 0 };
   enabled = true;
+  /** Where on the screen the last tap landed (for tapping something on the map, like a Garden bed). */
+  tapAt: { x: number; y: number } | null = null;
 
   constructor(
     surface: HTMLElement,
@@ -42,6 +44,7 @@ export class Input {
   ) {
     surface.addEventListener('pointerdown', (e) => {
       if (this.enabled) this.pressed.add('tap');
+      this.tapAt = { x: e.clientX, y: e.clientY };
       if (!this.enabled || this.joy.id !== -1) return;
       this.joy = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY };
       surface.setPointerCapture?.(e.pointerId);

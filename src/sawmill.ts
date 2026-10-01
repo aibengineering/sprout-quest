@@ -82,6 +82,37 @@ export function sawCollect(s: SaveState, now = Date.now()): Partial<Record<Plank
   return got;
 }
 
+// ---------------------------------------------------------------- working the mill by hand
+// Walk in, pick up an armful from a wood's pile, carry it to the bench, and pull the lever: whatever's on the bench
+// goes to the saw (exactly sawOrder, so the queue, the timing and the planks are the same as handing logs to Bram).
+
+/** Logs you pick up from a pile at a time (hold the button to keep picking up). */
+export const ARMFUL = 5;
+
+/** Logs waiting on the bench for the lever, by wood (they're still in your bag until it's pulled). */
+export type Bench = Partial<Record<SawLog, number>>;
+export const benchTotal = (b: Bench) => Object.values(b).reduce((a, n) => a + (n ?? 0), 0);
+
+/**
+ * How many more of these logs you can pick up now: an armful at most, only what's in your bag that isn't already in
+ * your arms or on the bench, and only while the saw has room for them.
+ */
+export function canCarry(s: SaveState, log: SawLog, carrying: number, bench: Bench, now = Date.now()): number {
+  if (!sawLogs(s).includes(log)) return 0;
+  const room = SAW_MAX - sawUpdate(s, now).queue.length - benchTotal(bench) - carrying;
+  return Math.max(0, Math.min(ARMFUL, s.mats[log] - (bench[log] ?? 0) - carrying, room));
+}
+
+/** Pulls the lever: everything on the bench goes to the saw. Returns how many logs it took. */
+export function pullLever(s: SaveState, bench: Bench, now = Date.now()): number {
+  let n = 0;
+  for (const log of SAW_LOGS) {
+    n += sawOrder(s, bench[log] ?? 0, log, now);
+    delete bench[log];
+  }
+  return n;
+}
+
 /** Seconds until the next log is sawn (0 when nothing's on the bench). */
 export function nextPlankIn(s: SaveState, now = Date.now()): number {
   const w = sawUpdate(s, now);
