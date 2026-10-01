@@ -10,7 +10,7 @@ import { MEALS } from '../src/kitchen';
 import { UI, type UIHooks } from '../src/ui';
 
 const recipe = GEAR.fluffvest.recipe!;
-const before = { fluff: 24, goo: 8 };
+const before = { fluff: 72, goo: 24 };
 let win: Window;
 let root: HTMLElement;
 let now = 0, id = 0, cancelled = 0, reduced = false, hidden = false;
@@ -72,8 +72,10 @@ describe('Fluffy Vest presentation lifecycle', () => {
     await drain();
     frame(1);
     frame(221);
-    expect(root.querySelector('[data-count="fluff"]')!.textContent).toBe('21');
-    expect(root.querySelectorAll('.craft-flight')).toHaveLength(1);
+    expect(root.querySelector('[data-count="fluff"]')!.textContent).toBe('64');
+    // One contact's flight: the lead piece with the count, and a short stream of pieces behind it.
+    expect(root.querySelectorAll('.craft-flight:not(.trail)')).toHaveLength(1);
+    expect(root.querySelectorAll('.craft-flight.trail').length).toBeGreaterThan(0);
     expect(s.sounds).toEqual(['craftPull']);
     frame(741);
     expect((root.querySelector('[data-part="left-panel"]') as HTMLElement).style.opacity).toBe('1');
@@ -86,8 +88,8 @@ describe('Fluffy Vest presentation lifecycle', () => {
     frame(FLUFFY_DURATION + 1);
     expect(s.ready()).toBe(1);
     expect(s.sounds.filter((x) => x === 'treasure')).toHaveLength(1);
-    expect(root.querySelector('[data-count="fluff"]')!.textContent).toBe('12');
-    expect(root.querySelector('[data-count="goo"]')!.textContent).toBe('4');
+    expect(root.querySelector('[data-count="fluff"]')!.textContent).toBe('36');
+    expect(root.querySelector('[data-count="goo"]')!.textContent).toBe('12');
     expect(root.querySelectorAll('.craft-flight')).toHaveLength(0);
     expect(frames.size).toBe(0);
   });
@@ -178,7 +180,7 @@ describe('Fluffy Vest presentation lifecycle', () => {
 });
 
 describe('shared crafting player', () => {
-  const recipe: Recipe = { iron: 8, copper: 6, stone: 6, pine: 3 };
+  const recipe: Recipe = { iron: 24, copper: 18, stone: 18, pine: 9 };
   const materials = Object.keys(recipe) as MatId[];
   const contacts = ['solid', 'energy', 'bind', 'soft'] as const;
   const presentation: CraftPresentation = {
@@ -195,12 +197,12 @@ describe('shared crafting player', () => {
   };
 
   test('four recipe materials land independently; supports, steam and fuel follow their stages', async () => {
-    root.innerHTML = craftMarkup({ ...GEAR.ironplate, recipe }, presentation, { iron: 16, copper: 12, stone: 12, pine: 6 });
+    root.innerHTML = craftMarkup({ ...GEAR.ironplate, recipe }, presentation, { iron: 48, copper: 36, stone: 36, pine: 18 });
     expect((root.querySelector('[data-part="bench-support"]') as HTMLElement).style.opacity).toBe('1');
     expect((root.querySelector('[data-part="steam"]') as HTMLElement).style.opacity).not.toBe('1');
     let ready = 0;
     const sounds: string[] = [];
-    const controller = playCraft(root, presentation, recipe, { iron: 16, copper: 12, stone: 12, pine: 6 }, (s) => sounds.push(s), () => ready++);
+    const controller = playCraft(root, presentation, recipe, { iron: 48, copper: 36, stone: 36, pine: 18 }, (s) => sounds.push(s), () => ready++);
     controllers.push(controller);
     await drain();
     frame(0); frame(1520);

@@ -93,9 +93,9 @@ describe('copper and spore weapon ingredient art', () => {
   }
 
   test('ingredient-led shapes retain the actual copper/spore recipes', () => {
-    expect(GEAR.coppersword.recipe).toEqual({ copper: 4, bark: 3 });
-    expect(GEAR.copperhammer.recipe).toEqual({ copper: 5, pine: 3 });
-    expect(GEAR.sporewhip.recipe).toEqual({ cap: 6, fang: 2 });
-    expect(GEAR.sporewand.recipe).toEqual({ cap: 5, fang: 3 });
+    expect(GEAR.coppersword.recipe).toEqual({ copper: 12, bark: 9 });
+    expect(GEAR.copperhammer.recipe).toEqual({ copper: 15, pine: 9 });
+    expect(GEAR.sporewhip.recipe).toEqual({ cap: 18, fang: 4 });
+    expect(GEAR.sporewand.recipe).toEqual({ cap: 15, fang: 6 });
   });
 });

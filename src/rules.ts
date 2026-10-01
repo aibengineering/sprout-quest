@@ -372,15 +372,17 @@ export function revealed(s: SaveState): Set<string> {
 export interface GatherReward { drops: Partial<Record<MatId, number>>; xp: number; levels: number }
 
 /**
- * Fells a tree or breaks a rock: pays out its material (+1 for a flawless job, +1 ore on Rock Candy), a grass node's
+ * Fells a tree or breaks a rock: pays out its material (a handful more for a flawless job, and on Rock Candy), a grass node's
  * rare find, maybe a seed for the Garden, skill XP, and starts regrowth.
  */
 export function harvest(s: SaveState, kind: NodeKind, nodeId: string, grass: boolean, flawless: boolean, rng: Rng = Math.random, now = Date.now()): GatherReward {
   const n = NODES[kind];
   const spot = grass ? n.grass : n.safe;
   // Rock Candy (Pip's, from Granny's kitchen) gets an extra ore out of every rock.
-  const drops: Partial<Record<MatId, number>> = { [n.mat]: spot.yield + (flawless ? 1 : 0) + (n.skill === 'mine' ? oreBoost(s) : 0) };
-  if (grass && rng() < n.grass.rare.chance) drops[n.grass.rare.mat] = (drops[n.grass.rare.mat] ?? 0) + 1;
+  // A flawless job, and Rock Candy on a rock, each add one more handful (a node on open ground's yield).
+  const handful = n.safe.yield;
+  const drops: Partial<Record<MatId, number>> = { [n.mat]: spot.yield + (flawless ? handful : 0) + (n.skill === 'mine' ? oreBoost(s) * handful : 0) };
+  if (grass && rng() < n.grass.rare.chance) drops[n.grass.rare.mat] = (drops[n.grass.rare.mat] ?? 0) + n.grass.rare.n;
   // Oaks and pines can drop a seed for Poppy's Garden, once it's hers.
   if (n.seed && gardenOpen(s) && rng() < n.seed.chance) drops[n.seed.mat] = (drops[n.seed.mat] ?? 0) + 1;
   mergeDrops(s.mats, drops);

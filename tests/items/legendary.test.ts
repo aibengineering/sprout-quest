@@ -13,10 +13,10 @@ import type { CraftPresentation } from '../../src/crafting/types';
 
 const ids = ['emberblade', 'wyrmbreaker', 'dragontail', 'wyrmfire'] as const;
 const recipes = {
-  emberblade: { ember: 8, horn: 4, crystal: 4, iron: 4 },
-  wyrmbreaker: { scale: 3, ember: 6, crystal: 4, iron: 6 },
-  dragontail: { scale: 3, ember: 6, horn: 4, emberwood: 2 },
-  wyrmfire: { scale: 2, horn: 4, ember: 6, crystal: 3 },
+  emberblade: { ember: 24, horn: 8, crystal: 8, iron: 12 },
+  wyrmbreaker: { scale: 3, ember: 18, crystal: 8, iron: 18 },
+  dragontail: { scale: 3, ember: 18, horn: 8, emberwood: 6 },
+  wyrmfire: { scale: 2, horn: 8, ember: 18, crystal: 6 },
 };
 
 describe('legendary weapon ingredient art', () => {

@@ -6,7 +6,7 @@ import { MOVESETS, comboDps, openingBurst, skillRank, skillShape, stepTime, stri
 import { GENTLE_ATK, MONSTER_HP, calcDamage, CATCH_UP, MASTERY_MAX, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, xpEdge, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
-import { LOGS_PER_PLANK, SAW, type SawLog } from './sawmill';
+import { PLANKS_PER_LOG, SAW, type SawLog } from './sawmill';
 import { CROPS, FLOWER_GIFT, GIFT_SECONDS, PLOTS_BY_LEVEL, THIRST_CHANCE, WEED_CHANCE, WEED_SLOW, type Crop } from './garden';
 
 export type Range = [min: number, max: number];
@@ -197,7 +197,7 @@ export function chopSeconds(kind: NodeKind, toolTier: number): number {
 const SAFE_TRIP = 8;
 /** Wading out to a tree in the grass and back, including about half a fight on the way. */
 const GRASS_TRIP = 20;
-/** Share of chops that are flawless (+1 wood). */
+/** Share of chops that are flawless (each adds a handful: a safe node's yield). */
 const FLAWLESS = 0.5;
 
 export interface Farm {
@@ -214,13 +214,13 @@ export interface Farm {
 
 export function totalDemand(): Partial<Record<MatId, number>> {
   const out: Partial<Record<MatId, number>> = {};
-  // Planks are sawn from logs at Bram's Sawmill (the sawing itself happens while you're away): each plank from two
-  // logs of its own wood.
+  // Planks are sawn from logs at Bram's Sawmill (the sawing itself happens while you're away): a couple from each log of
+  // their own wood.
   const logOf = Object.fromEntries((Object.entries(SAW) as [SawLog, { plank: MatId }][]).map(([log, v]) => [v.plank, log])) as Partial<Record<MatId, SawLog>>;
   const add = (r: Recipe) => {
     for (const [m, n] of Object.entries(r) as [MatId, number][]) {
       const log = logOf[m];
-      if (log) out[log] = (out[log] ?? 0) + n * LOGS_PER_PLANK;
+      if (log) out[log] = (out[log] ?? 0) + n / PLANKS_PER_LOG;
       else out[m] = (out[m] ?? 0) + n;
     }
   };
@@ -269,7 +269,7 @@ export function gatherPerSecond(mat: MatId): Partial<Record<ZoneId, number>> {
   for (const [kind, n] of Object.entries(NODES) as [NodeKind, (typeof NODES)[NodeKind]][]) {
     if (n.mat !== mat) continue;
     for (const [zone, spawns] of Object.entries(NODE_SPAWNS) as [ZoneId, { kind: NodeKind }[]][]) {
-      if (spawns.some((sp) => sp.kind === kind)) out[zone] = (out[zone] ?? 0) + chopRate(zone, kind, (sp) => sp.yield + FLAWLESS);
+      if (spawns.some((sp) => sp.kind === kind)) out[zone] = (out[zone] ?? 0) + chopRate(zone, kind, (sp) => sp.yield + FLAWLESS * NODES[kind].safe.yield);
     }
   }
   return out;
@@ -300,7 +300,7 @@ export function gardenPlotsFor(crop: Crop): number {
 function seedAt(crop: Crop, k: number): number {
   if (crop === 'flower') return Math.floor(k / FLOWER_GIFT) * GIFT_SECONDS;
   const tree = Object.values(NODES).find((n) => n.seed?.mat === CROPS[crop].seed)!;
-  const rate = Math.max(...Object.values(gatherPerSecond(tree.mat))) / (tree.grass.yield + FLAWLESS) * tree.seed!.chance;
+  const rate = Math.max(...Object.values(gatherPerSecond(tree.mat))) / (tree.grass.yield + FLAWLESS * tree.safe.yield) * tree.seed!.chance;
   return (k + 1) / rate;
 }
 

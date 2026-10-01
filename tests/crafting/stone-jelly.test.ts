@@ -10,8 +10,8 @@ import jellywand from '../../src/crafting/items/jellywand';
 const presentations = { stonesword, stonehammer, jellywhip, jellywand };
 
 const recipes = {
-  stonesword: { stone: 4, bark: 2 }, stonehammer: { stone: 5, bark: 2 },
-  jellywhip: { goo: 6, fluff: 2 }, jellywand: { goo: 5, fluff: 3 },
+  stonesword: { stone: 12, bark: 6 }, stonehammer: { stone: 15, bark: 6 },
+  jellywhip: { goo: 18, fluff: 6 }, jellywand: { goo: 15, fluff: 9 },
 };
 
 describe('ingredient-led meadow weapons', () => {

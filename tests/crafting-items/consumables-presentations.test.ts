@@ -80,7 +80,7 @@ describe('recipe-faithful potion and Kitchen timelines', () => {
     for (const item of POTION_RECIPES) {
       const save = newState();
       save.potions = 0;
-      Object.assign(save.mats, { goo: 50, fluff: 50, cap: 50, ember: 50, herb: 50 });
+      Object.assign(save.mats, { goo: 150, fluff: 150, cap: 150, ember: 150, herb: 100 });
       const before = { ...save.mats };
       expect(craftPotion(save, item.id)).toBe('ok');
       expect(save.potions).toBe(1);
@@ -90,7 +90,7 @@ describe('recipe-faithful potion and Kitchen timelines', () => {
       const save = newState();
       save.stories.poppy = 6;
       save.flags.push('bram:stew', 'pip:candy', 'garden:berries');
-      Object.assign(save.mats, { goo: 50, fluff: 50, clover: 50, pine: 50, cap: 50, stone: 50, copper: 50, berry: 50 });
+      Object.assign(save.mats, { goo: 150, fluff: 150, clover: 50, pine: 150, cap: 150, stone: 150, copper: 150, berry: 100 });
       const before = { ...save.mats };
       expect(cook(save, id)).toBe('ok');
       expect(save.meal).toEqual({ id, left: MEALS[id].seconds });

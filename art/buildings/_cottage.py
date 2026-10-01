@@ -25,7 +25,7 @@ def build(root, level=1):
     box((0, 0, 0.12), (w, d, 0.24), toon('#8a8a98'), footing, bevel=0.06, line=0)
     box((0.25, front - 0.12, 0.26), (0.66, 0.12, 0.08), toon('#8a8a98'), footing, bevel=0.03, line=0.01)
     # Pine: the corner posts.
-    frame = P('pine-frame')
+    frame = P('oak-frame')
     for x in (-w / 2, w / 2):
         box((x, front, 0.9), (0.16, 0.16, 1.3), toon('#9a6a44'), frame, bevel=0.03, line=0.01)
     # The Oak Plank: board after board of wall in two shades, the round green door, and a window with its flower box.
@@ -43,7 +43,7 @@ def build(root, level=1):
     for k, col in enumerate(('#ff8ab0', '#ffd35a', '#ffffff', '#ff8ab0')):
         sphere((-0.76 + k * 0.14, front - 0.16, 0.87), 0.065, toon(col), walls, line=0.008)
     # Pine again: a steep roof with dark eaves, and a little round attic window in the gable.
-    roof = P('pine-roof')
+    roof = P('plank-roof')
     profile([(-w / 2 - 0.3, 1.5), (0, 2.65), (w / 2 + 0.3, 1.5)], d + 0.5, toon('#d8664a'), roof, bevel=0.08)
     for side in (-1, 1):
         box((side * (w / 4 + 0.15), front - 0.27, 2.09), (w / 2 + 0.55, 0.08, 0.12), toon('#8a5a3a'), roof,

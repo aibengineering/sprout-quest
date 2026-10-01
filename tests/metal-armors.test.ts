@@ -6,7 +6,7 @@ import ironplate from '../src/crafting/items/ironplate';
 import crystalmail from '../src/crafting/items/crystalmail';
 
 const armors = ['coppermail', 'ironplate', 'crystalmail'] as const;
-const recipes = { coppermail: { copper: 12, stone: 8 }, ironplate: { iron: 8, copper: 6, stone: 6, pine: 3 }, crystalmail: { crystal: 14, iron: 4, stone: 6 } };
+const recipes = { coppermail: { copper: 36, stone: 24 }, ironplate: { iron: 24, copper: 18, stone: 18, pine: 9 }, crystalmail: { crystal: 28, iron: 12, stone: 18 } };
 const presentations = [coppermail, ironplate, crystalmail];
 
 describe('ingredient-led ore armor assets', () => {

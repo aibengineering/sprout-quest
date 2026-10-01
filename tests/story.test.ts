@@ -21,7 +21,7 @@ describe('story', () => {
     expect(currentQuest(s)!.id).toBe('meadow');
     // Trip one: monster drops. Defeating monsters or holding the materials isn't enough: the tools must be mended.
     recordKills(s, 'meadow', 3);
-    Object.assign(s.mats, { goo: 4, fluff: 3 });
+    Object.assign(s.mats, { goo: 12, fluff: 9 });
     expect(advanceQuests(s)).toHaveLength(0);
     expect(craftTool(s, 'axe1')).toBe('ok');
     expect(advanceQuests(s)).toHaveLength(0);
@@ -30,7 +30,7 @@ describe('story', () => {
     expect(currentQuest(s)!.id).toBe('repair');
     // Trip two: the forge is stone and wood (and a little goo for the bellows).
     expect(build(s, 'forge')).toBe('missing');
-    Object.assign(s.mats, { stone: 4, bark: 3, goo: 2 });
+    Object.assign(s.mats, { stone: 12, bark: 9, goo: 6 });
     expect(build(s, 'forge')).toBe('ok');
     expect(advanceQuests(s).map((q) => q.id)).toEqual(['repair']);
     expect(currentQuest(s)!.id).toBe('gear');
@@ -55,7 +55,7 @@ describe('village', () => {
   test('building spends materials, levels up and grants perks', () => {
     const s = newState();
     expect(canBuild(s, 'home')).toBe('missing');
-    Object.assign(s.mats, { goo: 20, fluff: 20, bark: 20, stone: 20, copper: 20, clover: 5, royaljelly: 1, fang: 10 });
+    Object.assign(s.mats, { goo: 60, fluff: 60, bark: 60, stone: 60, copper: 60, clover: 5, royaljelly: 1, fang: 20 });
     const hp = playerStats(s).maxHp, atk = playerStats(s).atk;
     expect(build(s, 'home')).toBe('ok');
     expect(s.build.home).toBe(2);
@@ -183,7 +183,7 @@ describe('onboarding unlocks', () => {
     advanceQuests(s);
     s.flags.push('oldtools');
     expect(ids()).toEqual(['journal']); // arriving in the village
-    Object.assign(s.mats, { goo: 4, fluff: 3 });
+    Object.assign(s.mats, { goo: 12, fluff: 9 });
     s.wins = 3;
     expect(ids()).toEqual(['mend']); // enough to mend a tool
     s.mastery.sword.lv = 2;
@@ -203,6 +203,6 @@ test('the first trip is monster drops for mending the tools; the forge is then b
   expect(Object.keys(PROJECTS.forge.levels[0].cost)).toEqual(expect.arrayContaining(['stone', 'bark']));
   // You can't craft a stone axe from nothing: the first axe and pick are Elder Oswin's, mended.
   const s = newState();
-  Object.assign(s.mats, { goo: 9, fluff: 9 });
+  Object.assign(s.mats, { goo: 27, fluff: 27 });
   expect(craftTool(s, 'axe1')).toBe('unknown');
 });

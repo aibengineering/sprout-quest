@@ -7,9 +7,9 @@ import dragonmail from '../src/crafting/items/dragonmail';
 const presentations = { magmamail, dragonmail };
 
 const expected = {
-  magmamail: { recipe: { ember: 14, horn: 4, crystal: 6, iron: 4 }, def: 24, hp: 34,
+  magmamail: { recipe: { ember: 42, horn: 8, crystal: 12, iron: 12 }, def: 24, hp: 34,
     parts: ['iron-shell', 'ember-seams', 'left-horns', 'right-horns', 'crystal-clasps'] },
-  dragonmail: { recipe: { scale: 4, ember: 8, crystal: 6, iron: 6 }, def: 30, hp: 50,
+  dragonmail: { recipe: { scale: 4, ember: 24, crystal: 12, iron: 18 }, def: 30, hp: 50,
     parts: ['iron-shell', 'back-scales', 'front-scales', 'left-mantle', 'right-mantle', 'ember-seams', 'crystal-clasps'] },
 };
 

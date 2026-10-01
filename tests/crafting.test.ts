@@ -7,7 +7,7 @@ import { newState } from '../src/state';
 
 describe('Fluffy Vest crafting', () => {
   test('bundles account for exactly the recipe, even if its quantities change', () => {
-    for (const recipe of [GEAR.fluffvest.recipe!, { fluff: 1, goo: 1 }, { fluff: 17, goo: 7 }, { fluff: 0, goo: 0 }]) {
+    for (const recipe of [GEAR.fluffvest.recipe!, { fluff: 3, goo: 3 }, { fluff: 51, goo: 21 }, { fluff: 0, goo: 0 }]) {
       const flights = fluffyFlights(recipe);
       for (const material of ['fluff', 'goo'] as const) expect(flights.filter((f) => f.material === material).reduce((n, f) => n + f.count, 0)).toBe(recipe[material] ?? 0);
       for (const f of flights) {
@@ -34,15 +34,15 @@ describe('Fluffy Vest crafting', () => {
     const s = newState();
     s.lv = 4;
     s.build.forge = 1;
-    Object.assign(s.mats, { fluff: 24, goo: 8 });
+    Object.assign(s.mats, { fluff: 72, goo: 24 });
     expect(craftGear(s, 'fluffvest')).toBe('ok');
-    expect(s.mats.fluff).toBe(12);
-    expect(s.mats.goo).toBe(4);
+    expect(s.mats.fluff).toBe(36);
+    expect(s.mats.goo).toBe(12);
     expect(s.equip.armor).toBe('tunic');
     expect(craftGear(s, 'fluffvest')).toBe('owned');
     expect(s.owned.filter((id) => id === 'fluffvest')).toHaveLength(1);
     expect(equip(s, 'fluffvest')).toBe(true);
-    expect(s.mats.fluff).toBe(12);
-    expect(s.mats.goo).toBe(4);
+    expect(s.mats.fluff).toBe(36);
+    expect(s.mats.goo).toBe(12);
   });
 });

@@ -919,7 +919,7 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   await playUntil('home in Sowerby', async () => (await step()) === 7 && (await game<string>(page, 'g.mode')) === 'world');
   check(await game<boolean>(page, `g.save.flags.includes('bram:home') && !g.over.world.objs.find((o) => o.project === 'sawmill').hidden`), 'no Sawmill plot');
   // Build the Sawmill from the village plans.
-  await run(page, `Object.assign(g.save.mats, { pine: 8, stone: 8, copper: 4, bark: 20 }); const o = g.over.world.objs.find((o) => o.project === 'sawmill'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5)`);
+  await run(page, `Object.assign(g.save.mats, { pine: 24, stone: 24, copper: 12, bark: 60 }); const o = g.over.world.objs.find((o) => o.project === 'sawmill'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5)`);
   await page.waitForTimeout(400);
   await page.keyboard.press('KeyE');
   await waitFor(page, 'the plans', async () => !!(await page.$('#modal:not([hidden]) [data-build="sawmill"]:not([disabled])')));
@@ -931,17 +931,17 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   await page.waitForTimeout(400);
   if (await page.$('#modal:not([hidden]) .sheet.menu')) await page.keyboard.press('Escape');
   await playUntil('the Sawmill', async () => (await step()) === 8 && (await game<string>(page, 'g.mode')) === 'world');
-  // Saw six planks (the clock wound on, rather than waiting three minutes), take them, and bring them to Bram.
+  // Saw the cabin's planks (25 logs, the clock wound on rather than waiting), take them, and bring them to Bram.
   await talk('bram:bram');
-  await waitFor(page, 'the bench', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:5:bark"]')));
+  await waitFor(page, 'the bench', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:20:bark"]')));
+  await page.click('[data-dialog="saw:20:bark"]');
+  await waitFor(page, 'saw five more', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:5:bark"]:not([disabled])')));
   await page.click('[data-dialog="saw:5:bark"]');
-  await waitFor(page, 'saw one more', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:1:bark"]')));
-  await page.click('[data-dialog="saw:1:bark"]');
   await page.waitForTimeout(300);
   await page.click('[data-dialog="close"]');
   await page.waitForTimeout(300);
-  check(await game<number>(page, 'g.save.sawmill.queue.length') === 6 && await game<number>(page, 'g.save.mats.bark') === 8, 'the logs did not go to the saw');
-  await run(page, 'g.save.sawmill.since -= 6 * 30000');
+  check(await game<number>(page, 'g.save.sawmill.queue.length') === 25 && await game<number>(page, 'g.save.mats.bark') === 35, 'the logs did not go to the saw');
+  await run(page, 'g.save.sawmill.since -= 25 * 5000');
   await page.keyboard.press('KeyE');
   await waitFor(page, 'planks ready', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="collect"]')), 8000).catch(async () => {
     await page.click('#modal [data-dialog="close"]').catch(() => {});
@@ -951,14 +951,14 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   await page.click('[data-dialog="collect"]');
   await page.waitForTimeout(300);
   await page.click('[data-dialog="close"]');
-  check(await game<number>(page, 'g.save.mats.plank') === 6, 'the planks did not reach your bag');
+  check(await game<number>(page, 'g.save.mats.plank') === 50, 'the planks did not reach your bag');
   await page.waitForTimeout(400);
   await talk('bram:bram');
   await playUntil('the cabin', async () => (await step()) === 9 && (await game<string>(page, 'g.mode')) === 'world');
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'bramhut').hidden && g.save.flags.includes('bram:stew')`), 'no cabin, or no stew');
 });
 
-scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra ore out of a rock", (g) => {
+scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra handful of ore out of a rock", (g) => {
   const s = g.save;
   s.lv = 6;
   s.bosses.push('kingslime');
@@ -970,7 +970,7 @@ scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra ore
   s.flags.push('poppy:returned', 'bram:pie', 'bram:met', 'bram:home', 'bram:hut', 'bram:stew');
   s.build.sawmill = 1;
   s.tools = { wood: 2, mine: 1 };
-  Object.assign(s.mats, { plank: 1, pine: 8, stone: 12, copper: 6 });
+  Object.assign(s.mats, { bark: 12, plank: 32, stone: 36, copper: 18 });
   s.pos = { x: 35.9, y: 6.7 };
 }, async (page) => {
   const said: string[] = [];
@@ -1022,7 +1022,7 @@ scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra ore
   await waitFor(page, 'Rock Candy on the menu', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="cook:rockcandy"]:not([disabled])')));
   await page.click('[data-dialog="cook:rockcandy"]');
   await playUntil('Rock Candy eaten', async () => (await game<boolean>(page, `g.save.meal?.id === 'rockcandy' && g.mode === 'world'`)) && !(await page.$('#modal:not([hidden])')));
-  check(JSON.stringify(await mats()) === JSON.stringify([cost[0] - 4, cost[1] - 2]), 'Rock Candy did not cost 4 stone and 2 copper');
+  check(JSON.stringify(await mats()) === JSON.stringify([cost[0] - 12, cost[1] - 6]), 'Rock Candy did not cost 12 stone and 6 copper');
   // Out to a meadow rock: one miss (so it isn't flawless), then clean strikes until it breaks.
   const placed = await game<boolean>(page, `(() => {
     const o = g.over, w = o.world;
@@ -1051,7 +1051,7 @@ scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra ore
   }
   await waitFor(page, 'the rock to break', async () => (await game<string>(page, 'g.mode')) !== 'gather', 5000);
   const gained = (await game<number>(page, 'g.save.mats.stone')) - before;
-  check(gained === NODES.rock.safe.yield + 1, `a rock on Rock Candy gave ${gained} stone, not ${NODES.rock.safe.yield} + 1`);
+  check(gained === NODES.rock.safe.yield * 2, `a rock on Rock Candy gave ${gained} stone, not a handful (${NODES.rock.safe.yield}) more`);
   await closeDialogs(page);
 });
 
@@ -1061,7 +1061,7 @@ scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Grann
   s.stories.poppy = 6;
   s.flags.push('poppy:returned');
   s.build.garden = 2;
-  Object.assign(s.mats, { herbseed: 1, fluff: 2 });
+  Object.assign(s.mats, { herbseed: 1, fluff: 6 });
   s.pos = { x: 24.7, y: 20.8 };
 }, async (page) => {
   const panel = () => page.$('#modal:not([hidden]) .sheet.garden');
@@ -1099,7 +1099,7 @@ scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Grann
   await click('.btns [data-dialog="pickall"]');
   await waitFor(page, 'the new recipe', async () => ((await page.textContent('#modal:not([hidden]) .sheet').catch(() => '')) ?? '').includes('Berry Tart'));
   await closeDialogs(page, 1);
-  check(await game<boolean>(page, `g.save.mats.berry === 6 && g.save.mats.herb === 2 && g.save.flags.includes('garden:berries')`), 'the harvest did not reach your bag');
+  check(await game<boolean>(page, `g.save.mats.berry === 12 && g.save.mats.herb === 4 && g.save.flags.includes('garden:berries')`), 'the harvest did not reach your bag');
   await waitFor(page, 'back at the Garden', async () => !!(await panel()));
   await click('.btns [data-dialog="close"]');
   // Granny bakes it: +10% max HP.
@@ -1108,7 +1108,7 @@ scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Grann
   await click('[data-dialog="cook:tart"]');
   await waitFor(page, 'the tart', async () => game<boolean>(page, `g.save.meal?.id === 'tart'`));
   await closeDialogs(page);
-  check(await game<boolean>(page, `g.save.mats.berry === 2 && g.save.mats.fluff === 0`), 'the tart did not cost 4 Berries and 2 Bunny Fluff');
+  check(await game<boolean>(page, `g.save.mats.berry === 4 && g.save.mats.fluff === 0`), 'the tart did not cost 8 Berries and 6 Bunny Fluff');
   check(await game<number>(page, 'g.save.hp') > before, 'the tart should raise your health');
 });
 
@@ -1386,7 +1386,7 @@ const fluffySeed = (g: any) => {
   g.save.build.forge = 1;
   g.save.equip.armor = 'tunic';
   g.save.owned = g.save.owned.filter((id: string) => id !== 'fluffvest');
-  Object.assign(g.save.mats, { fluff: 24, goo: 12 });
+  Object.assign(g.save.mats, { fluff: 72, goo: 36 });
 };
 async function openFluffyCraft(page: Page) {
   const selectRecipe = async (id: string) => {
@@ -1411,18 +1411,18 @@ async function openFluffyCraft(page: Page) {
 scenario('Fluffy crafting assembles from the bag then equips, with one saved transaction', fluffySeed, async (page) => {
   await openFluffyCraft(page);
   check(await game(page, `g.save.owned.filter((id) => id === 'fluffvest').length`) === 1, 'craft did not grant one vest');
-  check(await game(page, `g.save.mats.fluff`) === 12 && await game(page, `g.save.mats.goo`) === 8, 'wrong recipe charge');
+  check(await game(page, `g.save.mats.fluff`) === 36 && await game(page, `g.save.mats.goo`) === 24, 'wrong recipe charge');
   check(await game(page, `JSON.parse(localStorage.getItem('sprout-quest-save')).owned.includes('fluffvest')`), 'craft was not saved before animation');
   check(!await page.locator('[data-dialog="equip"]').isVisible(), 'equip offered before assembly');
   await page.waitForSelector('.craft-flight');
   if (SHOTS) await page.screenshot({ path: `${OUT}fluffy-flight.png` });
   await page.waitForSelector('.craft-ready', { timeout: 8000 });
-  check(await page.textContent('[data-count="fluff"]') === '12', 'bag display did not end at real inventory count');
-  check(await page.textContent('[data-count="goo"]') === '8', 'goo display did not end at real inventory count');
+  check(await page.textContent('[data-count="fluff"]') === '36', 'bag display did not end at real inventory count');
+  check(await page.textContent('[data-count="goo"]') === '24', 'goo display did not end at real inventory count');
   if (SHOTS) await page.screenshot({ path: `${OUT}fluffy-complete.png` });
   await page.click('[data-dialog="equip"]');
   await waitFor(page, 'equipped vest', async () => await game(page, `g.save.equip.armor`) === 'fluffvest');
-  check(await game(page, `g.save.mats.fluff`) === 12, 'equip charged the recipe again');
+  check(await game(page, `g.save.mats.fluff`) === 36, 'equip charged the recipe again');
 });
 
 scenario('Fluffy crafting skips safely, ignores repeated craft requests, and keeps the vest', fluffySeed, async (page) => {
@@ -1437,7 +1437,7 @@ scenario('Fluffy crafting skips safely, ignores repeated craft requests, and kee
   await page.waitForTimeout(3500);
   check(await game(page, `g.save.equip.armor`) === 'tunic', 'keep unexpectedly equipped');
   check(await game(page, `g.save.owned.filter((id) => id === 'fluffvest').length`) === 1, 'duplicate ownership');
-  check(await game(page, `g.save.mats.fluff`) === 12 && await game(page, `g.save.mats.goo`) === 8, 'double craft spent twice');
+  check(await game(page, `g.save.mats.fluff`) === 36 && await game(page, `g.save.mats.goo`) === 24, 'double craft spent twice');
   check(await page.locator('.craft-flight').count() === 0, 'leftover ingredient animation');
 });
 
@@ -1465,14 +1465,14 @@ scenario('Fluffy crafting survives reloading during assembly', fluffySeed, async
   await page.waitForTimeout(1500);
   await closeDialogs(page);
   check(await game(page, `g.save.owned.includes('fluffvest')`), 'reload lost crafted vest');
-  check(await game(page, `g.save.mats.fluff`) === 12 && await game(page, `g.save.mats.goo`) === 8, 'reload changed charged materials');
+  check(await game(page, `g.save.mats.fluff`) === 36 && await game(page, `g.save.mats.goo`) === 24, 'reload changed charged materials');
   check(await game(page, `g.save.equip.armor`) === 'tunic', 'reload chose equip without player choice');
 });
 
 // Village building plays the crafting scene: the Cottage rises from stone, oak and a clover.
 const cottageSeed = (g: any) => {
   g.save.build.home = 1;
-  Object.assign(g.save.mats, { bark: 10, stone: 4, clover: 2 });
+  Object.assign(g.save.mats, { bark: 30, stone: 12, clover: 2 });
 };
 async function buildFromPlot(page: Page, project: string) {
   await run(page, `const o = g.over.world.objs.find((o) => o.kind === 'plot' && o.project === '${project}'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.6)`);
@@ -1489,7 +1489,7 @@ scenario('building the Cottage raises it from its materials, and the house on th
   await buildFromPlot(page, 'home');
   check(await game(page, `g.save.build.home`) === 2, 'the Cottage was not built');
   check(await game(page, `JSON.parse(localStorage.getItem('sprout-quest-save')).build.home`) === 2, 'the build was not saved before the scene');
-  check(await game(page, `g.save.mats.bark`) === 2 && await game(page, `g.save.mats.stone`) === 0 && await game(page, `g.save.mats.clover`) === 1, 'wrong cost charged');
+  check(await game(page, `g.save.mats.bark`) === 6 && await game(page, `g.save.mats.stone`) === 0 && await game(page, `g.save.mats.clover`) === 1, 'wrong cost charged');
   check(await homeSprite(page) === 'home2', 'the map still shows the tent behind the scene');
   check(await page.locator('.craft-part').count() === 6, 'the Cottage should rise in six layers');
   check(!await page.locator('[data-dialog="ok"]').isVisible(), 'the button showed before the building rose');
@@ -1497,7 +1497,7 @@ scenario('building the Cottage raises it from its materials, and the house on th
   if (SHOTS) await page.screenshot({ path: `${OUT}cottage-rising.png` });
   await page.waitForSelector('.craft-ready', { timeout: 10000 });
   check(await page.textContent('.craft-eyebrow') === 'BUILT BY YOU', 'the finished building is not marked built');
-  check(await page.textContent('[data-count="bark"]') === '2' && await page.textContent('[data-count="stone"]') === '0', 'the bag display did not end at the real counts');
+  check(await page.textContent('[data-count="bark"]') === '6' && await page.textContent('[data-count="stone"]') === '0', 'the bag display did not end at the real counts');
   check(await page.locator('.craft-part[style*="opacity: 1"]').count() === 6, 'not every layer of the Cottage is showing');
   if (SHOTS) await page.screenshot({ path: `${OUT}cottage-built.png` });
   await page.click('[data-dialog="ok"]');
@@ -1508,12 +1508,12 @@ scenario('building the Cottage raises it from its materials, and the house on th
     if (await page.$('#modal:not([hidden]) .sheet.menu')) await page.keyboard.press('Escape');
     return game<boolean>(page, `g.mode === 'world'`);
   }, 8000);
-  check(await game(page, `g.save.build.home`) === 2 && await game(page, `g.save.mats.bark`) === 2, 'the scene changed the build or the bag');
+  check(await game(page, `g.save.build.home`) === 2 && await game(page, `g.save.mats.bark`) === 6, 'the scene changed the build or the bag');
 });
 
 scenario('building skips safely, ignores a second build request, and respects reduced motion on a small phone', (g) => {
   g.save.build.home = 1;
-  Object.assign(g.save.mats, { bark: 30, stone: 12, clover: 3, royaljelly: 1, copper: 4 });
+  Object.assign(g.save.mats, { bark: 90, stone: 36, clover: 3, royaljelly: 1, copper: 12 });
 }, async (page) => {
   await buildFromPlot(page, 'home');
   // A second tap while the first scene plays does nothing: no Smithy, nothing spent twice.
@@ -1522,7 +1522,7 @@ scenario('building skips safely, ignores a second build request, and respects re
   await page.waitForSelector('.craft-ready');
   check(await page.locator('.craft-flight').count() === 0, 'leftover material flights after skipping');
   check(await game(page, `g.save.build.forge`) === 1 && await game(page, `g.save.build.home`) === 2, 'a second build raced the scene');
-  check(await game(page, `g.save.mats.bark`) === 22, 'a build was charged twice');
+  check(await game(page, `g.save.mats.bark`) === 66, 'a build was charged twice');
   await page.click('[data-dialog="ok"]');
   await closeDialogs(page);
   if (await page.$('#modal:not([hidden]) .sheet.menu')) await page.keyboard.press('Escape');

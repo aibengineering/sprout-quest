@@ -83,7 +83,7 @@ describe('woodcutting rules', () => {
     const s = newState();
     expect(canGather(s, 'oak', 'x', 0)).toBe('tool');
     s.flags.push('oldtools');
-    Object.assign(s.mats, { goo: 3, fluff: 2 });
+    Object.assign(s.mats, { goo: 9, fluff: 6 });
     expect(craftTool(s, 'axe1')).toBe('ok');
     expect(craftTool(s, 'axe1')).toBe('owned');
     expect(canGather(s, 'oak', 'x', 0)).toBe('ok');
@@ -91,8 +91,9 @@ describe('woodcutting rules', () => {
     expect(canGather(s, 'pine', 'y', 0)).toBe('ok');
     expect(toolPower(1, NODES.pine.tier)).toBeLessThan(toolPower(1, NODES.oak.tier));
     const r = harvest(s, 'oak', 'x', true, true, () => 1, 0);
-    expect(r.drops.bark).toBe(NODES.oak.grass.yield + 1);
-    expect(s.mats.bark).toBe(NODES.oak.grass.yield + 1);
+    // A flawless chop adds a handful (an open-ground oak's yield).
+    expect(r.drops.bark).toBe(NODES.oak.grass.yield + NODES.oak.safe.yield);
+    expect(s.mats.bark).toBe(NODES.oak.grass.yield + NODES.oak.safe.yield);
     expect(s.skills.wood.xp).toBe(NODES.oak.grass.xp);
     expect(canGather(s, 'oak', 'x', 1000)).toBe('regrowing');
     expect(canGather(s, 'oak', 'x', NODES.oak.grass.regrow * 1000)).toBe('ok');
@@ -120,7 +121,7 @@ describe('woodcutting rules', () => {
 
   test('each pick mines its own tier quickly and the next tier up slowly, and is made from the tier below it', () => {
     const s = newState();
-    Object.assign(s.mats, { goo: 9, fluff: 9, stone: 20, bark: 20, pine: 20, fang: 9, copper: 20, iron: 20, crystal: 20 });
+    Object.assign(s.mats, { goo: 27, fluff: 27, stone: 60, bark: 60, pine: 60, fang: 18, copper: 60, iron: 60, crystal: 40 });
     expect(canGather(s, 'rock', 'r', 0)).toBe('tool');
     s.flags.push('oldtools');
     expect(craftTool(s, 'pick1')).toBe('ok');

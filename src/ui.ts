@@ -14,7 +14,7 @@ import type { SoundSettings } from './sound';
 import type { Unlock, UnlockId } from './unlocks';
 import { CLASS_NOTES, MOVESETS, SKILL_LEVELS, TRICKS, TRICK_LEVEL, comboTime, handlingStep, skillAt } from './weapons';
 import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
-import { LOGS_PER_PLANK, SAW, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate, type SawLog } from './sawmill';
+import { PLANKS_PER_LOG, SAW, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate, type SawLog } from './sawmill';
 import { CROPS, CROP_ORDER, gardenUpdate, growthStage, isReady, plotCount, readyIn, type Plot } from './garden';
 import { usingKeyboard } from './input';
 import { canShareFiles } from './share';
@@ -1440,8 +1440,8 @@ export class UI {
     const blade = ['copper', 'copper', 'iron', 'crystal', 'obsidian'][Math.min(lv, 4)];
     const next = levels[lv], nextLog = (Object.keys(SAW) as SawLog[])[logs.length];
     const rows = logs.map((l) => `<div class="sawrow" data-log="${l}">${icon(l, MATS[l].icon, 'icon sm')}
-        <span><span><b class="n">${s.mats[l]}</b> ${esc(MATS[l].name)}s</span><small>${LOGS_PER_PLANK} logs a plank</small></span>
-        <button class="go ghost" data-dialog="saw:1:${l}">+1</button><button class="go ghost" data-dialog="saw:5:${l}">+5</button></div>`).join('');
+        <span><span><b class="n">${s.mats[l]}</b> ${esc(MATS[l].name)}s</span><small>a log makes ${PLANKS_PER_LOG} ${esc(MATS[SAW[l].plank].name)}s</small></span>
+        <button class="go ghost" data-dialog="saw:5:${l}">+5</button><button class="go ghost" data-dialog="saw:20:${l}">+20</button></div>`).join('');
     const p = this.dialog(
       `${ribbon(lv <= 1 ? "Bram's Sawmill" : levels[lv - 1].name)}
        <div class="speaker small">${icon('npc_bram_happy', '🧔', 'icon sm')}<b>Bram</b></div>
@@ -1453,7 +1453,7 @@ export class UI {
        </div>
        <div class="slots">${Array.from({ length: SAW_MAX }, () => '<i></i>').join('')}</div>
        <div class="sawrows">${rows}</div>
-       <p class="small">Bram saws even while you're away: one plank every ${sawSeconds(s)} seconds.${next && nextLog ? ` The ${esc(next.name)} would saw ${esc(MATS[nextLog].name.replace(' Log', ''))} too, and faster.` : ''}</p>`,
+       <p class="small">Bram saws even while you're away: a log every ${sawSeconds(s)} seconds.${next && nextLog ? ` The ${esc(next.name)} would saw ${esc(MATS[nextLog].name.replace(' Log', ''))} too, and faster.` : ''}</p>`,
       [['close', 'Bye, Bram'], ['collect', 'Take planks']],
       'celebrate quest sawmill',
     );
@@ -1464,18 +1464,20 @@ export class UI {
       const w = sawUpdate(s), soon = nextPlankIn(s), each = sawSeconds(s);
       const queued = w.queue.length, ready = Object.values(w.ready).reduce((a, n) => a + (n ?? 0), 0);
       const q = (sel: string) => sheet.querySelector<HTMLElement>(sel);
-      q('.bench .logs')!.textContent = String(queued * LOGS_PER_PLANK);
+      q('.bench .logs')!.textContent = String(queued);
       q('.bench .ready')!.textContent = String(ready);
       q('.bench')!.classList.toggle('busy', queued > 0);
       q('.sawbar i')!.style.width = `${queued ? (100 * (each - soon)) / each : 0}%`;
-      q('.next')!.textContent = queued ? `Next plank in ${soon}s` : 'Idle: hand Bram some logs';
+      q('.next')!.textContent = queued ? `Next planks in ${soon}s` : 'Idle: hand Bram some logs';
+      // The bench's slots fill with the logs waiting (a slot for every few), the first one on the blade.
+      const perSlot = SAW_MAX / 12, filled = Math.ceil(queued / perSlot);
       sheet.querySelectorAll<HTMLElement>('.slots i').forEach((el, k) => {
-        el.className = k < ready ? 'done' : k === ready && queued ? 'now' : k < ready + queued ? 'wait' : '';
+        el.className = k === 0 && queued ? 'now' : k < filled ? 'wait' : '';
       });
       for (const r of sheet.querySelectorAll<HTMLElement>('.sawrow')) {
         const l = r.dataset.log as SawLog, room = canOrder(s, l);
         r.querySelector('.n')!.textContent = String(s.mats[l]);
-        r.querySelectorAll<HTMLButtonElement>('button').forEach((b, k) => (b.disabled = room < (k ? 5 : 1)));
+        r.querySelectorAll<HTMLButtonElement>('button').forEach((b) => (b.disabled = room < 1));
       }
       const take = sheet.querySelector<HTMLButtonElement>('[data-dialog="collect"]')!;
       take.disabled = !ready;

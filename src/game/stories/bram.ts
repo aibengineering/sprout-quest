@@ -4,7 +4,7 @@
 // teaches Granny his stew. See the story bible (Side quests).
 import type { ActorSpec } from '../../actors';
 import { BRAM_CABIN_PLANKS, MATS, ZONES, zoneById, type MatId, type MonsterKind } from '../../data';
-import { SAW_LOGS, sawCollect, sawOrder, type SawLog } from '../../sawmill';
+import { PLANKS_PER_LOG, SAW_LOGS, sawCollect, sawOrder, type SawLog } from '../../sawmill';
 import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { challengeFoe, startBattle } from '../fights';
@@ -54,7 +54,7 @@ const chat = (lines: [Speaker, string, string?][]) => paused(async () => {
 });
 
 const ROAD = ["Easy. Easy on the leg.", "Clover's going to fuss. She always fussed.", "You're stronger than you look, kid.", "Mind the grass. Fangs in the grass."];
-const MILL_LINES = ["Two logs, one plank. I'll saw while you're out.", 'Good wood in the meadow. Oak, straight grain.', "Clover's stew's coming along. Don't tell her I said so.", "Sowerby could use a guest cottage. Build one, and folk'll come."];
+const MILL_LINES = ["One log, two planks. I'll saw while you're out.", 'Good wood in the meadow. Oak, straight grain.', "Clover's stew's coming along. Don't tell her I said so.", "Sowerby could use a guest cottage. Build one, and folk'll come."];
 let line = 0;
 
 /** Bram's Sawmill: hand him logs, take your planks. */
@@ -66,7 +66,7 @@ export function openSawmill(greeting = MILL_LINES[line++ % MILL_LINES.length]) {
         const [, count, log] = r.split(':');
         const n = SAW_LOGS.includes(log as SawLog) ? sawOrder(G.save, Number(count), log as SawLog) : 0;
         if (n) G.audio.play('chop');
-        greeting = n ? `Right. ${n} plank${n > 1 ? 's' : ''} coming up.` : "You'll need more logs than that.";
+        greeting = n ? `Right. ${n * PLANKS_PER_LOG} planks coming up.` : "You'll need more logs than that.";
       } else if (r === 'collect') {
         const got = Object.entries(sawCollect(G.save)) as [MatId, number][];
         if (got.length) {
@@ -245,13 +245,13 @@ export const BRAM_STORY: Story = {
           await pan(MILL.x - 1.5, MILL.y - 1.2, 700);
           bubble(ID, '😊', 2.5);
           await say(BRAM, "Now that's a mill.", 'happy');
-          await say(BRAM, "Bring me Oak Logs. Two logs make a plank, and I'll saw while you're out adventuring.");
-          await say(BRAM, 'First job, though: a roof over my head. Six planks will do it.');
+          await say(BRAM, "Bring me Oak Logs. Every log makes two planks, and I'll saw while you're out adventuring.");
+          await say(BRAM, `First job, though: a roof over my head. ${BRAM_CABIN_PLANKS} planks will do it.`);
         });
       },
     },
     {
-      id: 'hut', label: "Saw six planks for Bram's cabin",
+      id: 'hut', label: `Saw ${BRAM_CABIN_PLANKS} planks for Bram's cabin`,
       target: () => ({ x: MILL.x + 0.2, y: MILL.y + 0.8 }),
       done: () => has('bram:hut'),
       async then() {
@@ -303,7 +303,7 @@ export const BRAM_STORY: Story = {
           persist();
           return;
         }
-        return openSawmill(`Six planks for the cabin, when you have them. You've got ${G.save.mats.plank}.`);
+        return openSawmill(`${BRAM_CABIN_PLANKS} planks for the cabin, when you have them. You've got ${G.save.mats.plank}.`);
       })];
     }
     return [at(MILL, '😊', () => openSawmill())];

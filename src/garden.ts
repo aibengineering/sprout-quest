@@ -11,9 +11,9 @@ export type Seed = 'berryseed' | 'herbseed' | 'flowerseed';
 
 /** Each crop: the seed it grows from, seconds of real time to grow, and how many you pick. */
 export const CROPS: Record<Crop, { seed: Seed; seconds: number; yield: number }> = {
-  berry: { seed: 'berryseed', seconds: 240, yield: 3 },
-  herb: { seed: 'herbseed', seconds: 360, yield: 2 },
-  flower: { seed: 'flowerseed', seconds: 480, yield: 2 },
+  berry: { seed: 'berryseed', seconds: 240, yield: 6 },
+  herb: { seed: 'herbseed', seconds: 360, yield: 4 },
+  flower: { seed: 'flowerseed', seconds: 480, yield: 4 },
 };
 export const CROP_ORDER = Object.keys(CROPS) as Crop[];
 

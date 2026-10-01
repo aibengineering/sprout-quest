@@ -10,6 +10,10 @@ import type { CraftFlight, CraftItem, CraftPresentation } from './crafting/types
 export type { CraftFlight, CraftPresentation } from './crafting/types';
 export { FLUFFY_PARTS, FLUFFY_BINDINGS, FLUFFY_DURATION } from './crafting/items/fluffvest';
 
+/** Most pieces flown in for one contact (the count rides on the lead one), and the beat between them (ms). */
+const STREAM_MAX = 6;
+const STREAM_GAP = 55;
+
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** A recipe's quantity is split over its material's contacts, including tiny/changed recipes. */
@@ -135,18 +139,24 @@ export function playCraft(root: HTMLElement, item: CraftPresentation, recipe: Re
     const base = scene.getBoundingClientRect(), from = source.getBoundingClientRect(), to = garment.getBoundingClientRect();
     const x = from.x + from.width / 2 - base.x - 24, y = from.y + from.height / 2 - base.y - 24;
     const tx = to.x + to.width * f.x - base.x - 24, ty = to.y + to.height * f.y - base.y - 24;
-    const particle = document.createElement('div');
-    particle.className = `craft-flight ${f.material}`;
-    particle.innerHTML = `<img src="${iconUrl(f.material)}" alt=""><b>×${f.count}</b>`;
-    flightLayer.append(particle);
     const transform = (px: number, py: number, scale: string, rotation: number) => `translate(${px}px,${py}px) rotate(${rotation}deg) scale(${scale})`;
-    animate(particle, [
-      { transform: transform(x, y, '1', 0), opacity: 1, offset: 0 },
-      { transform: transform(x, y + 7, '.85,1.12', -8), opacity: 1, offset: 0.13 },
-      { transform: transform(x + (tx - x) * .25, Math.min(y, ty) - 36, '.92,1.12', f.contact === 'soft' ? -18 : 15), opacity: 1, offset: .6 },
-      { transform: transform(tx, ty, '1.15,.8', 0), opacity: 1, offset: .92 },
-      { transform: transform(tx, ty, '.3', 0), opacity: 0, offset: 1 },
-    ], { duration: f.duration, easing: 'cubic-bezier(.3,.05,.4,1)', fill: 'forwards' });
+    // A handful comes over as a little stream: the lead piece carries the count, a few more follow it in, each a beat
+    // later and a touch off its line, so a big pile of planks looks like one.
+    const pieces = Math.min(f.count, STREAM_MAX);
+    for (let i = 0; i < pieces; i++) {
+      const particle = document.createElement('div');
+      particle.className = `craft-flight ${f.material}${i ? ' trail' : ''}`;
+      particle.innerHTML = `<img src="${iconUrl(f.material)}" alt="">${i ? '' : `<b>×${f.count}</b>`}`;
+      flightLayer.prepend(particle);
+      const jx = i ? (((i * 37) % 11) - 5) * 3 : 0, jy = i ? (((i * 23) % 9) - 4) * 3 : 0;
+      animate(particle, [
+        { transform: transform(x, y, '1', 0), opacity: 1, offset: 0 },
+        { transform: transform(x, y + 7, '.85,1.12', -8), opacity: 1, offset: 0.13 },
+        { transform: transform(x + (tx - x) * .25 + jx, Math.min(y, ty) - 36 + jy, '.92,1.12', f.contact === 'soft' ? -18 : 15), opacity: 1, offset: .6 },
+        { transform: transform(tx + jx / 2, ty + jy / 2, '1.15,.8', 0), opacity: 1, offset: .92 },
+        { transform: transform(tx, ty, '.3', 0), opacity: 0, offset: 1 },
+      ], { duration: f.duration, delay: i * STREAM_GAP, easing: 'cubic-bezier(.3,.05,.4,1)', fill: 'both' });
+    }
     animate(source, [{ transform: 'scale(1)' }, { transform: 'scale(.8,1.12)' }, { transform: 'scale(1)' }], { duration: 230 });
     sound('craftPull');
   };

@@ -12,7 +12,7 @@ const presentations: CraftPresentation[] = [axe1, axe2, pick1, pick2, pick3, pic
 
 type ArtManifest = { size: number[]; stack: string[]; existing: string[]; parts: Record<string, { src: string; center: number[]; bounds: number[] }> };
 const ids = ['axe1', 'axe2', 'axe3', 'axe4', 'pick1', 'pick2', 'pick3', 'pick4'];
-const recipes = [{ goo: 2, fluff: 1 }, { copper: 3, bark: 4 }, { iron: 3, pine: 3 }, { crystal: 3, glimwood: 3 }, { goo: 2, fluff: 2 }, { copper: 4, bark: 3 }, { iron: 4, pine: 3 }, { crystal: 4, iron: 3 }];
+const recipes = [{ goo: 6, fluff: 3 }, { copper: 9, bark: 12 }, { iron: 9, pine: 9 }, { crystal: 6, glimwood: 9 }, { goo: 6, fluff: 6 }, { copper: 12, bark: 9 }, { iron: 12, pine: 9 }, { crystal: 8, iron: 9 }];
 const dimensions = (path: string): [number, number] => {
   const b = readFileSync(path);
   expect(b.toString('ascii', 0, 4)).toBe('RIFF');

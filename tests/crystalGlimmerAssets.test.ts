@@ -13,10 +13,10 @@ const presentations = [crystalsword, crystalhammer, glimmerwhip, glimmerwand];
 
 const ids = ['crystalsword', 'crystalhammer', 'glimmerwhip', 'glimmerwand'] as const;
 const expected = {
-  crystalsword: { crystal: 5, iron: 3, glimwood: 2 },
-  crystalhammer: { crystal: 6, iron: 3 },
-  glimmerwhip: { glimmer: 8, core: 1 },
-  glimmerwand: { glimmer: 7, core: 1 },
+  crystalsword: { crystal: 10, iron: 9, glimwood: 6 },
+  crystalhammer: { crystal: 12, iron: 9 },
+  glimmerwhip: { glimmer: 24, core: 1 },
+  glimmerwand: { glimmer: 21, core: 1 },
 };
 
 /** Read the dimensions of the canonical alpha WebP, without requiring a browser/image library. */

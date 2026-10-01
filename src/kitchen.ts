@@ -22,7 +22,7 @@ export interface Meal {
 
 export const MEALS: Record<MealId, Meal> = {
   pancakes: {
-    id: 'pancakes', name: 'Fluff Pancakes', icon: '🥞', recipe: { fluff: 5, goo: 3 },
+    id: 'pancakes', name: 'Fluff Pancakes', icon: '🥞', recipe: { fluff: 15, goo: 9 },
     desc: '+15% XP from fights for 5 minutes.', seconds: 300,
   },
   tea: {
@@ -30,19 +30,19 @@ export const MEALS: Record<MealId, Meal> = {
     desc: 'Heal a little after every win, for 5 minutes.', seconds: 300,
   },
   goojelly: {
-    id: 'goojelly', name: 'Goo Jelly', icon: '🍮', recipe: { goo: 8 },
+    id: 'goojelly', name: 'Goo Jelly', icon: '🍮', recipe: { goo: 24 },
     desc: 'Monsters well below your level keep away, for 3 minutes.', seconds: 180,
   },
   stew: {
-    id: 'stew', name: "Woodcutter's Stew", icon: '🍲', recipe: { pine: 3, cap: 2 },
+    id: 'stew', name: "Woodcutter's Stew", icon: '🍲', recipe: { pine: 9, cap: 6 },
     desc: 'A wider sweet spot when chopping, for 4 minutes.', seconds: 240, from: 'Bram',
   },
   rockcandy: {
-    id: 'rockcandy', name: 'Rock Candy', icon: '🍬', recipe: { stone: 4, copper: 2 },
-    desc: 'An extra ore from every rock you mine, for 4 minutes.', seconds: 240, from: 'Pip',
+    id: 'rockcandy', name: 'Rock Candy', icon: '🍬', recipe: { stone: 12, copper: 6 },
+    desc: 'An extra handful of ore from every rock you mine, for 4 minutes.', seconds: 240, from: 'Pip',
   },
   tart: {
-    id: 'tart', name: 'Berry Tart', icon: '🥧', recipe: { berry: 4, fluff: 2 },
+    id: 'tart', name: 'Berry Tart', icon: '🥧', recipe: { berry: 8, fluff: 6 },
     desc: '+10% max HP for 5 minutes.', seconds: 300, from: 'the Garden',
   },
 };

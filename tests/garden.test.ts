@@ -149,7 +149,7 @@ describe("Poppy's Garden", () => {
     expect(harvest(s, 'oak', 'b', false, false, lucky, T0).drops.berryseed).toBe(1);
     expect(harvest(s, 'pine', 'c', true, false, lucky, T0).drops.herbseed).toBe(1);
     expect(harvest(s, 'oak', 'd', false, false, () => 0.99, T0).drops.berryseed).toBeUndefined();
-    expect(harvest(s, 'rock', 'e', false, false, lucky, T0).drops).toEqual({ stone: 1 });
+    expect(harvest(s, 'rock', 'e', false, false, lucky, T0).drops).toEqual({ stone: 3 });
     expect(s.mats.berryseed).toBe(1);
   });
 
@@ -176,16 +176,16 @@ describe("Poppy's Garden", () => {
 describe('what the Garden grows is for', () => {
   test("Granny learns her Berry Tart from the Garden's first berries: +10% max HP for 5 minutes", () => {
     const s = tended();
-    s.mats.fluff = 10;
+    s.mats.fluff = 30;
     expect(knownMeals(s)).not.toContain('tart');
     plant(s, 0, 'berry', T0, calm);
     pick(s, 0, later(CROPS.berry.seconds));
     expect(knownMeals(s)).toContain('tart');
-    s.mats.berry = 4;
+    s.mats.berry = 8;
     const before = playerStats(s).maxHp;
     s.hp = before;
     expect(cook(s, 'tart')).toBe('ok');
-    expect({ berry: s.mats.berry, fluff: s.mats.fluff }).toEqual({ berry: 0, fluff: 8 });
+    expect({ berry: s.mats.berry, fluff: s.mats.fluff }).toEqual({ berry: 0, fluff: 24 });
     expect(hpBoost(s)).toBe(1.1);
     const boosted = playerStats(s).maxHp;
     expect(boosted).toBe(Math.round(before * 1.1));
@@ -196,18 +196,18 @@ describe('what the Garden grows is for', () => {
     expect(s.hp).toBe(before);
   });
 
-  test('Herb Tonic: a potion from two Herbs', () => {
-    expect(POTION_RECIPES.find((p) => p.id === 'herbtonic')?.recipe).toEqual({ herb: 2 });
+  test('Herb Tonic: a potion from four Herbs', () => {
+    expect(POTION_RECIPES.find((p) => p.id === 'herbtonic')?.recipe).toEqual({ herb: 4 });
     const s = newState();
     s.potions = 0;
-    s.mats.herb = 3;
+    s.mats.herb = 6;
     expect(craftPotion(s, 'herbtonic')).toBe('ok');
-    expect({ potions: s.potions, herb: s.mats.herb }).toEqual({ potions: 1, herb: 1 });
+    expect({ potions: s.potions, herb: s.mats.herb }).toEqual({ potions: 1, herb: 2 });
     expect(craftPotion(s, 'herbtonic')).toBe('missing');
   });
 
   test('Flowers build the finest buildings: the Bloom Garden and the Manor', () => {
-    expect(PROJECTS.garden.levels[2].cost.flower).toBe(4);
-    expect(PROJECTS.home.levels[2].cost.flower).toBe(4);
+    expect(PROJECTS.garden.levels[2].cost.flower).toBe(8);
+    expect(PROJECTS.home.levels[2].cost.flower).toBe(8);
   });
 });

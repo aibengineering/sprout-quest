@@ -7,10 +7,10 @@ import heart from '../src/crafting/items/crystalheart';
 import ring from '../src/crafting/items/impring';
 
 const recipes = {
-  clovercharm: { clover: 3, goo: 3 },
-  toothcharm: { fang: 4, cap: 2 },
-  crystalheart: { glimmer: 4, wing: 3, clover: 1 },
-  impring: { horn: 4, ember: 3 },
+  clovercharm: { clover: 3, goo: 9 },
+  toothcharm: { fang: 8, cap: 6 },
+  crystalheart: { glimmer: 12, wing: 6, clover: 1 },
+  impring: { horn: 8, ember: 9 },
 };
 type Manifest = { size: number[]; stack: string[]; parts: Record<string, { src: string; center: number[]; bounds: number[] }> };
 

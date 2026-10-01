@@ -139,7 +139,7 @@ function pip(step: number, then?: (s: SaveState) => void) {
 
 export const PRESETS: Preset[] = [
   {
-    id: 'fluffy-craft', name: 'Make a Fluffy Vest', desc: 'At the Forge with 12 Bunny Fluff and 4 Slime Goo. Try the automatic crafting reveal.',
+    id: 'fluffy-craft', name: 'Make a Fluffy Vest', desc: 'At the Forge with 36 Bunny Fluff and 12 Slime Goo. Try the automatic crafting reveal.',
     make: () => base('cottage', 'meadow', zoneById('village').x0 + 7, 10.7, (s) => {
       s.build.forge = 1;
       s.lv = 4;
@@ -187,19 +187,19 @@ export const PRESETS: Preset[] = [
   {
     id: 'bram-mill', name: 'Bram: the Sawmill', desc: 'Bram lives in Sowerby now: build his Sawmill, then saw planks for his cabin.',
     make: () => bram(7, ['bram:pie', 'bram:met', 'bram:wave1', 'bram:wave2', 'bram:scar', 'bram:ambush1', 'bram:ambush2', 'bram:home'], zoneById('village').x0 + 4.5, 12.5, (s) => {
-      Object.assign(s.mats, { pine: 8, stone: 8, copper: 4, bark: 16 });
+      Object.assign(s.mats, { pine: 24, stone: 24, copper: 12, bark: 48 });
     }),
   },
   {
     id: 'pip-cottage', name: 'Pip: the Guest Cottage', desc: "Bram's settled in, with his Sawmill and cabin: build the Guest Cottage and see who moves in.",
-    make: () => pip(0, (s) => Object.assign(s.mats, { plank: 1, pine: 8, stone: 6, copper: 2 })),
+    make: () => pip(0, (s) => Object.assign(s.mats, { bark: 12, plank: 32, stone: 12, copper: 6 })),
   },
   {
     id: 'pip-home', name: 'Pip: moved in', desc: 'Pip lives in the Guest Cottage and Granny knows his Rock Candy. A copper pick, and stone and copper to cook with.',
     make: () => pip(1, (s) => {
       s.build.cottage = 1;
       s.flags.push('pip:candy');
-      Object.assign(s.mats, { stone: 12, copper: 6 });
+      Object.assign(s.mats, { stone: 36, copper: 18 });
     }),
   },
   {
@@ -210,7 +210,7 @@ export const PRESETS: Preset[] = [
       s.perks.push('trailboots');
       s.flags.push(...bossFlags, 'poppy:returned', 'garden:welcome');
       s.build.garden = 2;
-      Object.assign(s.mats, { berryseed: 4, herbseed: 3, flowerseed: 2, fluff: 6 });
+      Object.assign(s.mats, { berryseed: 4, herbseed: 3, flowerseed: 2, fluff: 18 });
     }),
   },
   {

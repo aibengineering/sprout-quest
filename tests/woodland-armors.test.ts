@@ -55,10 +55,10 @@ describe('ingredient-led woodland armor assets', () => {
   test('production costs and stats remain unchanged', () => {
     expect(ids.map(id => ({ id, recipe: GEAR[id].recipe, def: GEAR[id].def, hp: GEAR[id].hp,
       spd: GEAR[id].spd, regen: GEAR[id].regen }))).toEqual([
-      { id: 'barkvest', recipe: { bark: 12, stone: 6 }, def: 4, hp: 6, spd: undefined, regen: undefined },
-      { id: 'shroomhood', recipe: { cap: 12, fang: 4 }, def: 6, hp: 12, spd: undefined, regen: undefined },
-      { id: 'batcloak', recipe: { wing: 12, fang: 6 }, def: 10, hp: 10, spd: 12, regen: undefined },
-      { id: 'glimmershawl', recipe: { glimmer: 16, core: 1 }, def: 15, hp: 22, spd: undefined, regen: 1 },
+      { id: 'barkvest', recipe: { bark: 36, stone: 18 }, def: 4, hp: 6, spd: undefined, regen: undefined },
+      { id: 'shroomhood', recipe: { cap: 36, fang: 8 }, def: 6, hp: 12, spd: undefined, regen: undefined },
+      { id: 'batcloak', recipe: { wing: 24, fang: 12 }, def: 10, hp: 10, spd: 12, regen: undefined },
+      { id: 'glimmershawl', recipe: { glimmer: 48, core: 1 }, def: 15, hp: 22, spd: undefined, regen: 1 },
     ]);
   });
 

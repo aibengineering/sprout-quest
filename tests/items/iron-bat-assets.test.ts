@@ -8,7 +8,7 @@ import ironhammer from '../../src/crafting/items/ironhammer';
 import batwhip from '../../src/crafting/items/batwhip';
 import batwand from '../../src/crafting/items/batwand';
 
-const recipes = { ironsword:{iron:5,pine:3},ironhammer:{iron:6,pine:3},batwhip:{wing:6,core:1,fang:2},batwand:{wing:5,core:2} };
+const recipes = { ironsword:{iron:15,pine:9},ironhammer:{iron:18,pine:9},batwhip:{wing:12,core:1,fang:4},batwand:{wing:10,core:2} };
 const parts = { ironsword:['pine-grip','iron-blade','iron-fittings'],ironhammer:['pine-shaft','iron-head','iron-collars'],batwhip:['wing-grip','wing-lash','core-pommel','fang-hooks'],batwand:['wing-shaft','left-wing','right-wing','core-crown','core-pommel'] };
 const presentations={ironsword,ironhammer,batwhip,batwand};
 

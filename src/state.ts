@@ -66,6 +66,8 @@ export interface SaveState {
   forgeLevels?: 5;
   /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */
   echoQueen?: true;
+  /** Set once the save counts materials in handfuls (0.4.0): see MATERIAL_SCALE. */
+  units?: 2;
   /**
    * Fainted: you walk as a spirit from your last checkpoint back to your body, lying here (tile coordinates), and touch it
    * to wake. Veyra keeps bringing you back (see game/death.ts).
@@ -123,7 +125,32 @@ export function newState(): SaveState {
     meal: null,
     forgeSeen: [],
     forgeLevels: 5,
+    units: 2,
   };
+}
+
+/**
+ * 0.4.0 counts materials in sensible amounts: a bunny drops a handful of fluff, a tree a few logs, a house takes dozens
+ * of planks. Drops, yields and recipes all grew by the same factor per material (so the effort is the same), and a log
+ * now saws into two planks. Older saves are multiplied by the same factors so nothing is worth less.
+ */
+export const MATERIAL_SCALE: Partial<Record<MatId, number>> = {
+  goo: 3, fluff: 3, cap: 3, glimmer: 3, ember: 3, fang: 2, wing: 2, horn: 2,
+  bark: 3, pine: 3, glimwood: 3, emberwood: 3, stone: 3, copper: 3, iron: 3, crystal: 2, obsidian: 2,
+  berry: 2, herb: 2, flower: 2, plank: 8, pineplank: 8, glimplank: 8, emberplank: 8,
+};
+
+function countInHandfuls(s: SaveState) {
+  for (const [m, k] of Object.entries(MATERIAL_SCALE) as [MatId, number][]) s.mats[m] = (s.mats[m] ?? 0) * k;
+  // Planks ordered at the Sawmill were each two old logs: now four logs, which saw into the eight planks one is worth.
+  const w = s.sawmill as unknown as { queue?: string[]; queued?: number; ready: number | Record<string, number>; since: number } | undefined;
+  if (w) {
+    const orders: string[] = Array.isArray(w.queue) ? w.queue : Array.from({ length: w.queued ?? 0 }, () => 'bark');
+    const ready: Record<string, number> = typeof w.ready === 'number' ? { plank: w.ready } : { ...w.ready };
+    for (const k of Object.keys(ready)) ready[k] *= MATERIAL_SCALE.plank!;
+    s.sawmill = { queue: orders.flatMap((l) => [l, l, l, l]) as SawState['queue'], ready, since: w.since ?? 0 };
+  }
+  s.units = 2;
 }
 
 export function loadState(): SaveState | null {
@@ -168,6 +195,7 @@ export function loadState(): SaveState | null {
       merged.crafted = Math.max(0, merged.owned.length - 2);
       if ((data.bossWins ?? 0) > 0) merged.bosses = ['dragon'];
     }
+    if (data.units === undefined) countInHandfuls(merged);
     // The Forge went from three levels to five (one per tier): nobody loses recipes they could make.
     if (data.forgeLevels === undefined) {
       merged.build.forge = [0, 1, 4, 5][merged.build.forge] ?? merged.build.forge;

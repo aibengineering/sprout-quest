@@ -15,16 +15,16 @@ export default {
       "src": "assets/buildings/cottage1-stone-footing.webp"
     },
     {
-      "id": "pine-frame",
-      "src": "assets/buildings/cottage1-pine-frame.webp"
+      "id": "oak-frame",
+      "src": "assets/buildings/cottage1-oak-frame.webp"
     },
     {
       "id": "plank-walls",
       "src": "assets/buildings/cottage1-plank-walls.webp"
     },
     {
-      "id": "pine-roof",
-      "src": "assets/buildings/cottage1-pine-roof.webp"
+      "id": "plank-roof",
+      "src": "assets/buildings/cottage1-plank-roof.webp"
     },
     {
       "id": "stone-chimney",
@@ -38,8 +38,8 @@ export default {
   "complete": "assets/buildings/cottage1-complete.webp",
   "roles": {
     "stone": "The footing, the doorstep and the chimney",
-    "pine": "Corner posts and the roof",
-    "plank": "Plank walls, the round door and the window box",
+    "bark": "Oak beams: the corner posts and the roof frame",
+    "plank": "Plank walls, the round door, the window box and the roof boards",
     "copper": "The weathervane, the door knob and a lantern"
   },
   "targets": [
@@ -54,8 +54,8 @@ export default {
       "sound": "thud"
     },
     {
-      "material": "pine",
-      "part": "pine-frame",
+      "material": "bark",
+      "part": "oak-frame",
       "at": 800,
       "duration": 480,
       "x": 0.48,
@@ -74,8 +74,8 @@ export default {
       "sound": "chop"
     },
     {
-      "material": "pine",
-      "part": "pine-roof",
+      "material": "plank",
+      "part": "plank-roof",
       "at": 1920,
       "duration": 480,
       "x": 0.48,
@@ -113,17 +113,17 @@ export default {
     {
       "at": 680,
       "stage": "frame",
-      "text": "Pine corner posts stand up."
+      "text": "Oak beams stand up as the frame."
     },
     {
       "at": 1240,
       "stage": "walls",
-      "text": "An Oak Plank becomes walls and a round green door."
+      "text": "Oak Planks become walls and a round green door."
     },
     {
       "at": 1800,
       "stage": "roof",
-      "text": "Pine rafters and red shingles close the roof."
+      "text": "More planks, and red shingles, close the roof."
     },
     {
       "at": 2360,
@@ -142,8 +142,8 @@ export default {
       "sound": "ding"
     }
   ],
-  "sceneLabel": "Stone makes the footing, the doorstep and the chimney. Pine Logs make the corner posts and the roof. Oak Planks make the walls, the round green door and the window box. Copper becomes a pick-shaped weathervane, the door knob and a lantern.",
+  "sceneLabel": "Stone makes the footing, the doorstep and the chimney. Oak Logs make the beams of the frame. Oak Planks make the walls, the round green door, the window box and the roof. Copper becomes a pick-shaped weathervane, the door knob and a lantern.",
   "pattern": "a home for someone new",
-  "intro": "Stone, pine, a plank and some copper.",
+  "intro": "Stone, oak beams, a stack of planks and some copper.",
   "finished": "Plank walls, a round door and a lantern lit."
 } satisfies CraftPresentation;
