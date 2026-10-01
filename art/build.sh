@@ -4,8 +4,10 @@
 #        bun run art monsters   (one group; the rest are reused from art/out)
 #        bun run art models     (just the 3D models: characters, armour, weapons and crafting scenes [name,name,...])
 #        bun run art crafting   (the crafting scenes' 3D models [id,id,...])
+#        bun run art materials  (the materials' small 3D models [id,id,...])
 #        bun run art buildings  (the village buildings' 3D models, for their scenes [id,id,...])
 #        bun run art icons3d    (inventory icons rendered from the items' 3D models [id,id,...]; no Blender needed)
+#        bun run art rooms      (the Kitchen's and Sawmill's props and the Garden's tools: their own atlas)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -53,6 +55,14 @@ fi
 # Crafting scenes: every gear, tool, potion and meal as a 3D model of its layers, from the same builders the game wears
 # and holds (art/models.py), into public/assets/crafting3d.
 #   bun run art crafting [id,id,...]
+# Materials as small 3D models (art/models.py material_scene), into public/assets/crafting3d/mat_<id>.glb: their icons
+# (then run `bun run art icons3d`), and the pieces that tumble into crafting scenes.
+#   bun run art materials [id,id,...]
+if [ "${1:-}" = materials ]; then
+  if [ "${2:-all}" = all ]; then models materials; else models "$(echo "$2" | sed 's/\([^,]*\)/mat_\1/g')"; fi
+  exit 0
+fi
+
 if [ "${1:-}" = crafting ]; then
   if [ "${2:-all}" = all ]; then models crafts; else models "$(echo "$2" | sed 's/\([^,]*\)/craft_\1/g')"; fi
   exit 0
@@ -69,6 +79,15 @@ buildings() {
 
 if [ "${1:-}" = buildings ]; then
   buildings "${2:-all}"
+  exit 0
+fi
+
+# The rooms you walk into (Granny's Kitchen, Bram's Sawmill) and the Garden's hand tools: their own atlas, in
+# public/assets/rooms/ (the main one is left alone).
+if [ "${1:-}" = rooms ]; then
+  rm -rf out/rooms out/rooms.json
+  render rooms
+  "$BLENDER" -b --factory-startup --python-exit-code 1 -P pack.py -- --group rooms 2>&1 | grep -E "PACKED|Error|Traceback"
   exit 0
 fi
 

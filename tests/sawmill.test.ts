@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { PROJECTS } from '../src/data';
-import { PLANKS_PER_LOG, SAW, SAW_LOGS, SAW_MAX, SAW_SECONDS, canOrder, nextPlankIn, sawCollect, sawLogs, sawOrder, sawReady, sawSeconds, sawUpdate } from '../src/sawmill';
+import { ARMFUL, PLANKS_PER_LOG, SAW, SAW_LOGS, SAW_MAX, SAW_SECONDS, canCarry, canOrder, nextPlankIn, pullLever, sawCollect, sawLogs, sawOrder, sawReady, sawSeconds, sawUpdate, type Bench } from '../src/sawmill';
 import { MATERIAL_SCALE, SAVE_KEY, loadState, newState, type SaveState } from '../src/state';
 
 const T0 = 1_000_000;
@@ -110,5 +110,43 @@ describe('counting materials in handfuls (0.4.0)', () => {
     // Loading again doesn't scale twice.
     store[SAVE_KEY] = JSON.stringify(s);
     expect(loadState()!.mats.fluff).toBe(10 * MATERIAL_SCALE.fluff!);
+  });
+});
+
+describe('working the Sawmill by hand', () => {
+  test('an armful at a time, only logs that are in the bag and not already carried or benched', () => {
+    const s = mill();
+    s.mats.bark = 12;
+    const bench: Bench = {};
+    expect(canCarry(s, 'bark', 0, bench, T0)).toBe(ARMFUL);
+    expect(canCarry(s, 'bark', 10, bench, T0)).toBe(2);
+    bench.bark = 10;
+    expect(canCarry(s, 'bark', 0, bench, T0)).toBe(2);
+    expect(canCarry(s, 'bark', 2, bench, T0)).toBe(0);
+    // Pine needs the next blade.
+    s.mats.pine = 9;
+    expect(canCarry(s, 'pine', 0, {}, T0)).toBe(0);
+    s.build.sawmill = 2;
+    expect(canCarry(s, 'pine', 0, {}, T0)).toBe(ARMFUL);
+  });
+
+  test('never more than the saw has room for', () => {
+    const s = mill();
+    s.mats.bark = 200;
+    sawOrder(s, SAW_MAX - 7, 'bark', T0);
+    expect(canCarry(s, 'bark', 0, { bark: 4 }, T0)).toBe(3);
+  });
+
+  test('the lever hands the bench to the saw, exactly as handing the logs to Bram', () => {
+    const byHand = mill(2), byMenu = mill(2);
+    for (const s of [byHand, byMenu]) Object.assign(s.mats, { bark: 10, pine: 6 });
+    const bench: Bench = { bark: 10, pine: 5 };
+    expect(pullLever(byHand, bench, T0)).toBe(15);
+    expect(bench).toEqual({});
+    sawOrder(byMenu, 10, 'bark', T0);
+    sawOrder(byMenu, 5, 'pine', T0);
+    expect(byHand.sawmill).toEqual(byMenu.sawmill);
+    expect(byHand.mats).toEqual(byMenu.mats);
+    expect(pullLever(byHand, {}, T0)).toBe(0);
   });
 });

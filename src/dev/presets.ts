@@ -221,6 +221,30 @@ export const PRESETS: Preset[] = [
     }),
   },
   {
+    id: 'kitchen', name: "Granny's Kitchen", desc: 'Inside Granny\'s Kitchen with Bram\'s and Pip\'s recipes known, and plenty to cook with: pick a recipe, fetch, stir and serve.',
+    make: () => pip(1, (s) => {
+      s.build.cottage = 1;
+      s.flags.push('pip:candy');
+      Object.assign(s.mats, { fluff: 45, goo: 60, clover: 6, pine: 27, cap: 18, stone: 36, copper: 18 });
+      const o = map().obj('house')!;
+      s.pos = { x: o.x + o.w / 2 - 0.4, y: o.y + o.h + 0.7 };
+      s.room = 'kitchen';
+    }),
+  },
+  {
+    id: 'sawmill', name: "Bram's Sawmill", desc: "Inside Bram's Sawmill with an Iron Blade (Oak and Pine), piles of logs to carry to the bench, and a few planks already sawn.",
+    make: () => pip(1, (s) => {
+      s.build.cottage = 1;
+      s.build.sawmill = 2;
+      s.flags.push('pip:candy');
+      Object.assign(s.mats, { bark: 40, pine: 24 });
+      s.sawmill = { queue: [], ready: { plank: 8 }, since: 0 };
+      const o = map().objs.find((o) => o.project === 'sawmill')!;
+      s.pos = { x: o.x + o.w / 2, y: o.y + o.h + 0.7 };
+      s.room = 'sawmill';
+    }),
+  },
+  {
     id: 'drums', name: 'Drums: Granny is worried', desc: "The Alpha Woolf is beaten and Poppy's home: walk up to Granny, and Poppy's gone after the drums in Echo Cavern.",
     make: () => drums(0, 29.4, 12.6),
   },
@@ -233,7 +257,7 @@ export const PRESETS: Preset[] = [
     make: () => drums(4, C + 25.6, 3.4, (s) => s.perks.push('echoanklet')),
   },
   {
-    id: 'garden', name: "Poppy's Garden", desc: 'Poppy tends the Berry Garden: four empty plots, a handful of every seed, and Bunny Fluff for a Berry Tart.',
+    id: 'garden', name: "Poppy's Garden", desc: 'Poppy tends the Berry Garden: four empty plots to work by hand, a handful of every seed, and Bunny Fluff for a Berry Tart.',
     make: () => base('smithy', 'woods', zoneById('village').x0 + 8.7, 20.8, (s) => {
       tools(s, 2, 1);
       s.stories.poppy = 6;

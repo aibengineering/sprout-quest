@@ -1,7 +1,7 @@
 """Renders one group of sprites to art/out/<group>/ plus art/out/<group>.json (frame anchors).
 
 Usage: blender -b --factory-startup -P art/render_all.py -- <group> [filter]
-Groups: hero, monsters, weapons, env, icons, icons2, npc, gather
+Groups: hero, monsters, weapons, env, rooms, icons, icons2, npc, gather
 """
 import json
 import math
@@ -17,6 +17,7 @@ import hero  # noqa: E402
 import icons  # noqa: E402
 import lib  # noqa: E402
 import monsters  # noqa: E402
+import rooms  # noqa: E402
 import weapons  # noqa: E402
 
 args = sys.argv[sys.argv.index('--') + 1:]
@@ -98,6 +99,15 @@ elif GROUP == 'env':
         lib.clear_objects()
         fn()
         shot(f'env/{name}', int(w * 1.3), int(h * 1.25), 64, fit_origin=0.86)
+
+elif GROUP == 'rooms':
+    # The rooms you walk into, and the Garden's hand tools (art/rooms.py): packed into their own atlas.
+    for name, (fn, w, h, *origin) in rooms.PROPS.items():
+        if not wanted(name):
+            continue
+        lib.clear_objects()
+        fn()
+        shot(f'room/{name}', int(w * 1.3), int(h * 1.25), 64, fit_origin=origin[0] if origin else 0.86)
 
 elif GROUP == 'icons':
     # Weapons tilted diagonally, centered.

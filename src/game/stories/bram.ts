@@ -7,6 +7,7 @@ import { BRAM_CABIN_PLANKS, MATS, ZONES, zoneById, type MatId, type MonsterKind 
 import { PLANKS_PER_LOG, SAW_LOGS, sawCollect, sawOrder, type SawLog } from '../../sawmill';
 import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
+import { enterRoom } from '../rooms';
 import { challengeFoe, startBattle } from '../fights';
 import { bubble, narrate, pan, say, scene, walk, wait, type Speaker } from '../scenes';
 import { stopWaiting, waitAt, type Story } from '../stories';
@@ -306,7 +307,7 @@ export const BRAM_STORY: Story = {
         return openSawmill(`${BRAM_CABIN_PLANKS} planks for the cabin, when you have them. You've got ${G.save.mats.plank}.`);
       })];
     }
-    return [at(MILL, '😊', () => openSawmill())];
+    return [{ ...at(MILL, '😊', () => enterRoom('sawmill')), label: 'Sawmill' }];
   },
 
   fainted() {

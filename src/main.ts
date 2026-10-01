@@ -10,6 +10,11 @@ import { canRun, challengeFoe, coachBattle, startBattle, startFieldBattle } from
 import { revive, spirit } from './game/death';
 import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/gathering';
 import { interact } from './game/interact';
+import { drawRoomHud, enterRoom, leaveRoom, roomTick } from './game/rooms';
+import { kitchenDebug } from './game/kitchenRoom';
+import { drawGardenHud, gardenDebug, gardenTick, inGarden } from './game/gardenWork';
+import { sawmillDebug } from './game/sawmillRoom';
+import { grannyCooks } from './game/stories/granny';
 import { menuHooks } from './game/menu';
 import { arriveAtVillage, maybeAutoTalk, progressQuests } from './game/story';
 import { checkStories, storyLayers, tickStories } from './game/stories';
@@ -128,9 +133,15 @@ function worldFrame(dt: number) {
   // Strike a monster that hasn't spotted you yet for a surprise attack.
   // A spirit (after fainting) can only walk back to its body: nothing to fight, talk to or use on the way.
   const ghost = spirit();
-  const prey = canAct && !ghost ? over.roamers.unaware(over.x, over.y) : null;
+  // Inside Granny's Kitchen or Bram's Sawmill: the room's own goings-on (a pot being stirred takes the action button).
+  const room = over.room;
+  const roomHeld = !!room && canAct && roomTick(dt);
+  over.busyHands = roomHeld;
+  // Poppy's Garden, worked by hand on the map (the view leans in, taps on beds, holding the button).
+  gardenTick(dt, canAct && !room && !spirit());
+  const prey = canAct && !ghost && !room ? over.roamers.unaware(over.x, over.y) : null;
   if (prey && (input.consume('act') || input.consume('attack'))) startFieldBattle(prey, true);
-  else if (canAct && !ghost && input.consume('act')) void interact();
+  else if (canAct && !ghost && !roomHeld && input.consume('act')) void interact();
   if (G.mode === 'title') over.t += dt;
   else {
     const px = over.x, py = over.y;
@@ -139,13 +150,13 @@ function worldFrame(dt: number) {
       movedDist += Math.hypot(over.x - px, over.y - py);
       if (movedDist > 2) s.tips.push('moved');
     }
-    if (canAct && !ghost) maybeAutoTalk();
+    if (canAct && !ghost && !room) maybeAutoTalk();
     if (ev?.type === 'zone') {
       showZoneBanner(ev.zone);
       if (ev.zone.id === 'village' && !s.flags.includes('village')) void arriveAtVillage();
     }
     if (canAct && ghost && s.spirit && Math.hypot(over.x - s.spirit.x, over.y - s.spirit.y) < 0.8) revive();
-    if (canAct && !ghost && s.flags.includes('sword')) {
+    if (canAct && !ghost && !room && s.flags.includes('sword')) {
       // Walking into monsters blocking the way starts the fight.
       const gap = (o: { x: number; y: number; w: number; h: number }) =>
         Math.hypot(Math.max(o.x - over.x, 0, over.x - (o.x + o.w)), Math.max(o.y - over.y, 0, over.y - (o.y + o.h + 0.3)));
@@ -153,7 +164,8 @@ function worldFrame(dt: number) {
       if (foe) challengeFoe(foe);
     }
     tickStories();
-    if (canAct && !ghost) void checkStories();
+    // Stories wait until you're back outside (their scenes happen on the map).
+    if (canAct && !ghost && !room) void checkStories();
     if (ev?.type === 'encounter') startFieldBattle(ev.roamer, false);
   }
   const near = canAct && !ghost ? over.nearbyObject() : null;
@@ -180,13 +192,16 @@ function worldFrame(dt: number) {
     ctx.fillRect(0, 0, vw, vh);
   }
   if (G.mode === 'gather') drawGather(ctx, vw, vh);
+  if (over.room && G.mode === 'world') drawRoomHud(ctx, vw, vh);
+  else if (G.mode === 'world') drawGardenHud(ctx, vw);
   if (G.mode === 'title') {
     // Soft overlay so the title text pops over the live world behind it.
     ctx.fillStyle = 'rgba(42,26,48,0.15)';
     ctx.fillRect(0, 0, vw, vh);
   } else {
-    ui.hud(s.hp, over.currentZone.name);
-    ui.questPill(G.mode === 'world' || G.mode === 'dialog');
+    ui.hud(s.hp, over.room?.spec.name ?? over.currentZone.name);
+    // In a room, its own hint takes the quest's place at the top.
+    ui.questPill(!over.room && !inGarden() && (G.mode === 'world' || G.mode === 'dialog'));
   }
   saveTimer += dt;
   if (saveTimer > 5 && G.mode === 'world') {
@@ -278,6 +293,18 @@ requestAnimationFrame(frame);
   /** The Pebblors' procession in Echo Cavern (game/stories/drums.ts). */
   get drums() { return drumsDebug(); },
   get sound() { return G.sound; },
+  /** The room you're in ('kitchen', 'sawmill') or null, and ways in and out of them (game/rooms.ts). */
+  get room() { return G.over.room?.id ?? null; },
+  enterRoom,
+  leaveRoom,
+  /** What's going on in Granny's Kitchen (the pot, what you're carrying). */
+  get kitchen() { return kitchenDebug(); },
+  /** What's going on in Bram's Sawmill (what you're carrying, what's on the bench). */
+  get sawmill() { return sawmillDebug(); },
+  /** What you're holding at Poppy's Garden, and the bed you'd work on. */
+  get garden() { return gardenDebug(); },
+  /** Granny's menu, as asking her in the Kitchen brings up (she cooks it for you). */
+  grannyCooks,
   set zoom(z: number) { debugZoom = z; },
   /** A regular grass encounter right here (or in `zone`). */
   encounter(zone?: ZoneId) {

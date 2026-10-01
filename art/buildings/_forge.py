@@ -145,11 +145,12 @@ def build(root, level):
         box((1.9, FRONT - 0.55, 0.53), (0.66, 0.32, 0.08), obsidian(), obs, bevel=0.03)
         glim = part(5, 'glim-gable')
         for side in (-1, 1):
-            box((side * (W / 4 + 0.17), -(D + 0.5) / 2 - 0.12, 2.55 + 0.08), (math.hypot(W / 2 + 0.35, 1.5) + 0.2, 0.08, 0.1),
-                glimwood(0.35), glim, bevel=0.03, rot=(0, side * a, 0))
+            # Darker grain and a soft glow: the paler Glimmerwood reads as a white bar across the roof in the live scene.
+            box((side * (W / 4 + 0.17), -(D + 0.5) / 2 - 0.05, 2.55 + 0.08), (math.hypot(W / 2 + 0.35, 1.5) + 0.1, 0.08, 0.1),
+                toon(GLIM_GRAIN, emit=0.1), glim, bevel=0.03, rot=(0, side * a, 0))
         box((-1.9, FRONT - 0.16, 1.75), (0.84, 0.05, 0.56), glimwood(0.2), glim, bevel=0.05, line=0.014)
         box((-1.9, FRONT - 0.2, 1.75), (0.6, 0.02, 0.03), toon(GLIM_GRAIN), glim, bevel=0, line=0)
-        cylinder((2.45, FRONT - 0.2, 1.4), 0.05, 2.8, glimwood(0.3), glim, seg=8)
+        cylinder((2.45, FRONT - 0.2, 1.4), 0.05, 2.8, toon(GLIM_GRAIN, emit=0.1), glim, seg=8)
         profile([(0, 0), (0.6, 0), (0.6, -0.95), (0.3, -0.75), (0, -0.95)], 0.04, toon('#ffd35a'), glim, loc=(2.48, FRONT - 0.2, 2.7), bevel=0.01)
         king = empty('king', part(5, 'king-crystal'), (0, -(D + 0.5) / 2 + 0.25, 3.22))
         king.scale = (1.5, 1.5, 1.5)

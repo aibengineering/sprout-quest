@@ -36,8 +36,11 @@ const NODE_MARKS: [string, NodeKind, boolean][] = [
   ['f', 'emberwood', false], ['F', 'emberwood', true], ['o', 'obsidian', false], ['O', 'obsidian', true],
 ];
 
-/** 'prop': scenery drawn from its `id`'s sprite (Bram's camp, his hut). */
-export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop' | 'bridge';
+/**
+ * 'prop': scenery drawn from its `id`'s sprite (Bram's camp, his hut). 'station': something you work at by hand (a
+ * room's stove or saw bench, the Garden's water butt), told apart by its `id`. 'door': the way into a room, or out.
+ */
+export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop' | 'bridge' | 'station' | 'door';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -67,6 +70,8 @@ export interface WorldObj {
   boss?: boolean;
   /** Which way the group looks: -1 west, 1 east (they face every which way if unset). */
   facing?: -1 | 1;
+  /** You can walk over it (a garden bed you tend from beside it, a room's doormat). */
+  walkable?: boolean;
   /** Only there at this step of a side story. */
   story?: { id: string; step: number };
   /** A prop that's only there sometimes (a story's), checked whenever the map syncs with the save. */
@@ -93,16 +98,13 @@ export function pathY(x: number): number {
   return Math.max(5, Math.min(WORLD_H - 7, Math.round(y)));
 }
 
-export class World {
-  readonly w = WORLD_W;
-  readonly h = WORLD_H;
-  readonly tiles = new Uint8Array(WORLD_W * WORLD_H);
+/** A walkable grid of tiles with objects on it: the overworld, or a room you've walked into (see room.ts). */
+export class TileMap {
+  readonly tiles: Uint8Array;
   readonly objs: WorldObj[] = [];
-  /** Marker positions from the route maps, by `${zone}:${char}`. */
-  private marks = new Map<string, { x: number; y: number }[]>();
 
-  constructor(seed = 7) {
-    this.generate(seed);
+  constructor(readonly w: number, readonly h: number) {
+    this.tiles = new Uint8Array(w * h);
   }
 
   tile(x: number, y: number): number {
@@ -110,9 +112,48 @@ export class World {
     return this.tiles[y * this.w + x];
   }
 
-  private set(x: number, y: number, t: number) {
+  protected set(x: number, y: number, t: number) {
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
     this.tiles[y * this.w + x] = t;
+  }
+
+  solidAt(x: number, y: number): boolean {
+    const t = this.tile(Math.floor(x), Math.floor(y));
+    if (t === T.OBST || t === T.POOL) return true;
+    for (const o of this.objs) if (!o.hidden && !o.walkable && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
+    return false;
+  }
+
+  /** Whether a feet-box of half-width `r` whose bottom edge is at y overlaps anything solid. */
+  blocked(x: number, y: number, r: number): boolean {
+    const top = y - r, bot = y - 0.02;
+    return this.solidAt(x - r, top) || this.solidAt(x + r, top) || this.solidAt(x - r, bot) || this.solidAt(x + r, bot);
+  }
+
+  nearestObj(x: number, y: number, maxDist: number): WorldObj | null {
+    let best: WorldObj | null = null;
+    let bestD = maxDist;
+    for (const o of this.objs) {
+      if (!o.label || o.hidden) continue;
+      const cx = Math.max(o.x, Math.min(x, o.x + o.w));
+      const cy = Math.max(o.y, Math.min(y, o.y + o.h));
+      const d = Math.hypot(cx - x, cy - y);
+      if (d < bestD) {
+        bestD = d;
+        best = o;
+      }
+    }
+    return best;
+  }
+}
+
+export class World extends TileMap {
+  /** Marker positions from the route maps, by `${zone}:${char}`. */
+  private marks = new Map<string, { x: number; y: number }[]>();
+
+  constructor(seed = 7) {
+    super(WORLD_W, WORLD_H);
+    this.generate(seed);
   }
 
   zoneAt(x: number): Zone {
@@ -217,6 +258,9 @@ export class World {
     add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
     add({ kind: 'plot', project: 'home', x: V + 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
     add({ kind: 'plot', project: 'garden', x: V + 7.2, y: 18.4, w: 3, h: 1.6, label: 'Build', text: 'Garden' });
+    // Beside it, once Poppy tends it: the water butt you fill the watering can at, and her basket of seeds.
+    add({ kind: 'station', id: 'garden:butt', x: V + 6.3, y: 18.55, w: 0.6, h: 0.5, label: 'Watering can', hidden: true });
+    add({ kind: 'station', id: 'garden:seeds', x: V + 6.35, y: 19.5, w: 0.5, h: 0.4, label: 'Seed basket', hidden: true });
     add({ kind: 'plot', project: 'training', x: V + 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
     add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Waystone' });
     // Bram's corner, once he's moved in (his story): the Sawmill beside the Forge, and his cabin below it.
@@ -287,34 +331,5 @@ export class World {
   setBridge(built: boolean) {
     const W = ZONES.find((z) => z.id === 'woods')!.x0;
     for (const [dx, y] of BRIDGE_TILES) this.set(W + dx, y, built ? T.BRIDGE : T.POOL);
-  }
-
-  solidAt(x: number, y: number): boolean {
-    const t = this.tile(Math.floor(x), Math.floor(y));
-    if (t === T.OBST || t === T.POOL) return true;
-    for (const o of this.objs) if (!o.hidden && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
-    return false;
-  }
-
-  /** Whether a feet-box of half-width `r` whose bottom edge is at y overlaps anything solid. */
-  blocked(x: number, y: number, r: number): boolean {
-    const top = y - r, bot = y - 0.02;
-    return this.solidAt(x - r, top) || this.solidAt(x + r, top) || this.solidAt(x - r, bot) || this.solidAt(x + r, bot);
-  }
-
-  nearestObj(x: number, y: number, maxDist: number): WorldObj | null {
-    let best: WorldObj | null = null;
-    let bestD = maxDist;
-    for (const o of this.objs) {
-      if (!o.label || o.hidden) continue;
-      const cx = Math.max(o.x, Math.min(x, o.x + o.w));
-      const cy = Math.max(o.y, Math.min(y, o.y + o.h));
-      const d = Math.hypot(cx - x, cy - y);
-      if (d < bestD) {
-        bestD = d;
-        best = o;
-      }
-    }
-    return best;
   }
 }

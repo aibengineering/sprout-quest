@@ -31,7 +31,8 @@ const HOME = { x: 29.4, y: 10.4 };
 const DOOR = { x: 30.5, y: 10.4 };
 /** Her place once she tends the Garden: at its east end, between it and the fountain. */
 const V = zoneById('village').x0;
-const GARDEN_SPOT = { x: V + 10.75, y: 19.7 };
+export const GARDEN_SPOT = { x: V + 10.75, y: 19.7 };
+export const POPPY_ID = 'poppy:poppy';
 /** Big Bun's getaway: west down the corridor, around the clump of trees, and into the clearing. */
 const GETAWAY = [tile(23.5, 23.4), tile(20.3, 23.5), tile(19.6, 24.6), tile(15.5, 24.6), tile(14.5, 23.6), tile(12.2, 23.3), tile(7, 23.3)];
 
@@ -318,7 +319,8 @@ export const POPPY: Story = {
     if (step === 2 && p.follow) p.mood = G.over.roamers.list.some((r) => Math.hypot(r.x - p.x, r.y - p.y) < 3.5) ? '😰' : '🙂';
     if (step < 6) return;
     // She moves to the Garden once there is one for her to tend (and it says what it needs over her head).
-    const atGarden = p.x === GARDEN_SPOT.x && p.y === GARDEN_SPOT.y;
+    // (She wanders over to help when you work the beds: anywhere close by counts.)
+    const atGarden = Math.hypot(p.x - GARDEN_SPOT.x, p.y - GARDEN_SPOT.y) < 4;
     if (atGarden !== gardenOpen(G.save)) return syncStories();
     if (atGarden) p.mood = gardenMood();
     // At home with Mr. Floppers, she lights up when you come by.

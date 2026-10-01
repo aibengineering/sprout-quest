@@ -1,7 +1,7 @@
 // Draws a fight: the clearing, telegraphs, fighters, shots and effects, and the overlay text. Reads the battle's
 // state and never changes the simulation (it only adds cosmetic particles).
 import { ARENA_RX, ARENA_RY } from '../arena';
-import { drawFrame, drawHero as drawHeroSprite, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from '../assets';
+import { drawFrame, drawHero as drawHeroSprite, drawMonsterAt, drawWalker, frame, heroIn3d, monsterReady, slotOf } from '../assets';
 import { hasModel, loadModel } from '../models';
 import { HERO_BATTLE_UNIT, HERO_MODEL_SCALE, weaponLength } from '../weaponPose';
 import { battleWeapon } from './weaponPose';
@@ -672,7 +672,7 @@ function drawHero(b: Battle, ctx: Ctx) {
   // (Its size stays put: the 2D sprite grew to fake height, the 3D one really goes up.)
   if (!hasModel(held.id)) void loadModel(held.id);
   const heroOpts = { alpha, flash: p.hurtT > 0 ? 0.7 : 0, sx: p.dodgeT > 0 ? 1.2 : 1, sy: p.dodgeT > 0 ? 0.82 : 1 };
-  if (hasModel(`wpn_${b.weapon.id}`) && hasModel(`hero_${armor}`)) {
+  if (hasModel(`wpn_${b.weapon.id}`) && heroIn3d(armor)) {
     const drawn = drawHeroSprite(ctx, armor, p.x, p.y, UNIT * HERO_SCALE, p.face, p.moving && !sw, b.t, heroOpts, 'hero:battle', held);
     if (drawn === 'model') {
       // A whip's rope (or the skill's twirl) starts from the hand you can see.
