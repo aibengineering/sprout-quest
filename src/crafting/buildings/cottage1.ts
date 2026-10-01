@@ -8,35 +8,27 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "site",
-      "src": "assets/buildings/cottage1-site.webp"
+      "id": "site"
     },
     {
-      "id": "stone-footing",
-      "src": "assets/buildings/cottage1-stone-footing.webp"
+      "id": "stone-footing"
     },
     {
-      "id": "oak-frame",
-      "src": "assets/buildings/cottage1-oak-frame.webp"
+      "id": "oak-frame"
     },
     {
-      "id": "plank-walls",
-      "src": "assets/buildings/cottage1-plank-walls.webp"
+      "id": "plank-walls"
     },
     {
-      "id": "plank-roof",
-      "src": "assets/buildings/cottage1-plank-roof.webp"
+      "id": "plank-roof"
     },
     {
-      "id": "stone-chimney",
-      "src": "assets/buildings/cottage1-stone-chimney.webp"
+      "id": "stone-chimney"
     },
     {
-      "id": "copper-touches",
-      "src": "assets/buildings/cottage1-copper-touches.webp"
+      "id": "copper-touches"
     }
   ],
-  "complete": "assets/buildings/cottage1-complete.webp",
   "roles": {
     "stone": "The footing, the doorstep and the chimney",
     "bark": "Oak beams: the corner posts and the roof frame",
@@ -49,8 +41,6 @@ export default {
       "part": "stone-footing",
       "at": 240,
       "duration": 480,
-      "x": 0.48,
-      "y": 0.72,
       "contact": "solid",
       "sound": "thud"
     },
@@ -59,8 +49,6 @@ export default {
       "part": "oak-frame",
       "at": 800,
       "duration": 480,
-      "x": 0.48,
-      "y": 0.66,
       "contact": "solid",
       "sound": "chop"
     },
@@ -69,8 +57,6 @@ export default {
       "part": "plank-walls",
       "at": 1360,
       "duration": 480,
-      "x": 0.48,
-      "y": 0.56,
       "contact": "solid",
       "sound": "chop"
     },
@@ -79,8 +65,6 @@ export default {
       "part": "plank-roof",
       "at": 1920,
       "duration": 480,
-      "x": 0.48,
-      "y": 0.32,
       "contact": "solid",
       "sound": "chop"
     },
@@ -89,8 +73,6 @@ export default {
       "part": "stone-chimney",
       "at": 2480,
       "duration": 480,
-      "x": 0.29,
-      "y": 0.21,
       "contact": "solid",
       "sound": "thud"
     },
@@ -99,8 +81,6 @@ export default {
       "part": "copper-touches",
       "at": 3040,
       "duration": 480,
-      "x": 0.54,
-      "y": 0.47,
       "contact": "solid",
       "sound": "clink"
     }

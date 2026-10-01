@@ -8,19 +8,15 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "oak-fence",
-      "src": "assets/buildings/garden1-oak-fence.webp"
+      "id": "oak-fence"
     },
     {
-      "id": "oak-beds",
-      "src": "assets/buildings/garden1-oak-beds.webp"
+      "id": "oak-beds"
     },
     {
-      "id": "clover-patch",
-      "src": "assets/buildings/garden1-clover-patch.webp"
+      "id": "clover-patch"
     }
   ],
-  "complete": "assets/buildings/garden1-complete.webp",
   "roles": {
     "bark": "The picket fence, the front edge and the first two beds",
     "clover": "Clover and wildflowers in the grass"
@@ -31,8 +27,6 @@ export default {
       "part": "oak-fence",
       "at": 240,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.51,
       "contact": "solid",
       "sound": "chop"
     },
@@ -41,8 +35,6 @@ export default {
       "part": "oak-beds",
       "at": 880,
       "duration": 480,
-      "x": 0.36,
-      "y": 0.59,
       "contact": "solid",
       "sound": "chop"
     },
@@ -51,8 +43,6 @@ export default {
       "part": "clover-patch",
       "at": 1520,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.58,
       "contact": "energy",
       "sound": "ding"
     }

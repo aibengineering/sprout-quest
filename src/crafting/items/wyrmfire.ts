@@ -1,15 +1,14 @@
 import type { CraftPresentation } from '../types';
 
 export default {
-  id: 'wyrmfire', duration: 3300,
-  layers: ['horn', 'scale', 'crystal', 'ember'].map(id => ({ id, src: `assets/crafting/wyrmfire-${id}.webp` })),
-  complete: 'assets/crafting/wyrmfire-complete.webp',
+  id: 'wyrmfire', model: 'assets/crafting3d/wyrmfire.glb', duration: 3300,
+  layers: ['horn', 'scale', 'crystal', 'ember'].map(id => ({ id })),
   roles: { horn: 'Continuous stem & swept focus cage', scale: 'Grip plates & protective focus shell', crystal: 'Faceted focus & pointed lens', ember: 'Warm inner lens & grip bands' },
   targets: [
-    { material: 'horn', part: 'horn', at: 160, duration: 430, x: .5, y: .5, contact: 'solid', sound: 'tick' },
-    { material: 'scale', part: 'scale', at: 850, duration: 430, x: .53, y: .5, contact: 'bind', sound: 'thud' },
-    { material: 'crystal', part: 'crystal', at: 1490, duration: 410, x: .8, y: .5, contact: 'solid', sound: 'tick' },
-    { material: 'ember', part: 'ember', at: 2140, duration: 400, x: .75, y: .5, contact: 'energy', sound: 'craftStitch' },
+    { material: 'horn', part: 'horn', at: 160, duration: 430, contact: 'solid', sound: 'tick' },
+    { material: 'scale', part: 'scale', at: 850, duration: 430, contact: 'bind', sound: 'thud' },
+    { material: 'crystal', part: 'crystal', at: 1490, duration: 410, contact: 'solid', sound: 'tick' },
+    { material: 'ember', part: 'ember', at: 2140, duration: 400, contact: 'energy', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'shape', text: 'Imp Horns form a stem and swept focus cage…' },

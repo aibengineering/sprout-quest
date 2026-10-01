@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { sceneModel } from '../sceneModel';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { GEAR } from '../../src/data';
 import { craftGear, equip } from '../../src/rules';
@@ -18,7 +19,7 @@ describe('ingredient-led meadow weapons', () => {
   for (const presentation of Object.values(presentations)) {
     test(`${presentation.id}: assembly follows real materials and registered destinations`, () => {
       const recipe = GEAR[presentation.id].recipe!;
-      const manifest = JSON.parse(readFileSync(`public/assets/crafting/${presentation.id}.json`, 'utf8'));
+      const manifest = { stack: Object.keys(sceneModel(`assets/crafting3d/${presentation.id}.glb`).layers) };
       expect(Object.keys(presentation.roles).sort()).toEqual(Object.keys(recipe).sort());
       const materials: string[] = [...new Set(presentation.targets.map((t) => t.material))];
       expect(materials.sort()).toEqual(Object.keys(recipe).sort());
@@ -28,11 +29,6 @@ describe('ingredient-led meadow weapons', () => {
       expect(presentation.phases[0].at).toBe(0);
       for (const target of presentation.targets) {
         expect(target.at + target.duration).toBeLessThan(reveal.at);
-        const [x0, y0, x1, y1] = manifest.parts[target.part].bounds;
-        expect(target.x * 512).toBeGreaterThan(x0);
-        expect(target.y * 512).toBeGreaterThan(y0);
-        expect(target.x * 512).toBeLessThan(x1);
-        expect(target.y * 512).toBeLessThan(y1);
       }
       const ordered = presentation.phases.map((p) => p.at);
       expect(ordered).toEqual([...ordered].sort((a, b) => a - b));
@@ -52,38 +48,6 @@ describe('ingredient-led meadow weapons', () => {
       expect(equip(s, id)).toBe(true);
       expect(s.owned.filter((owned) => owned === id)).toHaveLength(1);
       for (const [key, n] of Object.entries(recipe)) expect(s.mats[key as keyof typeof s.mats]).toBe(n);
-    });
-
-    test(`${id}: every layer shares its registered 512-square canvas`, () => {
-      const manifest = JSON.parse(readFileSync(`public/assets/crafting/${id}.json`, 'utf8'));
-      expect(manifest.size).toEqual([512, 512]);
-      expect(manifest.stack.length).toBeGreaterThan(2);
-      expect(new Set(manifest.stack).size).toBe(manifest.stack.length);
-      let bytes = 0;
-      for (const part of [...manifest.stack, 'complete']) {
-        const entry = manifest.parts[part];
-        expect(entry.src).toBe(`assets/crafting/${id}-${part}.webp`);
-        const path = `public/${entry.src}`;
-        expect(existsSync(path)).toBe(true);
-        bytes += statSync(path).size;
-        const [x0, y0, x1, y1] = entry.bounds;
-        expect(x0).toBeGreaterThan(0);
-        expect(y0).toBeGreaterThan(0);
-        expect(x1).toBeLessThan(512);
-        expect(y1).toBeLessThan(512);
-        expect(x1).toBeGreaterThan(x0);
-        expect(y1).toBeGreaterThan(y0);
-        expect(entry.center[0]).toBeCloseTo((x0 + x1) / 1024, 3);
-        expect(entry.center[1]).toBeCloseTo((y0 + y1) / 1024, 3);
-        // Parse VP8X canvas dimensions without independently cropping layers.
-        const file = readFileSync(path);
-        expect(file.toString('ascii', 0, 4)).toBe('RIFF');
-        const lossless = file.toString('ascii', 12, 16) === 'VP8L';
-        const bits = lossless ? file.readUInt32LE(21) : 0;
-        expect(lossless ? 1 + (bits & 0x3fff) : 1 + file.readUIntLE(24, 3)).toBe(512);
-        expect(lossless ? 1 + ((bits >>> 14) & 0x3fff) : 1 + file.readUIntLE(27, 3)).toBe(512);
-      }
-      expect(bytes).toBeLessThan(140 * 1024);
     });
 
     test(`${id}: equipped model keeps the vertex shader contract and phone budget`, () => {

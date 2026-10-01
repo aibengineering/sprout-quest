@@ -3,7 +3,7 @@ import math
 from lib import box, cylinder, sphere, toon
 from gear._woodland_shapes import add, pivots, vest
 
-PARTS = ('oak-back', 'oak-left', 'oak-right', 'oak-shoulders', 'stone-fasteners')
+PARTS = ('oak-back', 'oak-left', 'oak-right', 'shoulder-left', 'shoulder-right', 'stone-fasteners')
 CAMERA = dict(ppu=532.792128, anchor=(0, 0.067111, 0.315734), elevation=math.radians(12))
 
 
@@ -25,13 +25,14 @@ def build(body, arms=None, head=None):
         for y in (.04, .17):
             add(parts, 'oak-back', box((side * .227, y, .31), (.063, .16, .29), wood,
                                        body, rot=(0, 0, side * -.25), bevel=.025, line=.01))
-        shoulder = add(parts, 'oak-shoulders', cylinder((side * .05, 0, .022), .106, .072,
+        shoulder_key = 'shoulder-left' if side < 0 else 'shoulder-right'
+        shoulder = add(parts, shoulder_key, cylinder((side * .05, 0, .022), .106, .072,
                            cut, arms[side], seg=12, rot=(0, math.pi / 2, 0), line=.011,
                            name='oak_end_grain'))
         # Dark concentric cross-section marks explicitly preserve the log ingredient.
         for radius in (.04, .075):
             from lib import torus
-            add(parts, 'oak-shoulders', torus((side * .09, 0, .022), radius, .0045, grain,
+            add(parts, shoulder_key, torus((side * .09, 0, .022), radius, .0045, grain,
                                               arms[side], rot=(0, math.pi / 2, 0), line=0, seg=16))
     stone = toon('#a4a8b0', rim=.13)
     for side in (-1, 1):

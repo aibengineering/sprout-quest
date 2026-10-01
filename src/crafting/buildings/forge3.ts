@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/forge3-base.webp"
+      "id": "base"
     },
     {
-      "id": "pine-fuel",
-      "src": "assets/buildings/forge3-pine-fuel.webp"
+      "id": "pine-fuel"
     },
     {
-      "id": "iron-bands",
-      "src": "assets/buildings/forge3-iron-bands.webp"
+      "id": "iron-bands"
     },
     {
-      "id": "golem-core",
-      "src": "assets/buildings/forge3-golem-core.webp"
+      "id": "golem-core"
     }
   ],
-  "complete": "assets/buildings/forge3-complete.webp",
   "roles": {
     "pine": "A stack of pine fuel and a quench barrel",
     "iron": "Iron bands, corner straps and barrel hoops",
@@ -36,8 +31,6 @@ export default {
       "part": "pine-fuel",
       "at": 240,
       "duration": 480,
-      "x": 0.14,
-      "y": 0.71,
       "contact": "solid",
       "sound": "chop"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "iron-bands",
       "at": 880,
       "duration": 480,
-      "x": 0.54,
-      "y": 0.69,
       "contact": "solid",
       "sound": "clink"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "golem-core",
       "at": 1520,
       "duration": 480,
-      "x": 0.71,
-      "y": 0.68,
       "contact": "energy",
       "sound": "ding"
     }

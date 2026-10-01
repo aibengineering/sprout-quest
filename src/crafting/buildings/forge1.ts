@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "stone-walls",
-      "src": "assets/buildings/forge1-stone-walls.webp"
+      "id": "stone-walls"
     },
     {
-      "id": "oak-roof",
-      "src": "assets/buildings/forge1-oak-roof.webp"
+      "id": "oak-roof"
     },
     {
-      "id": "oak-door",
-      "src": "assets/buildings/forge1-oak-door.webp"
+      "id": "oak-door"
     },
     {
-      "id": "goo-hearth",
-      "src": "assets/buildings/forge1-goo-hearth.webp"
+      "id": "goo-hearth"
     }
   ],
-  "complete": "assets/buildings/forge1-complete.webp",
   "roles": {
     "stone": "Stone walls and chimney",
     "bark": "Oak roof, door and sign",
@@ -36,8 +31,6 @@ export default {
       "part": "stone-walls",
       "at": 240,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.49,
       "contact": "solid",
       "sound": "thud"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "oak-roof",
       "at": 880,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.31,
       "contact": "solid",
       "sound": "chop"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "oak-door",
       "at": 1520,
       "duration": 480,
-      "x": 0.46,
-      "y": 0.71,
       "contact": "solid",
       "sound": "chop"
     },
@@ -66,8 +55,6 @@ export default {
       "part": "goo-hearth",
       "at": 2160,
       "duration": 480,
-      "x": 0.62,
-      "y": 0.77,
       "contact": "bind",
       "sound": "craftGoo"
     }

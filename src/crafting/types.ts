@@ -3,40 +3,37 @@ import type { MatId } from '../data';
 
 /** Presentation only. Costs always come from Gear.recipe, never from an animation definition. */
 export interface CraftLayer {
+  /** The name of the layer's top-level node in the scene's model. */
   id: string;
-  src: string;
-  /** Optional registered-canvas clipping, for separate contacts on one shared seam image. */
-  clip?: string;
   /** Untargeted supports (bottles/cookware) show initially unless explicitly disabled. */
   initial?: boolean;
   /** Non-ingredient effects such as steam can enter at a particular timeline time. */
   showAt?: number;
   /** Fuel and temporary supports can leave when the finished piece is revealed. */
   finished?: boolean;
-  /** Pilot compatibility only; new contributions should use unique layer ids. */
-  binding?: number;
 }
 
 export type CraftContact = 'soft' | 'bind' | 'solid' | 'energy';
 export interface CraftTarget {
   material: MatId;
-  /** Matches a layer id. Multiple ingredient bundles can contribute to the same layer. */
+  /** Matches a layer id; the ingredients fly to the middle of that layer. Several bundles can land on one layer. */
   part: string;
   at: number;
   duration: number;
-  /** Contact point normalized to the common untrimmed canvas. */
-  x: number;
-  y: number;
   contact: CraftContact;
   sound?: Sfx;
-  binding?: number;
 }
 
 export interface CraftPresentation {
   id: string;
+  /**
+   * The scene's 3D model (assets/crafting3d/<id>.glb), from the same Blender builders as the worn or held item: each
+   * top-level node is a layer, named after its id, and everything visible in the finished piece is some layer.
+   * Z-up in Blender with the front facing -Y, origin on the ground under the middle (exported Y-up).
+   */
+  model: string;
   duration: number;
   layers: readonly CraftLayer[];
-  complete: string;
   /** Ingredient roles must cover the recipe's materials; names come from MATS. */
   roles: Partial<Record<MatId, string>>;
   targets: readonly CraftTarget[];
@@ -47,13 +44,8 @@ export interface CraftPresentation {
   finished: string;
   /** Defaults to the Forge heading; meals may name Granny's kitchen instead. */
   eyebrow?: string;
-  /** Village buildings rise on a plot, on a wider 4:3 canvas (640×480), instead of the Forge's bench. */
+  /** Village buildings rise on a plot, framed wider (4:3), instead of on the Forge's bench. */
   scene?: 'building';
-  /**
-   * A 3D model (assets/crafting3d/<id>.glb) to build the scene from instead of the layer images: each top-level node
-   * is named after a layer id. When present, the scene is 3D.
-   */
-  model?: string;
 }
 
 export interface CraftItem {

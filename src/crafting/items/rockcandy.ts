@@ -1,15 +1,13 @@
 import type { CraftPresentation } from '../types';
 
-const src = (part: string) => `assets/crafting/rockcandy-${part}.webp`;
 export default {
-  id: 'rockcandy', eyebrow: 'Granny’s Kitchen', duration: 3300,
-  layers: ['plate', 'pebbles-back', 'pebbles-front', 'copper-sticks'].map((id) => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'rockcandy', model: 'assets/crafting3d/rockcandy.glb', eyebrow: 'Granny’s Kitchen', duration: 3300,
+  layers: ['plate', 'pebbles-back', 'pebbles-front', 'copper-sticks'].map((id) => ({ id })),
   roles: { stone: 'Sugary pebble candies, piled high', copper: 'Amber crystals, grown up two sticks' },
   targets: [
-    { material: 'stone', part: 'pebbles-back', at: 220, duration: 460, x: .5049, y: .6133, contact: 'solid', sound: 'craftFluff' },
-    { material: 'stone', part: 'pebbles-front', at: 760, duration: 460, x: .5088, y: .6934, contact: 'solid', sound: 'craftFluff' },
-    { material: 'copper', part: 'copper-sticks', at: 1440, duration: 520, x: .31, y: .36, contact: 'bind', sound: 'craftGoo' },
+    { material: 'stone', part: 'pebbles-back', at: 220, duration: 460, contact: 'solid', sound: 'craftFluff' },
+    { material: 'stone', part: 'pebbles-front', at: 760, duration: 460, contact: 'solid', sound: 'craftFluff' },
+    { material: 'copper', part: 'copper-sticks', at: 1440, duration: 520, contact: 'bind', sound: 'craftGoo' },
   ],
   phases: [
     { at: 0, stage: 'boil', text: 'Stone, boiled down into sugary pebbles…' },

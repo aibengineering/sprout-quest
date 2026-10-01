@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/garden2-base.webp"
+      "id": "base"
     },
     {
-      "id": "plank-beds",
-      "src": "assets/buildings/garden2-plank-beds.webp"
+      "id": "plank-beds"
     },
     {
-      "id": "stone-path",
-      "src": "assets/buildings/garden2-stone-path.webp"
+      "id": "stone-path"
     },
     {
-      "id": "shroom-basket",
-      "src": "assets/buildings/garden2-shroom-basket.webp"
+      "id": "shroom-basket"
     }
   ],
-  "complete": "assets/buildings/garden2-complete.webp",
   "roles": {
     "plank": "Two more beds",
     "stone": "Gateposts and stepping stones between the beds",
@@ -36,8 +31,6 @@ export default {
       "part": "plank-beds",
       "at": 240,
       "duration": 480,
-      "x": 0.23,
-      "y": 0.54,
       "contact": "solid",
       "sound": "chop"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "stone-path",
       "at": 880,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.59,
       "contact": "solid",
       "sound": "thud"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "shroom-basket",
       "at": 1520,
       "duration": 480,
-      "x": 0.87,
-      "y": 0.74,
       "contact": "soft",
       "sound": "craftFluff"
     }

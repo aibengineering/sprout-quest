@@ -1,22 +1,26 @@
-// Real crafting transactions and the shared presentation on both phone layouts.
+// Real crafting transactions and the shared 3D presentation on both phone layouts, in software WebGL.
 // CHROMIUM_PATH=/usr/bin/chromium bun run tests/e2e/crafting.ts
+//   CRAFT_ONLY=id,id   just these items
+//   CRAFT_SHOTS=1      also save each scene mid-build and finished to tests/e2e/out/combined-crafting/
 import { chromium, type Page } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 import { startServer } from '../../server';
-import { GEAR, TOOLS, POTION_RECIPES, type Recipe } from '../../src/data';
+import { GEAR, TOOLS, POTION_RECIPES, PROJECTS, type ProjectId, type Recipe } from '../../src/data';
 import { MEALS } from '../../src/kitchen';
 import { CRAFT_PRESENTATIONS } from '../../src/crafting/catalog';
+import { BUILD_PRESENTATIONS } from '../../src/crafting/building-catalog';
 
 const server = startServer(0);
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH, args: ['--disable-webgl', '--disable-gpu'] });
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const SHOTS = !!process.env.CRAFT_SHOTS;
 const out = new URL('./out/combined-crafting/', import.meta.url).pathname;
 mkdirSync(out, { recursive: true });
 const items = [...Object.values(GEAR).filter(g => g.recipe), ...TOOLS, ...POTION_RECIPES, ...Object.values(MEALS)];
 const item = (id: string) => items.find(i => i.id === id)!;
 const errors: string[] = [];
 
-async function boot(width: number) {
-  const page = await browser.newPage({ viewport: { width, height: width === 320 ? 568 : 844 }, hasTouch: true, isMobile: true });
+async function boot(width: number, b = browser) {
+  const page = await b.newPage({ viewport: { width, height: width === 320 ? 568 : 844 }, hasTouch: true, isMobile: true });
   page.on('pageerror', e => errors.push(String(e)));
   await page.goto(`http://localhost:${server.port}/?preset=sandbox`);
   await page.waitForFunction(() => (window as any).game?.mode === 'world', undefined, { timeout: 60000 });
@@ -58,17 +62,29 @@ async function begin(page: Page, id: string, twice = false) {
   if (id in MEALS && (saved.meal.id !== id || saved.meal.left !== MEALS[id as keyof typeof MEALS].seconds)) throw Error(`${id}: meal not durable`);
 }
 
+/** The layers showing in the scene now. */
+const layers = (page: Page) => page.locator('.craft-model').evaluate((c) => (c as HTMLCanvasElement).dataset.layers?.split(' ') ?? []);
+/** Did the scene draw anything? */
+const painted = (page: Page) => page.locator('.craft-model').evaluate((c) => {
+  const cv = c as HTMLCanvasElement, d = cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data;
+  let n = 0;
+  for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
+  return n > d.length / 4 / 50;
+});
+
 async function finish(page: Page, id: string, equip = true, fallback = false) {
   await page.waitForSelector('.craft-ready', { timeout: 15000 });
   if (await page.locator('.craft-fallback').isVisible() !== fallback) throw Error(`${id}: unexpected art fallback`);
   for (const [m, n] of Object.entries(item(id).recipe!)) if (await page.locator(`[data-count="${m}"]`).textContent() !== String(100 - n!)) throw Error(`${id}: animated count ${m}`);
-  if (id === 'stew' && await page.locator('[data-part="pine-fuel"]').isVisible()) throw Error('Fuel remains on finished stew');
+  if (!fallback && !await painted(page)) throw Error(`${id}: nothing drawn in the scene`);
+  if (id === 'stew' && (await layers(page)).includes('pine-fuel')) throw Error('Fuel remains on finished stew');
   if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) throw Error(`${id}: phone overflow`);
   const choice = GEAR[id] ? (equip ? 'equip' : 'later') : 'ok';
   const button = page.locator(`[data-dialog="${choice}"]`);
   await button.scrollIntoViewIfNeeded();
   const rect = await button.boundingBox();
   if (!rect || rect.y < 0 || rect.y + rect.height > page.viewportSize()!.height + 1) throw Error(`${id}: action unreachable`);
+  if (SHOTS) await page.locator('.craft-scene').screenshot({ path: `${out}${id}-done-${page.viewportSize()!.width}.png` });
   if (['fluffvest', 'ironsword', 'crystalmail', 'stew', 'tea', 'axe1', 'jellypot'].includes(id)) await page.screenshot({ path: `${out}${id}-${page.viewportSize()!.width}.png` });
   await button.click();
   await page.waitForSelector('#modal:not([hidden]) .sheet.crafting', { state: 'detached' });
@@ -86,23 +102,48 @@ async function finish(page: Page, id: string, equip = true, fallback = false) {
 try {
   if (Object.keys(CRAFT_PRESENTATIONS).length !== items.length) throw Error(`Expected a presentation for each of the ${items.length} craftable items`);
   // Parallel pages are independent saves, and each runs the actual normal timeline.
-  await Promise.all([320, 390].map(async width => {
+  await Promise.all([320, 390].map(async (width) => {
     const page = await boot(width);
     for (const id of (process.env.CRAFT_ONLY ? process.env.CRAFT_ONLY.split(',') : Object.keys(CRAFT_PRESENTATIONS))) {
       await begin(page, id, true);
-      if (['tea', 'stew'].includes(id)) {
-        const opacity = await page.locator('[data-part="steam"]').evaluate(e => getComputedStyle(e).opacity);
-        if (opacity !== '0') throw Error(`${id}: steam visible before simmer`);
-      }
+      const shown = await layers(page), all = CRAFT_PRESENTATIONS[id].layers.map((l) => l.id);
+      if (['tea', 'stew'].includes(id) && shown.includes('steam')) throw Error(`${id}: steam visible before simmer`);
       for (const prop of ['bottle', 'cup', 'pot', 'plate', 'existing-tool']) {
-        const layer = page.locator(`[data-part="${prop}"]`);
-        if (await layer.count() && await layer.evaluate(e => getComputedStyle(e).opacity) !== '1') throw Error(`${id}: initial ${prop} missing`);
+        if (all.includes(prop) && !shown.includes(prop)) throw Error(`${id}: initial ${prop} missing`);
+      }
+      if (SHOTS) {
+        await page.waitForTimeout(CRAFT_PRESENTATIONS[id].duration * 0.45);
+        await page.locator('.craft-scene').screenshot({ path: `${out}${id}-mid-${width}.png` });
       }
       await finish(page, id);
       console.log(`PASS ${width}px ${id}: normal timeline, save, single spend, decision`);
     }
     await page.close();
   }));
+  // Every village building rising on its plot (presentation only: nothing is spent here).
+  if (!process.env.CRAFT_ONLY || process.env.CRAFT_BUILDINGS) {
+    const page = await boot(390);
+    for (const id of Object.keys(BUILD_PRESENTATIONS)) {
+      const [, project, level] = /^([a-z]+)(\d)$/.exec(id)!;
+      const cost = PROJECTS[project as ProjectId]?.levels[Number(level) - 1]?.cost;
+      if (!cost) { console.log(`SKIP ${id}: no such project level`); continue; }
+      await page.evaluate(({ project, level, before }) => {
+        void (window as any).game.ui.built(project, level, before, 'Built.');
+      }, { project, level: Number(level), before: Object.fromEntries(Object.keys(cost).map((m) => [m, 100])) });
+      await page.waitForSelector('.sheet.crafting');
+      if (SHOTS) {
+        await page.waitForTimeout(BUILD_PRESENTATIONS[id].duration * 0.5);
+        await page.locator('.craft-scene').screenshot({ path: `${out}${id}-mid-390.png` });
+      }
+      await page.waitForSelector('.craft-ready', { timeout: 20000 });
+      if (await page.locator('.craft-fallback').isVisible() || !await painted(page)) throw Error(`${id}: building scene not drawn`);
+      if (SHOTS) await page.locator('.craft-scene').screenshot({ path: `${out}${id}-done-390.png` });
+      await page.locator('[data-dialog="ok"]').click();
+      await page.waitForSelector('#modal:not([hidden]) .sheet.crafting', { state: 'detached' });
+      console.log(`PASS 390px ${id}: the building rises on its plot`);
+    }
+    await page.close();
+  }
   const page = await boot(320);
   await begin(page, 'ironsword', true);
   await page.keyboard.press('Escape');
@@ -118,9 +159,6 @@ try {
   await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
   await finish(page, 'crystalmail', false);
   await page.evaluate(() => { delete (document as any).hidden; });
-  await page.route('**/crafting/batwand-*.webp', route => route.abort());
-  await begin(page, 'batwand'); await finish(page, 'batwand', false, true);
-  await page.unroute('**/crafting/batwand-*.webp');
   await begin(page, 'emberblade');
   await page.reload();
   await page.waitForFunction(() => !!(window as any).game, undefined, { timeout: 60000 });
@@ -128,8 +166,13 @@ try {
   if (reloaded.owned.filter((id: string) => id === 'emberblade').length !== 1) throw Error('Reload lost crafted item');
   for (const [m, n] of Object.entries(GEAR.emberblade.recipe!)) if (reloaded.mats[m] !== 100 - n!) throw Error('Reload changed craft cost');
   await page.close();
+  // Without WebGL there's no scene: it finishes at once on the item's icon.
+  const flat = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH, args: ['--disable-webgl', '--disable-gpu'] });
+  const plain = await boot(320, flat);
+  await begin(plain, 'batwand'); await finish(plain, 'batwand', false, true);
+  await flat.close();
   if (errors.length) throw Error(errors.join('\n'));
-  console.log('PASS lifecycle: double click, Skip, Escape, reduced motion, background, missing art, Keep, reload');
+  console.log('PASS lifecycle: double click, Skip, Escape, reduced motion, background, no WebGL, Keep, reload');
   console.log(process.env.CRAFT_ONLY ? `Selected crafting transactions passed: ${process.env.CRAFT_ONLY}` : `All ${items.length} crafting transactions passed at 320px and 390px.`);
 } finally {
   await browser.close(); server.stop(true);

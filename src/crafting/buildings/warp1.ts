@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/warp1-base.webp"
+      "id": "base"
     },
     {
-      "id": "pine-posts",
-      "src": "assets/buildings/warp1-pine-posts.webp"
+      "id": "pine-posts"
     },
     {
-      "id": "iron-cradle",
-      "src": "assets/buildings/warp1-iron-cradle.webp"
+      "id": "iron-cradle"
     },
     {
-      "id": "alpha-pelt",
-      "src": "assets/buildings/warp1-alpha-pelt.webp"
+      "id": "alpha-pelt"
     }
   ],
-  "complete": "assets/buildings/warp1-complete.webp",
   "roles": {
     "pine": "A ring of posts and a lantern",
     "iron": "Bands binding the old crystal back together",
@@ -36,8 +31,6 @@ export default {
       "part": "pine-posts",
       "at": 240,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.7,
       "contact": "solid",
       "sound": "chop"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "iron-cradle",
       "at": 880,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.48,
       "contact": "solid",
       "sound": "clink"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "alpha-pelt",
       "at": 1520,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.87,
       "contact": "soft",
       "sound": "craftFluff"
     }

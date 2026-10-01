@@ -2,18 +2,16 @@ import type { CraftPresentation } from '../types';
 
 export default {
   "id": "axe4",
+  "model": "assets/crafting3d/axe4.glb",
   "duration": 3300,
   "layers": [
     {
-      "id": "glimwood-haft",
-      "src": "assets/crafting/axe4-glimwood-haft.webp"
+      "id": "glimwood-haft"
     },
     {
-      "id": "crystal-head",
-      "src": "assets/crafting/axe4-crystal-head.webp"
+      "id": "crystal-head"
     }
   ],
-  "complete": "assets/crafting/axe4-complete.webp",
   "roles": {
     "glimwood": "Pale, softly glowing haft and turned grip",
     "crystal": "Faceted blade and socket, cut from one crystal"
@@ -24,8 +22,6 @@ export default {
       "part": "glimwood-haft",
       "at": 220,
       "duration": 540,
-      "x": 0.5,
-      "y": 0.56,
       "contact": "solid",
       "sound": "creak"
     },
@@ -34,8 +30,6 @@ export default {
       "part": "crystal-head",
       "at": 1120,
       "duration": 620,
-      "x": 0.4,
-      "y": 0.22,
       "contact": "energy",
       "sound": "craftStitch"
     }

@@ -36,6 +36,7 @@ import monsters  # noqa: E402
 import weapons  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), '..', 'public', 'assets', 'models')
+CRAFT_OUT = os.path.join(os.path.dirname(__file__), '..', 'public', 'assets', 'crafting3d')
 FPS = 24
 
 
@@ -106,6 +107,46 @@ CHARACTERS = {
 }
 
 
+def craft_scene(item_id):
+    """A crafting scene (src/crafting.ts): the item from the same builder the game wears, holds or shows as its icon,
+    each layer of the scene a top-level node named after it, holding that layer's pieces where they sit in the finished
+    item. Front faces -Y as on the hero, with the origin on the ground under the middle of the item."""
+    from mathutils import Matrix, Vector
+    from gear_parts import item_module, preview_parts
+    if item_id == 'fluffvest':
+        root = lib.empty('craft_fluffvest')
+        parts = hero.build_fluffvest(root)
+    else:
+        root, parts = preview_parts(item_module(item_id))
+    bpy.context.view_layer.update()
+    placed = {o: o.matrix_world.copy() for objs in parts.values() for o in objs if o.type == 'MESH'}
+    # Free the layer names first: Blender gives clashing objects a .001 suffix.
+    for o in bpy.data.objects:
+        o.name = '_' + o.name
+    layers = {}
+    for name, objs in parts.items():
+        layer = layers[name] = lib.empty(name)
+        for o in objs:
+            if o not in placed:
+                continue
+            o.parent = layer
+            o.matrix_parent_inverse = Matrix.Identity(4)
+            o.matrix_world = placed[o]
+    stray = [o for o in bpy.data.objects if o.type == 'MESH' and o not in placed]
+    if stray:
+        raise ValueError(f'{item_id}: meshes outside every layer: {sorted(o.name for o in stray)[:8]}')
+    for o in [o for o in bpy.data.objects if o not in placed and o not in layers.values()]:
+        bpy.data.objects.remove(o)
+    assert [o.name for o in layers.values()] == list(layers), list(layers)
+    bpy.context.view_layer.update()
+    corners = [o.matrix_world @ Vector(c) for o in placed for c in o.bound_box]
+    lo = Vector([min(c[i] for c in corners) for i in range(3)])
+    hi = Vector([max(c[i] for c in corners) for i in range(3)])
+    for layer in layers.values():
+        layer.location = (-(lo.x + hi.x) / 2, -(lo.y + hi.y) / 2, -lo.z)
+    return {}, {}
+
+
 def linear(hex_color):
     return (*lib.srgb(hex_color), 1.0)
 
@@ -144,6 +185,43 @@ def prepare_meshes():
         me.color_attributes.render_color_index = me.color_attributes.find('Col')
 
 
+def join_pieces(groups):
+    """Joins each group's meshes into one mesh (modifiers applied) under its node, keeping where every piece sits:
+    a few meshes per armour or crafting layer instead of one per sphere, which compresses far smaller. Each vertex
+    keeps its own toon settings and outline width (see src/models.ts)."""
+    from mathutils import Matrix
+    bpy.context.view_layer.update()
+    placed = {o: o.matrix_world.copy() for objs in groups.values() for o in objs}
+    for node, objs in groups.items():
+        for o in objs:
+            o.parent = node
+            o.matrix_parent_inverse = Matrix.Identity(4)
+            o.matrix_world = placed[o]
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    for objs in groups.values():
+        for o in objs:
+            me = bpy.data.meshes.new_from_object(o.evaluated_get(dg))
+            o.modifiers.clear()
+            o.data = me
+    for objs in groups.values():
+        if len(objs) > 1:
+            with bpy.context.temp_override(active_object=objs[0], object=objs[0], selected_objects=objs, selected_editable_objects=objs):
+                bpy.ops.object.join()
+
+
+def pivot_groups(pivots):
+    """Every mesh, by the nearest of `pivots` it hangs from."""
+    groups = {p: [] for p in pivots}
+    for o in bpy.data.objects:
+        if o.type == 'MESH':
+            p = o.parent
+            while p not in groups:
+                p = p.parent
+            groups[p].append(o)
+    return {p: objs for p, objs in groups.items() if objs}
+
+
 def key_animations(P, anims):
     parts = [o for k, o in P.items() if not k.startswith('_') and isinstance(o, bpy.types.Object)]
     rest = {o: (tuple(o.location), tuple(o.rotation_euler), tuple(o.scale)) for o in parts}
@@ -172,12 +250,16 @@ def key_animations(P, anims):
 
 def export(name):
     lib.reset()
-    P, anims = CHARACTERS[name]()
+    craft = name.startswith('craft_')
+    P, anims = craft_scene(name[6:]) if craft else CHARACTERS[name]()
     prepare_meshes()
+    if craft or name.startswith('armor_'):
+        join_pieces(pivot_groups([o for o in bpy.data.objects if o.type == 'EMPTY' and (craft or o in P.values())]))
     key_animations(P, anims)
-    os.makedirs(OUT, exist_ok=True)
+    out = CRAFT_OUT if craft else OUT
+    os.makedirs(out, exist_ok=True)
     bpy.ops.export_scene.gltf(
-        filepath=os.path.join(OUT, f'{name}.raw.glb'), export_format='GLB', export_apply=True, export_animations=True,
+        filepath=os.path.join(out, f'{name[6:] if craft else name}.raw.glb'), export_format='GLB', export_apply=True, export_animations=True,
         export_animation_mode='NLA_TRACKS', export_materials='NONE', export_texcoords=False, export_normals=True,
         export_vertex_color='ACTIVE', export_all_vertex_colors=True, export_active_vertex_color_when_no_material=True,
         export_cameras=False, export_lights=False, export_extras=False, export_yup=True,
@@ -189,7 +271,10 @@ def export(name):
 
 if __name__ == '__main__':
     args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
-    names = args[0].split(',') if args and args[0] else list(CHARACTERS)
+    # `crafts` is every crafting scene: each item in art/gear, and the Fluffy Vest.
+    from gear_parts import item_ids
+    CRAFTS = [f'craft_{i}' for i in sorted({*item_ids(), 'fluffvest'})]
+    names = CRAFTS if args[:1] == ['crafts'] else args[0].split(',') if args and args[0] else [*CHARACTERS, *CRAFTS]
     for n in names:
         export(n)
     print(f'EXPORTED {len(names)} models')

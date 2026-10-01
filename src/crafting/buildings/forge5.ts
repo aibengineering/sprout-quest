@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/forge5-base.webp"
+      "id": "base"
     },
     {
-      "id": "obsidian",
-      "src": "assets/buildings/forge5-obsidian.webp"
+      "id": "obsidian"
     },
     {
-      "id": "glim-gable",
-      "src": "assets/buildings/forge5-glim-gable.webp"
+      "id": "glim-gable"
     },
     {
-      "id": "king-crystal",
-      "src": "assets/buildings/forge5-king-crystal.webp"
+      "id": "king-crystal"
     }
   ],
-  "complete": "assets/buildings/forge5-complete.webp",
   "roles": {
     "obsidian": "Front steps, a crucible and the anvil’s face",
     "glimplank": "Glowing gable boards, sign and banner pole",
@@ -36,8 +31,6 @@ export default {
       "part": "obsidian",
       "at": 240,
       "duration": 480,
-      "x": 0.52,
-      "y": 0.8,
       "contact": "solid",
       "sound": "thud"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "glim-gable",
       "at": 880,
       "duration": 480,
-      "x": 0.46,
-      "y": 0.58,
       "contact": "solid",
       "sound": "chop"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "king-crystal",
       "at": 1520,
       "duration": 480,
-      "x": 0.45,
-      "y": 0.28,
       "contact": "energy",
       "sound": "ding"
     }

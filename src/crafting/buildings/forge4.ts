@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/forge4-base.webp"
+      "id": "base"
     },
     {
-      "id": "crystal-kiln",
-      "src": "assets/buildings/forge4-crystal-kiln.webp"
+      "id": "crystal-kiln"
     },
     {
-      "id": "glimmer-glaze",
-      "src": "assets/buildings/forge4-glimmer-glaze.webp"
+      "id": "glimmer-glaze"
     },
     {
-      "id": "echo-vane",
-      "src": "assets/buildings/forge4-echo-vane.webp"
+      "id": "echo-vane"
     }
   ],
-  "complete": "assets/buildings/forge4-complete.webp",
   "roles": {
     "crystal": "The crystal-brick kiln and the crystals growing on it",
     "glimmer": "Glowing glaze and the kiln’s mouth",
@@ -36,8 +31,6 @@ export default {
       "part": "crystal-kiln",
       "at": 240,
       "duration": 480,
-      "x": 0.88,
-      "y": 0.59,
       "contact": "energy",
       "sound": "ding"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "glimmer-glaze",
       "at": 880,
       "duration": 480,
-      "x": 0.89,
-      "y": 0.64,
       "contact": "bind",
       "sound": "craftGoo"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "echo-vane",
       "at": 1520,
       "duration": 480,
-      "x": 0.87,
-      "y": 0.41,
       "contact": "soft",
       "sound": "craftFluff"
     }

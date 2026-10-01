@@ -2,22 +2,19 @@ import type { CraftPresentation } from '../types';
 
 export default {
   "id": "pick1",
+  "model": "assets/crafting3d/pick1.glb",
   "duration": 2800,
   "layers": [
     {
-      "id": "existing-tool",
-      "src": "assets/crafting/pick1-existing-tool.webp"
+      "id": "existing-tool"
     },
     {
-      "id": "goo-joint",
-      "src": "assets/crafting/pick1-goo-joint.webp"
+      "id": "goo-joint"
     },
     {
-      "id": "fluff-wrap",
-      "src": "assets/crafting/pick1-fluff-wrap.webp"
+      "id": "fluff-wrap"
     }
   ],
-  "complete": "assets/crafting/pick1-complete.webp",
   "roles": {
     "goo": "Seats the inherited stone head",
     "fluff": "Soft grip and protective head wrap"
@@ -28,8 +25,6 @@ export default {
       "part": "goo-joint",
       "at": 220,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.21,
       "contact": "bind",
       "sound": "craftGoo"
     },
@@ -38,8 +33,6 @@ export default {
       "part": "fluff-wrap",
       "at": 960,
       "duration": 530,
-      "x": 0.5,
-      "y": 0.81,
       "contact": "soft",
       "sound": "craftFluff"
     }

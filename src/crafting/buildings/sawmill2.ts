@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/sawmill2-base.webp"
+      "id": "base"
     },
     {
-      "id": "stone-ramp",
-      "src": "assets/buildings/sawmill2-stone-ramp.webp"
+      "id": "stone-ramp"
     },
     {
-      "id": "pine-store",
-      "src": "assets/buildings/sawmill2-pine-store.webp"
+      "id": "pine-store"
     },
     {
-      "id": "iron-blade",
-      "src": "assets/buildings/sawmill2-iron-blade.webp"
+      "id": "iron-blade"
     }
   ],
-  "complete": "assets/buildings/sawmill2-complete.webp",
   "roles": {
     "stone": "A stepped log ramp",
     "pine": "A log store under its own roof",
@@ -36,8 +31,6 @@ export default {
       "part": "stone-ramp",
       "at": 240,
       "duration": 480,
-      "x": 0.24,
-      "y": 0.78,
       "contact": "solid",
       "sound": "thud"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "pine-store",
       "at": 880,
       "duration": 480,
-      "x": 0.86,
-      "y": 0.51,
       "contact": "solid",
       "sound": "chop"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "iron-blade",
       "at": 1520,
       "duration": 480,
-      "x": 0.46,
-      "y": 0.54,
       "contact": "solid",
       "sound": "clink"
     }

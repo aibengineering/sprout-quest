@@ -272,12 +272,18 @@ BLENDER=/path/to/blender bun run art
   buildings, menu icons
 - `art/pack.py`: trims frames and packs them into WebP atlases plus `atlas.json`
 
-Characters (the hero in every armor, the villagers and every monster) and every weapon are real-time 3D (the weapon rides in the hero's hand, the arm following each swing, or on the back or hip on the map): `art/models.py` exports each
+Characters (the hero, the villagers and every monster) and every weapon are real-time 3D (the weapon rides in the hero's hand, the arm following each swing, or on the back or hip on the map): `art/models.py` exports each
 one with its animations to `public/assets/models/*.glb` (compressed with gltfpack; `bun run art models`), and
 `src/models.ts` draws them with a cel shader and inverted-hull outlines that match the Blender material. Each character
 is rendered into a small image at its on-screen size and drawn like a sprite, so the 2D world, depth sorting and every
 effect work unchanged. Without WebGL the game falls back to the characters' sprites, and to procedural canvas drawings
 if the atlas can't load either. Dev builds show a performance readout (fps, frame time, 3D renders, GPU).
+
+The hero is one base model (`hero_base`: head, face, hands, feet and hair) and one small model per armour
+(`armor_<id>`), whose pieces hang on the base's pivots when it's worn; only what you wear loads at startup. Crafting and
+building scenes are 3D too: each item or building is a model of its layers (`public/assets/crafting3d/<id>.glb`, from
+the same Blender builders the game wears and holds; `bun run art crafting` and `bun run art buildings`), all loaded on
+the title screen, and played live with the same toon look as the ingredients fly in from the bag.
 
 ## Code map
 

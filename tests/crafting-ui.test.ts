@@ -1,13 +1,34 @@
-// In-process DOM coverage complements the real mobile Chromium scenarios. No network, GPU or timers are needed.
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+// In-process DOM coverage complements the real mobile Chromium scenarios (tests/e2e/crafting.ts). No network, GPU or
+// timers are needed: the 3D scene is stood in for by a fake that records what it was asked to show.
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { Window } from 'happy-dom';
-import { craftMarkup, playCraft, fluffyCraftMarkup, playFluffyCraft, FLUFFY_BINDINGS, FLUFFY_DURATION } from '../src/crafting';
-import fluffvest from '../src/crafting/items/fluffvest';
-import { CRAFT_PRESENTATIONS } from '../src/crafting/catalog';
+import * as models from '../src/models';
+import type { CraftView } from '../src/models';
+
+/** What the scene was asked to do, and whether it can be drawn at all (WebGL). */
+let shows: [string, string | undefined][] = [], revealed: string[] | null = null, webgl = true, initial: string[] = [];
+mock.module('../src/models', () => ({
+  ...models,
+  craftView: (_canvas: HTMLCanvasElement, _url: string, shown: string[]): CraftView | null => {
+    if (!webgl) return null;
+    initial = shown;
+    return {
+      at: () => ({ x: 120, y: 90 }),
+      show: (layer, contact) => { shows.push([layer, contact]); },
+      reveal: (gone) => { revealed = gone; },
+      frame: () => {},
+    };
+  },
+}));
+const { craftMarkup, playCraft } = await import('../src/crafting');
+const { default: fluffvest, FLUFFY_DURATION, FLUFFY_PARTS, FLUFFY_SEAMS } = await import('../src/crafting/items/fluffvest');
+const { CRAFT_PRESENTATIONS } = await import('../src/crafting/catalog');
+const { GEAR, TOOLS, POTION_RECIPES } = await import('../src/data');
+const { MEALS } = await import('../src/kitchen');
+const { UI } = await import('../src/ui');
 import type { CraftPresentation } from '../src/crafting/types';
-import { GEAR, TOOLS, POTION_RECIPES, type MatId, type Recipe } from '../src/data';
-import { MEALS } from '../src/kitchen';
-import { UI, type UIHooks } from '../src/ui';
+import type { MatId, Recipe } from '../src/data';
+import type { UIHooks } from '../src/ui';
 
 const recipe = GEAR.fluffvest.recipe!;
 const before = { fluff: 72, goo: 24 };
@@ -17,7 +38,7 @@ let now = 0, id = 0, cancelled = 0, reduced = false, hidden = false;
 let frames: Map<number, FrameRequestCallback>;
 let media: EventTarget;
 let restore: Map<string, PropertyDescriptor | undefined>;
-const controllers: ReturnType<typeof playFluffyCraft>[] = [];
+const controllers: ReturnType<typeof playCraft>[] = [];
 const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 function frame(time: number) {
   now = time;
@@ -25,17 +46,20 @@ function frame(time: number) {
   frames.clear();
   callbacks.forEach((f) => f(now));
 }
+const layers = () => root.querySelector<HTMLCanvasElement>('.craft-model')!.dataset.layers!.split(' ');
 
 beforeEach(() => {
   win = new Window({ url: 'https://craft-test.invalid', settings: { disableCSSFileLoading: true, disableJavaScriptFileLoading: true } });
   reduced = hidden = false;
+  webgl = true;
+  shows = [];
+  revealed = null;
   now = id = cancelled = 0;
   frames = new Map();
   media = new win.EventTarget() as unknown as EventTarget;
   Object.defineProperty(media, 'matches', { get: () => reduced });
   Object.defineProperty(win, 'matchMedia', { value: () => media });
   Object.defineProperty(win.document, 'hidden', { get: () => hidden });
-  Object.defineProperty(win.HTMLImageElement.prototype, 'decode', { configurable: true, value: () => Promise.resolve() });
   Object.defineProperty(win.HTMLElement.prototype, 'animate', { configurable: true, value: () => ({ cancel: () => cancelled++, onfinish: null }) });
   const globals: Record<string, unknown> = {
     window: win, document: win.document, HTMLElement: win.HTMLElement, HTMLButtonElement: win.HTMLButtonElement,
@@ -46,7 +70,7 @@ beforeEach(() => {
   for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   win.document.body.innerHTML = '<div id="modal"><div class="sheet"></div></div>';
   root = win.document.querySelector('.sheet') as unknown as HTMLElement;
-  root.innerHTML = fluffyCraftMarkup(recipe, before);
+  root.innerHTML = craftMarkup({ ...GEAR.fluffvest, recipe }, fluffvest, before);
 });
 
 afterEach(() => {
@@ -61,15 +85,16 @@ afterEach(() => {
 function start() {
   let ready = 0;
   const sounds: string[] = [];
-  const controller = playFluffyCraft(root, recipe, before, (s) => sounds.push(s), () => ready++);
+  const controller = playCraft(root, fluffvest, recipe, before, (s) => sounds.push(s), () => ready++);
   controllers.push(controller);
   return { controller, sounds, ready: () => ready };
 }
 
 describe('Fluffy Vest presentation lifecycle', () => {
-  test('staggered flights spend the displayed quantities and every goo landing contributes a separate seam', async () => {
+  test('staggered flights spend the displayed quantities and every goo landing shows its own seam', async () => {
     const s = start();
     await drain();
+    expect(initial).toEqual([]);
     frame(1);
     frame(221);
     expect(root.querySelector('[data-count="fluff"]')!.textContent).toBe('64');
@@ -78,19 +103,23 @@ describe('Fluffy Vest presentation lifecycle', () => {
     expect(root.querySelectorAll('.craft-flight.trail').length).toBeGreaterThan(0);
     expect(s.sounds).toEqual(['craftPull']);
     frame(741);
-    expect((root.querySelector('[data-part="left-panel"]') as HTMLElement).style.opacity).toBe('1');
+    expect(shows).toEqual([['left-panel', 'soft']]);
+    expect(layers()).toEqual(['left-panel']);
     for (let i = 0; i < 4; i++) {
       frame(1911 + i * 140);
-      expect((root.querySelector(`[data-binding="${i}"]`) as HTMLElement).style.opacity).toBe('1');
-      expect(root.querySelector(`[data-binding="${i}"]`)!.getAttribute('style')).toContain(FLUFFY_BINDINGS[i].clip);
-      if (i < 3) expect((root.querySelector(`[data-binding="${i + 1}"]`) as HTMLElement).style.opacity).not.toBe('1');
+      expect(shows.at(-1)).toEqual([FLUFFY_SEAMS[i], 'bind']);
     }
+    expect(shows.map(([layer]) => layer)).toEqual([...FLUFFY_PARTS, ...FLUFFY_SEAMS]);
     frame(FLUFFY_DURATION + 1);
     expect(s.ready()).toBe(1);
+    expect(revealed).toEqual([]);
     expect(s.sounds.filter((x) => x === 'treasure')).toHaveLength(1);
     expect(root.querySelector('[data-count="fluff"]')!.textContent).toBe('36');
     expect(root.querySelector('[data-count="goo"]')!.textContent).toBe('12');
     expect(root.querySelectorAll('.craft-flight')).toHaveLength(0);
+    // The finished piece sways until the popup closes.
+    expect(frames.size).toBe(1);
+    controllers[0].dispose();
     expect(frames.size).toBe(0);
   });
 
@@ -105,6 +134,7 @@ describe('Fluffy Vest presentation lifecycle', () => {
     expect(s.ready()).toBe(1);
     expect(s.sounds).toHaveLength(n);
     expect(cancelled).toBeGreaterThan(0);
+    expect(revealed).toEqual([]);
     expect(root.classList.contains('craft-ready')).toBe(true);
     expect((root.querySelector('[data-craft-skip]') as HTMLButtonElement).hidden).toBe(true);
   });
@@ -117,6 +147,7 @@ describe('Fluffy Vest presentation lifecycle', () => {
     expect(frames.size).toBe(0);
     expect(s.sounds).toEqual(['treasure']);
     expect(root.querySelectorAll('.craft-flight')).toHaveLength(0);
+    expect(revealed).toEqual([]);
   });
 
   test('backgrounding finishes quietly and resuming cannot replay sounds', async () => {
@@ -133,8 +164,8 @@ describe('Fluffy Vest presentation lifecycle', () => {
     expect(root.classList.contains('craft-ready')).toBe(true);
   });
 
-  test('missing component art falls back to a finished icon without blocking ownership or choices', async () => {
-    Object.defineProperty(win.HTMLImageElement.prototype, 'decode', { configurable: true, value: () => Promise.reject(new Error('unavailable')) });
+  test('without WebGL the finished icon shows at once, without blocking ownership or choices', async () => {
+    webgl = false;
     const s = start();
     await drain();
     expect(s.ready()).toBe(1);
@@ -143,17 +174,15 @@ describe('Fluffy Vest presentation lifecycle', () => {
     expect(frames.size).toBe(0);
   });
 
-  test('disposing before art decodes prevents a late reveal from touching the next modal', async () => {
-    let decode!: () => void;
-    const promise = new Promise<void>((resolve) => decode = resolve);
-    Object.defineProperty(win.HTMLImageElement.prototype, 'decode', { configurable: true, value: () => promise });
+  test('disposing stops everything: no late reveal touches the next modal', async () => {
     const s = start();
+    await drain();
+    frame(1); frame(300);
     s.controller.dispose();
     root.innerHTML = '<p>Next screen</p>';
-    decode();
-    await drain();
+    frame(9000);
     expect(s.ready()).toBe(0);
-    expect(s.sounds).toHaveLength(0);
+    expect(revealed).toBeNull();
     expect(frames.size).toBe(0);
     expect(root.textContent).toBe('Next screen');
   });
@@ -187,41 +216,41 @@ describe('shared crafting player', () => {
     ...fluffvest, id: 'ironplate',
     roles: { iron: 'Plates', copper: 'Rivets', stone: 'Bracing', pine: 'Inner frame' },
     layers: [
-      ...materials.map((id, i) => ({ id, src: fluffvest.layers[i].src })),
-      { id: 'bench-support', src: fluffvest.complete },
-      { id: 'fuel', src: fluffvest.complete, initial: true, finished: false },
-      { id: 'steam', src: fluffvest.complete, showAt: 1500 },
+      ...materials.map((id) => ({ id })),
+      { id: 'bench-support' },
+      { id: 'fuel', initial: true, finished: false },
+      { id: 'steam', showAt: 1500 },
     ],
-    targets: materials.map((material, i) => ({ material, part: material, at: 220 + i * 400, duration: 300, x: .3 + i * .1, y: .5, contact: contacts[i] })),
+    targets: materials.map((material, i) => ({ material, part: material, at: 220 + i * 400, duration: 300, contact: contacts[i] })),
     phases: [{ at: 0, stage: 'assemble', text: 'Assembling…' }, { at: 2450, stage: 'reveal', text: 'Made by you.' }],
   };
 
   test('four recipe materials land independently; supports, steam and fuel follow their stages', async () => {
     root.innerHTML = craftMarkup({ ...GEAR.ironplate, recipe }, presentation, { iron: 48, copper: 36, stone: 36, pine: 18 });
-    expect((root.querySelector('[data-part="bench-support"]') as HTMLElement).style.opacity).toBe('1');
-    expect((root.querySelector('[data-part="steam"]') as HTMLElement).style.opacity).not.toBe('1');
     let ready = 0;
     const sounds: string[] = [];
     const controller = playCraft(root, presentation, recipe, { iron: 48, copper: 36, stone: 36, pine: 18 }, (s) => sounds.push(s), () => ready++);
     controllers.push(controller);
+    expect(initial.sort()).toEqual(['bench-support', 'fuel']);
     await drain();
     frame(0); frame(1520);
-    expect((root.querySelector('[data-part="steam"]') as HTMLElement).style.opacity).toBe('1');
+    expect(layers()).toContain('steam');
+    expect(shows).toContainEqual(['steam', undefined]);
     frame(2000);
     for (const id of materials) {
       expect(root.querySelector(`[data-count="${id}"]`)!.textContent).toBe(String(recipe[id]));
-      expect((root.querySelector(`[data-part="${id}"]`) as HTMLElement).style.opacity).toBe('1');
+      expect(layers()).toContain(id);
     }
+    expect(shows.filter(([, contact]) => contact).map(([, contact]) => contact)).toEqual([...contacts]);
     expect(sounds).toContain('craftStitch');
     expect(sounds).toContain('craftGoo');
     expect(sounds).toContain('craftFluff');
     expect(sounds).toContain('ding');
-    frame(2450);
-    expect((root.querySelector('[data-part="fuel"]') as HTMLElement).hidden).toBe(true);
     frame(3200);
     expect(ready).toBe(1);
+    expect(revealed).toEqual(['fuel']);
+    expect(layers()).not.toContain('fuel');
     expect(sounds.filter((s) => s === 'treasure')).toHaveLength(1);
-    expect(frames.size).toBe(0);
   });
 
   test('tools, potions and meals use the same explicit acknowledgement after keyboard skip', async () => {
@@ -232,7 +261,7 @@ describe('shared crafting player', () => {
       catalog[item.id] = {
         ...presentation, id: item.id,
         roles: Object.fromEntries(Object.keys(item.recipe).map((id) => [id, 'Test ingredient'])),
-        targets: (Object.keys(item.recipe) as MatId[]).map((material, i) => ({ material, part: materials[i], at: 220, duration: 300, x: .5, y: .5, contact: 'solid' })),
+        targets: (Object.keys(item.recipe) as MatId[]).map((material, i) => ({ material, part: materials[i], at: 220, duration: 300, contact: 'solid' })),
       };
       try {
         const before = { ...item.recipe };

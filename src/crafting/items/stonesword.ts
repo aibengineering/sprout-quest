@@ -1,15 +1,13 @@
 import type { CraftPresentation } from '../types';
-const src = (part: string) => `assets/crafting/stonesword-${part}.webp`;
 
 export default {
-  id: 'stonesword', duration: 2900,
-  layers: ['oak-hilt', 'stone-blade', 'oak-splints'].map((id) => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'stonesword', model: 'assets/crafting3d/stonesword.glb', duration: 2900,
+  layers: ['oak-hilt', 'stone-blade', 'oak-splints'].map((id) => ({ id })),
   roles: { bark: 'Split oak hilt & clamping splints', stone: 'Chipped slab blade' },
   targets: [
-    { material: 'bark', part: 'oak-hilt', at: 180, duration: 480, x: .208, y: .5, contact: 'solid', sound: 'craftStitch' },
-    { material: 'stone', part: 'stone-blade', at: 820, duration: 560, x: .598, y: .498, contact: 'solid', sound: 'clink' },
-    { material: 'bark', part: 'oak-splints', at: 1510, duration: 470, x: .296, y: .5, contact: 'solid', sound: 'craftStitch' },
+    { material: 'bark', part: 'oak-hilt', at: 180, duration: 480, contact: 'solid', sound: 'craftStitch' },
+    { material: 'stone', part: 'stone-blade', at: 820, duration: 560, contact: 'solid', sound: 'clink' },
+    { material: 'bark', part: 'oak-splints', at: 1510, duration: 470, contact: 'solid', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'shape', text: 'Oak Logs, split into a sturdy hilt…' },

@@ -34,5 +34,3 @@ def build_icon():
 CAMERA = dict(ppu=385, anchor=(0, 0, -.015), elevation=0.41887902047863906)
 ICON_ID = 'meal_tart'
 
-# Keep this recipe’s on-demand assembly set inside its mobile byte budget.
-WEBP_QUALITY = 92

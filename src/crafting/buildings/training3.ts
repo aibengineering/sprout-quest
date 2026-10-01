@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/training3-base.webp"
+      "id": "base"
     },
     {
-      "id": "pine-deck",
-      "src": "assets/buildings/training3-pine-deck.webp"
+      "id": "pine-deck"
     },
     {
-      "id": "iron-gong",
-      "src": "assets/buildings/training3-iron-gong.webp"
+      "id": "iron-gong"
     },
     {
-      "id": "imp-horns",
-      "src": "assets/buildings/training3-imp-horns.webp"
+      "id": "imp-horns"
     }
   ],
-  "complete": "assets/buildings/training3-complete.webp",
   "roles": {
     "pineplank": "The deck and the Dojo gate",
     "iron": "A gong and iron post caps",
@@ -36,8 +31,6 @@ export default {
       "part": "pine-deck",
       "at": 240,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.49,
       "contact": "solid",
       "sound": "chop"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "iron-gong",
       "at": 880,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.29,
       "contact": "solid",
       "sound": "clink"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "imp-horns",
       "at": 1520,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.13,
       "contact": "solid",
       "sound": "clink"
     }

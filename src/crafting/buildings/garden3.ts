@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/garden3-base.webp"
+      "id": "base"
     },
     {
-      "id": "glim-beds",
-      "src": "assets/buildings/garden3-glim-beds.webp"
+      "id": "glim-beds"
     },
     {
-      "id": "ember-lanterns",
-      "src": "assets/buildings/garden3-ember-lanterns.webp"
+      "id": "ember-lanterns"
     },
     {
-      "id": "flowers",
-      "src": "assets/buildings/garden3-flowers.webp"
+      "id": "flowers"
     }
   ],
-  "complete": "assets/buildings/garden3-complete.webp",
   "roles": {
     "glimplank": "The last two beds, softly glowing",
     "ember": "Lanterns on the back fence",
@@ -36,8 +31,6 @@ export default {
       "part": "glim-beds",
       "at": 240,
       "duration": 480,
-      "x": 0.77,
-      "y": 0.57,
       "contact": "solid",
       "sound": "chop"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "ember-lanterns",
       "at": 880,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.22,
       "contact": "energy",
       "sound": "ding"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "flowers",
       "at": 1520,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.32,
       "contact": "soft",
       "sound": "craftFluff"
     }

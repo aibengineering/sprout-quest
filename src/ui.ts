@@ -1,7 +1,7 @@
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
 import { xpBloops, type Sfx } from './audio';
-import { buildPresentation, craftMarkup, craftPresentation, playCraft, warmCraft, warmGearCraft } from './crafting';
+import { buildPresentation, craftMarkup, craftPresentation, playCraft } from './crafting';
 import type { CraftItem, CraftPresentation } from './crafting/types';
 import {
   GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
@@ -1218,8 +1218,6 @@ export class UI {
         };
       });
     }
-    // Whatever you could make right now has its scene's art fetched, ready to play the moment you do.
-    for (const r of rows) if (r.can) warmGearCraft(r.id);
     // What you've discovered, newest first, then the strongest you haven't made yet, then what you already own.
     // Undiscovered recipes stay hidden unless you ask to see their outlines (they go last, weakest first).
     const rank = (r: Row) => (this.forgeNew.has(r.id) ? 0 : !r.owned ? 1 : 2);
@@ -1267,7 +1265,6 @@ export class UI {
       }
       const nl = p.levels[lv];
       const ok = canBuild(s, id) === 'ok';
-      if (ok) warmCraft(buildPresentation(id, lv + 1));
       const missing = Object.entries(nl.cost).filter(([m, n]) => s.mats[m as MatId] < (n ?? 0));
       const costs = Object.entries(nl.cost).map(([m, n]) => {
         const have = s.mats[m as MatId], enough = have >= (n ?? 0);

@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/sawmill3-base.webp"
+      "id": "base"
     },
     {
-      "id": "plank-deck",
-      "src": "assets/buildings/sawmill3-plank-deck.webp"
+      "id": "plank-deck"
     },
     {
-      "id": "glimwood-logs",
-      "src": "assets/buildings/sawmill3-glimwood-logs.webp"
+      "id": "glimwood-logs"
     },
     {
-      "id": "crystal-blade",
-      "src": "assets/buildings/sawmill3-crystal-blade.webp"
+      "id": "crystal-blade"
     }
   ],
-  "complete": "assets/buildings/sawmill3-complete.webp",
   "roles": {
     "pineplank": "A plank deck in front",
     "glimwood": "Glimmerwood waiting to be sawn",
@@ -36,8 +31,6 @@ export default {
       "part": "plank-deck",
       "at": 240,
       "duration": 480,
-      "x": 0.53,
-      "y": 0.84,
       "contact": "solid",
       "sound": "chop"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "glimwood-logs",
       "at": 880,
       "duration": 480,
-      "x": 0.86,
-      "y": 0.68,
       "contact": "solid",
       "sound": "chop"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "crystal-blade",
       "at": 1520,
       "duration": 480,
-      "x": 0.54,
-      "y": 0.5,
       "contact": "energy",
       "sound": "ding"
     }

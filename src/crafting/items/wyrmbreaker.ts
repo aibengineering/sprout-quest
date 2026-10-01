@@ -1,15 +1,14 @@
 import type { CraftPresentation } from '../types';
 
 export default {
-  id: 'wyrmbreaker', duration: 3400,
-  layers: ['iron', 'scale', 'crystal', 'ember'].map(id => ({ id, src: `assets/crafting/wyrmbreaker-${id}.webp` })),
-  complete: 'assets/crafting/wyrmbreaker-complete.webp',
+  id: 'wyrmbreaker', model: 'assets/crafting3d/wyrmbreaker.glb', duration: 3400,
+  layers: ['iron', 'scale', 'crystal', 'ember'].map(id => ({ id })),
   roles: { iron: 'Striking frame, shaft & collars', scale: 'Overlapping head & grip plates', crystal: 'Two faceted striking faces', ember: 'Inset hearth & warm seams' },
   targets: [
-    { material: 'iron', part: 'iron', at: 180, duration: 460, x: .61, y: .5, contact: 'solid', sound: 'clink' },
-    { material: 'scale', part: 'scale', at: 900, duration: 420, x: .77, y: .5, contact: 'bind', sound: 'thud' },
-    { material: 'crystal', part: 'crystal', at: 1550, duration: 400, x: .76, y: .32, contact: 'solid', sound: 'tick' },
-    { material: 'ember', part: 'ember', at: 2200, duration: 400, x: .76, y: .5, contact: 'energy', sound: 'craftStitch' },
+    { material: 'iron', part: 'iron', at: 180, duration: 460, contact: 'solid', sound: 'clink' },
+    { material: 'scale', part: 'scale', at: 900, duration: 420, contact: 'bind', sound: 'thud' },
+    { material: 'crystal', part: 'crystal', at: 1550, duration: 400, contact: 'solid', sound: 'tick' },
+    { material: 'ember', part: 'ember', at: 2200, duration: 400, contact: 'energy', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'forge', text: 'Iron makes a sturdy spine and striking frame…' },

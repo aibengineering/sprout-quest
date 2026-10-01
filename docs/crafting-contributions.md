@@ -13,13 +13,11 @@ Create `src/crafting/items/<id>.ts`, default-exporting an object that
 ```ts
 import type { CraftPresentation } from '../types';
 export default {
-  id: 'example', duration: 3200,
-  layers: [{ id: 'body', src: 'assets/crafting/example-body.webp' }],
-  complete: 'assets/crafting/example-complete.webp',
+  id: 'example', model: 'assets/crafting3d/example.glb', duration: 3200,
+  layers: [{ id: 'body' }],
   roles: { bark: 'Shaped wooden body' },
   targets: [
-    { material: 'bark', part: 'body', at: 220, duration: 520,
-      x: .5, y: .5, contact: 'solid' },
+    { material: 'bark', part: 'body', at: 220, duration: 520, contact: 'solid' },
   ],
   phases: [
     { at: 0, stage: 'shape', text: 'Wood, finding its shape…' },
@@ -34,22 +32,20 @@ export default {
 - Use the exact item id from gear/tools/potion/meal data. Meals use `pancakes`,
   `tea`, `goojelly`, `stew`; their existing inventory icons use the `meal_` prefix.
 - Layer ids are unique within the item and should use lowercase letters/digits/hyphens.
-  They are rendered in array order; `part` matches one of those ids.
+  Each is a top-level node of the scene's model (`model`); `part` matches one of those ids,
+  and the ingredients fly to the middle of that layer.
 - Every positive recipe material needs a role and at least one target. Quantities
   are allocated evenly among that material's targets from the actual recipe.
   Do not hardcode ingredient counts in animation metadata.
-- Targets carry milliseconds `at`/`duration`, normalized 512-canvas contact points
-  `x,y`, and `contact: 'soft' | 'bind' | 'solid' | 'energy'`.
+- Targets carry milliseconds `at`/`duration` and `contact: 'soft' | 'bind' | 'solid' | 'energy'`
+  (how the layer arrives: squashing in, binding, setting down, or glowing in).
   Optional `sound` is an existing `Sfx` name; do not add shared sound cases.
 - Phases have increasing times beginning at zero. Include `stage: 'reveal'` after
   all contacts, leaving time for the final lift before `duration`.
-- A layer may use `clip: 'inset(...)'` to reveal separate contacts from one
-  registered image. Use separate unique ids for those clips.
 - Untargeted bottles/cookware show initially by default. `initial` overrides that
   default; `showAt` schedules steam or other effects in milliseconds; `finished:
   false` hides fuel or temporary supports at reveal and after skip/reduced motion.
 - Optional `eyebrow` names another station, such as Granny's kitchen.
-- `binding` is a pilot compatibility field. New definitions do not need it.
 - Text fields explain the actual materials and construction. The schema describes
   presentation only; persistence, ownership, effects and equip stay in game rules.
 - The integration owner runs `bun run scripts/register-crafting.ts` to add finished
@@ -81,24 +77,16 @@ coordinates after these transforms. Equipped geometry stays on the grip/+X axis.
 Charms, tools, potions and meals export `build_item(root)`. Construct under that
 root and return the parts map; icon and workbench rendering share the builder.
 
-Assembly rendering accepts optional `CAMERA = dict(ppu=..., anchor=(x,y,z),
-elevation=..., fit_origin=.5)`; elevation is in radians. Every part and complete image uses that
-one camera. Optional `ICON_ID` overrides the destination inventory icon (meals
-automatically use `meal_<id>`).
-Optional `COMPLETE_PARTS` selects component ids present in the completed render and
-inventory icon; other components (for example pine cooking fuel) still get their
-own registered assembly image. Mark those runtime layers `finished: false` too.
-
-The shared command is `bun run art crafting <id>` (or comma-separated ids).
-It renders registered transparent 512×512 PNGs and packs WebPs (quality 100 by
-default; optional `WEBP_QUALITY` preserves an item’s reviewed compression budget),
-records alpha bounds/centers in `public/assets/crafting/<id>.json`, and writes the
-complete piece as the 128×128 inventory icon. Never independently fit or trim
-component images. Deliver your individual WebPs, JSON metadata and equipped GLB
-outputs; the shared integration owner coordinates atlas regeneration. For a
-coordinated partial integration, `blender -b --factory-startup --python-exit-code 1
--P art/pack.py -- --overlay --gathering` appends updated weapon renders and
-standalone gathering frames, preserving existing atlas pages byte-for-byte.
+The scene is a 3D model from the same builder: `bun run art crafting <id>` (or comma-separated ids) exports
+`public/assets/crafting3d/<id>.glb` (art/models.py), each part a top-level node named after its layer, Z-up with the
+front facing -Y and the origin on the ground under the middle, compressed with gltfpack (`-cc -kn`). Armour is also
+exported on its own (`armor_<id>`, hung on the hero's pivots) and weapons as `wpn_<id>`, from the same builders, so the
+crafted and the worn item are one source of truth. The game loads every scene on the title screen and plays it live
+with the characters' toon shading and outlines, from a fixed 3/4 view (src/models.ts `craftView`).
+Optional `CAMERA = dict(ppu=..., anchor=(x,y,z), elevation=...)` frames the item's inventory icon
+(`bun run art icons <id>`), and optional `COMPLETE_PARTS` leaves out fuel or supports from it (mark those runtime
+layers `finished: false` too). Optional `ICON_ID` overrides the destination inventory icon (meals automatically use
+`meal_<id>`).
 
 ## Checks and publication
 
@@ -124,8 +112,7 @@ just needs a role and a target on a layer), and a level whose scene doesn't cove
 Layers without a target are only `base` (what stood before the upgrade) or `site` (what waited on the plot).
 
 Geometry is `art/buildings/<project><level>.py`, exporting `build_building(root)` (layers in build order) and
-`CAMERA`. Assembly art is a 640×480 canvas in `public/assets/buildings/`: `bun run art buildings [id,...]`. Unlike
-gear, building parts stand in front of one another, so each layer renders with the earlier layers as holdouts and
-the stack matches the complete render. The map sprite (`env/<name>`) and menu icon (`b_<name>`) come from the same
-builder through `env.SCENERY`; re-render them with `bun run art env <names>` and `bun run art icons2 <names>` when a
-building changes.
+`CAMERA`. Its scene's model is `public/assets/crafting3d/<project><level>.glb`: `bun run art buildings [id,...]`
+(art/building_models.py), framed wider than gear. The map sprite (`env/<name>`) and menu icon (`b_<name>`) come from
+the same builder through `env.SCENERY`; re-render them with `bun run art env <names>` and `bun run art icons2 <names>`
+when a building changes.

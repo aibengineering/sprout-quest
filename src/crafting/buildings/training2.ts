@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/training2-base.webp"
+      "id": "base"
     },
     {
-      "id": "fang-post",
-      "src": "assets/buildings/training2-fang-post.webp"
+      "id": "fang-post"
     },
     {
-      "id": "copper-rack",
-      "src": "assets/buildings/training2-copper-rack.webp"
+      "id": "copper-rack"
     },
     {
-      "id": "royal-target",
-      "src": "assets/buildings/training2-royal-target.webp"
+      "id": "royal-target"
     }
   ],
-  "complete": "assets/buildings/training2-complete.webp",
   "roles": {
     "fang": "Studs on the sparring post",
     "copper": "Practice blades and their rack",
@@ -36,8 +31,6 @@ export default {
       "part": "fang-post",
       "at": 240,
       "duration": 480,
-      "x": 0.26,
-      "y": 0.54,
       "contact": "solid",
       "sound": "clink"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "copper-rack",
       "at": 880,
       "duration": 480,
-      "x": 0.18,
-      "y": 0.42,
       "contact": "solid",
       "sound": "clink"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "royal-target",
       "at": 1520,
       "duration": 480,
-      "x": 0.79,
-      "y": 0.42,
       "contact": "bind",
       "sound": "craftGoo"
     }

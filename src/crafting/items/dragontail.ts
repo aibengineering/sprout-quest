@@ -1,15 +1,14 @@
 import type { CraftPresentation } from '../types';
 
 export default {
-  id: 'dragontail', duration: 3300,
-  layers: ['emberwood', 'horn', 'scale', 'ember'].map(id => ({ id, src: `assets/crafting/dragontail-${id}.webp` })),
-  complete: 'assets/crafting/dragontail-complete.webp',
+  id: 'dragontail', model: 'assets/crafting3d/dragontail.glb', duration: 3300,
+  layers: ['emberwood', 'horn', 'scale', 'ember'].map(id => ({ id })),
   roles: { emberwood: 'Carved grip with glowing ember grain', horn: 'Grip ferrules, pommel & lash tip', scale: 'Three linked, flexible lash coils', ember: 'Warm grip bands & coil seams' },
   targets: [
-    { material: 'emberwood', part: 'emberwood', at: 180, duration: 420, x: .36, y: .31, contact: 'solid', sound: 'chop' },
-    { material: 'horn', part: 'horn', at: 830, duration: 400, x: .474, y: .314, contact: 'solid', sound: 'tick' },
-    { material: 'scale', part: 'scale', at: 1450, duration: 460, x: .654, y: .278, contact: 'bind', sound: 'thud' },
-    { material: 'ember', part: 'ember', at: 2130, duration: 400, x: .659, y: .613, contact: 'energy', sound: 'craftStitch' },
+    { material: 'emberwood', part: 'emberwood', at: 180, duration: 420, contact: 'solid', sound: 'chop' },
+    { material: 'horn', part: 'horn', at: 830, duration: 400, contact: 'solid', sound: 'tick' },
+    { material: 'scale', part: 'scale', at: 1450, duration: 460, contact: 'bind', sound: 'thud' },
+    { material: 'ember', part: 'ember', at: 2130, duration: 400, contact: 'energy', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'carve', text: 'Emberwood becomes a smooth grip, its grain still glowing…' },

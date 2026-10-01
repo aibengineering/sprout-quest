@@ -8,31 +8,24 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "obsidian-plinth",
-      "src": "assets/buildings/home3-obsidian-plinth.webp"
+      "id": "obsidian-plinth"
     },
     {
-      "id": "ember-frame",
-      "src": "assets/buildings/home3-ember-frame.webp"
+      "id": "ember-frame"
     },
     {
-      "id": "glim-walls",
-      "src": "assets/buildings/home3-glim-walls.webp"
+      "id": "glim-walls"
     },
     {
-      "id": "glim-roof",
-      "src": "assets/buildings/home3-glim-roof.webp"
+      "id": "glim-roof"
     },
     {
-      "id": "crystal-windows",
-      "src": "assets/buildings/home3-crystal-windows.webp"
+      "id": "crystal-windows"
     },
     {
-      "id": "flower-boxes",
-      "src": "assets/buildings/home3-flower-boxes.webp"
+      "id": "flower-boxes"
     }
   ],
-  "complete": "assets/buildings/home3-complete.webp",
   "roles": {
     "obsidian": "Glossy black plinth and front steps",
     "emberplank": "Charcoal beams glowing in the grain, and the door",
@@ -46,8 +39,6 @@ export default {
       "part": "obsidian-plinth",
       "at": 240,
       "duration": 480,
-      "x": 0.51,
-      "y": 0.81,
       "contact": "solid",
       "sound": "thud"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "ember-frame",
       "at": 800,
       "duration": 480,
-      "x": 0.52,
-      "y": 0.55,
       "contact": "solid",
       "sound": "chop"
     },
@@ -66,8 +55,6 @@ export default {
       "part": "glim-walls",
       "at": 1360,
       "duration": 480,
-      "x": 0.51,
-      "y": 0.54,
       "contact": "solid",
       "sound": "chop"
     },
@@ -76,8 +63,6 @@ export default {
       "part": "glim-roof",
       "at": 1920,
       "duration": 480,
-      "x": 0.51,
-      "y": 0.32,
       "contact": "solid",
       "sound": "chop"
     },
@@ -86,8 +71,6 @@ export default {
       "part": "crystal-windows",
       "at": 2480,
       "duration": 480,
-      "x": 0.53,
-      "y": 0.42,
       "contact": "energy",
       "sound": "ding"
     },
@@ -96,8 +79,6 @@ export default {
       "part": "flower-boxes",
       "at": 3040,
       "duration": 480,
-      "x": 0.47,
-      "y": 0.88,
       "contact": "soft",
       "sound": "craftFluff"
     }

@@ -1,14 +1,12 @@
 import type { CraftPresentation } from '../types';
-const src = (part: string) => `assets/crafting/crystalsword-${part}.webp`;
 export default {
-  id: 'crystalsword', duration: 3000,
-  layers: ['glimwood-grip', 'iron-cradle', 'crystal-edge'].map(id => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'crystalsword', model: 'assets/crafting3d/crystalsword.glb', duration: 3000,
+  layers: ['glimwood-grip', 'iron-cradle', 'crystal-edge'].map(id => ({ id })),
   roles: { glimwood: 'Glimmerwood grip & end grain', iron: 'Guard, pommel & blade cradle', crystal: 'Faceted cutting edge' },
   targets: [
-    { material: 'glimwood', part: 'glimwood-grip', at: 180, duration: 450, x: .2305, y: .7666, contact: 'solid', sound: 'craftStitch' },
-    { material: 'iron', part: 'iron-cradle', at: 700, duration: 430, x: .2949, y: .7023, contact: 'solid', sound: 'craftStitch' },
-    { material: 'crystal', part: 'crystal-edge', at: 1240, duration: 480, x: .6289, y: .3723, contact: 'solid', sound: 'tick' },
+    { material: 'glimwood', part: 'glimwood-grip', at: 180, duration: 450, contact: 'solid', sound: 'craftStitch' },
+    { material: 'iron', part: 'iron-cradle', at: 700, duration: 430, contact: 'solid', sound: 'craftStitch' },
+    { material: 'crystal', part: 'crystal-edge', at: 1240, duration: 480, contact: 'solid', sound: 'tick' },
   ],
   phases: [
     { at: 0, stage: 'shape', text: 'Glimmerwood, shaped into a softly glowing grip…' },

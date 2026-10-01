@@ -1,17 +1,15 @@
 import type { CraftPresentation } from '../types';
-const src = (part: string) => `assets/crafting/crystalmail-${part}.webp`;
 
 export default {
-  id: 'crystalmail', duration: 3500,
-  layers: ['iron-frame', 'crystal-scales', 'left-crystal', 'right-crystal', 'stone-anchors'].map((id) => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'crystalmail', model: 'assets/crafting3d/crystalmail.glb', duration: 3500,
+  layers: ['iron-frame', 'crystal-scales', 'left-crystal', 'right-crystal', 'stone-anchors'].map((id) => ({ id })),
   roles: { iron: 'Frame, sockets & edge rails', crystal: 'Faceted scales & shoulder crystals', stone: 'Matte socket anchors' },
   targets: [
-    { material: 'iron', part: 'iron-frame', at: 180, duration: 480, x: 0.541, y: 0.59, contact: 'solid', sound: 'craftStitch' },
-    { material: 'crystal', part: 'crystal-scales', at: 720, duration: 520, x: 0.5, y: 0.631, contact: 'energy', sound: 'tick' },
-    { material: 'crystal', part: 'left-crystal', at: 1080, duration: 520, x: 0.189, y: 0.381, contact: 'energy', sound: 'tick' },
-    { material: 'crystal', part: 'right-crystal', at: 1340, duration: 520, x: 0.811, y: 0.381, contact: 'energy', sound: 'tick' },
-    { material: 'stone', part: 'stone-anchors', at: 1940, duration: 480, x: 0.705, y: 0.619, contact: 'solid', sound: 'step' },
+    { material: 'iron', part: 'iron-frame', at: 180, duration: 480, contact: 'solid', sound: 'craftStitch' },
+    { material: 'crystal', part: 'crystal-scales', at: 720, duration: 520, contact: 'energy', sound: 'tick' },
+    { material: 'crystal', part: 'left-crystal', at: 1080, duration: 520, contact: 'energy', sound: 'tick' },
+    { material: 'crystal', part: 'right-crystal', at: 1340, duration: 520, contact: 'energy', sound: 'tick' },
+    { material: 'stone', part: 'stone-anchors', at: 1940, duration: 480, contact: 'solid', sound: 'step' },
   ],
   phases: [
     { at: 0, stage: 'forge', text: 'Iron rails and sockets, forming a frame…' },

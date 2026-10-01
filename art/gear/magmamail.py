@@ -8,8 +8,6 @@ from lib import box, crystal, empty, profile, sphere, toon, torus
 
 PARTS = ('iron-shell', 'ember-seams', 'left-horns', 'right-horns', 'crystal-clasps')
 HELMET = False
-# Lossy alpha WebP (VP8X) keeps these layers inside their reviewed mobile download budget.
-WEBP_QUALITY = 95
 CAMERA = dict(ppu=480, anchor=(0, 0, .365), elevation=math.radians(12))
 
 

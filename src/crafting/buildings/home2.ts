@@ -8,31 +8,24 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "stone-footing",
-      "src": "assets/buildings/home2-stone-footing.webp"
+      "id": "stone-footing"
     },
     {
-      "id": "oak-frame",
-      "src": "assets/buildings/home2-oak-frame.webp"
+      "id": "oak-frame"
     },
     {
-      "id": "oak-walls",
-      "src": "assets/buildings/home2-oak-walls.webp"
+      "id": "oak-walls"
     },
     {
-      "id": "roof",
-      "src": "assets/buildings/home2-roof.webp"
+      "id": "roof"
     },
     {
-      "id": "chimney",
-      "src": "assets/buildings/home2-chimney.webp"
+      "id": "chimney"
     },
     {
-      "id": "clover",
-      "src": "assets/buildings/home2-clover.webp"
+      "id": "clover"
     }
   ],
-  "complete": "assets/buildings/home2-complete.webp",
   "roles": {
     "stone": "Footing, doorstep and chimney",
     "bark": "Oak frame, wattle walls and shingle roof",
@@ -44,8 +37,6 @@ export default {
       "part": "stone-footing",
       "at": 240,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.74,
       "contact": "solid",
       "sound": "thud"
     },
@@ -54,8 +45,6 @@ export default {
       "part": "oak-frame",
       "at": 800,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.68,
       "contact": "solid",
       "sound": "chop"
     },
@@ -64,8 +53,6 @@ export default {
       "part": "oak-walls",
       "at": 1360,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.56,
       "contact": "solid",
       "sound": "chop"
     },
@@ -74,8 +61,6 @@ export default {
       "part": "roof",
       "at": 1920,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.32,
       "contact": "solid",
       "sound": "chop"
     },
@@ -84,8 +69,6 @@ export default {
       "part": "chimney",
       "at": 2480,
       "duration": 480,
-      "x": 0.64,
-      "y": 0.19,
       "contact": "solid",
       "sound": "thud"
     },
@@ -94,8 +77,6 @@ export default {
       "part": "clover",
       "at": 3040,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.68,
       "contact": "energy",
       "sound": "ding"
     }

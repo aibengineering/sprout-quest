@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/sawmill4-base.webp"
+      "id": "base"
     },
     {
-      "id": "glimplank-trim",
-      "src": "assets/buildings/sawmill4-glimplank-trim.webp"
+      "id": "glimplank-trim"
     },
     {
-      "id": "emberwood-logs",
-      "src": "assets/buildings/sawmill4-emberwood-logs.webp"
+      "id": "emberwood-logs"
     },
     {
-      "id": "obsidian-blade",
-      "src": "assets/buildings/sawmill4-obsidian-blade.webp"
+      "id": "obsidian-blade"
     }
   ],
-  "complete": "assets/buildings/sawmill4-complete.webp",
   "roles": {
     "glimplank": "Glowing roof trim and a sign",
     "emberwood": "Emberwood waiting to be sawn",
@@ -36,8 +31,6 @@ export default {
       "part": "glimplank-trim",
       "at": 240,
       "duration": 480,
-      "x": 0.46,
-      "y": 0.42,
       "contact": "solid",
       "sound": "chop"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "emberwood-logs",
       "at": 880,
       "duration": 480,
-      "x": 0.11,
-      "y": 0.74,
       "contact": "solid",
       "sound": "chop"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "obsidian-blade",
       "at": 1520,
       "duration": 480,
-      "x": 0.58,
-      "y": 0.54,
       "contact": "solid",
       "sound": "thud"
     }

@@ -1,24 +1,22 @@
 import type { CraftPresentation } from '../types';
 
-const src = (part: string) => `assets/crafting/magmamail-${part}.webp`;
 export default {
-  id: 'magmamail', duration: 3900,
+  id: 'magmamail', model: 'assets/crafting3d/magmamail.glb', duration: 3900,
   layers: [
-    { id: 'iron-shell', src: src('iron-shell') },
-    { id: 'ember-seams', src: src('ember-seams') },
-    { id: 'left-horns', src: src('left-horns') },
-    { id: 'right-horns', src: src('right-horns') },
-    { id: 'crystal-clasps', src: src('crystal-clasps') },
+    { id: 'iron-shell' },
+    { id: 'ember-seams' },
+    { id: 'left-horns' },
+    { id: 'right-horns' },
+    { id: 'crystal-clasps' },
   ],
-  complete: src('complete'),
   roles: { iron: 'Shaped shell & shoulder sockets', ember: 'Warm channels through the iron',
     horn: 'Curved shoulder guards', crystal: 'Six cooling fasteners' },
   targets: [
-    { material: 'iron', part: 'iron-shell', at: 180, duration: 510, x: .50, y: .53, contact: 'solid', sound: 'craftStitch' },
-    { material: 'ember', part: 'ember-seams', at: 810, duration: 490, x: .50, y: .54, contact: 'energy', sound: 'craftGoo' },
-    { material: 'horn', part: 'left-horns', at: 1460, duration: 450, x: .123, y: .278, contact: 'solid', sound: 'craftFluff' },
-    { material: 'horn', part: 'right-horns', at: 1660, duration: 450, x: .877, y: .278, contact: 'solid', sound: 'craftFluff' },
-    { material: 'crystal', part: 'crystal-clasps', at: 2280, duration: 640, x: .643, y: .484, contact: 'solid', sound: 'craftStitch' },
+    { material: 'iron', part: 'iron-shell', at: 180, duration: 510, contact: 'solid', sound: 'craftStitch' },
+    { material: 'ember', part: 'ember-seams', at: 810, duration: 490, contact: 'energy', sound: 'craftGoo' },
+    { material: 'horn', part: 'left-horns', at: 1460, duration: 450, contact: 'solid', sound: 'craftFluff' },
+    { material: 'horn', part: 'right-horns', at: 1660, duration: 450, contact: 'solid', sound: 'craftFluff' },
+    { material: 'crystal', part: 'crystal-clasps', at: 2280, duration: 640, contact: 'solid', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'shape', text: 'Iron, pressed into a sturdy little shell…' },

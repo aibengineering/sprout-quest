@@ -8,15 +8,12 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "oak-post",
-      "src": "assets/buildings/training1-oak-post.webp"
+      "id": "oak-post"
     },
     {
-      "id": "fluff-stuffing",
-      "src": "assets/buildings/training1-fluff-stuffing.webp"
+      "id": "fluff-stuffing"
     }
   ],
-  "complete": "assets/buildings/training1-complete.webp",
   "roles": {
     "bark": "The post, the arms and the ground",
     "fluff": "Stuffing for the body and head"
@@ -27,8 +24,6 @@ export default {
       "part": "oak-post",
       "at": 240,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.56,
       "contact": "solid",
       "sound": "chop"
     },
@@ -37,8 +32,6 @@ export default {
       "part": "fluff-stuffing",
       "at": 880,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.35,
       "contact": "soft",
       "sound": "craftFluff"
     }

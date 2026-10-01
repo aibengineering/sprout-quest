@@ -8,27 +8,21 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "site",
-      "src": "assets/buildings/sawmill1-site.webp"
+      "id": "site"
     },
     {
-      "id": "stone-floor",
-      "src": "assets/buildings/sawmill1-stone-floor.webp"
+      "id": "stone-floor"
     },
     {
-      "id": "pine-frame",
-      "src": "assets/buildings/sawmill1-pine-frame.webp"
+      "id": "pine-frame"
     },
     {
-      "id": "pine-roof",
-      "src": "assets/buildings/sawmill1-pine-roof.webp"
+      "id": "pine-roof"
     },
     {
-      "id": "copper-blade",
-      "src": "assets/buildings/sawmill1-copper-blade.webp"
+      "id": "copper-blade"
     }
   ],
-  "complete": "assets/buildings/sawmill1-complete.webp",
   "roles": {
     "stone": "The floor and the post footings",
     "pine": "The shed, its bench and its roof",
@@ -40,8 +34,6 @@ export default {
       "part": "stone-floor",
       "at": 240,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.68,
       "contact": "solid",
       "sound": "thud"
     },
@@ -50,8 +42,6 @@ export default {
       "part": "pine-frame",
       "at": 880,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.42,
       "contact": "solid",
       "sound": "chop"
     },
@@ -60,8 +50,6 @@ export default {
       "part": "pine-roof",
       "at": 1520,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.2,
       "contact": "solid",
       "sound": "chop"
     },
@@ -70,8 +58,6 @@ export default {
       "part": "copper-blade",
       "at": 2160,
       "duration": 480,
-      "x": 0.63,
-      "y": 0.54,
       "contact": "solid",
       "sound": "clink"
     }

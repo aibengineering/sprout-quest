@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { sceneModel } from './sceneModel';
 import { buildPresentation, craftFlights } from '../src/crafting';
 import { BUILD_PRESENTATIONS } from '../src/crafting/building-catalog';
 import { MATS, PROJECTS, type MatId, type ProjectId } from '../src/data';
@@ -27,14 +28,15 @@ describe('village buildings rise from their materials', () => {
     }
   });
 
-  test('stays within the phone art budget', () => {
+  test('their models are small', () => {
     let total = 0;
     for (const p of Object.values(BUILD_PRESENTATIONS)) {
-      const bytes = [...new Set([...p.layers.map((l) => l.src), p.complete])].reduce((n, src) => n + statSync(`public/${src}`).size, 0);
+      const { bytes } = sceneModel(p.model);
       expect(bytes, p.id).toBeLessThan(120 * 1024);
       total += bytes;
     }
-    expect(total).toBeLessThan(1.5 * 1024 * 1024);
+    // The 19 scenes' WebP layers were 0.9 MB.
+    expect(total).toBeLessThan(1024 * 1024);
   });
 
   for (const l of levels) {
@@ -51,16 +53,12 @@ describe('village buildings rise from their materials', () => {
       expect(reveal).toBeDefined();
       expect(p.phases[p.phases.length - 1]).toBe(reveal);
       expect(reveal.at).toBeLessThan(p.duration);
-      const manifest = JSON.parse(readFileSync(`public/assets/buildings/${l.id}.json`, 'utf8'));
-      expect(manifest.size).toEqual([640, 480]);
-      // Layers stack in build order, exactly as rendered.
-      expect(manifest.stack).toEqual(layers);
-      for (const src of [...p.layers.map((x) => x.src), p.complete]) {
-        expect(src.startsWith(`assets/buildings/${l.id}-`)).toBe(true);
-        expect(existsSync(`public/${src}`)).toBe(true);
-        const art = Object.values(manifest.parts).find((x: any) => x.src === src) as any;
-        expect(art).toBeDefined();
-      }
+      // The model has exactly the scene's layers, each with something to see, carrying the toon look.
+      expect(p.model).toBe(`assets/crafting3d/${l.id}.glb`);
+      const model = sceneModel(p.model);
+      expect(Object.keys(model.layers).sort()).toEqual([...layers].sort());
+      for (const layer of layers) expect(model.layers[layer], `${l.id}: ${layer}`).toBeGreaterThan(0);
+      expect(model.compressed && model.toon).toBe(true);
       // What already stood before an upgrade (or waited on the site) shows from the start; everything else arrives.
       for (const layer of p.layers) {
         if (!p.targets.some((t) => t.part === layer.id)) expect(['base', 'site']).toContain(layer.id);
@@ -72,11 +70,6 @@ describe('village buildings rise from their materials', () => {
         expect(t.at).toBeGreaterThanOrEqual(0);
         expect(t.duration).toBeGreaterThan(0);
         expect(t.at + t.duration).toBeLessThanOrEqual(reveal.at);
-        const [x0, y0, x1, y1] = (Object.values(manifest.parts).find((x: any) => x.src === p.layers.find((y) => y.id === t.part)!.src) as any).bounds;
-        expect(t.x * 640).toBeGreaterThanOrEqual(x0);
-        expect(t.x * 640).toBeLessThanOrEqual(x1);
-        expect(t.y * 480).toBeGreaterThanOrEqual(y0);
-        expect(t.y * 480).toBeLessThanOrEqual(y1);
       }
       for (const material of Object.keys(l.cost) as MatId[]) {
         expect(p.roles[material], `${l.id}: no role for ${material}`).toBeTruthy();

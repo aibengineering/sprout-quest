@@ -1,30 +1,17 @@
 import type { CraftPresentation } from '../types';
 
-export const FLUFFY_PARTS = ['left-panel', 'right-panel', 'collar', 'left-cuff', 'right-cuff', 'goo-seams'] as const;
+export const FLUFFY_PARTS = ['left-panel', 'right-panel', 'collar', 'left-cuff', 'right-cuff'] as const;
+/** The goo goes on in four seams: each cuff, the hem, then the front. */
+export const FLUFFY_SEAMS = ['seam-0', 'seam-1', 'seam-2', 'seam-3'] as const;
 export const FLUFFY_DURATION = 3200;
-export const FLUFFY_BINDINGS = [
-  { x: .2, y: .6, clip: 'inset(43.7% 70% 23% 0)' },
-  { x: .8, y: .6, clip: 'inset(43.7% 0 23% 70%)' },
-  { x: .38, y: .74, clip: 'inset(68% 30% 23% 30%)' },
-  { x: .5, y: .54, clip: 'inset(43.7% 47% 23% 47%)' },
-] as const;
-const src = (part: string) => `assets/crafting/fluffvest-${part}.webp`;
-const panels = [
-  ['left-panel', .289, .541], ['right-panel', .711, .541], ['collar', .503, .340],
-  ['left-cuff', .191, .613], ['right-cuff', .815, .613],
-] as const;
 
 export default {
-  id: 'fluffvest', duration: FLUFFY_DURATION,
-  layers: [
-    ...FLUFFY_PARTS.slice(0, 5).map((id) => ({ id, src: src(id) })),
-    ...FLUFFY_BINDINGS.map((b, binding) => ({ id: `seam-${binding}`, src: src('goo-seams'), clip: b.clip, binding })),
-  ],
-  complete: src('complete'),
+  id: 'fluffvest', model: 'assets/crafting3d/fluffvest.glb', duration: FLUFFY_DURATION,
+  layers: [...FLUFFY_PARTS, ...FLUFFY_SEAMS].map((id) => ({ id })),
   roles: { fluff: 'Panels, collar & cuffs', goo: 'Soft, springy seams' },
   targets: [
-    ...panels.map(([part, x, y], i) => ({ material: 'fluff' as const, part, x, y, at: 220 + i * 155, duration: 520, contact: 'soft' as const })),
-    ...FLUFFY_BINDINGS.map((b, i) => ({ material: 'goo' as const, part: `seam-${i}`, binding: i, x: b.x, y: b.y, at: 1450 + i * 140, duration: 460, contact: 'bind' as const })),
+    ...FLUFFY_PARTS.map((part, i) => ({ material: 'fluff' as const, part, at: 220 + i * 155, duration: 520, contact: 'soft' as const })),
+    ...FLUFFY_SEAMS.map((part, i) => ({ material: 'goo' as const, part, at: 1450 + i * 140, duration: 460, contact: 'bind' as const })),
   ],
   phases: [
     { at: 0, stage: 'fluff', text: 'Bunny Fluff, finding its shape…' },

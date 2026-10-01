@@ -1,6 +1,7 @@
 // The title screen: loading with real progress, then Continue / New Game.
 import { loadAssets, preloadIcons } from '../assets';
 import { MONSTERS, QUESTS } from '../data';
+import { loadCraftArt } from '../crafting';
 import { loadModels, webglAvailable } from '../models';
 import { playerStats } from '../rules';
 import { clearLog, logEvent } from '../stats';
@@ -43,8 +44,10 @@ export async function boot() {
   const armor = loadState()?.equip.armor ?? 'tunic';
   const weapon = loadState()?.equip.weapon ?? 'twig';
   const characters = [`hero_${armor}`, `wpn_${weapon}`, 'npc_elder', 'npc_granny', 'npc_poppy', 'npc_poppy_hug', 'npc_bram', 'npc_bram_hurt', 'npc_pip', ...Object.keys(MONSTERS).map((k) => `mon_${k}`)];
-  await loadModels(characters, (done, total) => show(0.65 + 0.22 * (done / total), `Waking everyone up… ${done} / ${total}`));
-  await preloadIcons(allIconIds(), (p) => show(0.87 + 0.13 * (p.done / p.total), `Unpacking menu icons… ${p.done} / ${p.total}`));
+  await loadModels(characters, (done, total) => show(0.65 + 0.15 * (done / total), `Waking everyone up… ${done} / ${total}`));
+  // Every crafting and building scene, so none ever waits for its model (they can only be drawn with WebGL).
+  if (webglAvailable()) await loadCraftArt((done, total) => show(0.8 + 0.1 * (done / total), `Laying out the workbench… ${done} / ${total}`));
+  await preloadIcons(allIconIds(), (p) => show(0.9 + 0.1 * (p.done / p.total), `Unpacking menu icons… ${p.done} / ${p.total}`));
   show(1, 'Ready!');
   const saved = !!loadState();
   document.getElementById('btn-continue')!.hidden = !saved;

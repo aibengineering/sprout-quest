@@ -2,18 +2,16 @@ import type { CraftPresentation } from '../types';
 
 export default {
   "id": "axe3",
+  "model": "assets/crafting3d/axe3.glb",
   "duration": 3100,
   "layers": [
     {
-      "id": "pine-haft",
-      "src": "assets/crafting/axe3-pine-haft.webp"
+      "id": "pine-haft"
     },
     {
-      "id": "iron-head",
-      "src": "assets/crafting/axe3-iron-head.webp"
+      "id": "iron-head"
     }
   ],
-  "complete": "assets/crafting/axe3-complete.webp",
   "roles": {
     "pine": "Grained pine haft and grip",
     "iron": "Forged broad blade, socket and collars"
@@ -24,8 +22,6 @@ export default {
       "part": "pine-haft",
       "at": 220,
       "duration": 530,
-      "x": 0.5,
-      "y": 0.56,
       "contact": "solid",
       "sound": "creak"
     },
@@ -34,8 +30,6 @@ export default {
       "part": "iron-head",
       "at": 1100,
       "duration": 580,
-      "x": 0.4,
-      "y": 0.22,
       "contact": "solid",
       "sound": "craftStitch"
     }

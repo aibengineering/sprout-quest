@@ -8,23 +8,18 @@ export default {
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {
-      "id": "base",
-      "src": "assets/buildings/forge2-base.webp"
+      "id": "base"
     },
     {
-      "id": "oak-porch",
-      "src": "assets/buildings/forge2-oak-porch.webp"
+      "id": "oak-porch"
     },
     {
-      "id": "copper-trim",
-      "src": "assets/buildings/forge2-copper-trim.webp"
+      "id": "copper-trim"
     },
     {
-      "id": "royal-bellows",
-      "src": "assets/buildings/forge2-royal-bellows.webp"
+      "id": "royal-bellows"
     }
   ],
-  "complete": "assets/buildings/forge2-complete.webp",
   "roles": {
     "bark": "An oak porch over the door",
     "copper": "Copper ridge, chimney caps and weathervane",
@@ -36,8 +31,6 @@ export default {
       "part": "oak-porch",
       "at": 240,
       "duration": 480,
-      "x": 0.44,
-      "y": 0.74,
       "contact": "solid",
       "sound": "chop"
     },
@@ -46,8 +39,6 @@ export default {
       "part": "copper-trim",
       "at": 880,
       "duration": 480,
-      "x": 0.56,
-      "y": 0.18,
       "contact": "solid",
       "sound": "clink"
     },
@@ -56,8 +47,6 @@ export default {
       "part": "royal-bellows",
       "at": 1520,
       "duration": 480,
-      "x": 0.2,
-      "y": 0.84,
       "contact": "bind",
       "sound": "craftGoo"
     }

@@ -1,16 +1,14 @@
 import type { CraftPresentation } from '../types';
-const src = (part: string) => `assets/crafting/toothcharm-${part}.webp`;
-const fangs = [['fang-1', .329, .588], ['fang-2', .440, .637], ['fang-3', .563, .637], ['fang-4', .671, .588]] as const;
+const fangs = ['fang-1', 'fang-2', 'fang-3', 'fang-4'] as const;
 
 export default {
-  id: 'toothcharm', duration: 3350,
-  layers: ['red-braid', 'cream-braid', ...fangs.map(([id]) => id)].map(id => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'toothcharm', model: 'assets/crafting3d/toothcharm.glb', duration: 3350,
+  layers: ['red-braid', 'cream-braid', ...fangs].map(id => ({ id })),
   roles: { cap: 'Two spotted cap-fiber braid strands', fang: 'Four curved ivory pendants' },
   targets: [
-    { material: 'cap', part: 'red-braid', at: 180, duration: 520, x: .37, y: .3, contact: 'soft', sound: 'craftFluff' },
-    { material: 'cap', part: 'cream-braid', at: 440, duration: 520, x: .63, y: .3, contact: 'soft', sound: 'craftFluff' },
-    ...fangs.map(([part, x, y], i) => ({ material: 'fang' as const, part, x, y, at: 1150 + i*190, duration: 450, contact: 'solid' as const, sound: 'craftStitch' as const })),
+    { material: 'cap', part: 'red-braid', at: 180, duration: 520, contact: 'soft', sound: 'craftFluff' },
+    { material: 'cap', part: 'cream-braid', at: 440, duration: 520, contact: 'soft', sound: 'craftFluff' },
+    ...fangs.map((part, i) => ({ material: 'fang' as const, part, at: 1150 + i*190, duration: 450, contact: 'solid' as const, sound: 'craftStitch' as const })),
   ],
   phases: [
     { at: 0, stage: 'braid', text: 'Shroom Cap fibers, curling into a soft spotted braid…' },

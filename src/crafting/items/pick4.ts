@@ -2,22 +2,19 @@ import type { CraftPresentation } from '../types';
 
 export default {
   "id": "pick4",
+  "model": "assets/crafting3d/pick4.glb",
   "duration": 3300,
   "layers": [
     {
-      "id": "iron-haft",
-      "src": "assets/crafting/pick4-iron-haft.webp"
+      "id": "iron-haft"
     },
     {
-      "id": "crystal-head",
-      "src": "assets/crafting/pick4-crystal-head.webp"
+      "id": "crystal-head"
     },
     {
-      "id": "iron-socket",
-      "src": "assets/crafting/pick4-iron-socket.webp"
+      "id": "iron-socket"
     }
   ],
-  "complete": "assets/crafting/pick4-complete.webp",
   "roles": {
     "iron": "Metal shaft, grip and securing collar",
     "crystal": "Broad faceted working head"
@@ -28,8 +25,6 @@ export default {
       "part": "iron-haft",
       "at": 200,
       "duration": 500,
-      "x": 0.5,
-      "y": 0.56,
       "contact": "solid",
       "sound": "craftStitch"
     },
@@ -38,8 +33,6 @@ export default {
       "part": "crystal-head",
       "at": 870,
       "duration": 600,
-      "x": 0.47,
-      "y": 0.19,
       "contact": "energy",
       "sound": "craftStitch"
     },
@@ -48,8 +41,6 @@ export default {
       "part": "iron-socket",
       "at": 1660,
       "duration": 440,
-      "x": 0.5,
-      "y": 0.2,
       "contact": "solid",
       "sound": "craftStitch"
     }

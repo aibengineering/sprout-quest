@@ -1,14 +1,12 @@
 import type { CraftPresentation } from '../types';
 
-const src = (part: string) => `assets/crafting/embertonic-${part}.webp`;
 export default {
-  id: 'embertonic', duration: 2900,
-  layers: ['bottle', 'ember-infusion', 'warm-swirl'].map((id) => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'embertonic', model: 'assets/crafting3d/embertonic.glb', duration: 2900,
+  layers: ['bottle', 'ember-infusion', 'warm-swirl'].map((id) => ({ id })),
   roles: { ember: 'Warm orange infusion & glowing swirls' },
   targets: [
-    { material: 'ember', part: 'ember-infusion', at: 220, duration: 560, x: .5, y: .52, contact: 'bind', sound: 'craftGoo' },
-    { material: 'ember', part: 'warm-swirl', at: 1120, duration: 500, x: .5, y: .5254, contact: 'energy', sound: 'craftStitch' },
+    { material: 'ember', part: 'ember-infusion', at: 220, duration: 560, contact: 'bind', sound: 'craftGoo' },
+    { material: 'ember', part: 'warm-swirl', at: 1120, duration: 500, contact: 'energy', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'warm', text: 'Embers, warming the tonic to a soft orange…' },

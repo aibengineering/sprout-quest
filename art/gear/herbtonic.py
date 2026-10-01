@@ -27,5 +27,3 @@ def build_icon():
 
 CAMERA = dict(ppu=360, anchor=(0, 0, .1), elevation=0.41887902047863906)
 
-# Keep this recipe’s on-demand assembly set inside its mobile byte budget.
-WEBP_QUALITY = 92

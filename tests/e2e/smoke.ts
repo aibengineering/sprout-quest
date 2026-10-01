@@ -7,7 +7,7 @@
 //   bun run e2e -j N       N scenarios at a time (default: cores − 2; -j 1 runs them one by one)
 //
 // Needs Playwright's Chromium once: `bunx playwright-core install chromium-headless-shell`.
-import { chromium, type Page } from 'playwright-core';
+import { chromium, type Browser, type Page } from 'playwright-core';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { startServer } from '../../server';
@@ -35,8 +35,12 @@ const failures: string[] = [];
 type Seed = (game: any) => void;
 
 /** A fresh page on a seeded save, past the title screen and any story popups. */
-async function boot(seed: Seed) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, isMobile: true, acceptDownloads: true });
+/** Software WebGL, for the scenarios that need the 3D crafting scenes (started when the first one does). */
+let glBrowser = null as Promise<Browser> | null;
+
+async function boot(seed: Seed, webgl = false) {
+  const b = webgl ? await (glBrowser ??= chromium.launch({ executablePath, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })) : browser;
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, isMobile: true, acceptDownloads: true });
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -129,14 +133,14 @@ const queue: { name: string; run: () => Promise<void> }[] = [];
 const SLOW = ['Poppy', "Bram's story", 'drums in the dark', 'every monster', 'characters are drawn in 3D', 'prologue', 'waits between strikes', 'play report'];
 const weight = (name: string) => { const i = SLOW.findIndex((s) => name.includes(s)); return i < 0 ? SLOW.length : i; };
 
-function scenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>) {
+function scenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>, opts: { webgl?: boolean } = {}) {
   if (ONLY && !name.toLowerCase().includes(ONLY)) return;
-  queue.push({ name, run: () => runScenario(name, seed, body) });
+  queue.push({ name, run: () => runScenario(name, seed, body, opts.webgl) });
 }
 
-async function runScenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>) {
+async function runScenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>, webgl = false) {
   const b0 = Date.now();
-  const { page, errors, close } = await boot(seed ?? (() => {}));
+  const { page, errors, close } = await boot(seed ?? (() => {}), webgl);
   const t0 = Date.now(), setup = ((t0 - b0) / 1000).toFixed(1);
   try {
     await body(page);
@@ -1554,7 +1558,7 @@ scenario('Fluffy crafting assembles from the bag then equips, with one saved tra
   await page.click('[data-dialog="equip"]');
   await waitFor(page, 'equipped vest', async () => await game(page, `g.save.equip.armor`) === 'fluffvest');
   check(await game(page, `g.save.mats.fluff`) === 36, 'equip charged the recipe again');
-});
+}, { webgl: true });
 
 scenario('Fluffy crafting skips safely, ignores repeated craft requests, and keeps the vest', fluffySeed, async (page) => {
   await openFluffyCraft(page);
@@ -1570,7 +1574,7 @@ scenario('Fluffy crafting skips safely, ignores repeated craft requests, and kee
   check(await game(page, `g.save.owned.filter((id) => id === 'fluffvest').length`) === 1, 'duplicate ownership');
   check(await game(page, `g.save.mats.fluff`) === 36 && await game(page, `g.save.mats.goo`) === 24, 'double craft spent twice');
   check(await page.locator('.craft-flight').count() === 0, 'leftover ingredient animation');
-});
+}, { webgl: true });
 
 scenario('Fluffy crafting respects reduced motion and fits a small phone', fluffySeed, async (page) => {
   await page.setViewportSize({ width: 320, height: 568 });
@@ -1622,14 +1626,13 @@ scenario('building the Cottage raises it from its materials, and the house on th
   check(await game(page, `JSON.parse(localStorage.getItem('sprout-quest-save')).build.home`) === 2, 'the build was not saved before the scene');
   check(await game(page, `g.save.mats.bark`) === 6 && await game(page, `g.save.mats.stone`) === 0 && await game(page, `g.save.mats.clover`) === 1, 'wrong cost charged');
   check(await homeSprite(page) === 'home2', 'the map still shows the tent behind the scene');
-  check(await page.locator('.craft-part').count() === 6, 'the Cottage should rise in six layers');
   check(!await page.locator('[data-dialog="ok"]').isVisible(), 'the button showed before the building rose');
   await page.waitForSelector('.craft-flight');
   if (SHOTS) await page.screenshot({ path: `${OUT}cottage-rising.png` });
   await page.waitForSelector('.craft-ready', { timeout: 10000 });
   check(await page.textContent('.craft-eyebrow') === 'BUILT BY YOU', 'the finished building is not marked built');
   check(await page.textContent('[data-count="bark"]') === '6' && await page.textContent('[data-count="stone"]') === '0', 'the bag display did not end at the real counts');
-  check(await page.locator('.craft-part[style*="opacity: 1"]').count() === 6, 'not every layer of the Cottage is showing');
+  check((await page.locator('.craft-model').getAttribute('data-layers'))?.split(' ').length === 6, 'the Cottage should stand in all six of its layers');
   if (SHOTS) await page.screenshot({ path: `${OUT}cottage-built.png` });
   await page.click('[data-dialog="ok"]');
   // Building the Cottage is the current chapter's goal: its celebration follows, then back to the map.
@@ -1640,7 +1643,7 @@ scenario('building the Cottage raises it from its materials, and the house on th
     return game<boolean>(page, `g.mode === 'world'`);
   }, 8000);
   check(await game(page, `g.save.build.home`) === 2 && await game(page, `g.save.mats.bark`) === 6, 'the scene changed the build or the bag');
-});
+}, { webgl: true });
 
 scenario('building skips safely, ignores a second build request, and respects reduced motion on a small phone', (g) => {
   g.save.build.home = 1;
@@ -1732,6 +1735,7 @@ await Promise.all(Array.from({ length: Math.min(JOBS, queue.length) }, async () 
 }));
 console.log(`\n${queue.length} scenarios, ${JOBS} at a time: ${((Date.now() - START) / 1000).toFixed(0)}s`);
 await browser.close();
+if (glBrowser) await (await glBrowser).close();
 server.stop(true);
 if (failures.length) {
   console.log(`\n${failures.length} failed`);

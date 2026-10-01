@@ -30,10 +30,10 @@ ARMORS = {
 
 
 def build_fluffvest(bodyp, arms=None):
-    """The actual fluffy garment, also used for the Forge's registered assembly layers.
+    """The actual fluffy garment: what the hero wears, and the layers of its crafting scene (art/models.py).
 
     Two pressed-wool panels, a cloud collar and cuffs are held together by mint Slime Goo.
-    Keep these parts separate: crafting.py renders each list on the same camera/canvas.
+    Keep these parts separate: each is a layer of the scene, landing on its own.
     Optional arm pivots let the sleeves/cuffs follow the existing hero rig unchanged.
     """
     import bmesh
@@ -45,9 +45,10 @@ def build_fluffvest(bodyp, arms=None):
     wool = toon('#fff9f7')
     goo = toon('#8cda9a', rim=0.12)
     shine = toon('#ddfbe0', rim=0.05)
-    parts = {key: [] for key in ('left-panel', 'right-panel', 'collar', 'left-cuff', 'right-cuff', 'goo-seams')}
+    # The goo goes on in four seams (the crafting scene's layers): each cuff, the hem, then the front.
+    parts = {key: [] for key in ('left-panel', 'right-panel', 'collar', 'left-cuff', 'right-cuff', 'seam-0', 'seam-1', 'seam-2', 'seam-3')}
 
-    def binding(points, radius, parent):
+    def binding(points, radius, parent, seam):
         """A continuous glossy ribbon of goo, not a row of decorative beads."""
         points = [Vector(p) for p in points]
         bm = bmesh.new()
@@ -70,7 +71,7 @@ def build_fluffvest(bodyp, arms=None):
         bm.free()
         obj = _link(bpy.data.objects.new('slime_goo_binding', mesh))
         _finish(obj, goo, parent, line=0.003)
-        parts['goo-seams'].append(obj)
+        parts[seam].append(obj)
 
     # A rounded waist and shoulders, rather than a complete ball: the opening and hem
     # make this read as a wearable even without the hero's head, hands or feet.
@@ -118,7 +119,7 @@ def build_fluffvest(bodyp, arms=None):
         # composites correctly without drawing back-facing rings over the wool.
         binding([(0.02 * side + math.cos(math.pi + i / 20 * math.pi) * 0.072,
                   math.sin(math.pi + i / 20 * math.pi) * 0.085 - 0.008, -0.078)
-                 for i in range(21)], 0.01, arm)
+                 for i in range(21)], 0.01, arm, 'seam-0' if side < 0 else 'seam-1')
 
     # The neck stays open: a ring of separate soft puffs, with a lower front edge.
     for i in range(13):
@@ -130,12 +131,12 @@ def build_fluffvest(bodyp, arms=None):
     # A glossy, continuous binding runs down the front and around the lower hem.
     # At gameplay size it remains a small green signature instead of recoloring the vest.
     binding([(0, -0.216 - 0.044 * math.sin(i / 20 * math.pi), 0.145 + i / 20 * 0.325)
-             for i in range(21)], 0.012, bodyp)
+             for i in range(21)], 0.012, bodyp, 'seam-3')
     binding([(math.cos(math.pi + i / 28 * math.pi) * 0.249,
               math.sin(math.pi + i / 28 * math.pi) * 0.197 - 0.007, 0.145)
-             for i in range(29)], 0.009, bodyp)
+             for i in range(29)], 0.009, bodyp, 'seam-2')
     for z in (0.235, 0.355, 0.44):
-        parts['goo-seams'].append(sphere((-0.003, -0.269 if z < 0.4 else -0.238, z),
+        parts['seam-3'].append(sphere((-0.003, -0.269 if z < 0.4 else -0.238, z),
                                          (0.004, 0.004, 0.014), shine, bodyp, line=0))
     return parts
 
