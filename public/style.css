@@ -1388,7 +1388,7 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 .craft-details .chips { margin: 14px 0 !important; }
 .crafting .result .btns { flex-wrap: nowrap; gap: 8px; }
 .crafting .result .btns .go { flex: 1; padding: 12px 6px; font-size: 15px; }
-.crafting .result .btns .go:first-child { background: #ead7b9; box-shadow: inset 0 -3px 0 #ceb38c; }
+.crafting .result .btns .go:first-child:not(:last-child) { background: #ead7b9; box-shadow: inset 0 -3px 0 #ceb38c; color: #6b4a2b; }
 .craft-sparkles { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; }
 .craft-sparkles i { --a: calc(var(--i) * 51deg); position: absolute; left: calc(50% + cos(var(--a)) * 112px); top: calc(46% + sin(var(--a)) * 88px); color: #e7b64e; font-style: normal; font-size: 13px; }
 .craft-scene[data-stage="reveal"] .craft-garment { transform-origin: 50% 100%; animation: craft-finish .65s cubic-bezier(.3,1.2,.4,1) both; }
