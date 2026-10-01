@@ -125,6 +125,10 @@ mystery cards, exports a play report, plays Poppy's side story start to finish a
 slot, failing on any page error.
 `bun run e2e --only <name>` runs just the scenarios whose name contains it.
 
+Two visual tools for the 3D art, in the same headless Chromium: `bun run tests/e2e/hero-armors.ts [out.png]` draws the
+hero in every armour (idle, walking, from behind, sword in hand) to check worn armour after re-exporting it, and
+`bun run tests/e2e/icons3d.ts` checks the model-drawn inventory icons.
+
 ## Play report
 
 Every fight (time, swings, hits, damage dealt and taken, potions, gear) and every gathering run is logged in the

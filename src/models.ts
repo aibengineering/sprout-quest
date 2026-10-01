@@ -669,7 +669,7 @@ export function tickModels() {
   }
 }
 
-/** The shared renderer's drawing size (for tests: window.game.modelStats). */
+/** The shared renderer's drawing size, if there is one (for tests: window.game.rendererSize). */
 export const rendererSize = () => (renderer ? renderer.getSize(new Vector2()).toArray() : null);
 
 // ------------------------------------------------------------------------------------------------ crafting scenes

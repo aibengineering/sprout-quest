@@ -19,24 +19,6 @@ const image = (src: string) => new Promise<HTMLImageElement | null>((res) => {
   img.src = src;
 });
 
-/** How much of the square each icon's picture fills (its opaque box), for keeping the framing like the old set's. */
-w.fill = async (src: string) => {
-  const img = await image(src);
-  if (!img) return null;
-  const c = document.createElement('canvas');
-  c.width = img.width;
-  c.height = img.height;
-  const ctx = c.getContext('2d')!;
-  ctx.drawImage(img, 0, 0);
-  const d = ctx.getImageData(0, 0, c.width, c.height).data;
-  let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
-  for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
-    if (d[(y * c.width + x) * 4 + 3] < 16) continue;
-    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
-  }
-  return { size: c.width, w: x1 - x0 + 1, h: y1 - y0 + 1 };
-};
-
 /** A contact sheet: one row per item, `before` beside `after` (data URLs), on the Bag's tile colour. PNG data URL. */
 w.sheet = async (rows: { id: string; before: string | null; after: string }[], cols = 4) => {
   const cell = 128, gap = 8, label = 16, pair = cell * 2 + gap;

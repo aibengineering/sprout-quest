@@ -123,6 +123,7 @@ try {
   // Every village building rising on its plot (presentation only: nothing is spent here).
   if (!process.env.CRAFT_ONLY || process.env.CRAFT_BUILDINGS) {
     const page = await boot(390);
+    let scene: [number, number] = [0, 0];
     for (const id of Object.keys(BUILD_PRESENTATIONS)) {
       const [, project, level] = /^([a-z]+)(\d)$/.exec(id)!;
       const cost = PROJECTS[project as ProjectId]?.levels[Number(level) - 1]?.cost;
@@ -138,10 +139,16 @@ try {
       await page.waitForSelector('.craft-ready', { timeout: 40000 });
       if (await page.locator('.craft-fallback').isVisible() || !await painted(page)) throw Error(`${id}: building scene not drawn`);
       if (SHOTS) await page.locator('.craft-scene').screenshot({ path: `${out}${id}-done-390.png` });
+      scene = await page.evaluate(() => (window as any).game.rendererSize as [number, number]);
       await page.locator('[data-dialog="ok"]').click();
       await page.waitForSelector('#modal:not([hidden]) .sheet.crafting', { state: 'detached' });
       console.log(`PASS 390px ${id}: the building rises on its plot`);
     }
+    // A scene's big canvas grows the shared renderer only while it draws: back on the map it shrinks again to what the
+    // characters need.
+    await page.waitForFunction((w) => (window as any).game.rendererSize[0] < w, scene[0], { timeout: 10000 })
+      .catch(() => { throw Error(`renderer still ${scene} after the scenes closed`); });
+    console.log(`PASS the renderer shrinks back after the scenes (${scene} → ${await page.evaluate(() => (window as any).game.rendererSize)})`);
     await page.close();
   }
   const page = await boot(320);
