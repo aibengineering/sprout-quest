@@ -355,13 +355,18 @@ const sun = new DirectionalLight(0xffffff, 1);
  * Can this browser do WebGL at all? Checked quietly first, since three.js logs errors when it can't. The game needs it:
  * every character is a 3D model (their sprites aren't shipped).
  */
+let canWebgl: boolean | undefined;
 export function webglAvailable() {
-  try {
-    const c = document.createElement('canvas');
-    return !!(c.getContext('webgl2') ?? c.getContext('webgl'));
-  } catch {
-    return false;
+  // Checked once: each check makes a context, and phones only allow a few.
+  if (canWebgl === undefined) {
+    try {
+      const c = document.createElement('canvas');
+      canWebgl = !!(c.getContext('webgl2') ?? c.getContext('webgl'));
+    } catch {
+      canWebgl = false;
+    }
   }
+  return canWebgl;
 }
 
 function gl(): WebGLRenderer | null {
@@ -637,32 +642,44 @@ export function tickModels() {
  * by one as their ingredients land, drawn with the characters' toon look and outlines. Each top-level node of the
  * model is a layer named after its id.
  */
-const craftScenes = new Map<string, Object3D>();
+const craftScenes = new Map<string, Object3D>(), craftFetched = new Map<string, Object3D>(), craftFetching = new Set<string>();
 
-/** Loads the crafting scenes (each once), reporting progress, so a scene never waits for its model. */
+/** Fetches a crafting scene once; one that fails is fetched again the next time it's wanted. */
+function fetchCraftScene(url: string): Promise<void> {
+  if (craftScenes.has(url) || craftFetched.has(url) || craftFetching.has(url)) return Promise.resolve();
+  craftFetching.add(url);
+  return gltf(url, url).then(({ scene }) => { craftFetched.set(url, scene); }, (e) => console.warn(`crafting scene ${url}:`, e))
+    .finally(() => craftFetching.delete(url));
+}
+
+/** Fetches every crafting scene on the title (reporting progress), so a scene never waits for its download. */
 export async function loadCraftScenes(urls: string[], onProgress?: (done: number, total: number) => void) {
   let done = 0;
-  await Promise.all(urls.map(async (url) => {
-    try {
-      if (!craftScenes.has(url)) {
-        const { scene } = await gltf(url, url);
-        scene.updateMatrixWorld(true);
-        // Each layer becomes a plain node holding its meshes, so its meshes merge under it.
-        for (const node of [...scene.children]) {
-          const layer = new Object3D();
-          layer.name = node.name;
-          node.name = '';
-          scene.add(layer);
-          layer.attach(node);
-        }
-        mergeParts(scene, new Set(scene.children.map((c) => c.name)));
-        craftScenes.set(url, scene);
-      }
-    } catch (e) {
-      console.warn(`crafting scene ${url}:`, e);
-    }
-    onProgress?.(++done, urls.length);
-  }));
+  await Promise.all(urls.map((url) => fetchCraftScene(url).then(() => onProgress?.(++done, urls.length))));
+}
+
+/** Readies a fetched scene for drawing the first time it's shown: the costly part, so it isn't done on the title. */
+function craftScene(url: string): Object3D | undefined {
+  let scene = craftScenes.get(url);
+  if (scene) return scene;
+  scene = craftFetched.get(url);
+  if (!scene) {
+    void fetchCraftScene(url);
+    return undefined;
+  }
+  craftFetched.delete(url);
+  scene.updateMatrixWorld(true);
+  // Each layer becomes a plain node holding its meshes, so its meshes merge under it.
+  for (const node of [...scene.children]) {
+    const layer = new Object3D();
+    layer.name = node.name;
+    node.name = '';
+    scene.add(layer);
+    layer.attach(node);
+  }
+  mergeParts(scene, new Set(scene.children.map((c) => c.name)));
+  craftScenes.set(url, scene);
+  return scene;
 }
 
 /** A crafting scene playing on a canvas. */
@@ -710,8 +727,11 @@ const CRAFT_SWAY = { gear: 0.28, building: 0.1 };
  * Starts a crafting scene on `canvas` with the `shown` layers already in place, or null if it can't be drawn (no
  * WebGL, or its model didn't load). The whole model is framed to fill the canvas, however it sways.
  */
+/** How long a finished piece's one sway takes. */
+const SWAY_MS = 8800;
+
 export function craftView(canvas: HTMLCanvasElement, url: string, shown: string[], kind: 'gear' | 'building' = 'gear'): CraftView | null {
-  const prepared = craftScenes.get(url);
+  const prepared = craftScene(url);
   const r = prepared && gl();
   if (!prepared || !r) return null;
   const { yaw, elevation } = CRAFT_VIEW[kind], sway = CRAFT_SWAY[kind];
@@ -777,7 +797,9 @@ export function craftView(canvas: HTMLCanvasElement, url: string, shown: string[
       if (t >= 1) answer = undefined;
       moving = true;
     }
-    turn.rotation.y = yaw + (swayFrom === null ? 0 : sway * Math.sin((now - swayFrom) / 1400));
+    // One slow sway there and back, then it rests: no drawing every frame while you read the popup.
+    if (swayFrom !== null && now - swayFrom >= SWAY_MS) swayFrom = null, moving = true;
+    turn.rotation.y = yaw + (swayFrom === null ? 0 : sway * Math.sin(((now - swayFrom) / SWAY_MS) * Math.PI * 2));
     return moving || swayFrom !== null;
   };
 

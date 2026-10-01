@@ -9,7 +9,7 @@ import { hasModel, loadModel } from './models';
 import { carriedMount, carriedWeapon, heroBody, projectWeaponPoint } from './weaponPose';
 import { Vector3 } from 'three';
 import { forgeArt } from './ui';
-import { drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from './assets';
+import { drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, heroIn3d, monsterReady, slotOf } from './assets';
 import { spriteScale } from './battle/monsters';
 import { Roamers, type Roamer } from './roamers';
 import { MOVESETS } from './weapons';
@@ -612,7 +612,7 @@ export class Overworld {
     const held = wpn && carriedWeapon(wpn, size);
     // New gear was not owned at startup. Request it even while its sprite is still being drawn.
     if (held && !hasModel(held.id)) void loadModel(held.id);
-    const in3d = !!wpn && hasModel(`wpn_${wpn.id}`) && hasModel(`hero_${this.save.equip.armor}`);
+    const in3d = !!wpn && hasModel(`wpn_${wpn.id}`) && heroIn3d(this.save.equip.armor);
     const wf = !in3d && wpn && frame(`wpn/${wpn.id}`);
     const away = Math.sin(this.face) < -0.5;
     const back = () => {

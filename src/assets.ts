@@ -252,6 +252,8 @@ export function drawWalker(ctx: CanvasRenderingContext2D, prefix: string, x: num
 }
 
 let shownArmor = 'tunic';
+/** Is the hero drawn in 3D? While new armour downloads, the last armour shown stands in, weapon and all. */
+export const heroIn3d = (armor: string) => hasModel(`hero_${armor}`) || hasModel(`hero_${shownArmor}`);
 
 /**
  * Draws the hero, with `held` in hand or carried if drawn in 3D. Returns what drew it ('model' or 'sprite'), or false
