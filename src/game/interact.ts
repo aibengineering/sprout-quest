@@ -11,7 +11,7 @@ import { challengeFoe, startBattle } from './fights';
 import { travelTo } from './menu';
 import { tryGather } from './gathering';
 import { progressQuests, talkToElder } from './story';
-import { openSawmill, sawmillBuilt } from './stories/bram';
+import { sawmillBuilt } from './stories/bram';
 import { visitPip } from './stories/pip';
 import { openGarden } from './stories/poppy';
 import { gardenOpen } from '../garden';
@@ -68,7 +68,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     // Veyra's Waystone, once it's rebuilt: out to any campfire you've lit.
     if (o.project === 'warp' && G.save.build.warp > 0) return waystone();
     // Bram's Sawmill, once it's built: his bench, logs in and planks out.
-    if (o.project === 'sawmill' && sawmillBuilt()) return openSawmill();
+    if (o.project === 'sawmill' && sawmillBuilt()) return enterRoom('sawmill');
     // The Guest Cottage, once Pip's moved in: a knock on his door.
     if (o.project === 'cottage' && (G.save.stories.pip ?? 0) >= 1) return visitPip();
     // Poppy's Garden, once she tends it: her plots (not while she's off after the drums in Echo Cavern).

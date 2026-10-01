@@ -942,12 +942,8 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   await page.waitForTimeout(300);
   check(await game<number>(page, 'g.save.sawmill.queue.length') === 25 && await game<number>(page, 'g.save.mats.bark') === 35, 'the logs did not go to the saw');
   await run(page, 'g.save.sawmill.since -= 25 * 5000');
-  await page.keyboard.press('KeyE');
-  await waitFor(page, 'planks ready', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="collect"]')), 8000).catch(async () => {
-    await page.click('#modal [data-dialog="close"]').catch(() => {});
-    await talk('bram:bram');
-    await waitFor(page, 'planks ready', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="collect"]')));
-  });
+  await talk('bram:bram');
+  await waitFor(page, 'planks ready', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="collect"]')));
   await page.click('[data-dialog="collect"]');
   await page.waitForTimeout(300);
   await page.click('[data-dialog="close"]');
@@ -1303,6 +1299,63 @@ scenario("Granny's Kitchen: walk in, pick a recipe, fetch, stir and serve by han
   const o = await game<{ x: number; y: number }>(page, `(() => { const h = g.over.world.obj('house'); return { x: g.over.x - (h.x + h.w / 2), y: g.over.y - (h.y + h.h) }; })()`);
   check(Math.abs(o.x) < 1.2 && o.y > 0 && o.y < 2, `not back outside Granny's door (${JSON.stringify(o)})`);
   check(!(await game<boolean>(page, `'room' in g.save`)), 'still saved as in the Kitchen');
+});
+
+scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the lever, take the planks, ask Bram, and walk back out", (g) => {
+  const s = g.save;
+  s.lv = 6;
+  s.stories.poppy = 6;
+  s.stories.bram = 9;
+  s.flags.push('poppy:returned', 'bram:pie', 'bram:met', 'bram:home', 'bram:hut', 'bram:stew');
+  s.build.sawmill = 1;
+  s.unlocked.push('sawmill');
+  Object.assign(s.mats, { bark: 12, pine: 6, plank: 0 });
+  s.pos = { x: 18.8, y: 8.4 };
+}, async (page) => {
+  const use = async (x: number, y: number, face = -Math.PI / 2) => {
+    await run(page, `g.over.x = ${x}; g.over.y = ${y}; g.over.face = ${face}`);
+    await page.waitForTimeout(120);
+    await page.keyboard.press('KeyE');
+    await page.waitForTimeout(250);
+  };
+  const mill = () => game<any>(page, 'g.sawmill');
+  // In through the Sawmill's door.
+  await run(page, `const o = g.over.world.objs.find((o) => o.project === 'sawmill'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5); g.over.face = -Math.PI / 2`);
+  await page.waitForTimeout(300);
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'the Sawmill', async () => (await game<string>(page, 'g.room')) === 'sawmill' && (await game<string>(page, 'g.mode')) === 'world');
+  await page.waitForTimeout(500);
+  // Pine needs a better blade: the pile won't give.
+  await use(3.1, 2.75);
+  check((await mill()).carrying === null, 'picked up pine with a copper blade');
+  // An armful of oak, then hold the button for more.
+  await use(1.6, 2.75);
+  check(JSON.stringify((await mill()).carrying) === '{"log":"bark","n":5}', `no armful of oak (${JSON.stringify((await mill()).carrying)})`);
+  await page.keyboard.down('KeyE');
+  await waitFor(page, 'the rest of the oak', async () => (await mill()).carrying?.n === 12, 4000);
+  await page.keyboard.up('KeyE');
+  check(await game<number>(page, 'g.save.mats.bark') === 12, 'carrying logs took them out of the bag');
+  // Onto the bench, then the lever: they go to the saw.
+  await use(6.0, 4.3);
+  check((await mill()).bench.bark === 12 && (await mill()).carrying === null, 'the logs did not go on the bench');
+  await use(8.4, 2.65);
+  check(await game<number>(page, 'g.save.sawmill.queue.length') === 12 && await game<number>(page, 'g.save.mats.bark') === 0, 'the lever did not send the logs to the saw');
+  await waitFor(page, 'the blade spinning', async () => (await mill()).spin > 3);
+  // Later: the planks are stacked by the door.
+  await run(page, 'g.save.sawmill.since -= 12 * 5000');
+  await use(7.4, 6.5);
+  check(await game<number>(page, 'g.save.mats.plank') === 24, `the planks did not reach your bag (${await game<number>(page, 'g.save.mats.plank')})`);
+  // Asking Bram brings up his bench.
+  await run(page, `void g.over.cast.get('room:bram').talk()`);
+  await waitFor(page, "Bram's bench", async () => !!(await page.$('#modal:not([hidden]) [data-dialog="close"]')));
+  await page.click('#modal [data-dialog="close"]');
+  await waitFor(page, 'free to walk', async () => (await game<string>(page, 'g.mode')) === 'world');
+  // Out of the door.
+  await run(page, `g.over.x = 4.5; g.over.y = 6.4`);
+  await page.keyboard.down('KeyS');
+  await waitFor(page, 'outside again', async () => (await game<string>(page, 'g.room')) === null, 5000);
+  await page.keyboard.up('KeyS');
+  check(await game<boolean>(page, `Math.hypot(g.over.x - 18.8, g.over.y - 8.2) < 1`), 'not back outside the Sawmill');
 });
 
 scenario('fainting: back as a spirit at the checkpoint, walk to your body to wake, never onto a story fight', null, async (page) => {

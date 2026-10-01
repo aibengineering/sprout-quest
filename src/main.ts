@@ -11,6 +11,7 @@ import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/ga
 import { interact } from './game/interact';
 import { drawRoomHud, enterRoom, leaveRoom, roomTick } from './game/rooms';
 import { kitchenDebug } from './game/kitchenRoom';
+import { sawmillDebug } from './game/sawmillRoom';
 import { grannyCooks } from './game/stories/granny';
 import { menuHooks } from './game/menu';
 import { arriveAtVillage, maybeAutoTalk, progressQuests } from './game/story';
@@ -291,6 +292,8 @@ requestAnimationFrame(frame);
   leaveRoom,
   /** What's going on in Granny's Kitchen (the pot, what you're carrying). */
   get kitchen() { return kitchenDebug(); },
+  /** What's going on in Bram's Sawmill (what you're carrying, what's on the bench). */
+  get sawmill() { return sawmillDebug(); },
   /** Granny's menu, as asking her in the Kitchen brings up (she cooks it for you). */
   grannyCooks,
   set zoom(z: number) { debugZoom = z; },

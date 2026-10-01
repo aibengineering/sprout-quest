@@ -232,6 +232,19 @@ export const PRESETS: Preset[] = [
     }),
   },
   {
+    id: 'sawmill', name: "Bram's Sawmill", desc: "Inside Bram's Sawmill with an Iron Blade (Oak and Pine), piles of logs to carry to the bench, and a few planks already sawn.",
+    make: () => pip(1, (s) => {
+      s.build.cottage = 1;
+      s.build.sawmill = 2;
+      s.flags.push('pip:candy');
+      Object.assign(s.mats, { bark: 40, pine: 24 });
+      s.sawmill = { queue: [], ready: { plank: 8 }, since: 0 };
+      const o = map().objs.find((o) => o.project === 'sawmill')!;
+      s.pos = { x: o.x + o.w / 2, y: o.y + o.h + 0.7 };
+      s.room = 'sawmill';
+    }),
+  },
+  {
     id: 'drums', name: 'Drums: Granny is worried', desc: "The Alpha Woolf is beaten and Poppy's home: walk up to Granny, and Poppy's gone after the drums in Echo Cavern.",
     make: () => drums(0, 29.4, 12.6),
   },

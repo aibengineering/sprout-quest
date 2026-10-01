@@ -5,6 +5,7 @@ import { Room, ROOMS, type RoomId } from '../room';
 import type { WorldObj } from '../world';
 import { G, persist, transition } from './context';
 import { KITCHEN_PLAY } from './kitchenRoom';
+import { SAWMILL_PLAY } from './sawmillRoom';
 
 export interface RoomPlay {
   /** Builds the room's cast and its painter, once. */
@@ -24,7 +25,7 @@ export interface RoomPlay {
 }
 
 /** Each room's play (looked up when needed: they import from here too). */
-const play = (id: RoomId): RoomPlay => ({ kitchen: KITCHEN_PLAY, sawmill: KITCHEN_PLAY })[id];
+const play = (id: RoomId): RoomPlay => ({ kitchen: KITCHEN_PLAY, sawmill: SAWMILL_PLAY })[id];
 const built: Partial<Record<RoomId, Room>> = {};
 
 function room(id: RoomId): Room {
