@@ -2,7 +2,7 @@ import type { CraftPresentation } from '../types';
 
 export default {
   "id": "garden3",
-  "duration": 2720,
+  "duration": 3360,
   "scene": "building",
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
@@ -11,61 +11,81 @@ export default {
       "src": "assets/buildings/garden3-base.webp"
     },
     {
-      "id": "glim-arbour",
-      "src": "assets/buildings/garden3-glim-arbour.webp"
+      "id": "glim-beds",
+      "src": "assets/buildings/garden3-glim-beds.webp"
     },
     {
-      "id": "ember-blooms",
-      "src": "assets/buildings/garden3-ember-blooms.webp"
+      "id": "ember-lanterns",
+      "src": "assets/buildings/garden3-ember-lanterns.webp"
+    },
+    {
+      "id": "flowers",
+      "src": "assets/buildings/garden3-flowers.webp"
     }
   ],
   "complete": "assets/buildings/garden3-complete.webp",
   "roles": {
-    "glimplank": "A glowing arbour over the beds",
-    "ember": "Fire-bright blooms and warm lanterns"
+    "glimplank": "The last two beds, softly glowing",
+    "ember": "Lanterns on the back fence",
+    "flower": "Flowers climbing the back fence"
   },
   "targets": [
     {
       "material": "glimplank",
-      "part": "glim-arbour",
+      "part": "glim-beds",
       "at": 240,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.34,
+      "x": 0.77,
+      "y": 0.57,
       "contact": "solid",
       "sound": "chop"
     },
     {
       "material": "ember",
-      "part": "ember-blooms",
+      "part": "ember-lanterns",
       "at": 880,
       "duration": 480,
       "x": 0.5,
-      "y": 0.42,
+      "y": 0.22,
       "contact": "energy",
       "sound": "ding"
+    },
+    {
+      "material": "flower",
+      "part": "flowers",
+      "at": 1520,
+      "duration": 480,
+      "x": 0.5,
+      "y": 0.32,
+      "contact": "soft",
+      "sound": "craftFluff"
     }
   ],
   "phases": [
     {
       "at": 0,
-      "stage": "arbour",
-      "text": "Glimmerwood rises into a softly glowing arbour."
+      "stage": "beds",
+      "text": "Glimmerwood makes the last two beds, softly glowing."
     },
     {
       "at": 760,
-      "stage": "blooms",
-      "text": "Ember opens fire-bright blooms and lights lanterns."
+      "stage": "lanterns",
+      "text": "Ember lights lanterns on the back fence."
     },
     {
-      "at": 1720,
+      "at": 1400,
+      "stage": "flowers",
+      "text": "Flowers climb the fence, all along the back."
+    },
+    {
+      "at": 2360,
       "stage": "reveal",
-      "text": "The Bloom Garden, glowing into the night.",
+      "text": "The Bloom Garden, six beds in bloom.",
       "sound": "ding"
     }
   ],
-  "sceneLabel": "Glimmerwood Planks make a glowing arbour over the beds. Ember opens fire-bright blooms among the plants and lights two lanterns.",
+  "sceneLabel": "Glimmerwood Planks make the last two beds. Ember lights two lanterns on the back fence. Flowers climb the fence all along the back.",
   "pattern": "blooms in the dark",
-  "intro": "Glimmerwood and Ember for the garden.",
-  "finished": "Blooms and lanterns under a glowing arbour."
+  "intro": "Glimmerwood, Ember and flowers for the garden.",
+  "finished": "Six beds, lanterns and flowers on the fence."
 } satisfies CraftPresentation;

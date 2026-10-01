@@ -134,4 +134,15 @@ def manor(root):
     for x in (-0.55, 0.55):
         crystal((x, front - 0.2, 1.2), 0.08, 0.26, toon(CRYSTAL, rim=0.6, emit=0.6), glass, sides=6)
         box((x, front - 0.2, 1.17), (0.16, 0.14, 0.04), toon(EMBER_WOOD), glass, bevel=0.01, line=0.008)
+    # Poppy's Flowers: a box under each window downstairs, and a bed either side of the steps.
+    bloom = P('flower-boxes')
+    cols = ('#ff8ab0', '#ffd35a', '#ffffff', '#b08aff')
+    for x in (-1.35, 1.1):
+        box((x, front - 0.18, 0.64), (0.72, 0.22, 0.16), toon(EMBER_WOOD, shade='#241a22', rim=0.35), bloom, bevel=0.03, line=0.012)
+        for k in range(5):
+            sphere((x - 0.28 + k * 0.14, front - 0.24, 0.78 + (k % 2) * 0.04), 0.09, toon(cols[k % 4]), bloom, line=0.008)
+    for x in (-0.95, 0.95):
+        sphere((x, front - 0.5, 0.05), (0.38, 0.24, 0.1), toon('#5ab85a'), bloom, line=0.012)
+        for k in range(4):
+            sphere((x - 0.21 + k * 0.14, front - 0.6 + (k % 2) * 0.1, 0.18), 0.085, toon(cols[(k + 1) % 4]), bloom, line=0.008)
     return P.objects()

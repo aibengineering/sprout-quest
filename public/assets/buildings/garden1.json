@@ -4,48 +4,62 @@
     480
   ],
   "parts": {
+    "oak-fence": {
+      "src": "assets/buildings/garden1-oak-fence.webp",
+      "center": [
+        0.5,
+        0.5094
+      ],
+      "bounds": [
+        48,
+        131,
+        592,
+        358
+      ]
+    },
     "oak-beds": {
       "src": "assets/buildings/garden1-oak-beds.webp",
       "center": [
-        0.5,
-        0.5896
+        0.3641,
+        0.5865
       ],
       "bounds": [
-        35,
+        68,
         184,
-        605,
-        382
+        398,
+        379
       ]
     },
-    "clover-sprouts": {
-      "src": "assets/buildings/garden1-clover-sprouts.webp",
+    "clover-patch": {
+      "src": "assets/buildings/garden1-clover-patch.webp",
       "center": [
-        0.5,
-        0.5156
+        0.4969,
+        0.5771
       ],
       "bounds": [
-        80,
-        188,
-        560,
-        307
+        106,
+        184,
+        530,
+        370
       ]
     },
     "complete": {
       "src": "assets/buildings/garden1-complete.webp",
       "center": [
         0.5,
-        0.5896
+        0.5312
       ],
       "bounds": [
-        35,
-        184,
-        605,
-        382
+        48,
+        131,
+        592,
+        379
       ]
     }
   },
   "stack": [
+    "oak-fence",
     "oak-beds",
-    "clover-sprouts"
+    "clover-patch"
   ]
 }

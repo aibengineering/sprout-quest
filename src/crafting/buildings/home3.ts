@@ -2,7 +2,7 @@ import type { CraftPresentation } from '../types';
 
 export default {
   "id": "home3",
-  "duration": 4320,
+  "duration": 4880,
   "scene": "building",
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
@@ -25,6 +25,10 @@ export default {
     {
       "id": "crystal-windows",
       "src": "assets/buildings/home3-crystal-windows.webp"
+    },
+    {
+      "id": "flower-boxes",
+      "src": "assets/buildings/home3-flower-boxes.webp"
     }
   ],
   "complete": "assets/buildings/home3-complete.webp",
@@ -32,7 +36,8 @@ export default {
     "obsidian": "Glossy black plinth and front steps",
     "emberplank": "Charcoal beams glowing in the grain, and the door",
     "glimplank": "Pale glowing planking and the violet roof",
-    "crystal": "Every window, the door lamps and the tower spire"
+    "crystal": "Every window, the door lamps and the tower spire",
+    "flower": "Window boxes and beds by the steps"
   },
   "targets": [
     {
@@ -84,6 +89,16 @@ export default {
       "y": 0.42,
       "contact": "energy",
       "sound": "ding"
+    },
+    {
+      "material": "flower",
+      "part": "flower-boxes",
+      "at": 3040,
+      "duration": 480,
+      "x": 0.47,
+      "y": 0.88,
+      "contact": "soft",
+      "sound": "craftFluff"
     }
   ],
   "phases": [
@@ -113,14 +128,19 @@ export default {
       "text": "Crystal fills every window and crowns the tower."
     },
     {
-      "at": 3320,
+      "at": 2920,
+      "stage": "flowers",
+      "text": "Flowers from Poppy’s Garden fill the window boxes."
+    },
+    {
+      "at": 3880,
       "stage": "reveal",
       "text": "A manor that glows at dusk.",
       "sound": "ding"
     }
   ],
-  "sceneLabel": "Obsidian forms the plinth and front steps. Emberwood Planks frame the walls and the tower and make the door. Glimmerwood Planks clad the walls and roof. Crystal fills the windows and tops the tower.",
+  "sceneLabel": "Obsidian forms the plinth and front steps. Emberwood Planks frame the walls and the tower and make the door. Glimmerwood Planks clad the walls and roof. Crystal fills the windows and tops the tower. Flowers fill the window boxes and the beds by the steps.",
   "pattern": "a house fit for a hero",
-  "intro": "Four rare materials from the far edges of the map.",
-  "finished": "Obsidian, Emberwood, Glimmerwood and Crystal, standing together."
+  "intro": "Rare materials from the far edges of the map, and flowers from home.",
+  "finished": "Obsidian, Emberwood, Glimmerwood and Crystal, with flowers at the windows."
 } satisfies CraftPresentation;

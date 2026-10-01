@@ -69,6 +69,19 @@
         392
       ]
     },
+    "flower-boxes": {
+      "src": "assets/buildings/home3-flower-boxes.webp",
+      "center": [
+        0.4734,
+        0.8802
+      ],
+      "bounds": [
+        181,
+        382,
+        425,
+        463
+      ]
+    },
     "complete": {
       "src": "assets/buildings/home3-complete.webp",
       "center": [
@@ -88,6 +101,7 @@
     "ember-frame",
     "glim-walls",
     "glim-roof",
-    "crystal-windows"
+    "crystal-windows",
+    "flower-boxes"
   ]
 }

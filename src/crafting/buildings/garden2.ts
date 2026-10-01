@@ -11,52 +11,52 @@ export default {
       "src": "assets/buildings/garden2-base.webp"
     },
     {
+      "id": "plank-beds",
+      "src": "assets/buildings/garden2-plank-beds.webp"
+    },
+    {
       "id": "stone-path",
       "src": "assets/buildings/garden2-stone-path.webp"
     },
     {
-      "id": "plank-trellis",
-      "src": "assets/buildings/garden2-plank-trellis.webp"
-    },
-    {
-      "id": "shroom-berries",
-      "src": "assets/buildings/garden2-shroom-berries.webp"
+      "id": "shroom-basket",
+      "src": "assets/buildings/garden2-shroom-basket.webp"
     }
   ],
   "complete": "assets/buildings/garden2-complete.webp",
   "roles": {
-    "stone": "A stepping-stone path and corner stones",
-    "plank": "The trellis at the back",
-    "cap": "Compost for the beds, and ripe berries"
+    "plank": "Two more beds",
+    "stone": "Gateposts and stepping stones between the beds",
+    "cap": "A basket of caps for compost"
   },
   "targets": [
     {
-      "material": "stone",
-      "part": "stone-path",
+      "material": "plank",
+      "part": "plank-beds",
       "at": 240,
       "duration": 480,
-      "x": 0.5,
-      "y": 0.76,
-      "contact": "solid",
-      "sound": "thud"
-    },
-    {
-      "material": "plank",
-      "part": "plank-trellis",
-      "at": 880,
-      "duration": 480,
-      "x": 0.5,
-      "y": 0.28,
+      "x": 0.23,
+      "y": 0.54,
       "contact": "solid",
       "sound": "chop"
     },
     {
-      "material": "cap",
-      "part": "shroom-berries",
-      "at": 1520,
+      "material": "stone",
+      "part": "stone-path",
+      "at": 880,
       "duration": 480,
       "x": 0.5,
-      "y": 0.43,
+      "y": 0.59,
+      "contact": "solid",
+      "sound": "thud"
+    },
+    {
+      "material": "cap",
+      "part": "shroom-basket",
+      "at": 1520,
+      "duration": 480,
+      "x": 0.87,
+      "y": 0.74,
       "contact": "soft",
       "sound": "craftFluff"
     }
@@ -64,28 +64,28 @@ export default {
   "phases": [
     {
       "at": 0,
-      "stage": "path",
-      "text": "Stone for a path and the bed corners."
+      "stage": "beds",
+      "text": "Oak Planks make two more beds."
     },
     {
       "at": 760,
-      "stage": "trellis",
-      "text": "Oak Planks go up as a trellis."
+      "stage": "path",
+      "text": "Stone gateposts, and stepping stones between the beds."
     },
     {
       "at": 1400,
-      "stage": "berries",
-      "text": "Shroom Caps feed the beds. Berries ripen!"
+      "stage": "compost",
+      "text": "A basket of Shroom Caps, for the compost."
     },
     {
       "at": 2360,
       "stage": "reveal",
-      "text": "A berry garden, ready to pick.",
+      "text": "Four beds, ready for berries.",
       "sound": "ding"
     }
   ],
-  "sceneLabel": "Stone lays a stepping-stone path and the bed corners. Oak Planks make a trellis. Shroom Caps compost the beds, and berries ripen on the trellis and the plants.",
+  "sceneLabel": "Oak Planks make two more beds. Stone becomes gateposts and stepping stones between the beds. Shroom Caps fill a basket for the compost.",
   "pattern": "berries by summer",
-  "intro": "Stone, planks and shroom compost.",
-  "finished": "A path, a trellis and berries everywhere."
+  "intro": "Planks, stone and shroom compost.",
+  "finished": "Four beds, a path and a basket."
 } satisfies CraftPresentation;

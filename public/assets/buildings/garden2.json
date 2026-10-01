@@ -8,72 +8,72 @@
       "src": "assets/buildings/garden2-base.webp",
       "center": [
         0.5,
-        0.6146
+        0.5312
       ],
       "bounds": [
-        50,
-        201,
-        590,
-        389
+        48,
+        131,
+        592,
+        379
+      ]
+    },
+    "plank-beds": {
+      "src": "assets/buildings/garden2-plank-beds.webp",
+      "center": [
+        0.2328,
+        0.5448
+      ],
+      "bounds": [
+        71,
+        184,
+        227,
+        339
       ]
     },
     "stone-path": {
       "src": "assets/buildings/garden2-stone-path.webp",
       "center": [
         0.5,
-        0.7625
+        0.5885
       ],
       "bounds": [
-        45,
-        311,
-        595,
-        421
+        32,
+        203,
+        608,
+        362
       ]
     },
-    "plank-trellis": {
-      "src": "assets/buildings/garden2-plank-trellis.webp",
+    "shroom-basket": {
+      "src": "assets/buildings/garden2-shroom-basket.webp",
       "center": [
-        0.5,
-        0.2823
+        0.8688,
+        0.7448
       ],
       "bounds": [
-        79,
-        53,
-        561,
-        218
-      ]
-    },
-    "shroom-berries": {
-      "src": "assets/buildings/garden2-shroom-berries.webp",
-      "center": [
-        0.5,
-        0.4313
-      ],
-      "bounds": [
-        69,
-        67,
-        571,
-        347
+        527,
+        331,
+        585,
+        384
       ]
     },
     "complete": {
       "src": "assets/buildings/garden2-complete.webp",
       "center": [
         0.5,
-        0.4938
+        0.5365
       ],
       "bounds": [
-        45,
-        53,
-        595,
-        421
+        32,
+        131,
+        608,
+        384
       ]
     }
   },
   "stack": [
     "base",
+    "plank-beds",
     "stone-path",
-    "plank-trellis",
-    "shroom-berries"
+    "shroom-basket"
   ]
 }

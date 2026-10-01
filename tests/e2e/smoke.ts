@@ -997,7 +997,12 @@ scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra ore
   await page.keyboard.press('KeyE');
   await waitFor(page, 'the plans', async () => !!(await page.$('#modal:not([hidden]) [data-build="cottage"]:not([disabled])')));
   await page.click('#modal [data-build="cottage"]');
+  // The Guest Cottage rises from its materials (skipped here); Pip's arrival follows.
+  await page.waitForSelector('.craft-building');
   await page.keyboard.press('Escape');
+  await page.click('#modal [data-dialog="ok"]');
+  await page.waitForTimeout(400);
+  if (await page.$('#modal:not([hidden]) .sheet.menu')) await page.keyboard.press('Escape');
   // He pops up by the door, moves in and teaches Granny his Rock Candy.
   await playUntil('Pip moving in', async () => (await step()) === 1 && (await game<string>(page, 'g.mode')) === 'world' && !(await page.$('#modal:not([hidden])')));
   check(said.some((t) => t.includes("I'm Pip")), 'Pip never introduced himself');
