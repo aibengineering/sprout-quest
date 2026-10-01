@@ -1356,6 +1356,9 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 .craft-flights { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .craft-flight { position: absolute; width: 48px; height: 48px; left: 0; top: 0; will-change: transform; filter: drop-shadow(0 3px 2px #4a2a5a30); }
 .craft-flight img { width: 100%; height: 100%; object-fit: contain; }
+/* A piece tumbling in 3D: its model's turn as a strip of 12 frames (src/itemview.ts tumbling), stepped through. */
+.craft-flight .piece { display: block; width: 100%; height: 100%; background-size: 1200% 100%; animation: tumble 0.6s steps(12) infinite; }
+@keyframes tumble { to { background-position: 109.0909% 0; } }
 .craft-flight.trail { width: 40px; height: 40px; margin: 4px 0 0 4px; }
 .craft-flight b { position: absolute; bottom: -2px; right: -4px; color: #765365; background: #fffbed; border-radius: 8px; padding: 0 4px; font: 700 11px var(--display); }
 .craft-flight.goo b { background: #e4f6d1; color: #3a754e; }

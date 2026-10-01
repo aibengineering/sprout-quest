@@ -7,8 +7,8 @@ import { iconPage } from '../../scripts/icons3d';
 import { MODEL_ICONS } from '../../src/itemview';
 
 // A weapon tilted from its hand-held model, a crafting scene's weapon, armour, a charm, a tool, a potion and a meal
-// with a layer left out.
-const SAMPLE = ['twig', 'emberblade', 'crystalmail', 'impring', 'pick2', 'herbtonic', 'meal_stew'];
+// with a layer left out, and two materials.
+const SAMPLE = ['twig', 'emberblade', 'crystalmail', 'impring', 'pick2', 'herbtonic', 'meal_stew', 'plank', 'clover'];
 const failures: string[] = [];
 for (const id of SAMPLE) if (!MODEL_ICONS.includes(id)) failures.push(`${id} is no longer a model icon`);
 

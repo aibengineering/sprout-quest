@@ -260,6 +260,7 @@ outlines, posed per frame and rendered with EEVEE. It runs headless, with no Ble
 ```sh
 bun run art              # re-render everything (~30 min on CPU), then pack into public/assets/
 bun run art monsters     # re-render one group: hero | monsters | weapons | env | icons | icons2 | npc | gather
+bun run art icons3d      # gear, tool, potion, meal and material icons, from their 3D models (no Blender needed)
 BLENDER=/path/to/blender bun run art
 ```
 
@@ -284,6 +285,15 @@ The hero is one base model (`hero_base`: head, face, hands, feet and hair) and o
 building scenes are 3D too: each item or building is a model of its layers (`public/assets/crafting3d/<id>.glb`, from
 the same Blender builders the game wears and holds; `bun run art crafting` and `bun run art buildings`), all loaded on
 the title screen, and played live with the same toon look as the ingredients fly in from the bag.
+
+Every material has a small 3D model too (`crafting3d/mat_<id>.glb`, `bun run art materials`, from the builders in
+`art/icons.py`), loaded in the background once the title is up: its pieces tumble into crafting scenes. Wherever one
+item is shown on its own (the "You found" card, the Forge's and the Bag's tags) it turns slowly in live 3D from its model,
+and you can drag it round; the Bag opens on you in what you're wearing (`src/itemview.ts`). One view is live at a time,
+on the same shared renderer. The inventory icons of gear, tools, potions, meals and materials are rendered from those
+same models (`bun run art icons3d [id,...]`, scripts/icons3d.ts, in headless Chromium with the game's own renderer;
+`--sheet out.png` writes a before/after contact sheet, `--check` lists icons out of date with their models), so changing
+a model changes its icon. Without WebGL, items show their icons.
 
 ## Code map
 

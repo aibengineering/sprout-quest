@@ -7,6 +7,7 @@ import { CRAFT_PRESENTATIONS } from './crafting/catalog';
 import { BUILD_PRESENTATIONS } from './crafting/building-catalog';
 import type { CraftFlight, CraftItem, CraftPresentation } from './crafting/types';
 import { craftView, loadCraftScenes } from './models';
+import { tumbling } from './itemview';
 export type { CraftFlight, CraftPresentation } from './crafting/types';
 
 /** Most pieces flown in for one contact (the count rides on the lead one), and the beat between them (ms). */
@@ -92,6 +93,8 @@ export function playCraft(root: HTMLElement, item: CraftPresentation, recipe: Re
   // The layers showing, also listed on the canvas (data-layers) for tests.
   const showing = new Set(item.layers.filter((p) => initially(item, p)).map((p) => p.id));
   const view = craftView(canvas, item.model, [...showing], item.scene ?? 'gear');
+  // Each ingredient's tumbling pieces, made before anything flies.
+  if (view) materials.forEach(tumbling);
   const show = (layer: string, contact?: CraftFlight['contact']) => {
     showing.add(layer);
     canvas.dataset.layers = [...showing].join(' ');
@@ -160,11 +163,12 @@ export function playCraft(root: HTMLElement, item: CraftPresentation, recipe: Re
     const transform = (px: number, py: number, scale: string, rotation: number) => `translate(${px}px,${py}px) rotate(${rotation}deg) scale(${scale})`;
     // A handful comes over as a little stream: the lead piece carries the count, a few more follow it in, each a beat
     // later and a touch off its line, so a big pile of planks looks like one.
-    const pieces = Math.min(f.count, STREAM_MAX);
+    const pieces = Math.min(f.count, STREAM_MAX), strip = tumbling(f.material);
     for (let i = 0; i < pieces; i++) {
       const particle = document.createElement('div');
       particle.className = `craft-flight ${f.material}${i ? ' trail' : ''}`;
-      particle.innerHTML = `<img src="${iconUrl(f.material)}" alt="">${i ? '' : `<b>×${f.count}</b>`}`;
+      // The piece tumbles in 3D (its model, as a strip of frames), or flies as its icon.
+      particle.innerHTML = `${strip ? `<i class="piece" style="background-image:url(${strip});animation-delay:-${(i * 97) % 600}ms"></i>` : `<img src="${iconUrl(f.material)}" alt="">`}${i ? '' : `<b>×${f.count}</b>`}`;
       flightLayer.prepend(particle);
       const jx = i ? (((i * 37) % 11) - 5) * 3 : 0, jy = i ? (((i * 23) % 9) - 4) * 3 : 0;
       animate(particle, [

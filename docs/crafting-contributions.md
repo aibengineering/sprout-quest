@@ -83,10 +83,13 @@ front facing -Y and the origin on the ground under the middle, compressed with g
 exported on its own (`armor_<id>`, hung on the hero's pivots) and weapons as `wpn_<id>`, from the same builders, so the
 crafted and the worn item are one source of truth. The game loads every scene on the title screen and plays it live
 with the characters' toon shading and outlines, from a fixed 3/4 view (src/models.ts `craftView`).
-Optional `CAMERA = dict(ppu=..., anchor=(x,y,z), elevation=...)` frames the item's inventory icon
-(`bun run art icons <id>`), and optional `COMPLETE_PARTS` leaves out fuel or supports from it (mark those runtime
-layers `finished: false` too). Optional `ICON_ID` overrides the destination inventory icon (meals automatically use
-`meal_<id>`).
+The item's inventory icon is rendered from that same model: `bun run art icons3d <id>` (scripts/icons3d.ts, headless
+Chromium, no Blender) draws the finished piece (every layer but those marked `finished: false`) with the game's toon
+look, straight on and fitted to the 128 px square, into `public/assets/icons/<id>.webp` (meals: `meal_<id>`). Weapons
+are seen side on, tools, armour and charms a little from above, potions and meals from further above (src/itemview.ts).
+So re-export the scene, then re-run icons3d, whenever the geometry changes. The old Blender-icon settings (`CAMERA`,
+`COMPLETE_PARTS`, `ICON_ID`) are no longer read. The same model turns slowly in live 3D on the item's cards (the
+"You crafted" card, the Forge's and the Bag's tags).
 
 ## Checks and publication
 

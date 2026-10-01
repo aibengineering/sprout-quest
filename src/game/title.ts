@@ -2,6 +2,7 @@
 import { loadAssets, preloadIcons } from '../assets';
 import { MONSTERS, QUESTS } from '../data';
 import { loadCraftArt } from '../crafting';
+import { loadMaterialArt } from '../itemview';
 import { loadModels, webglAvailable } from '../models';
 import { playerStats } from '../rules';
 import { clearLog, logEvent } from '../stats';
@@ -65,6 +66,8 @@ export async function boot() {
   booted = true;
   // The music gets ready while you're on the title (it can only start playing once you tap): where you are first.
   G.music.preload(zoneTheme(G.over.currentZone.id));
+  // The materials' small models (the Bag, and the pieces that tumble into crafting scenes) come in behind the title.
+  if (webglAvailable()) void loadMaterialArt();
 }
 
 /** The version under the title, with a dot if a saved game hasn't read the newest patch notes. */

@@ -58,13 +58,14 @@ afterEach(() => {
 });
 
 describe('which model shows an item', () => {
-  test('crafted things use their crafting scene, finished; meals by their icon id; the Twig Sword its hand-held model', () => {
+  test('crafted things use their crafting scene, finished; meals by their icon id; materials their own; the Twig Sword its hand-held model', () => {
     expect(itemModel('stonesword')).toEqual({ url: CRAFT_PRESENTATIONS.stonesword.model, gone: [], elevation: 0 });
     expect(itemModel('meal_stew')!.url).toBe(CRAFT_PRESENTATIONS.stew.model);
     expect(itemModel('meal_stew')!.gone).toEqual(CRAFT_PRESENTATIONS.stew.layers.filter((l) => l.finished === false).map((l) => l.id));
+    expect(itemModel('goo')).toEqual({ url: 'assets/crafting3d/mat_goo.glb', elevation: (12 * Math.PI) / 180 });
     expect(itemModel('twig')).toMatchObject({ url: 'assets/models/wpn_twig.glb', tilt: true });
     // No model: the picture stays an icon.
-    for (const none of ['pie', 'echoanklet', 'tunic', 'meal_nope', 'goo']) expect(itemModel(none)).toBeNull();
+    for (const none of ['pie', 'echoanklet', 'tunic', 'meal_nope']) expect(itemModel(none)).toBeNull();
     expect(view3d('pie', '<img>')).toBe('<img>');
   });
 
@@ -99,6 +100,26 @@ describe('the live view', () => {
     frame(16);
     expect(drawn.length).toBe(after);
     expect(frames.size).toBe(0);
+  });
+
+  test('turns once round as it appears, then rests until dragged', async () => {
+    sheet.innerHTML = card('stonesword');
+    mountItemView(sheet);
+    await drain();
+    let n = 0;
+    while (frames.size && n < 2000) { frame(16); n++; }
+    expect(frames.size).toBe(0);
+    expect(n).toBeLessThan(800);
+    expect(drawn.at(-1)).toBe(`${CRAFT_PRESENTATIONS.stonesword.model}@${(Math.PI * 2).toFixed(2)}`);
+    const resting = drawn.length;
+    const canvas = sheet.querySelector('canvas')!;
+    canvas.dispatchEvent(new win.PointerEvent('pointerdown', { pointerId: 1, clientX: 10 }) as unknown as Event);
+    canvas.dispatchEvent(new win.PointerEvent('pointermove', { pointerId: 1, clientX: 60 }) as unknown as Event);
+    frame(16);
+    expect(drawn.length).toBe(resting + 1);
+    frame(16);
+    expect(frames.size).toBe(0);
+    expect(drawn.length).toBe(resting + 1);
   });
 
   test('only one is ever live: a new card replaces the old view', async () => {

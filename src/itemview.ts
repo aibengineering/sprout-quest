@@ -5,9 +5,9 @@
 // stops when its card closes or is replaced. Without WebGL (or before its model is in) the card keeps its icon.
 import { drawHero } from './assets';
 import { CRAFT_PRESENTATIONS } from './crafting/catalog';
-import { GEAR, POTION_RECIPES, TOOLS } from './data';
+import { GEAR, MATS, MAT_ORDER, POTION_RECIPES, TOOLS, type MatId } from './data';
 import { MEALS } from './kitchen';
-import { hasModel, itemModelReady, itemView, loadItemModel, loadModel, webglAvailable, type ItemModel } from './models';
+import { hasModel, itemModelReady, itemView, loadItemModel, loadModel, tumbleStrip, webglAvailable, type ItemModel } from './models';
 import { MOVESETS } from './weapons';
 import { carriedWeapon } from './weaponPose';
 
@@ -26,7 +26,7 @@ function elevation(id: string): number {
 
 /**
  * The model that shows an item (by its icon id: meals are `meal_<id>`), or null if it has none: its crafting scene,
- * finished; else, for the Twig Sword, the model the hero holds. (The starter Tunic's icon is you in it: the Bag shows
+ * finished; a material's own small model; else, for the Twig Sword, the model the hero holds. (The starter Tunic's icon is you in it: the Bag shows
  * you live instead.)
  */
 export function itemModel(iconId: string): ItemModel | null {
@@ -34,14 +34,15 @@ export function itemModel(iconId: string): ItemModel | null {
   if (id !== iconId && !(id in MEALS)) return null;
   const p = CRAFT_PRESENTATIONS[id];
   if (p) return { url: p.model, gone: p.layers.filter((l) => l.finished === false).map((l) => l.id), elevation: elevation(id) };
+  if (id in MATS) return { url: `assets/crafting3d/mat_${id}.glb`, elevation: deg(12) };
   const g = GEAR[id];
   if (g?.slot === 'weapon') return { url: `assets/models/wpn_${id}.glb`, elevation: elevation(id), tilt: true };
   return null;
 }
 
-/** Every inventory icon drawn from a model (scripts/icons3d.ts renders these): gear, tools, potions and meals. */
+/** Every inventory icon drawn from a model (scripts/icons3d.ts renders these): gear, tools, potions, meals and materials. */
 export const MODEL_ICONS: string[] = [
-  ...Object.keys(GEAR), ...TOOLS.map((t) => t.id), ...POTION_RECIPES.map((p) => p.id), ...Object.keys(MEALS).map((m) => `meal_${m}`),
+  ...Object.keys(GEAR), ...Object.keys(MATS), ...TOOLS.map((t) => t.id), ...POTION_RECIPES.map((p) => p.id), ...Object.keys(MEALS).map((m) => `meal_${m}`),
 ].filter((id) => itemModel(id));
 
 /** Marks up an item's picture (any `art`, usually its icon) to come alive in 3D when it's mounted. */
@@ -50,8 +51,8 @@ export const view3d = (id: string, art: string, cls = '') => itemModel(id) ? `<s
 /** …and you, in your armour with your weapon on your back. */
 export const heroView = (armor: string, weapon: string, art: string) => `<span class="view3d hero" data-view3d="hero" data-armor="${armor}" data-weapon="${weapon}">${art}</span>`;
 
-/** Radians a second of the slow idle turn, and per pixel dragged. */
-const SPIN = 0.6;
+/** Radians a second of the turn it makes as it appears, and per pixel dragged. */
+const SPIN = 1.4;
 const DRAG = 0.014;
 
 let live: { el: HTMLElement; stop: () => void } | null = null;
@@ -93,35 +94,51 @@ export function mountItemView(root: ParentNode) {
     canvas.height = Math.round((el.clientHeight || 64) * dpr);
     const draw = item ? itemView(canvas, item) : heroDrawer(canvas, el.dataset.armor!, el.dataset.weapon!);
     if (!draw) return me.stop();
+    // It turns once round as it appears (unless motion is reduced), then rests, drawn again only while you drag it.
     const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let yaw = 0, last = performance.now(), drag: { id: number; x: number } | null = null;
+    let yaw = 0, turnLeft = still ? 0 : Math.PI * 2, last = 0, dirty = false, drag: { id: number; x: number } | null = null;
+    const wake = () => { if (!raf && !stopped) { last = performance.now(); raf = requestAnimationFrame(tick); } };
     canvas.addEventListener('pointerdown', (e) => {
       drag = { id: e.pointerId, x: e.clientX };
+      turnLeft = 0;
       canvas.setPointerCapture?.(e.pointerId);
     });
     canvas.addEventListener('pointermove', (e) => {
       if (drag?.id !== e.pointerId) return;
       yaw += (e.clientX - drag.x) * DRAG;
       drag.x = e.clientX;
+      dirty = true;
+      wake();
     });
     const release = (e: PointerEvent) => { if (drag?.id === e.pointerId) drag = null; };
     canvas.addEventListener('pointerup', release);
     canvas.addEventListener('pointercancel', release);
-    const tick = (now: number) => {
+    function tick(now: number) {
+      raf = 0;
       if (stopped) return;
       // Its card closed or was replaced: done.
       if (!canvas.isConnected || canvas.closest('[hidden]')) return stopItemView();
-      raf = requestAnimationFrame(tick);
-      if (!drag && !still) yaw += ((now - last) / 1000) * SPIN;
-      last = now;
-      // Scrolled out of sight, or the tab is hidden: don't draw.
+      // Scrolled out of sight, or the tab is hidden: wait (cheaply) to make its turn until you can see it.
       const r = canvas.getBoundingClientRect();
-      if (document.hidden || r.bottom < 0 || r.top > innerHeight || r.width === 0) return;
-      draw.frame(yaw);
-    };
+      const seen = !document.hidden && r.bottom > 0 && r.top < innerHeight && r.width > 0;
+      if (seen && turnLeft > 0) {
+        // Eases into the end of its turn, facing you again.
+        const step = Math.min(turnLeft, ((now - last) / 1000) * SPIN * Math.min(1, 0.25 + turnLeft));
+        yaw += step;
+        turnLeft -= step;
+        if (turnLeft < 0.002) turnLeft = 0;
+        dirty = true;
+      }
+      last = now;
+      if (seen && dirty) {
+        draw!.frame(yaw);
+        dirty = false;
+      }
+      if (turnLeft > 0) raf = requestAnimationFrame(tick);
+    }
     draw.frame(yaw);
     el.classList.add('live');
-    raf = requestAnimationFrame(tick);
+    wake();
   }
 }
 
@@ -139,4 +156,34 @@ function heroDrawer(canvas: HTMLCanvasElement, armor: string, weapon: string) {
       drawHero(ctx, armor, w / 2, h * 0.92, h * 0.56, Math.PI / 2 - yaw, false, (performance.now() - t0) / 1000, {}, 'bag-hero', held && hasModel(held.id) ? held : undefined);
     },
   };
+}
+
+/**
+ * Every material's model, for the Bag and for the pieces that fly into crafting scenes, fetched in the background once
+ * the title is up (they're small, and until one is in, its pieces fly as its icon).
+ */
+export async function loadMaterialArt() {
+  // One at a time, so they never hold up a frame between them.
+  for (const m of MAT_ORDER) await loadItemModel(itemModel(m)!.url);
+}
+
+/** Frames in a tumbling piece's strip, and its size in CSS pixels (as .craft-flight). */
+export const TUMBLE_FRAMES = 12;
+const TUMBLE_CSS = 48;
+const strips = new Map<MatId, string>();
+
+/**
+ * A material tumbling in 3D, as an image strip of TUMBLE_FRAMES frames side by side (made once per material), or null
+ * if its model isn't loaded or there's no WebGL.
+ */
+export function tumbling(mat: MatId): string | null {
+  const have = strips.get(mat);
+  if (have) return have;
+  const item = itemModel(mat);
+  if (!item || !itemModelReady(item.url)) return null;
+  const strip = tumbleStrip(item, Math.round(TUMBLE_CSS * Math.min(2, window.devicePixelRatio || 1)), TUMBLE_FRAMES);
+  if (!strip) return null;
+  const url = strip.toDataURL();
+  strips.set(mat, url);
+  return url;
 }

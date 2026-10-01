@@ -111,13 +111,28 @@ def craft_scene(item_id):
     """A crafting scene (src/crafting.ts): the item from the same builder the game wears, holds or shows as its icon,
     each layer of the scene a top-level node named after it, holding that layer's pieces where they sit in the finished
     item. Front faces -Y as on the hero, with the origin on the ground under the middle of the item."""
-    from mathutils import Matrix, Vector
     from gear_parts import item_module, preview_parts
     if item_id == 'fluffvest':
         root = lib.empty('craft_fluffvest')
         parts = hero.build_fluffvest(root)
     else:
         root, parts = preview_parts(item_module(item_id))
+    return layered(item_id, parts)
+
+
+def material_scene(mat_id):
+    """A material as a small 3D model (src/itemview.ts): its inventory icon, its live view in the Bag, and the pieces
+    that tumble into crafting scenes. Built by the same function its Blender icon was (art/icons.py MATERIALS), as one
+    layer, `item`, laid out like a crafting scene."""
+    import icons
+    icons.MATERIALS[mat_id]()
+    return layered(f'mat_{mat_id}', {'item': [o for o in bpy.data.objects if o.type == 'MESH']})
+
+
+def layered(name, parts):
+    """Each part's meshes under a top-level node named after it, where they sit in the finished piece; front to -Y,
+    the origin on the ground under the middle."""
+    from mathutils import Matrix, Vector
     bpy.context.view_layer.update()
     placed = {o: o.matrix_world.copy() for objs in parts.values() for o in objs if o.type == 'MESH'}
     # Free the layer names first: Blender gives clashing objects a .001 suffix.
@@ -134,7 +149,7 @@ def craft_scene(item_id):
             o.matrix_world = placed[o]
     stray = [o for o in bpy.data.objects if o.type == 'MESH' and o not in placed]
     if stray:
-        raise ValueError(f'{item_id}: meshes outside every layer: {sorted(o.name for o in stray)[:8]}')
+        raise ValueError(f'{name}: meshes outside every layer: {sorted(o.name for o in stray)[:8]}')
     for o in [o for o in bpy.data.objects if o not in placed and o not in layers.values()]:
         bpy.data.objects.remove(o)
     assert [o.name for o in layers.values()] == list(layers), list(layers)
@@ -250,8 +265,8 @@ def key_animations(P, anims):
 
 def export(name):
     lib.reset()
-    craft = name.startswith('craft_')
-    P, anims = craft_scene(name[6:]) if craft else CHARACTERS[name]()
+    craft = name.startswith(('craft_', 'mat_'))
+    P, anims = (craft_scene(name[6:]) if name.startswith('craft_') else material_scene(name[4:])) if craft else CHARACTERS[name]()
     prepare_meshes()
     if craft or name.startswith('armor_'):
         join_pieces(pivot_groups([o for o in bpy.data.objects if o.type == 'EMPTY' and (craft or o in P.values())]))
@@ -259,7 +274,7 @@ def export(name):
     out = CRAFT_OUT if craft else OUT
     os.makedirs(out, exist_ok=True)
     bpy.ops.export_scene.gltf(
-        filepath=os.path.join(out, f'{name[6:] if craft else name}.raw.glb'), export_format='GLB', export_apply=True, export_animations=True,
+        filepath=os.path.join(out, f'{name.removeprefix("craft_")}.raw.glb'), export_format='GLB', export_apply=True, export_animations=True,
         export_animation_mode='NLA_TRACKS', export_materials='NONE', export_texcoords=False, export_normals=True,
         export_vertex_color='ACTIVE', export_all_vertex_colors=True, export_active_vertex_color_when_no_material=True,
         export_cameras=False, export_lights=False, export_extras=False, export_yup=True,
@@ -274,7 +289,9 @@ if __name__ == '__main__':
     # `crafts` is every crafting scene: each item in art/gear, and the Fluffy Vest.
     from gear_parts import item_ids
     CRAFTS = [f'craft_{i}' for i in sorted({*item_ids(), 'fluffvest'})]
-    names = CRAFTS if args[:1] == ['crafts'] else args[0].split(',') if args and args[0] else [*CHARACTERS, *CRAFTS]
+    import icons
+    MATERIALS = [f'mat_{m}' for m in icons.MATERIALS]
+    names = CRAFTS if args[:1] == ['crafts'] else MATERIALS if args[:1] == ['materials'] else args[0].split(',') if args and args[0] else [*CHARACTERS, *CRAFTS, *MATERIALS]
     for n in names:
         export(n)
     print(f'EXPORTED {len(names)} models')

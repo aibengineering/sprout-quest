@@ -45,9 +45,9 @@ def wanted(key):
 
 
 def from_model(item_id):
-    """Items with a 3D model (a crafting scene, or the Twig Sword's hand-held model) get their inventory icon rendered
-    from it by `bun run art icons3d` (scripts/icons3d.ts), not here."""
-    return item_id in ('twig', 'fluffvest') or item_module(item_id) is not None
+    """Items with a 3D model (a crafting scene, a material's model from `bun run art materials`, or the Twig Sword's
+    hand-held model) get their inventory icon rendered from it by `bun run art icons3d` (scripts/icons3d.ts), not here."""
+    return item_id in ('twig', 'fluffvest') or item_id in icons.MATERIALS or item_module(item_id) is not None
 
 
 lib.reset()

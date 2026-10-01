@@ -1942,6 +1942,7 @@ const liveCanvas = (page: Page) => page.locator('canvas.live3d').evaluate((c) =>
 
 scenario('Found items, the Forge and the Bag show one item at a time in live 3D', (g) => {
   g.save.owned.push('stonesword', 'fluffvest');
+  g.save.mats.bark = 5;
 }, async (page) => {
   const live = () => game<string | null>(page, 'g.itemView');
   await run(page, `void g.ui.itemFound('twig', 'Twig Sword', 'A stick.', '🗡️', 'You found', true)`);
@@ -1959,6 +1960,10 @@ scenario('Found items, the Forge and the Bag show one item at a time in live 3D'
   check(await page.locator('canvas.live3d').count() === 1, 'more than one live view');
   await page.click('.portrait');
   await waitFor(page, 'back to you', async () => await live() === 'hero', 15000);
+  // A material, from its own small model.
+  await page.click('[data-sub="items:stuff"]');
+  await waitFor(page, 'a material in 3D', async () => !!(await live()) && await live() !== 'hero', 15000);
+  check((await liveCanvas(page)).share > 0.02, 'the material drew nothing');
   // The Forge's tag for the picked recipe.
   await page.click('[data-tab="forge"]');
   await waitFor(page, 'a recipe in 3D', async () => !!(await live()) && await live() !== 'hero', 15000);

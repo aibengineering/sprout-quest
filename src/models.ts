@@ -642,14 +642,18 @@ export function tickModels() {
  * by one as their ingredients land, drawn with the characters' toon look and outlines. Each top-level node of the
  * model is a layer named after its id.
  */
-const craftScenes = new Map<string, Object3D>(), craftFetched = new Map<string, Object3D>(), craftFetching = new Set<string>();
+const craftScenes = new Map<string, Object3D>(), craftFetched = new Map<string, Object3D>(), craftFetching = new Map<string, Promise<void>>();
 
 /** Fetches a crafting scene once; one that fails is fetched again the next time it's wanted. */
 function fetchCraftScene(url: string): Promise<void> {
-  if (craftScenes.has(url) || craftFetched.has(url) || craftFetching.has(url)) return Promise.resolve();
-  craftFetching.add(url);
-  return gltf(url, url).then(({ scene }) => { craftFetched.set(url, scene); }, (e) => console.warn(`crafting scene ${url}:`, e))
-    .finally(() => craftFetching.delete(url));
+  if (craftScenes.has(url) || craftFetched.has(url)) return Promise.resolve();
+  let p = craftFetching.get(url);
+  if (!p) {
+    p = gltf(url, url).then(({ scene }) => { craftFetched.set(url, scene); }, (e) => console.warn(`crafting scene ${url}:`, e))
+      .finally(() => craftFetching.delete(url));
+    craftFetching.set(url, p);
+  }
+  return p;
 }
 
 /** Fetches every crafting scene on the title (reporting progress), so a scene never waits for its download. */
@@ -742,24 +746,27 @@ function placed(prepared: Object3D) {
   return { model, turn, size: box.getSize(new Vector3()).length() };
 }
 
+/** A turn of the model: its yaw (about the up axis), and a tip toward or away from you before it (`x`). */
+export interface Turn { x: number; y: number }
+
 /**
- * Points `eye` so what it sees of `turn` at every one of `yaws` fills a `w`×`h` view (any units), with `room` to spare
+ * Points `eye` so what it sees of `turn` at every one of `turns` fills a `w`×`h` view (any units), with `room` to spare
  * (1.12 is 12% more than the model). Returns the scene units per view unit.
  */
-function frameTurn(eye: OrthographicCamera, turn: Object3D, yaws: number[], w: number, h: number, room: number) {
+function frameTurn(eye: OrthographicCamera, turn: Object3D, turns: Turn[], w: number, h: number, room: number) {
   const view = new Box3(), seen = new Object3D();
   seen.matrixAutoUpdate = false;
   seen.matrix.copy(eye.matrixWorldInverse);
-  const parent = turn.parent, yaw = turn.rotation.y;
+  const parent = turn.parent, rest = turn.rotation.clone();
   seen.add(turn);
-  for (const y of yaws) {
-    turn.rotation.y = y;
+  for (const { x, y } of turns) {
+    turn.rotation.set(x, y, 0);
     seen.updateMatrixWorld(true);
     view.union(new Box3().setFromObject(seen, true));
   }
   seen.remove(turn);
   parent?.add(turn);
-  turn.rotation.y = yaw;
+  turn.rotation.copy(rest);
   const mid = view.getCenter(new Vector3()), span = view.getSize(new Vector3());
   const unit = Math.max((span.x * room) / w, (span.y * room) / h);
   Object.assign(eye, { left: mid.x - (w / 2) * unit, right: mid.x + (w / 2) * unit, top: mid.y + (h / 2) * unit, bottom: mid.y - (h / 2) * unit });
@@ -818,7 +825,7 @@ export function craftView(canvas: HTMLCanvasElement, url: string, shown: string[
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = Math.round(css.w * dpr);
   canvas.height = Math.round(css.h * dpr);
-  const unit = frameTurn(eye, turn, [-1, 0, 1].map((k) => yaw + k * sway), css.w, css.h, 1.12);
+  const unit = frameTurn(eye, turn, [-1, 0, 1].map((k) => ({ x: 0, y: yaw + k * sway })), css.w, css.h, 1.12);
   let answer: { contact: CraftContact; start: number } | undefined, swayFrom: number | null = null, drawn = false;
 
   const pose = (now: number) => {
@@ -901,16 +908,18 @@ export interface ItemModel {
 
 /** Loads an item's model if it isn't already (crafting scenes all are, from the title screen). */
 export function loadItemModel(url: string): Promise<boolean> {
-  return craftScenes.has(url) ? Promise.resolve(true) : loadCraftScenes([url]).then(() => craftScenes.has(url));
+  return fetchCraftScene(url).then(() => itemModelReady(url));
 }
-export const itemModelReady = (url: string) => craftScenes.has(url);
+export const itemModelReady = (url: string) => craftScenes.has(url) || craftFetched.has(url);
+
+const FULL_TURN: Turn[] = Array.from({ length: 16 }, (_, i) => ({ x: 0, y: (i / 16) * Math.PI * 2 }));
 
 /**
- * One item on `canvas` (sized by the caller, in pixels), turning to whatever yaw each frame asks for, framed so it
- * fits at every yaw in `yaws` (a full turn by default). Null without WebGL or before its model has loaded.
+ * One item on `canvas` (sized by the caller, in pixels), turned however each frame asks, framed so it fits at every
+ * one of `turns` (a full turn about the up axis by default). Null without WebGL or before its model has loaded.
  */
-export function itemView(canvas: HTMLCanvasElement, item: ItemModel, yaws = Array.from({ length: 16 }, (_, i) => (i / 16) * Math.PI * 2), room = 1.06) {
-  const prepared = craftScenes.get(item.url);
+export function itemView(canvas: HTMLCanvasElement, item: ItemModel, turns = FULL_TURN, room = 1.06) {
+  const prepared = craftScene(item.url);
   const r = prepared && gl();
   if (!prepared || !r) return null;
   const eye = eyeAt(item.elevation);
@@ -928,10 +937,10 @@ export function itemView(canvas: HTMLCanvasElement, item: ItemModel, yaws = Arra
     tilt.position.copy(c).negate();
     turn.add(tilt);
   }
-  frameTurn(eye, turn, yaws, canvas.width, canvas.height, room);
+  frameTurn(eye, turn, turns, canvas.width, canvas.height, room);
   return {
-    frame(yaw: number) {
-      turn.rotation.y = yaw;
+    frame(yaw: number, tip = 0) {
+      turn.rotation.set(tip, yaw, 0);
       drawTurn(r, canvas, turn, eye, size);
     },
   };
@@ -944,7 +953,7 @@ export function itemView(canvas: HTMLCanvasElement, item: ItemModel, yaws = Arra
 export function renderIcon(item: ItemModel, px = 128, room = 1.16): HTMLCanvasElement | null {
   let big = document.createElement('canvas');
   big.width = big.height = px * 4;
-  const view = itemView(big, item, [0], room);
+  const view = itemView(big, item, [{ x: 0, y: 0 }], room);
   if (!view) return null;
   view.frame(0);
   // Halve twice: each step averages 2×2 pixels, as a box filter would.
@@ -957,4 +966,25 @@ export function renderIcon(item: ItemModel, px = 128, room = 1.16): HTMLCanvasEl
     big = c;
   }
   return big;
+}
+
+/**
+ * A material tumbling through one full turn, `n` frames side by side on one strip, each `px` square (the pieces that fly
+ * into a crafting scene step through it). Null if it can't be drawn.
+ */
+export function tumbleStrip(item: ItemModel, px: number, n = 12): HTMLCanvasElement | null {
+  const turns = Array.from({ length: n }, (_, i): Turn => ({ x: 0.55 * Math.sin((i / n) * Math.PI * 2), y: (i / n) * Math.PI * 2 }));
+  const one = document.createElement('canvas');
+  one.width = one.height = px;
+  const view = itemView(one, item, turns, 1.1);
+  if (!view) return null;
+  const strip = document.createElement('canvas');
+  strip.width = px * n;
+  strip.height = px;
+  const ctx = strip.getContext('2d')!;
+  turns.forEach(({ x, y }, i) => {
+    view.frame(y, x);
+    ctx.drawImage(one, i * px, 0);
+  });
+  return strip;
 }

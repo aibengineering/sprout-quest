@@ -1103,7 +1103,7 @@ export class UI {
       body = mats.length
         ? `<div class="slotgrid">${mats.map((m) => slotTile('items', m, icon(m, MATS[m].icon), MATS[m].name, { sel: chosen === m, count: s.mats[m] })).join('')}${emptySlots(mats.length)}</div>`
         : '<p class="sub">Defeat monsters and gather to collect materials.</p>';
-      if (chosen) detail = tagCard(icon(chosen, MATS[chosen].icon), `${esc(MATS[chosen].name)} <span class="lvl">×${s.mats[chosen]}</span>`, `<div class="desc">${esc(MATS[chosen].where)}</div>`);
+      if (chosen) detail = tagCard(view3d(chosen, icon(chosen, MATS[chosen].icon)), `${esc(MATS[chosen].name)} <span class="lvl">×${s.mats[chosen]}</span>`, `<div class="desc">${esc(MATS[chosen].where)}</div>`);
       if (pick === 'potion') detail = this.potionTag(s, st.maxHp);
     } else {
       body = this.skills(s) || '<p class="sub">Craft a tool at the Forge to start woodcutting and mining.</p>';
