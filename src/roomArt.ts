@@ -61,8 +61,10 @@ export function drawCarried(ctx: CanvasRenderingContext2D, x: number, y: number,
   ctx.arc(x, cy, r, 0, TAU);
   ctx.fill();
   ctx.stroke();
-  const img = iconImage(icon);
+  // A menu icon, or one of the rooms' props (the watering can), or its emoji.
+  const img = iconImage(icon), prop = !img && frame(`room/${icon}`);
   if (img) ctx.drawImage(img, x - r * 0.78, cy - r * 0.78, r * 1.56, r * 1.56);
+  else if (prop) ctx.drawImage(prop.img, prop.x, prop.y, prop.w, prop.h, x - r * 0.75, cy - r * 0.75 * (prop.h / prop.w), r * 1.5, r * 1.5 * (prop.h / prop.w));
   else {
     ctx.font = `${Math.round(r * 1.1)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
     ctx.textAlign = 'center';

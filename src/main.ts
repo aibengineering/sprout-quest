@@ -11,6 +11,7 @@ import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/ga
 import { interact } from './game/interact';
 import { drawRoomHud, enterRoom, leaveRoom, roomTick } from './game/rooms';
 import { kitchenDebug } from './game/kitchenRoom';
+import { drawGardenHud, gardenDebug, gardenTick, inGarden } from './game/gardenWork';
 import { sawmillDebug } from './game/sawmillRoom';
 import { grannyCooks } from './game/stories/granny';
 import { menuHooks } from './game/menu';
@@ -135,6 +136,8 @@ function worldFrame(dt: number) {
   const room = over.room;
   const roomHeld = !!room && canAct && roomTick(dt);
   over.busyHands = roomHeld;
+  // Poppy's Garden, worked by hand on the map (the view leans in, taps on beds, holding the button).
+  gardenTick(dt, canAct && !room && !spirit());
   const prey = canAct && !ghost && !room ? over.roamers.unaware(over.x, over.y) : null;
   if (prey && (input.consume('act') || input.consume('attack'))) startFieldBattle(prey, true);
   else if (canAct && !ghost && !roomHeld && input.consume('act')) void interact();
@@ -189,6 +192,7 @@ function worldFrame(dt: number) {
   }
   if (G.mode === 'gather') drawGather(ctx, vw, vh);
   if (over.room && G.mode === 'world') drawRoomHud(ctx, vw, vh);
+  else if (G.mode === 'world') drawGardenHud(ctx, vw);
   if (G.mode === 'title') {
     // Soft overlay so the title text pops over the live world behind it.
     ctx.fillStyle = 'rgba(42,26,48,0.15)';
@@ -196,7 +200,7 @@ function worldFrame(dt: number) {
   } else {
     ui.hud(s.hp, over.room?.spec.name ?? over.currentZone.name);
     // In a room, its own hint takes the quest's place at the top.
-    ui.questPill(!over.room && (G.mode === 'world' || G.mode === 'dialog'));
+    ui.questPill(!over.room && !inGarden() && (G.mode === 'world' || G.mode === 'dialog'));
   }
   saveTimer += dt;
   if (saveTimer > 5 && G.mode === 'world') {
@@ -294,6 +298,8 @@ requestAnimationFrame(frame);
   get kitchen() { return kitchenDebug(); },
   /** What's going on in Bram's Sawmill (what you're carrying, what's on the bench). */
   get sawmill() { return sawmillDebug(); },
+  /** What you're holding at Poppy's Garden, and the bed you'd work on. */
+  get garden() { return gardenDebug(); },
   /** Granny's menu, as asking her in the Kitchen brings up (she cooks it for you). */
   grannyCooks,
   set zoom(z: number) { debugZoom = z; },

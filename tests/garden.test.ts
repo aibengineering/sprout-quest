@@ -2,8 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import { NODES, POTION_RECIPES, PROJECTS } from '../src/data';
 import {
   CROPS, FLOWER_GIFT, GIFT_SECONDS, PLOTS_BY_LEVEL, WEED_SLOW, WELCOME_SEEDS, garden, gardenOpen, gardenUpdate, giftDue, growthStage, isReady, pick,
-  plant, plotCount, pullWeeds, readyIn, takeGift, takeWelcome, water,
+  plant, plotCount, pullWeeds, readyIn, takeGift, takeWelcome, water, bedJob, bedSpot, nextSeed, targetBed, GARDEN_BEDS, type BedJob,
 } from '../src/garden';
+import { World } from '../src/world';
 import { cook, hpBoost, knownMeals, mealTick } from '../src/kitchen';
 import { craftPotion, harvest, playerStats } from '../src/rules';
 import { loadState, newState, SAVE_KEY, type SaveState } from '../src/state';
@@ -209,5 +210,53 @@ describe('what the Garden grows is for', () => {
   test('Flowers build the finest buildings: the Bloom Garden and the Manor', () => {
     expect(PROJECTS.garden.levels[2].cost.flower).toBe(8);
     expect(PROJECTS.home.levels[2].cost.flower).toBe(8);
+  });
+});
+
+describe('tending the Garden by hand', () => {
+  test('a bed asks for what it needs, given what you hold', () => {
+    const s = tended(2);
+    plant(s, 0, 'berry', T0, calm);
+    const p = gardenUpdate(s, T0).plots[0]!;
+    expect(bedJob(null, null, s)).toBe('empty');
+    expect(bedJob(null, { seed: 'herb' }, s)).toBe('plant');
+    s.mats.herbseed = 0;
+    expect(bedJob(null, { seed: 'herb' }, s)).toBe('empty');
+    expect(bedJob(p, null, s)).toBe('growing');
+    p.thirsty = true;
+    expect(bedJob(p, null, s)).toBe('thirsty');
+    expect(bedJob(p, { can: 0 }, s)).toBe('thirsty');
+    expect(bedJob(p, { can: 2 }, s)).toBe('water');
+    p.weeds = true;
+    expect(bedJob(p, { can: 2 }, s)).toBe('weed');
+    p.grown = CROPS.berry.seconds;
+    expect(bedJob(p, null, s)).toBe('pick');
+  });
+
+  test('the action button goes to the nearest bed you can do something at, else the nearest', () => {
+    const spots = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 5, y: 0 }];
+    const jobs: BedJob[] = ['growing', 'weed', 'pick'];
+    expect(targetBed(spots, jobs, 0, 0.3, 2)).toBe(1);
+    expect(targetBed(spots, ['growing', 'growing', 'pick'], 0, 0.3, 2)).toBe(0);
+    expect(targetBed(spots, jobs, 20, 0, 2)).toBe(null);
+  });
+
+  test("the basket hands out the next seed you have, round and round", () => {
+    const s = tended();
+    expect(nextSeed(s, null)).toBe('berry');
+    expect(nextSeed(s, 'berry')).toBe('herb');
+    expect(nextSeed(s, 'flower')).toBe('berry');
+    s.mats.herbseed = 0;
+    expect(nextSeed(s, 'berry')).toBe('flower');
+    s.mats.berryseed = s.mats.flowerseed = 0;
+    expect(nextSeed(s, null)).toBe(null);
+  });
+
+  test("every bed sits inside the Garden's plot on the map", () => {
+    const o = new World().objs.find((o) => o.project === 'garden')!;
+    for (let i = 0; i < GARDEN_BEDS.length; i++) {
+      const b = bedSpot(o, i);
+      expect(b.x > o.x && b.x < o.x + o.w && b.y > o.y && b.y < o.y + o.h).toBe(true);
+    }
   });
 });

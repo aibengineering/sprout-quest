@@ -258,6 +258,9 @@ export class World extends TileMap {
     add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
     add({ kind: 'plot', project: 'home', x: V + 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
     add({ kind: 'plot', project: 'garden', x: V + 7.2, y: 18.4, w: 3, h: 1.6, label: 'Build', text: 'Garden' });
+    // Beside it, once Poppy tends it: the water butt you fill the watering can at, and her basket of seeds.
+    add({ kind: 'station', id: 'garden:butt', x: V + 6.3, y: 18.55, w: 0.6, h: 0.5, label: 'Watering can', hidden: true });
+    add({ kind: 'station', id: 'garden:seeds', x: V + 6.35, y: 19.5, w: 0.5, h: 0.4, label: 'Seed basket', hidden: true });
     add({ kind: 'plot', project: 'training', x: V + 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
     add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Waystone' });
     // Bram's corner, once he's moved in (his story): the Sawmill beside the Forge, and his cabin below it.

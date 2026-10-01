@@ -137,6 +137,7 @@ export function syncWorld() {
       if (o.project === 'cottage') o.label = s.build.cottage ? 'Visit' : 'Build';
       if (o.project === 'garden') o.label = gardenOpen(s) ? 'Garden' : 'Build';
     }
+    if (o.kind === 'station' && o.id?.startsWith('garden:')) o.hidden = !gardenOpen(s);
     if (o.kind === 'house') o.label = kitchenOpen(s) && !poppyAway(s) ? 'Kitchen' : '';
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);

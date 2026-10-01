@@ -257,7 +257,7 @@ export const PRESETS: Preset[] = [
     make: () => drums(4, C + 25.6, 3.4, (s) => s.perks.push('echoanklet')),
   },
   {
-    id: 'garden', name: "Poppy's Garden", desc: 'Poppy tends the Berry Garden: four empty plots, a handful of every seed, and Bunny Fluff for a Berry Tart.',
+    id: 'garden', name: "Poppy's Garden", desc: 'Poppy tends the Berry Garden: four empty plots to work by hand, a handful of every seed, and Bunny Fluff for a Berry Tart.',
     make: () => base('smithy', 'woods', zoneById('village').x0 + 8.7, 20.8, (s) => {
       tools(s, 2, 1);
       s.stories.poppy = 6;

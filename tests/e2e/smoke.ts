@@ -1198,10 +1198,8 @@ scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Grann
     a.thirstAt = 60; b.weedsAt = 30; c.at += 100000`);
   await waitFor(page, 'a thirsty, weedy garden', async () => game<boolean>(page, `(() => { const [a, b] = g.save.garden.plots; return !!a.thirsty && !!b.weeds; })()`));
   check(await game<string>(page, `g.over.actors.get('poppy:poppy').mood`) === '💧', 'Poppy should show the garden is thirsty');
-  // The Garden itself opens her plots too.
-  await run(page, `const o = g.over.world.objs.find((o) => o.project === 'garden'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5)`);
-  await page.waitForTimeout(400);
-  await page.keyboard.press('KeyE');
+  // Her menu again (the Garden itself is worked by hand: see the next scenario).
+  await run(page, `void g.over.actors.get('poppy:poppy').talk()`);
   await waitFor(page, 'the Garden, again', async () => !!(await panel()));
   await click('[data-dialog="water:0"]');
   await click('[data-dialog="weed:1"]');
@@ -1222,6 +1220,82 @@ scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Grann
   await closeDialogs(page);
   check(await game<boolean>(page, `g.save.mats.berry === 4 && g.save.mats.fluff === 0`), 'the tart did not cost 8 Berries and 6 Bunny Fluff');
   check(await game<number>(page, 'g.save.hp') > before, 'the tart should raise your health');
+});
+
+scenario("Poppy's Garden by hand on the map: seeds from the basket, plant, tug weeds, fill the can and water, tap a ripe bed to pick, hold to pick the rest", (g) => {
+  const s = g.save;
+  s.lv = 6;
+  s.stories.poppy = 6;
+  s.flags.push('poppy:returned');
+  s.build.garden = 2;
+  Object.assign(s.mats, { berryseed: 0, herbseed: 1, flowerseed: 0, berry: 0, herb: 0 });
+  s.pos = { x: 24.7, y: 15.5 };
+}, async (page) => {
+  const garden = () => game<any>(page, 'g.garden');
+  const plots = () => game<any[]>(page, 'g.save.garden?.plots ?? []');
+  const stand = async (x: number, y: number, face = -Math.PI / 2) => {
+    await run(page, `g.over.teleport(${x}, ${y}); g.over.face = ${face}`);
+    await page.waitForTimeout(250);
+  };
+  const press = async () => {
+    await page.keyboard.press('KeyE');
+    await page.waitForTimeout(200);
+  };
+  // Walk up: the view leans in, and Poppy hands over the Berry Seeds she saved.
+  await stand(24.7, 20.45);
+  await waitFor(page, 'the Garden', async () => (await garden()).inside && (await game<number>(page, 'g.save.mats.berryseed')) === 2);
+  check(await game<boolean>(page, '!!g.over.focus'), 'the view did not lean in');
+  // Seeds from the basket.
+  await stand(22.6, 20.25);
+  await press();
+  check(JSON.stringify((await garden()).hand) === '{"seed":"berry"}', `no Berry Seeds in hand (${JSON.stringify((await garden()).hand)})`);
+  // Plant: hold the button and they go in bed after bed until the seeds run out.
+  await stand(24.7, 20.45);
+  await page.keyboard.down('KeyE');
+  await waitFor(page, 'two berries planted', async () => (await plots()).filter((p) => p?.crop === 'berry').length === 2, 4000);
+  await page.keyboard.up('KeyE');
+  check((await garden()).hand === null && (await game<number>(page, 'g.save.mats.berryseed')) === 0, 'the empty seed bag was still in hand');
+  // The basket's next seed: Herb.
+  await stand(22.6, 20.25);
+  await press();
+  check(JSON.stringify((await garden()).hand) === '{"seed":"herb"}', 'no Herb Seeds in hand');
+  await stand(24.7, 20.45);
+  await press();
+  check((await plots()).filter(Boolean).length === 3, 'the herb was not planted');
+  // Trouble: the first bed thirsty, the second weedy. Three tugs pull the weeds.
+  await run(page, `const [a, b] = g.save.garden.plots; for (const p of g.save.garden.plots) if (p) { delete p.thirstAt; delete p.weedsAt; } a.thirsty = true; b.weeds = true`);
+  await page.waitForTimeout(200);
+  for (let i = 0; i < 3; i++) await press();
+  check(!(await plots())[1].weeds, 'three tugs did not pull the weeds');
+  // Thirsty without the can: nothing. Fill it at the butt and water.
+  await press();
+  check((await plots())[0].thirsty, 'watered without a can');
+  await stand(22.6, 19.4, Math.PI);
+  await press();
+  check(JSON.stringify((await garden()).hand) === '{"can":3}', `the can was not filled (${JSON.stringify((await garden()).hand)})`);
+  await stand(24.7, 20.45);
+  await press();
+  check(!(await plots())[0].thirsty && (await garden()).hand.can === 2, 'watering did not take');
+  // Much later: all ripe. Tap the first bed to pick it (the first berries teach Granny her tart)…
+  await run(page, `for (const p of g.save.garden.plots) if (p) p.at -= 1e7`);
+  await page.waitForTimeout(300);
+  const berryBed = (await plots()).findIndex((p) => p?.crop === 'berry');
+  const at = await game<{ x: number; y: number }>(page, `(() => { const o = g.over.world.objs.find((o) => o.project === 'garden'), ts = g.over.ts, z = g.over.toMap(0, 0);
+    const [bx, by] = [[0, 2], [0, 0.7], [-1.45, 2], [-1.45, 0.7]][${berryBed}];
+    const b = { x: o.x + o.w / 2 + bx / 1.6, y: o.y + o.h - 0.28 - by * 0.5 / 1.6 }; return { x: (b.x - z.x) * ts, y: (b.y - 0.2 - z.y) * ts }; })()`);
+  await page.touchscreen.tap(at.x, at.y);
+  await waitFor(page, 'the new recipe', async () => ((await page.textContent('#modal:not([hidden]) .sheet').catch(() => '')) ?? '').includes('Berry Tart'));
+  await closeDialogs(page, 1);
+  check((await plots())[berryBed] === null && (await game<number>(page, 'g.save.mats.berry')) === 6, 'tapping the ripe bed did not pick it');
+  // …and hold the button for the rest.
+  await waitFor(page, 'free to work', async () => (await game<string>(page, 'g.mode')) === 'world');
+  await page.keyboard.down('KeyE');
+  await waitFor(page, 'everything picked', async () => (await plots()).every((p) => !p), 4000);
+  await page.keyboard.up('KeyE');
+  check(await game<boolean>(page, 'g.save.mats.berry === 12 && g.save.mats.herb === 4'), 'holding the button did not pick the rest');
+  // Walk off: the can goes back, the view settles.
+  await stand(24.7, 15.5);
+  await waitFor(page, 'away from the Garden', async () => (await garden()).hand === null && !(await game<boolean>(page, '!!g.over.focus')));
 });
 
 scenario("Granny's Kitchen: walk in, pick a recipe, fetch, stir and serve by hand, ask Granny, and walk back out", (g) => {
