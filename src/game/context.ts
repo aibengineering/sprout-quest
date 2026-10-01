@@ -12,6 +12,8 @@ import type { UI } from '../ui';
 import { has } from '../unlocks';
 import { plotOpen } from '../rules';
 import { gardenOpen } from '../garden';
+import { kitchenOpen } from '../kitchen';
+import { poppyAway } from '../procession';
 import { World } from '../world';
 
 /**
@@ -78,7 +80,9 @@ export async function paused<T>(show: () => Promise<T>, after: Mode = 'world'): 
 
 /** Saves, with where you're standing. */
 export function persist() {
-  G.save.pos = { x: G.over.x, y: G.over.y };
+  G.save.pos = G.over.savedPos;
+  if (G.over.room) G.save.room = G.over.room.id;
+  else delete G.save.room;
   saveState(G.save);
 }
 
@@ -133,6 +137,7 @@ export function syncWorld() {
       if (o.project === 'cottage') o.label = s.build.cottage ? 'Visit' : 'Build';
       if (o.project === 'garden') o.label = gardenOpen(s) ? 'Garden' : 'Build';
     }
+    if (o.kind === 'house') o.label = kitchenOpen(s) && !poppyAway(s) ? 'Kitchen' : '';
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);
     if (o.kind === 'bridge') o.hidden = s.flags.includes('bridge:woods');

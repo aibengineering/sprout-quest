@@ -221,6 +221,17 @@ export const PRESETS: Preset[] = [
     }),
   },
   {
+    id: 'kitchen', name: "Granny's Kitchen", desc: 'Inside Granny\'s Kitchen with Bram\'s and Pip\'s recipes known, and plenty to cook with: pick a recipe, fetch, stir and serve.',
+    make: () => pip(1, (s) => {
+      s.build.cottage = 1;
+      s.flags.push('pip:candy');
+      Object.assign(s.mats, { fluff: 45, goo: 60, clover: 6, pine: 27, cap: 18, stone: 36, copper: 18 });
+      const o = map().obj('house')!;
+      s.pos = { x: o.x + o.w / 2 - 0.4, y: o.y + o.h + 0.7 };
+      s.room = 'kitchen';
+    }),
+  },
+  {
     id: 'drums', name: 'Drums: Granny is worried', desc: "The Alpha Woolf is beaten and Poppy's home: walk up to Granny, and Poppy's gone after the drums in Echo Cavern.",
     make: () => drums(0, 29.4, 12.6),
   },

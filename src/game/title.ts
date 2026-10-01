@@ -10,6 +10,7 @@ import { VERSION } from '../version';
 import { G, applySound, persist, showZoneBanner } from './context';
 import { zoneTheme } from '../music/scores';
 import { setUpStories } from './stories';
+import { restoreRoom } from './rooms';
 import { progressQuests, unlocks } from './story';
 
 /** Set once the sprites and icons are in; the title's buttons only exist from then on. */
@@ -38,6 +39,8 @@ export async function boot() {
   const mb = (n: number) => (n / 1048576).toFixed(1);
   const ok = await loadAssets((p) => show(0.2 + 0.45 * (p.total ? p.done / p.total : 0), `Fetching scenery… ${mb(p.done)} / ${mb(p.total)} MB`));
   if (!ok) show(0.65, 'Sprites unavailable: using simple drawings');
+  // The rooms' props (Granny's Kitchen, Bram's Sawmill) and the Garden's tools: a small atlas of their own.
+  else await loadAssets(undefined, 'assets/rooms/');
   // Characters are 3D models: the hero in their armor, the villagers and every monster. The other armors follow later.
   const armor = loadState()?.equip.armor ?? 'tunic';
   const weapon = loadState()?.equip.weapon ?? 'twig';
@@ -106,6 +109,8 @@ function startGame(fresh: boolean) {
       G.input.reset();
     });
   }
+  // Saved in Granny's Kitchen or Bram's Sawmill: carry on in there (before anything saves you back outside).
+  restoreRoom();
   // Old saves catch up on unlocks quietly; new players get them one at a time.
   const catchUp = s.unlocked.length === 0 && (s.lv > 1 || s.quest > 0);
   unlocks(catchUp);

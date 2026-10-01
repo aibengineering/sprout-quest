@@ -4,6 +4,7 @@ import { cook, kitchenOpen, MEALS, type MealId } from '../../kitchen';
 import { craftPresentation } from '../../crafting';
 import { poppyAway } from '../../procession';
 import { G, paused, persist } from '../context';
+import { enterRoom } from '../rooms';
 import { say, type Speaker } from '../scenes';
 import type { Story } from '../stories';
 
@@ -32,8 +33,8 @@ function lines(): [string, string?][] {
 const GREETINGS = ["Sit down, sit down! What'll it be, dear?", 'Hungry? Of course you are. Look at you, all skin and leaves.', "There's always something on the stove for our hero."];
 let greet = 0;
 
-/** Her kitchen table: pick a meal, and she cooks it while you wait. */
-function kitchen() {
+/** Her menu: pick a meal, and she cooks it while you wait (asking her in the Kitchen, rather than cooking it yourself). */
+export function grannyCooks() {
   return paused(async () => {
     const r = await G.ui.kitchen(G.save, GREETINGS[greet++ % GREETINGS.length]);
     if (!r.startsWith('cook:')) return;
@@ -71,9 +72,9 @@ export const GRANNY_STORY: Story = {
   objs: [],
   cast: () => [{
     id: GRANNY_ID, look: { kind: 'idle', name: 'granny' }, ...GRANNY_AT,
-    label: kitchenOpen(G.save) && !poppyAway(G.save) ? 'Cook' : 'Talk',
+    label: kitchenOpen(G.save) && !poppyAway(G.save) ? 'Kitchen' : 'Talk',
     mood: poppyAway(G.save) ? '😰' : poppyStep() <= 4 ? '😟' : undefined,
-    talk: () => (bramDue() ? askFavour() : kitchenOpen(G.save) && !poppyAway(G.save) ? kitchen() : paused(async () => {
+    talk: () => (bramDue() ? askFavour() : kitchenOpen(G.save) && !poppyAway(G.save) ? enterRoom('kitchen') : paused(async () => {
       for (const [text, mood] of lines()) await say(GRANNY, text, mood);
     })),
   }],

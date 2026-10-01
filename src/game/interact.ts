@@ -16,6 +16,8 @@ import { visitPip } from './stories/pip';
 import { openGarden } from './stories/poppy';
 import { gardenOpen } from '../garden';
 import { poppyAway } from '../procession';
+import { kitchenOpen } from '../kitchen';
+import { enterRoom, roomAct } from './rooms';
 
 /** Opens the menu with the world waiting behind it. */
 function openMenu(...args: Parameters<typeof G.ui.openMenu>) {
@@ -76,6 +78,15 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
   },
 
   elder: () => talkToElder(),
+
+  /** Granny's blue house: her Kitchen, once she cooks. */
+  house() {
+    if (kitchenOpen(G.save) && !poppyAway(G.save)) enterRoom('kitchen');
+  },
+
+  /** Something to work at by hand in a room, or the way back out. */
+  station: (o) => roomAct(o),
+  door: (o) => roomAct(o),
 
   async pickup() {
     await paused(() => G.ui.itemFound('twig', 'Twig Sword', "It's just a stick… but it feels right in your hand.", '🗡️', 'You found', true));

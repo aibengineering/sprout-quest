@@ -24,6 +24,8 @@ export interface Actor {
   follow: boolean;
   /** A passing feeling (pops up, then fades). */
   bubble: Bubble | null;
+  /** A few words said aloud while you get on with things (no popup: the game carries on). */
+  speech?: Bubble & { text: string };
   /** How they feel the rest of the time, shown whenever no passing bubble is up. */
   mood?: string;
   /** Up close: the action button's label, and what talking to them does. */
@@ -63,6 +65,12 @@ export class Actors {
     if (a) a.bubble = { emoji, t: 0, hold: secs };
   }
 
+  /** A line said aloud over an actor's head for `secs` (it never pauses the game). */
+  say(id: string, text: string, secs = 3) {
+    const a = this.get(id);
+    if (a) a.speech = { emoji: '', text, t: 0, hold: secs };
+  }
+
   /** Walks an actor along `path`; resolves when they get there. */
   walk(id: string, path: { x: number; y: number }[], speed?: number): Promise<void> {
     const a = this.get(id);
@@ -88,6 +96,10 @@ export class Actors {
       if (a.bubble) {
         a.bubble.t += dt;
         if (a.bubble.t > a.bubble.hold) a.bubble = null;
+      }
+      if (a.speech) {
+        a.speech.t += dt;
+        if (a.speech.t > a.speech.hold) a.speech = undefined;
       }
       let target: { x: number; y: number } | null = null, speed = a.speed;
       if (a.path.length) target = a.path[0];

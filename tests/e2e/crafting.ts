@@ -36,7 +36,7 @@ async function begin(page: Page, id: string, twice = false) {
     s.lv = 20; s.build.forge = 5; s.stories.poppy = 6; s.stories.drums = 4;
     for (const flag of ['oldtools', 'bram:pie', 'bram:stew', 'pip:candy', 'garden:berries']) if (!s.flags.includes(flag)) s.flags.push(flag);
     if (['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy', 'tart'].includes(id)) {
-      void g.over.actors.get('granny:granny').talk();
+      void g.grannyCooks(); // Granny's menu (in her Kitchen, asking her)
     } else {
       g.ui.openMenu({ atForge: true, inVillage: true }, 'forge');
       const method = /^(axe|pick)\d$/.test(id) ? 'craftTool' : ['jellypot', 'shroombrew', 'embertonic', 'herbtonic'].includes(id) ? 'craftPotion' : 'craftGear';

@@ -1134,7 +1134,7 @@ scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra han
   await page.waitForTimeout(300);
   const mats = () => game<number[]>(page, '[g.save.mats.stone, g.save.mats.copper]');
   const cost = await mats();
-  await run(page, `void g.over.actors.get('granny:granny').talk()`);
+  await run(page, `void g.grannyCooks()`);
   await waitFor(page, 'Rock Candy on the menu', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="cook:rockcandy"]:not([disabled])')));
   await page.click('[data-dialog="cook:rockcandy"]');
   await playUntil('Rock Candy eaten', async () => (await game<boolean>(page, `g.save.meal?.id === 'rockcandy' && g.mode === 'world'`)) && !(await page.$('#modal:not([hidden])')));
@@ -1220,12 +1220,89 @@ scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Grann
   await click('.btns [data-dialog="close"]');
   // Granny bakes it: +10% max HP.
   const before = await game<number>(page, 'g.save.hp');
-  await run(page, `void g.over.actors.get('granny:granny').talk()`);
+  await run(page, `void g.grannyCooks()`);
   await click('[data-dialog="cook:tart"]');
   await waitFor(page, 'the tart', async () => game<boolean>(page, `g.save.meal?.id === 'tart'`));
   await closeDialogs(page);
   check(await game<boolean>(page, `g.save.mats.berry === 4 && g.save.mats.fluff === 0`), 'the tart did not cost 8 Berries and 6 Bunny Fluff');
   check(await game<number>(page, 'g.save.hp') > before, 'the tart should raise your health');
+});
+
+scenario("Granny's Kitchen: walk in, pick a recipe, fetch, stir and serve by hand, ask Granny, and walk back out", (g) => {
+  const s = g.save;
+  s.lv = 6;
+  s.stories.poppy = 6;
+  s.flags.push('poppy:returned');
+  Object.assign(s.mats, { clover: 3, fluff: 20, goo: 12 });
+  s.pos = { x: 31.4, y: 11.4 };
+}, async (page) => {
+  /** Stands you at a spot in the room, looking up at the wall (or `face`), and presses the action key. */
+  const use = async (x: number, y: number, face = -Math.PI / 2) => {
+    await run(page, `g.over.x = ${x}; g.over.y = ${y}; g.over.face = ${face}`);
+    await page.waitForTimeout(120);
+    await page.keyboard.press('KeyE');
+    await page.waitForTimeout(250);
+  };
+  const kitchen = () => game<any>(page, 'g.kitchen');
+  // Granny's by her door: talking to her takes you in.
+  await waitFor(page, 'Granny at her door', async () => game<boolean>(page, `g.over.actors.get('granny:granny')?.label === 'Kitchen'`));
+  await run(page, `void g.over.actors.get('granny:granny').talk()`);
+  await waitFor(page, 'the Kitchen', async () => (await game<string>(page, 'g.room')) === 'kitchen' && (await game<string>(page, 'g.mode')) === 'world');
+  await page.waitForTimeout(500);
+  // Her book: Clover Tea.
+  await use(7.2, 2.7);
+  await waitFor(page, 'the recipe book', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="dish:tea"]:not([disabled])')));
+  await page.click('[data-dialog="dish:tea"]');
+  await waitFor(page, 'the tea on the go', async () => (await kitchen()).pot?.dish === 'tea');
+  // The serving table wants a meal, not an empty plate.
+  await use(4.5, 5.75);
+  check((await kitchen()).held === null, 'picked something up at the table');
+  // Clover from the pantry, into the pot.
+  await use(2.0, 2.7);
+  check((await kitchen()).held?.mat === 'clover', 'the pantry did not hand over the clover');
+  await use(4.6, 2.7);
+  check(JSON.stringify((await kitchen()).pot.added) === '["clover"]', 'the clover did not go in the pot');
+  check(await game<number>(page, 'g.save.mats.clover') === 3, 'cooking spent the clover before it was served');
+  // Stir: a slop first (the spoon nowhere near the gold), then three good stirs.
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'stirring', async () => !!(await kitchen()).stirring);
+  await run(page, `const k = g.kitchen.stirring; k.a = k.gold + Math.PI`);
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(150);
+  check((await kitchen()).pot.stirs === 0, 'a slop counted as a stir');
+  for (let i = 0; i < 3; i++) {
+    await run(page, `const k = g.kitchen.stirring; k.a = k.gold`);
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(150);
+  }
+  check((await kitchen()).pot.stirs === 3 && !(await kitchen()).stirring, 'three good stirs did not cook it');
+  // Spoon it out and serve it.
+  await use(4.6, 2.7);
+  check((await kitchen()).held?.dish === 'tea', 'nothing was spooned out');
+  await use(4.5, 5.75);
+  check(await game<boolean>(page, `g.save.meal?.id === 'tea' && g.save.mats.clover === 1`), 'serving did not make (and charge for) Clover Tea');
+  check((await kitchen()).pot === null && (await kitchen()).held === null, 'the pot was not cleared after serving');
+  // Saved in here, you carry on in here.
+  await page.reload();
+  await page.waitForSelector('.title-btns:not([hidden])');
+  await page.click('#btn-continue');
+  await waitFor(page, 'back in the Kitchen', async () => (await game<string>(page, 'g.room')) === 'kitchen' && (await game<string>(page, 'g.mode')) === 'world', 8000);
+  await closeDialogs(page);
+  // Asking Granny brings up her menu: she cooks it for you.
+  await run(page, `void g.over.cast.get('room:granny').talk()`);
+  await waitFor(page, "Granny's menu", async () => !!(await page.$('#modal:not([hidden]) [data-dialog="cook:pancakes"]:not([disabled])')));
+  await page.click('[data-dialog="cook:pancakes"]');
+  await waitFor(page, 'pancakes', async () => game<boolean>(page, `g.save.meal?.id === 'pancakes'`));
+  await closeDialogs(page);
+  await waitFor(page, 'free to walk', async () => (await game<string>(page, 'g.mode')) === 'world');
+  // Out of the door: walk down over the mat.
+  await run(page, `g.over.x = 4.5; g.over.y = 6.4`);
+  await page.keyboard.down('KeyS');
+  await waitFor(page, 'outside again', async () => (await game<string>(page, 'g.room')) === null && (await game<string>(page, 'g.mode')) === 'world', 5000);
+  await page.keyboard.up('KeyS');
+  const o = await game<{ x: number; y: number }>(page, `(() => { const h = g.over.world.obj('house'); return { x: g.over.x - (h.x + h.w / 2), y: g.over.y - (h.y + h.h) }; })()`);
+  check(Math.abs(o.x) < 1.2 && o.y > 0 && o.y < 2, `not back outside Granny's door (${JSON.stringify(o)})`);
+  check(!(await game<boolean>(page, `'room' in g.save`)), 'still saved as in the Kitchen');
 });
 
 scenario('fainting: back as a spirit at the checkpoint, walk to your body to wake, never onto a story fight', null, async (page) => {
