@@ -1389,14 +1389,14 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 .crafting .result .btns .go:first-child { background: #ead7b9; box-shadow: inset 0 -3px 0 #ceb38c; }
 .craft-sparkles { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; }
 .craft-sparkles i { --a: calc(var(--i) * 51deg); position: absolute; left: calc(50% + cos(var(--a)) * 112px); top: calc(46% + sin(var(--a)) * 88px); color: #e7b64e; font-style: normal; font-size: 13px; }
-.craft-scene[data-stage="reveal"] .craft-garment { animation: craft-finish .65s cubic-bezier(.3,1.2,.4,1) both; }
+.craft-scene[data-stage="reveal"] .craft-garment { transform-origin: 50% 100%; animation: craft-finish .65s cubic-bezier(.3,1.2,.4,1) both; }
 .craft-scene[data-stage="reveal"] .craft-sparkles { animation: craft-glint .8s ease-out both; }
 .craft-scene[data-stage="reveal"] .craft-halo, .craft-scene[data-stage="ready"] .craft-halo { opacity: 1; }
-.craft-scene[data-stage="ready"] .craft-garment { transform: translateY(-10px); }
 .craft-ready .craft-bag { opacity: .75; }
 .craft-ready .craft-count small::after { content: ' used'; }
 .craft-ready .craft-status { color: #6f8062; }
-@keyframes craft-finish { 0% { transform: scale(1.03,.96); } 40% { transform: translateY(-15px) scale(.99,1.04); } 72% { transform: translateY(-8px) scale(1.015,.99); } 100% { transform: translateY(-10px); } }
+/* A bounce in place, from the bottom: lifting the piece ran it into the heading. */
+@keyframes craft-finish { 0% { transform: scale(1.03,.96); } 40% { transform: scale(.99,1.03); } 72% { transform: scale(1.01,.995); } 100% { transform: none; } }
 @keyframes craft-glint { 0% { opacity: 0; transform: scale(.7); } 35% { opacity: 1; } 100% { opacity: 0; transform: scale(1.14); } }
 @media (max-width: 350px), (max-height: 700px) {
   .crafting .result { padding: 14px 14px 12px; }

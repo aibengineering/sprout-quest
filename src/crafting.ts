@@ -13,6 +13,8 @@ export type { CraftFlight, CraftPresentation } from './crafting/types';
 /** Most pieces flown in for one contact (the count rides on the lead one), and the beat between them (ms). */
 const STREAM_MAX = 6;
 const STREAM_GAP = 55;
+/** The most a scene's clock moves on in one frame (ms). */
+const MAX_STEP = 100;
 /** What a landing sounds like, unless its target says otherwise. */
 const CONTACT_SOUND = { soft: 'craftFluff', bind: 'craftGoo', solid: 'craftStitch', energy: 'ding' } as const;
 
@@ -99,7 +101,7 @@ export function playCraft(root: HTMLElement, item: CraftPresentation, recipe: Re
     view!.show(layer, contact);
   };
   canvas.dataset.layers = [...showing].join(' ');
-  let ended = false, disposed = false, frame = 0, start: number | null = null, phase = -1;
+  let ended = false, disposed = false, frame = 0, t = -1, last = 0, phase = -1;
   const charged: Recipe = {};
   const launched = new Set<number>(), landed = new Set<number>();
   const animate = (el: HTMLElement, keys: Keyframe[], options: KeyframeAnimationOptions) => {
@@ -187,8 +189,18 @@ export function playCraft(root: HTMLElement, item: CraftPresentation, recipe: Re
   const tick = (now: number) => {
     if (ended || disposed) return;
     if (!scene.isConnected) { dispose(); return; }
-    start ??= now;
-    const t = now - start;
+    // The first frame draws the bench (readying a scene shown for the first time can take a moment), then the clock
+    // starts. It moves on by at most a short step a frame, so a phone that's struggling plays the build in slow motion
+    // rather than skipping to the end with everything popped in at once.
+    if (t < 0) {
+      view!.frame(now);
+      t = 0;
+      last = now;
+      frame = requestAnimationFrame(tick);
+      return;
+    }
+    t += Math.min(Math.max(now - last, 0), MAX_STEP);
+    last = now;
     let next = -1;
     item.phases.forEach((p, i) => { if (t >= p.at) next = i; });
     if (phase !== next && next >= 0) {

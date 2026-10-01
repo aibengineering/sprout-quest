@@ -73,7 +73,7 @@ const painted = (page: Page) => page.locator('.craft-model').evaluate((c) => {
 });
 
 async function finish(page: Page, id: string, equip = true, fallback = false) {
-  await page.waitForSelector('.craft-ready', { timeout: 15000 });
+  await page.waitForSelector('.craft-ready', { timeout: 30000 });
   if (await page.locator('.craft-fallback').isVisible() !== fallback) throw Error(`${id}: unexpected art fallback`);
   for (const [m, n] of Object.entries(item(id).recipe!)) if (await page.locator(`[data-count="${m}"]`).textContent() !== String(100 - n!)) throw Error(`${id}: animated count ${m}`);
   if (!fallback && !await painted(page)) throw Error(`${id}: nothing drawn in the scene`);
@@ -135,7 +135,7 @@ try {
         await page.waitForTimeout(BUILD_PRESENTATIONS[id].duration * 0.5);
         await page.locator('.craft-scene').screenshot({ path: `${out}${id}-mid-390.png` });
       }
-      await page.waitForSelector('.craft-ready', { timeout: 20000 });
+      await page.waitForSelector('.craft-ready', { timeout: 40000 });
       if (await page.locator('.craft-fallback').isVisible() || !await painted(page)) throw Error(`${id}: building scene not drawn`);
       if (SHOTS) await page.locator('.craft-scene').screenshot({ path: `${out}${id}-done-390.png` });
       await page.locator('[data-dialog="ok"]').click();
@@ -147,7 +147,7 @@ try {
   const page = await boot(320);
   await begin(page, 'ironsword', true);
   await page.keyboard.press('Escape');
-  await page.waitForSelector('.craft-ready');
+  await page.waitForSelector('.craft-ready', { timeout: 30000 });
   if (await page.evaluate(() => (window as any).game.save.equip.weapon) !== 'twig') throw Error('Escape equipped gear');
   await finish(page, 'ironsword', false);
   await begin(page, 'axe1', true); await page.locator('[data-craft-skip]').click(); await finish(page, 'axe1');

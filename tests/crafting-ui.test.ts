@@ -40,11 +40,14 @@ let media: EventTarget;
 let restore: Map<string, PropertyDescriptor | undefined>;
 const controllers: ReturnType<typeof playCraft>[] = [];
 const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+/** Runs frames up to `time`, 16ms apart like a browser (a scene's clock moves on by at most a short step a frame). */
 function frame(time: number) {
-  now = time;
-  const callbacks = [...frames.values()];
-  frames.clear();
-  callbacks.forEach((f) => f(now));
+  do {
+    now = time > now ? Math.min(time, now + 16) : time;
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((f) => f(now));
+  } while (now < time && frames.size);
 }
 const layers = () => root.querySelector<HTMLCanvasElement>('.craft-model')!.dataset.layers!.split(' ');
 

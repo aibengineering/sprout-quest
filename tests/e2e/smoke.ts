@@ -1755,7 +1755,7 @@ scenario('Fluffy crafting assembles from the bag then equips, with one saved tra
   check(!await page.locator('[data-dialog="equip"]').isVisible(), 'equip offered before assembly');
   await page.waitForSelector('.craft-flight');
   if (SHOTS) await page.screenshot({ path: `${OUT}fluffy-flight.png` });
-  await page.waitForSelector('.craft-ready', { timeout: 8000 });
+  await page.waitForSelector('.craft-ready', { timeout: 30000 });
   check(await page.textContent('[data-count="fluff"]') === '36', 'bag display did not end at real inventory count');
   check(await page.textContent('[data-count="goo"]') === '24', 'goo display did not end at real inventory count');
   if (SHOTS) await page.screenshot({ path: `${OUT}fluffy-complete.png` });
@@ -1769,7 +1769,7 @@ scenario('Fluffy crafting skips safely, ignores repeated craft requests, and kee
   // A queued second hook invocation may arrive after the first has already swapped out the Forge.
   await run(page, `void g.ui.hooks.craftGear('fluffvest'); void g.ui.hooks.craftGear('jellywhip')`);
   await page.keyboard.press('Escape');
-  await page.waitForSelector('.craft-ready');
+  await page.waitForSelector('.craft-ready', { timeout: 30000 });
   check(await game(page, `g.save.equip.armor`) === 'tunic', 'skip also equipped the vest');
   check(!await game(page, `g.save.owned.includes('jellywhip')`), 'second recipe raced the active reveal');
   await page.click('[data-dialog="later"]');
@@ -1784,7 +1784,7 @@ scenario('Fluffy crafting respects reduced motion and fits a small phone', fluff
   await page.setViewportSize({ width: 320, height: 568 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openFluffyCraft(page);
-  await page.waitForSelector('.craft-ready');
+  await page.waitForSelector('.craft-ready', { timeout: 30000 });
   check(await page.locator('.craft-flight').count() === 0, 'reduced-motion flight still played');
   check(!await page.locator('[data-craft-skip]').isVisible(), 'reduced-motion flow still waiting for animation');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
@@ -1833,7 +1833,7 @@ scenario('building the Cottage raises it from its materials, and the house on th
   check(!await page.locator('[data-dialog="ok"]').isVisible(), 'the button showed before the building rose');
   await page.waitForSelector('.craft-flight');
   if (SHOTS) await page.screenshot({ path: `${OUT}cottage-rising.png` });
-  await page.waitForSelector('.craft-ready', { timeout: 10000 });
+  await page.waitForSelector('.craft-ready', { timeout: 30000 });
   check(await page.textContent('.craft-eyebrow') === 'BUILT BY YOU', 'the finished building is not marked built');
   check(await page.textContent('[data-count="bark"]') === '6' && await page.textContent('[data-count="stone"]') === '0', 'the bag display did not end at the real counts');
   check((await page.locator('.craft-model').getAttribute('data-layers'))?.split(' ').length === 6, 'the Cottage should stand in all six of its layers');
@@ -1857,7 +1857,7 @@ scenario('building skips safely, ignores a second build request, and respects re
   // A second tap while the first scene plays does nothing: no Smithy, nothing spent twice.
   await run(page, `void g.ui.hooks.build('forge'); void g.ui.hooks.build('home')`);
   await page.keyboard.press('Escape');
-  await page.waitForSelector('.craft-ready');
+  await page.waitForSelector('.craft-ready', { timeout: 30000 });
   check(await page.locator('.craft-flight').count() === 0, 'leftover material flights after skipping');
   check(await game(page, `g.save.build.forge`) === 1 && await game(page, `g.save.build.home`) === 2, 'a second build raced the scene');
   check(await game(page, `g.save.mats.bark`) === 66, 'a build was charged twice');
@@ -1871,7 +1871,7 @@ scenario('building skips safely, ignores a second build request, and respects re
   await run(page, `const o = g.over.world.objs.find((o) => o.kind === 'forge'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.7); g.mode = 'dialog'; g.ui.openMenu({ atForge: false, inVillage: true }, 'village', 'forge')`);
   await waitFor(page, 'the plans', async () => !!(await page.$('#modal:not([hidden]) [data-build="forge"]:not([disabled])')));
   await page.click('#modal [data-build="forge"]');
-  await page.waitForSelector('.craft-ready');
+  await page.waitForSelector('.craft-ready', { timeout: 30000 });
   check(await page.locator('.craft-flight').count() === 0, 'reduced-motion flight still played');
   check(!await page.locator('[data-craft-skip]').isVisible(), 'reduced-motion scene still waiting on the animation');
   check(await game(page, `g.save.build.forge`) === 2, 'the Smithy was not built');
