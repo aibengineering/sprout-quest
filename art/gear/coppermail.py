@@ -1,10 +1,8 @@
 """Copper plates and matte stone studs. Recipe: copper 12, stone 8."""
-import math
 from lib import box, toon, torus
 from gear._metal import pivots, rivet, shell, shoulder, stone
 
 PARTS = ('copper-shell', 'left-pauldron', 'right-pauldron', 'stone-studs', 'copper-bindings')
-CAMERA = dict(ppu=565, anchor=(0, 0, .39), elevation=math.radians(12))
 
 
 def build_armor(P):

@@ -35,9 +35,3 @@ def build_icon():
         if obj.name.startswith('pine-fuel_'):
             obj.hide_render = True
     return root
-
-
-CAMERA = dict(ppu=385, anchor=(0, 0, -.015), elevation=0.41887902047863906)
-# Consumed fuel belongs to the workbench, not the completed food.
-COMPLETE_PARTS = ('pot', 'cap-broth', 'shroom-caps', 'steam')
-

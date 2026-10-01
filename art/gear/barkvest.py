@@ -4,7 +4,6 @@ from lib import box, cylinder, sphere, toon
 from gear._woodland_shapes import add, pivots, vest
 
 PARTS = ('oak-back', 'oak-left', 'oak-right', 'shoulder-left', 'shoulder-right', 'stone-fasteners')
-CAMERA = dict(ppu=532.792128, anchor=(0, 0.067111, 0.315734), elevation=math.radians(12))
 
 
 def build(body, arms=None, head=None):

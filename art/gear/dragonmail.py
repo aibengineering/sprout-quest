@@ -9,7 +9,6 @@ from lib import box, crystal, empty, profile, sphere, toon, torus
 
 PARTS = ('iron-shell', 'back-scales', 'front-scales', 'left-mantle', 'right-mantle', 'ember-seams', 'crystal-clasps')
 HELMET = True
-CAMERA = dict(ppu=370, anchor=(0, 0, .635), elevation=math.radians(12))
 
 
 def build_armor(P):
@@ -21,7 +20,7 @@ def build(body, arms=None, head=None):
     head = head or empty('dragon_head', body, (0, 0, .8))
     parts = {name: [] for name in PARTS}
     iron = toon('#778394', rim=.16)
-    dark = toon('#414453', rim=.08)
+    dark = toon('#555a6c', rim=.08)
     scale = toon('#c54c50', rim=.15)
     shade = toon('#953d4b', rim=.12)
     edge = toon('#e57568', rim=.12)

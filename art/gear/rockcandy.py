@@ -6,7 +6,6 @@ import math
 from lib import crystal, cylinder, sphere, toon
 from gear._consumable_shapes import icon, part, plate
 
-ICON_ID = 'meal_rockcandy'
 PEBBLES = ('#c9c3d8', '#f2c4d6', '#c4dcef', '#e9e2d0')
 
 
@@ -50,7 +49,3 @@ def build_item(root):
 
 def build_icon():
     return icon(build_item)
-
-
-CAMERA = dict(ppu=385, anchor=(0, 0, -.015), elevation=0.41887902047863906)
-

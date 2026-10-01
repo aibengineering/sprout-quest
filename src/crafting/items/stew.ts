@@ -2,7 +2,7 @@ import type { CraftPresentation } from '../types';
 
 export default {
   id: 'stew', model: 'assets/crafting3d/stew.glb', eyebrow: 'Granny’s Kitchen', duration: 3400,
-  // Fuel draws under the cookware. It is excluded from the finished complete image.
+  // The fuel burns under the pot, and leaves (as does its icon) once the stew is served.
   layers: ['pine-fuel', 'pot', 'cap-broth', 'shroom-caps', 'steam'].map((id) => ({ id, ...(id === 'steam' ? { showAt: 1510 } : {}), ...(id === 'pine-fuel' ? { finished: false } : {}) })),
   roles: { pine: 'Cooking fuel below the pot', cap: 'Warm mushroom broth & spotted caps' },
   targets: [

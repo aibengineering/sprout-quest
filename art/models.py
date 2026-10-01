@@ -78,16 +78,17 @@ def weapon(wid):
 
 
 def armor(a):
-    """One armour on its own, hanging under nodes named after the hero's pivots (bodyPivot, arm-1, arm1, head), each at
-    its rest place: the game hangs each piece on the base hero's matching pivot. A `helmet` node says it hides the hair."""
-    root = lib.empty('hero')
-    body = lib.empty('bodyPivot', root)
-    P = {'root': root, 'body': body, 'head': lib.empty('head', body, (0, 0, 0.8))}
-    for side in (-1, 1):
-        P[f'arm{side}'] = lib.empty(f'arm{side}', body, (0.29 * side, 0, 0.37))
+    """One armour on its own, hanging under nodes named after the hero's pivots (bodyPivot, arm-1, arm1, head), each
+    where the base hero has it (build_base's pivots, without the hero): the game hangs each piece on the base hero's
+    matching pivot. A `helmet` node says it hides the hair."""
+    P = hero.build_base()
+    for o in [o for o in bpy.data.objects if o.type == 'MESH']:
+        bpy.data.objects.remove(o)
+    for key in ('bangs', 'sprout', 'foot-1', 'foot1'):
+        bpy.data.objects.remove(P.pop(key))
     hero.build_armor(P, a)
     if hero.helmet(a):
-        lib.empty('helmet', root)
+        lib.empty('helmet', P['root'])
     return P, {}
 
 

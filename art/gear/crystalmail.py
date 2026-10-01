@@ -4,7 +4,6 @@ from lib import box, crystal, sphere, toon, torus
 from gear._metal import pivots, shell, shoulder, stone
 
 PARTS = ('iron-frame', 'crystal-scales', 'left-crystal', 'right-crystal', 'stone-anchors')
-CAMERA = dict(ppu=455, anchor=(0, 0, .39), elevation=math.radians(12))
 
 
 def build_armor(P):

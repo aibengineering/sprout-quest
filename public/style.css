@@ -1351,14 +1351,16 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 .craft-bench i:nth-child(3) { left: 40%; top: 75%; width: 14%; }
 .craft-pattern { position: absolute; bottom: 15px; left: 19%; right: 19%; height: 75px; border: 1px dashed #987c6088; border-radius: 40%; color: #987c60; background: #fff3d8bb; transform: rotate(-3deg); font-size: 18px; }
 .craft-pattern span { display: block; font-size: 9px; letter-spacing: 1px; margin-top: 14px; }
-.craft-garment, .craft-fallback { position: absolute; width: 258px; height: 258px; max-width: 100%; left: 50%; top: -4px; margin-left: -129px; object-fit: contain; z-index: 2; }
+.craft-garment, .craft-fallback { position: absolute; width: 258px; height: 258px; max-width: 100%; left: 50%; top: -4px; margin-left: -129px; z-index: 2; }
+.craft-fallback { object-fit: contain; }
 .craft-model { display: block; width: 100%; height: 100%; }
 .craft-flights { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .craft-flight { position: absolute; width: 48px; height: 48px; left: 0; top: 0; will-change: transform; filter: drop-shadow(0 3px 2px #4a2a5a30); }
 .craft-flight img { width: 100%; height: 100%; object-fit: contain; }
-/* A piece tumbling in 3D: its model's turn as a strip of 12 frames (src/itemview.ts tumbling), stepped through. */
-.craft-flight .piece { display: block; width: 100%; height: 100%; background-size: 1200% 100%; animation: tumble 0.6s steps(12) infinite; }
-@keyframes tumble { to { background-position: 109.0909% 0; } }
+/* A piece tumbling in 3D: its model's turn as a strip of --frames frames (src/itemview.ts TUMBLE_FRAMES), stepped through. */
+.craft-flight .piece { display: block; width: 100%; height: 100%; background-size: calc(var(--frames) * 100%) 100%; animation: tumble 0.6s steps(var(--frames)) infinite; }
+/* One whole strip along: a percentage moves the image by (its width - the box's), so n frames is n / (n - 1) of that. */
+@keyframes tumble { to { background-position: calc(100% * var(--frames) / (var(--frames) - 1)) 0; } }
 .craft-flight.trail { width: 40px; height: 40px; margin: 4px 0 0 4px; }
 .craft-flight b { position: absolute; bottom: -2px; right: -4px; color: #765365; background: #fffbed; border-radius: 8px; padding: 0 4px; font: 700 11px var(--display); }
 .craft-flight.goo b { background: #e4f6d1; color: #3a754e; }
@@ -1419,6 +1421,8 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 .craft-building .craft-bench { left: 3%; right: 3%; height: 96px; border-color: #6f8a4e; background: radial-gradient(ellipse at 50% 45%, #c9a57a 0 38%, #a8c878 40%, #93b866 100%); box-shadow: 0 8px 0 #7a9a58, 0 11px 0 #5e7a46, 0 20px 20px #71413b1a, inset 0 3px 0 #c8e0a0; transform: none; }
 .craft-building .craft-bench i { background: #6f8a4e55; }
 .craft-building .craft-pattern { bottom: 14px; left: 24%; right: 24%; height: 60px; border-color: #5a86b866; color: #5a86b8; background: #e6f0fa99; transform: none; }
+/* In 3D the building's plot is drawn in its scene (src/models.ts plot), lying at the scene's own angle; the flat one is for the icon. */
+.craft-building:has(.craft-garment:not([hidden])) :is(.craft-bench, .craft-pattern) { display: none; }
 .craft-perk { font-weight: 800; color: #6f8062; }
 @media (max-width: 380px), (max-height: 700px) {
   .craft-building { height: 218px; }

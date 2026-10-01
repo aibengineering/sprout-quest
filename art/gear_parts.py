@@ -33,7 +33,9 @@ def preview_parts(item):
         pivots = {'root': root, 'body': body, 'head': empty('head', body, (0, 0, .8))}
         for side in (-1, 1):
             pivots['arm' + str(side)] = empty('arm' + str(side), body, (.29 * side, 0, .37))
-        return root, item.build_armor(pivots)
+        parts = item.build_armor(pivots)
+        settle_head(body, pivots['head'])
+        return root, parts
     weapon = hasattr(item, 'build_weapon')
     builder = getattr(item, 'build_weapon', None) or item.build_item
     parts = builder(root)
@@ -41,6 +43,30 @@ def preview_parts(item):
         root.rotation_euler = getattr(item, 'PREVIEW_ROTATION', (0, -math.pi / 4, 0))
         root.scale = getattr(item, 'PREVIEW_SCALE', (1, 1.25, 1.25))
     return root, parts
+
+
+def settle_head(body, head, overlap=.03):
+    """Worn, a helmet sits on the hero's head; on the bench there's no head, so it would float a head's height above
+    the armour. Lowers the head pivot until the helmet (the biggest piece on the head) rests on the top of the rest,
+    so the piece reads as one: anything hanging from the helmet (a hood's cowl) tucks into the body."""
+    import bpy
+    from mathutils import Vector
+    bpy.context.view_layer.update()
+
+    def corners(o):
+        return [o.matrix_world @ Vector(c) for c in o.bound_box]
+
+    def volume(o):
+        pts = corners(o)
+        return math.prod(max(p[i] for p in pts) - min(p[i] for p in pts) for i in range(3))
+
+    on_head = [o for o in head.children_recursive if o.type == 'MESH']
+    rest = [p.z for o in body.children_recursive if o.type == 'MESH' and o not in on_head for p in corners(o)]
+    if not on_head or not rest:
+        return
+    rim = min(p.z for p in corners(max(on_head, key=volume)))
+    if rim > max(rest) - overlap:
+        head.location.z -= rim - (max(rest) - overlap)
 
 
 def item_icon(item_id):

@@ -64,15 +64,17 @@ arms are `(.29*side,0,.37)` relative to body. Parent cuffs/sleeves to arms so th
 follow idle/walk. The custom builder replaces the old torso/sleeves and armor
 decorations, retaining hands, face, feet and animation pivots. Optional `HELMET`
 controls omission of the starter bangs/sprout (default is the existing armor's
-helmet setting). Preview rendering supplies these same empty pivots without skin.
+helmet setting). The crafting scene supplies these same empty pivots without skin;
+with no head under it, a helmet's head pivot is lowered until the helmet rests on the
+rest of the armour (art/gear_parts.py `settle_head`), so the piece on the bench reads
+as one. Worn, it sits on the head as built.
 
 Weapons export `build_weapon(root)`. Keep the grip at the origin and length along
 `+X`, within the existing weapon's footprint. Existing length metadata and hero
 attachment nodes stay unchanged. All weapon render/model callers use this builder.
 Only the preview root rotates `(0,-pi/4,0)` and scales `(1,1.25,1.25)` by default,
 matching the existing tilted weapon view. Optional `PREVIEW_ROTATION` and
-`PREVIEW_SCALE` override those preview transforms. `CAMERA` anchors are world
-coordinates after these transforms. Equipped geometry stays on the grip/+X axis.
+`PREVIEW_SCALE` override those preview transforms. Equipped geometry stays on the grip/+X axis.
 
 Charms, tools, potions and meals export `build_item(root)`. Construct under that
 root and return the parts map; icon and workbench rendering share the builder.
@@ -81,15 +83,17 @@ The scene is a 3D model from the same builder: `bun run art crafting <id>` (or c
 `public/assets/crafting3d/<id>.glb` (art/models.py), each part a top-level node named after its layer, Z-up with the
 front facing -Y and the origin on the ground under the middle, compressed with gltfpack (`-cc -kn`). Armour is also
 exported on its own (`armor_<id>`, hung on the hero's pivots) and weapons as `wpn_<id>`, from the same builders, so the
-crafted and the worn item are one source of truth. The game loads every scene on the title screen and plays it live
-with the characters' toon shading and outlines, from a fixed 3/4 view (src/models.ts `craftView`).
+crafted and the worn item are one source of truth. The game downloads every scene on the title screen, readies each
+the first time it's shown, and plays it live with the characters' toon shading and outlines, from a fixed 3/4 view
+(src/models.ts `craftView`). Ingredients land on the middle of their layer as it is on screen, so a layer must show
+where it lands (not hidden inside or under another).
 The item's inventory icon is rendered from that same model: `bun run art icons3d <id>` (scripts/icons3d.ts, headless
 Chromium, no Blender) draws the finished piece (every layer but those marked `finished: false`) with the game's toon
 look, straight on and fitted to the 128 px square, into `public/assets/icons/<id>.webp` (meals: `meal_<id>`). Weapons
 are seen side on, tools, armour and charms a little from above, potions and meals from further above (src/itemview.ts).
-So re-export the scene, then re-run icons3d, whenever the geometry changes. The old Blender-icon settings (`CAMERA`,
-`COMPLETE_PARTS`, `ICON_ID`) are no longer read. The same model turns in live 3D on the item's cards (the
-"You crafted" card, the Forge's and the Bag's tags).
+So re-export the scene, then re-run icons3d, whenever the geometry changes. The same model turns in live 3D on the
+item's cards (the "You crafted" card, the Forge's and the Bag's tags). After changing armour, check it worn too:
+`bun run tests/e2e/hero-armors.ts [out.png]` draws the hero in every armour (idle, walking, from behind, sword in hand).
 
 ## Checks and publication
 
@@ -115,7 +119,8 @@ just needs a role and a target on a layer), and a level whose scene doesn't cove
 Layers without a target are only `base` (what stood before the upgrade) or `site` (what waited on the plot).
 
 Geometry is `art/buildings/<project><level>.py`, exporting `build_building(root)` (layers in build order) and
-`CAMERA`. Its scene's model is `public/assets/crafting3d/<project><level>.glb`: `bun run art buildings [id,...]`
-(art/building_models.py), framed wider than gear. The map sprite (`env/<name>`) and menu icon (`b_<name>`) come from
+`CAMERA` (the map sprite's framing). Its scene's model is `public/assets/crafting3d/<project><level>.glb`:
+`bun run art buildings [id,...]` (art/building_models.py), framed wider than gear, rising on a grassy plot the scene
+draws under it at its own angle (src/models.ts `plot`). The map sprite (`env/<name>`) and menu icon (`b_<name>`) come from
 the same builder through `env.SCENERY`; re-render them with `bun run art env <names>` and `bun run art icons2 <names>`
 when a building changes.

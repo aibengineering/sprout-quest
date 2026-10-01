@@ -1,10 +1,8 @@
 """Bat Cloak: folded wing membranes, scalloped hems and Wolf Fang closures."""
-import math
 from lib import profile, toon
 from gear._woodland_shapes import add, fang, membrane, pivots, vest
 
 PARTS = ('wing-back-left', 'wing-back-right', 'wing-lapels', 'wing-collar', 'fang-clasps')
-CAMERA = dict(ppu=467.027826, anchor=(0, 0.067771, 0.318838), elevation=math.radians(12))
 
 
 def build(body, arms=None, head=None):

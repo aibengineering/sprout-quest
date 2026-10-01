@@ -8,7 +8,6 @@ from lib import cylinder, lathe, profile, sphere, toon
 
 PARTS = ('cap-stem', 'cap-crown', 'cap-gills', 'fang-braces')
 LENGTH = 1.3
-CAMERA = dict(ppu=223.185691, anchor=(.339853, .129452, .609022), elevation=math.radians(12))
 
 
 def build_weapon(root):
@@ -29,12 +28,14 @@ def build_weapon(root):
         for y,z in ((-.09,.07),(-.115,-.065),(.055,.11),(.10,-.07)):
             sphere((.895,y,z),(.018,.032,.026),fang,root,seg=12,line=.004,name='cap_spot')
     def gills():
+        # A frilled ring under the cap whose edge shows just past its rim.
         for i in range(8):
             a=i*math.tau/8
-            profile([(.785,.035),(.802,.15),(.815,.15),(.805,.035)],.012,fiber,root,rot=(a,0,0),bevel=.003,line=.003,name='mushroom_gill')
+            profile([(.77,.035),(.79,.195),(.81,.195),(.80,.035)],.018,fiber,root,rot=(a,0,0),bevel=.004,line=.004,name='mushroom_gill')
     def braces():
         for i in range(3):
             a=i*math.tau/3
-            profile([(.66,.027),(.69,.061),(.78,.105),(.825,.10),(.76,.064),(.70,.025)],.035,fang,root,rot=(a,0,0),bevel=.007,line=.008,name='wolf_fang_brace')
+            # Each fang curls up from the shaft and out past the cap's rim, where you can see it cup the crown.
+            profile([(.60,.027),(.65,.07),(.75,.15),(.81,.215),(.77,.13),(.66,.03)],.04,fang,root,rot=(a,0,0),bevel=.008,line=.008,name='wolf_fang_brace')
     group(PARTS[0],shaft); group(PARTS[1],crown); group(PARTS[2],gills); group(PARTS[3],braces)
     return parts

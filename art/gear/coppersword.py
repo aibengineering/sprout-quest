@@ -11,7 +11,6 @@ PARTS = ('bark-grip', 'copper-blade', 'copper-guard', 'copper-rivets')
 LENGTH = 1.4
 # Registered workbench camera for the shared diagonal weapon pose (Y=-pi/4,
 # cross-axis scale 1.25). Equipped geometry retains its unrotated +X axis.
-CAMERA = dict(ppu=237.246199, anchor=(.292398, .104754, .492827), elevation=math.radians(12))
 
 
 def build_weapon(root):

@@ -1,6 +1,6 @@
 // Entry point: the canvas, the frame loop, and wiring the page's buttons to the game. The flows themselves live in
 // game/: fights, gathering, story, interactions, the menu's actions and the title screen, sharing state through `G`.
-import { modelStats, tickModels } from './models';
+import { modelStats, rendererSize, tickModels } from './models';
 import { liveView } from './itemview';
 import type { Battle } from './battle/battle';
 import { drawBattle } from './battle/render';
@@ -286,6 +286,8 @@ requestAnimationFrame(frame);
   get over() { return G.over; },
   get chop() { return chop; },
   get modelStats() { return modelStats; },
+  /** The shared WebGL renderer's drawing size (src/models.ts). */
+  get rendererSize() { return rendererSize(); },
   /** Which item (or 'hero') is live in 3D in the open card, if any (src/itemview.ts). */
   get itemView() { return liveView(); },
   get xpRate() { return G.xpRate; },

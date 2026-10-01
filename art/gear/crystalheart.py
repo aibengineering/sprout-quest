@@ -7,9 +7,6 @@ from lib import empty, profile, sphere, toon, torus
 from gear._charm_shapes import collect, cord, jelly_heart, leaf_cluster
 
 
-CAMERA = {'ppu': 445, 'anchor': (0, 0, 0), 'elevation': math.radians(12)}
-
-
 def build_item(root):
     parts = {}
     for side, name in [(-1, 'left-wing'), (1, 'right-wing')]:
