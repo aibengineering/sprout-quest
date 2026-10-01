@@ -48,15 +48,17 @@ async function fetchWithProgress(url: string, onBytes: (got: number, total: numb
  * Loads the sprite atlas with byte-level progress. Images are fully decoded before this resolves, so the first frame
  * that draws a monster or a gathering node already has it (a loaded-but-undecoded image can draw nothing on phones).
  */
-export async function loadAssets(onProgress?: (p: LoadProgress) => void, base = 'assets/'): Promise<boolean> {
-  try {
+export async function loadAssets(onProgress?: (p: LoadProgress) => void): Promise<boolean> {
+  const got: number[] = [], size: number[] = [];
+  const report = () => onProgress?.({ stage: 'sprites', done: got.reduce((a, b) => a + b, 0), total: size.reduce((a, b) => a + b, 0) });
+  const load = async (base: string) => {
     const res = await fetch(`${base}atlas.json`);
-    if (!res.ok) return false;
+    if (!res.ok) throw new Error(`${base}atlas.json: ${res.status}`);
     const data = (await res.json()) as { pages: string[]; frames: Record<string, number[]> };
-    const got = data.pages.map(() => 0), size = data.pages.map(() => 0);
-    const report = () => onProgress?.({ stage: 'sprites', done: got.reduce((a, b) => a + b, 0), total: size.reduce((a, b) => a + b, 0) });
     const imgs = await Promise.all(
-      data.pages.map(async (p, i) => {
+      data.pages.map(async (p) => {
+        const i = got.push(0) - 1;
+        size.push(0);
         const blob = await fetchWithProgress(base + p, (n, t) => {
           got[i] = n;
           size[i] = t || n;
@@ -71,11 +73,12 @@ export async function loadAssets(onProgress?: (p: LoadProgress) => void, base = 
     for (const [name, [page, x, y, w, h, ax, ay, ppu]] of Object.entries(data.frames)) {
       frames.set(name, { img: imgs[page], x, y, w, h, ax, ay, ppu });
     }
-    ready = true;
-    return true;
-  } catch {
-    return false;
-  }
+  };
+  // The main atlas, and alongside it the rooms' props (Granny's Kitchen, Bram's Sawmill) and the Garden's tools: a
+  // small atlas of their own, which can go missing without taking the rest down.
+  const [main] = await Promise.allSettled([load('assets/'), load('assets/rooms/')]);
+  ready = main.status === 'fulfilled';
+  return ready;
 }
 
 /** Warms the browser cache with the menu icons so bags and forges open with every picture already there. */

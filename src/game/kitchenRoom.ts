@@ -5,7 +5,7 @@
 import { MATS, type MatId } from '../data';
 import { addToPot, cook, cooked, kitchenOpen, knownMeals, MEALS, MEAL_ORDER, startDish, stillNeeded, stir, STIRS, type Cooking, type MealId } from '../kitchen';
 import { hasMats } from '../rules';
-import { BACK_WALL, type Room } from '../room';
+import type { Room } from '../room';
 import { crate, drawCarried, drawProp, hintPill, paintShell, paintWindow, PROP_SCALE, propRise, propUnit, steam } from '../roomArt';
 import { rrect } from '../sprites';
 import { costChips, esc, icon } from '../ui';
@@ -215,7 +215,6 @@ function floor(ctx: CanvasRenderingContext2D, ts: number) {
   ctx.lineWidth = Math.max(2, ts * 0.06);
   rrect(ctx, 2.65 * ts, 3.97 * ts, 3.7 * ts, 1.61 * ts, ts * 0.4);
   ctx.stroke();
-  void BACK_WALL;
 }
 
 /** How far the stove's model stands back from the front of its box (tiles), and where its pot's surface is. */
@@ -346,7 +345,6 @@ export const KITCHEN_PLAY: RoomPlay = {
     reset();
     say(ENTER_LINES[enterLine++ % ENTER_LINES.length], 3.2);
   },
-  leave: reset,
   act(o) {
     if (!kitchenOpen(G.save)) return;
     if (o.id === 'book') return book();

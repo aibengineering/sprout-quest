@@ -94,6 +94,8 @@ export class Overworld {
   /** Where the camera leans while you work somewhere on the map (the Garden), and how far in it zooms. */
   focus: { x: number; y: number; zoom: number } | null = null;
   private focusZoom = 1;
+  /** Half the screen's width in tiles, as last drawn. */
+  private halfW = Infinity;
   /** Tree being chopped, and how long it keeps shaking from the last strike. */
   chopping: WorldObj | null = null;
   private shakeT = 0;
@@ -254,7 +256,12 @@ export class Overworld {
     this.fx.update(dt);
     this.cast.update(dt, this);
     this.headroom += ((this.layers?.headroom() ?? 0) - this.headroom) * (1 - Math.exp(-dt * 3));
-    const target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? this.focus ?? { x: this.x, y: this.y };
+    let target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? this.focus ?? { x: this.x, y: this.y };
+    // Leaning in on the Garden, a narrow screen still keeps you in view at its edges (a tile clear of the side).
+    if (!this.camTarget && this.focus) {
+      const m = Math.max(0, this.halfW - 1);
+      target = { x: Math.max(this.x - m, Math.min(this.x + m, target.x)), y: target.y };
+    }
     this.focusZoom += ((this.focus?.zoom ?? 1) - this.focusZoom) * (1 - Math.exp(-dt * 4));
     const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : this.focus ? 4 : 12));
     this.camX += (target.x - this.camX) * k;
@@ -343,6 +350,7 @@ export class Overworld {
     camX = Math.round(camX);
     camY = Math.round(camY);
     this.view = { left: camX, top: camY, ts, vh };
+    this.halfW = vw / 2 / ts;
     if (this.room) this.drawRoom(ctx, this.room, camX, camY, ts, vw, vh);
     else this.drawScene(ctx, camX / ts, camY / ts, ts, vw, vh);
 

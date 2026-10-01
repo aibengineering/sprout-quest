@@ -1,7 +1,10 @@
 // Touch-first input: a floating joystick anywhere on the canvas, DOM buttons for actions, keyboard fallback.
 
-/** `tap` is any touch or click on the play area itself (the chopping minigame accepts it as a strike). */
-export type Action = 'attack' | 'skill' | 'dodge' | 'potion' | 'act' | 'menu' | 'run' | 'bag' | 'journal' | 'tap';
+/**
+ * `touch` is the moment a finger or click lands on the play area (the chopping minigame strikes on it, for timing).
+ * `tap` is a touch let go without dragging (tapping a Garden bed, stirring): a drag is the joystick, never a tap.
+ */
+export type Action = 'attack' | 'skill' | 'dodge' | 'potion' | 'act' | 'menu' | 'run' | 'bag' | 'journal' | 'touch' | 'tap';
 
 const KEY_ACTIONS: Record<string, Action> = {
   Space: 'attack', KeyJ: 'attack', KeyK: 'dodge', ShiftLeft: 'dodge', KeyL: 'skill', KeyH: 'potion',
@@ -26,6 +29,8 @@ export function trackInputDevice() {
 export const usingKeyboard = () => document.body.classList.contains('kbd');
 
 const JOY_RADIUS = 56;
+/** How far (px) a finger can wander and still count as a tap rather than a drag. */
+const TAP_SLOP = 10;
 
 export class Input {
   move = { x: 0, y: 0 };
@@ -33,6 +38,8 @@ export class Input {
   private pressed = new Set<Action>();
   private held = new Set<Action>();
   private joy = { id: -1, ox: 0, oy: 0, x: 0, y: 0 };
+  /** Where each finger on the play area landed, until it drags too far to be a tap. */
+  private downs = new Map<number, { x: number; y: number }>();
   enabled = true;
   /** Where on the screen the last tap landed (for tapping something on the map, like a Garden bed). */
   tapAt: { x: number; y: number } | null = null;
@@ -43,8 +50,8 @@ export class Input {
     private joyKnob: HTMLElement,
   ) {
     surface.addEventListener('pointerdown', (e) => {
-      if (this.enabled) this.pressed.add('tap');
-      this.tapAt = { x: e.clientX, y: e.clientY };
+      if (this.enabled) this.pressed.add('touch');
+      this.downs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (!this.enabled || this.joy.id !== -1) return;
       this.joy = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY };
       surface.setPointerCapture?.(e.pointerId);
@@ -52,6 +59,8 @@ export class Input {
       this.updateJoy();
     });
     surface.addEventListener('pointermove', (e) => {
+      const d0 = this.downs.get(e.pointerId);
+      if (d0 && Math.hypot(e.clientX - d0.x, e.clientY - d0.y) > TAP_SLOP) this.downs.delete(e.pointerId);
       if (e.pointerId !== this.joy.id) return;
       this.joy.x = e.clientX;
       this.joy.y = e.clientY;
@@ -65,6 +74,12 @@ export class Input {
       this.updateJoy();
     });
     const end = (e: PointerEvent) => {
+      const d0 = this.downs.get(e.pointerId);
+      this.downs.delete(e.pointerId);
+      if (d0 && e.type === 'pointerup' && this.enabled && Math.hypot(e.clientX - d0.x, e.clientY - d0.y) <= TAP_SLOP) {
+        this.pressed.add('tap');
+        this.tapAt = d0;
+      }
       if (e.pointerId !== this.joy.id) return;
       this.joy.id = -1;
       this.showJoy(false);
@@ -160,6 +175,7 @@ export class Input {
     this.pressed.clear();
     this.held.clear();
     this.joy.id = -1;
+    this.downs.clear();
     this.showJoy(false);
   }
 }

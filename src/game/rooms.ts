@@ -10,10 +10,11 @@ import { SAWMILL_PLAY } from './sawmillRoom';
 export interface RoomPlay {
   /** Builds the room's cast and its painter, once. */
   setup(room: Room): void;
-  /** On coming in (a greeting). */
+  /**
+   * On coming in: a fresh start (whatever you were carrying last time went back where it came from, however you
+   * left: out of the door, fast travel or fainting) and a greeting.
+   */
   enter?(room: Room): void;
-  /** On leaving: whatever you were carrying goes back where it came from. */
-  leave?(room: Room): void;
   /** The action button at one of its stations. */
   act(o: WorldObj, room: Room): void | Promise<void>;
   /** Holding the action button down at this station keeps doing it (carrying armful after armful). */
@@ -64,7 +65,6 @@ export function leaveRoom() {
   if (!r || G.trans) return;
   G.audio.play('step');
   transition(() => {
-    play(r.id).leave?.(r);
     G.over.leaveRoom();
     G.input.reset();
     persist();

@@ -41,8 +41,6 @@ export async function boot() {
   const mb = (n: number) => (n / 1048576).toFixed(1);
   const ok = await loadAssets((p) => show(0.2 + 0.45 * (p.total ? p.done / p.total : 0), `Fetching scenery… ${mb(p.done)} / ${mb(p.total)} MB`));
   if (!ok) show(0.65, 'Sprites unavailable: using simple drawings');
-  // The rooms' props (Granny's Kitchen, Bram's Sawmill) and the Garden's tools: a small atlas of their own.
-  else await loadAssets(undefined, 'assets/rooms/');
   // Characters are 3D models: the hero in their armor, the villagers and every monster. Other armour and weapons load
   // when first worn or held.
   const armor = loadState()?.equip.armor ?? 'tunic';
@@ -118,7 +116,8 @@ function startGame(fresh: boolean) {
   const catchUp = s.unlocked.length === 0 && (s.lv > 1 || s.quest > 0);
   unlocks(catchUp);
   setUpStories();
-  showZoneBanner(G.over.currentZone);
+  // (Not in a room: there the place's name is the room's, not the area around it.)
+  if (!G.over.room) showZoneBanner(G.over.currentZone);
   persist();
   void progressQuests();
 }

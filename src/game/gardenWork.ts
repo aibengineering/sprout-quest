@@ -35,6 +35,9 @@ const sayOnce = (key: string, text: string) => {
 const feel = (emoji: string) => G.over.actors.bubble(POPPY_ID, emoji);
 const seedName = (c: Crop) => MATS[CROPS[c].seed].name.replace(' Seeds', '');
 
+/** What the Garden says while Poppy's off after the drums in Echo Cavern. */
+export const POPPY_AWAY = "🌷 Poppy's not here. Her garden waits for her.";
+
 /** You can work the Garden: it's built, Poppy tends it, and she's home. */
 export const gardenWorkable = () => gardenOpen(G.save) && !poppyAway(G.save);
 
@@ -156,7 +159,7 @@ export function gardenAct() {
 /** The water butt and the seed basket beside the Garden. */
 export function gardenStation(o: WorldObj) {
   const s = G.save;
-  if (!gardenWorkable()) return;
+  if (!gardenWorkable()) return G.ui.toast(POPPY_AWAY);
   if (o.id === 'garden:butt') {
     const full = hand && 'can' in hand && hand.can >= CAN_POURS;
     hand = { can: CAN_POURS };
@@ -178,22 +181,27 @@ export function gardenStation(o: WorldObj) {
 /** Every frame on the map: the Garden's view, its labels, which bed you're on, holding the button, and taps on beds. */
 export function gardenTick(dt: number, canAct: boolean) {
   // The view leans in while you're at the Garden (and stays in while you talk to Poppy there).
-  const near = inGarden(), o = plot();
-  G.over.focus = near ? { x: o.x + o.w / 2, y: o.y + o.h - 0.1, zoom: 1.85 } : null;
-  if (near && !canAct) return;
-  const here = near;
+  const here = inGarden(), o = plot();
+  G.over.focus = here ? { x: o.x + o.w / 2, y: o.y + o.h - 0.1, zoom: 1.85 } : null;
+  if (here && !canAct) return;
+  // A tap anywhere else on the map is nothing (and mustn't wait to work a bed once you walk up).
+  const tap = canAct && G.input.consume('tap') ? G.input.tapAt : null;
   if (here && !inside) hello();
   inside = here;
   if (!here) {
-    // Walk off and you put things back where they live.
-    if (hand && !inGarden()) hand = null;
+    // Walk off and you put things back where they live (and the weeds you were tugging settle back in).
+    hand = null;
     target = null;
+    tugs.clear();
+    // (Its label too: just past the edge you can still see it, and the button does nothing there.)
+    if (gardenOpen(G.save)) o.label = 'Garden';
     G.over.gardenBed = null;
     G.over.carried = null;
     homeTime(dt);
     return;
   }
   const s = G.save, js = jobs();
+  for (const i of tugs.keys()) if (js[i] !== 'weed') tugs.delete(i);
   target = targetBed(spots(), js, G.over.x, G.over.y - 0.2, 2.2);
   G.over.gardenBed = target;
   const LABEL: Record<BedJob, string> = { pick: 'Pick', weed: 'Pull weeds', water: 'Water', plant: 'Plant', thirsty: 'Thirsty', empty: 'Empty bed', growing: 'Growing' };
@@ -219,8 +227,7 @@ export function gardenTick(dt: number, canAct: boolean) {
   } else repeatIn = 0.3;
   if (!G.input.isHeld('act')) lastAct = null;
   // A tap on a bed works on that bed.
-  const tap = G.input.tapAt;
-  if (tap && G.input.consume('tap')) {
+  if (tap) {
     // The bed under your finger (its soil, or what's growing up out of it): the closest, where they overlap.
     const m = G.over.toMap(tap.x, tap.y);
     let at = -1, best = Infinity;

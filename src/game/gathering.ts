@@ -97,7 +97,7 @@ export function updateGather(dt: number) {
     input.reset();
     return;
   }
-  if (input.consume('act') || input.consume('attack') || input.consume('tap')) {
+  if (input.consume('act') || input.consume('attack') || input.consume('touch')) {
     const r = c.game.strike();
     if (r) {
       G.audio.play('swing');

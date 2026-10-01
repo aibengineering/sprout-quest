@@ -290,7 +290,6 @@ export const SAWMILL_PLAY: RoomPlay = {
     reset();
     say(ENTER_LINES[enterLine++ % ENTER_LINES.length], 3);
   },
-  leave: reset,
   act(o) {
     if (o.id!.startsWith('pile:')) return pile(o);
     if (o.id === 'bench') return loadBench(o);

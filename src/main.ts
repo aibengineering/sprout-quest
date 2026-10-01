@@ -121,6 +121,11 @@ function worldFrame(dt: number) {
     syncNodes();
   }
   const canAct = G.mode === 'world' && !busy();
+  // Inside Granny's Kitchen or Bram's Sawmill: the room's own goings-on (a pot being stirred takes the action button,
+  // and Esc puts the spoon down rather than opening the menu).
+  const room = over.room;
+  const roomHeld = !!room && canAct && roomTick(dt);
+  over.busyHands = roomHeld;
   if (canAct && input.consume('bag') && has(s, 'bag')) openFromHud('items');
   if (canAct && input.consume('journal') && has(s, 'journal')) openFromHud('journey');
   if (canAct && input.consume('menu') && (has(s, 'bag') || has(s, 'journal'))) {
@@ -133,10 +138,6 @@ function worldFrame(dt: number) {
   // Strike a monster that hasn't spotted you yet for a surprise attack.
   // A spirit (after fainting) can only walk back to its body: nothing to fight, talk to or use on the way.
   const ghost = spirit();
-  // Inside Granny's Kitchen or Bram's Sawmill: the room's own goings-on (a pot being stirred takes the action button).
-  const room = over.room;
-  const roomHeld = !!room && canAct && roomTick(dt);
-  over.busyHands = roomHeld;
   // Poppy's Garden, worked by hand on the map (the view leans in, taps on beds, holding the button).
   gardenTick(dt, canAct && !room && !spirit());
   const prey = canAct && !ghost && !room ? over.roamers.unaware(over.x, over.y) : null;
@@ -295,6 +296,8 @@ requestAnimationFrame(frame);
   get sound() { return G.sound; },
   /** The room you're in ('kitchen', 'sawmill') or null, and ways in and out of them (game/rooms.ts). */
   get room() { return G.over.room?.id ?? null; },
+  /** The iris (into or out of a room, a fight) while it's closing or opening. */
+  get trans() { return G.trans; },
   enterRoom,
   leaveRoom,
   /** What's going on in Granny's Kitchen (the pot, what you're carrying). */

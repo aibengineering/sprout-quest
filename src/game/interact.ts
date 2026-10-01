@@ -17,7 +17,7 @@ import { gardenOpen } from '../garden';
 import { poppyAway } from '../procession';
 import { kitchenOpen } from '../kitchen';
 import { enterRoom, roomAct } from './rooms';
-import { gardenAct, gardenStation } from './gardenWork';
+import { gardenAct, gardenStation, POPPY_AWAY } from './gardenWork';
 
 /** Opens the menu with the world waiting behind it. */
 function openMenu(...args: Parameters<typeof G.ui.openMenu>) {
@@ -72,7 +72,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     // The Guest Cottage, once Pip's moved in: a knock on his door.
     if (o.project === 'cottage' && (G.save.stories.pip ?? 0) >= 1) return visitPip();
     // Poppy's Garden, once she tends it: her plots (not while she's off after the drums in Echo Cavern).
-    if (o.project === 'garden' && gardenOpen(G.save) && poppyAway(G.save)) return G.ui.toast("🌷 Poppy's not here. Her garden waits for her.");
+    if (o.project === 'garden' && gardenOpen(G.save) && poppyAway(G.save)) return G.ui.toast(POPPY_AWAY);
     // Worked by hand: the bed you're nearest that needs something (Poppy still opens her menu when you talk to her).
     if (o.project === 'garden' && gardenOpen(G.save)) return gardenAct();
     openMenu(menuCtx(), 'village', o.project);
