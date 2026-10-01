@@ -302,6 +302,8 @@ if the atlas can't load either. Dev builds show a performance readout (fps, fram
   grass encounters, rendering
 - `src/routes.ts`: the hand-drawn route maps, one character per tile (legend at the top)
 - `src/roamers.ts`: monsters wandering the grass: noticing, chasing, surprise attacks
+- `src/procession.ts`: Echo Cavern's side tunnels and the Pebblors' procession you tail through them (who sees what,
+  where you fall to, the way back up), for the side story in `src/game/stories/drums.ts`
 - `src/actors.ts`, `src/bubble.ts`: story characters on the map (walking paths, following you, moods, talking) and
   their emoji speech bubbles
 - `src/weapons.ts`: each class's moveset (combo timings, hitbox shapes, stamina) and the damage model

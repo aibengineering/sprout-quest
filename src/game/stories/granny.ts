@@ -2,6 +2,7 @@
 // Mr. Floppers is home (Poppy's story), she cooks for you: her Kitchen (see kitchen.ts).
 import { cook, kitchenOpen, MEALS, type MealId } from '../../kitchen';
 import { craftPresentation } from '../../crafting';
+import { poppyAway } from '../../procession';
 import { G, paused, persist } from '../context';
 import { say, type Speaker } from '../scenes';
 import type { Story } from '../stories';
@@ -18,6 +19,8 @@ const poppyDue = () => G.save.lv >= 3;
 
 function lines(): [string, string?][] {
   const step = poppyStep();
+  // Poppy's off after the drums in Echo Cavern (drums.ts).
+  if (poppyAway(G.save)) return [["Echo Cavern, dear. Please, bring my Poppy home.", 'worried']];
   // Before the rescue can start, she only frets; once it can, Poppy's properly overdue (and she says where).
   if (step === 0 && !poppyDue()) return [["Oh! You must be the traveler everyone's talking about. My granddaughter Poppy's off picking flowers in the Sunny Meadow again. She wanders so far… I do worry.", 'worried']];
   if (step <= 1) return [["Poppy went to pick flowers this morning, down in the meadow's far south-east corner. She should have been home by now…", 'worried']];
@@ -68,9 +71,9 @@ export const GRANNY_STORY: Story = {
   objs: [],
   cast: () => [{
     id: GRANNY_ID, look: { kind: 'idle', name: 'granny' }, ...GRANNY_AT,
-    label: kitchenOpen(G.save) ? 'Cook' : 'Talk',
-    mood: poppyStep() <= 4 ? '😟' : undefined,
-    talk: () => (bramDue() ? askFavour() : kitchenOpen(G.save) ? kitchen() : paused(async () => {
+    label: kitchenOpen(G.save) && !poppyAway(G.save) ? 'Cook' : 'Talk',
+    mood: poppyAway(G.save) ? '😰' : poppyStep() <= 4 ? '😟' : undefined,
+    talk: () => (bramDue() ? askFavour() : kitchenOpen(G.save) && !poppyAway(G.save) ? kitchen() : paused(async () => {
       for (const [text, mood] of lines()) await say(GRANNY, text, mood);
     })),
   }],

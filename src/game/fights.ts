@@ -236,7 +236,7 @@ export function coachBattle(b: Battle) {
   if (s.wins === 1) {
     // The Hopbun fight: its charge is the perfect thing to dodge.
     if (coachStep === 0) {
-      if (b.dodgeFrac > 0) { coachStep = 1; return ui.coach(null); }
+      if (b.log.dodges > 0) { coachStep = 1; return ui.coach(null); }
       const winding = b.enemies.some((e) => !e.dead && e.windup > 0.2);
       return ui.coach(winding ? `It's winding up! ${press('K', '💨')} NOW!` : `Hopbuns wiggle, then charge. ${press('K', '💨')} to dodge through them!`, 'btn-dodge');
     }

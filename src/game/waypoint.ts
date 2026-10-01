@@ -5,7 +5,7 @@ import { canGather, hasMats, missingSkill } from '../rules';
 import { has } from '../unlocks';
 import type { WorldObj } from '../world';
 import { G } from './context';
-import { storyTarget } from './stories';
+import { storyNoArrow, storyTarget } from './stories';
 
 /** The spot in front of an object, where you actually stand to use it. */
 const front = (o?: { x: number; y: number; w: number; h: number }) => (o ? { x: o.x + o.w / 2, y: o.y + o.h + 0.7 } : null);
@@ -13,7 +13,8 @@ const front = (o?: { x: number; y: number; w: number; h: number }) => (o ? { x: 
 export function objective(): { x: number; y: number } | null {
   // Fainted: the way back to your body comes first.
   if (G.save.spirit) return G.save.spirit;
-  // A side story you're in the middle of leads the way.
+  // A side story you're in the middle of leads the way (or has you find it yourself).
+  if (storyNoArrow()) return null;
   const side = storyTarget();
   if (side) return side;
   const s = G.save, w = G.world;

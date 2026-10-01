@@ -11,7 +11,8 @@ import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/ga
 import { interact } from './game/interact';
 import { menuHooks } from './game/menu';
 import { arriveAtVillage, maybeAutoTalk, progressQuests } from './game/story';
-import { checkStories, tickStories } from './game/stories';
+import { checkStories, storyLayers, tickStories } from './game/stories';
+import { drumsDebug } from './game/stories/drums';
 import { boot, setUpTitle } from './game/title';
 import { objective } from './game/waypoint';
 import { trackInputDevice, usingKeyboard, type Input } from './input';
@@ -100,7 +101,7 @@ function battleFrame(b: Battle, dt: number) {
   ui.battleButtons(!!b.skillNow, has(s, 'bag') && s.flags.includes('village'));
   if (G.mode === 'battle') {
     coachBattle(b);
-    ui.battleHud(s.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac);
+    ui.battleHud(s.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac, [b.dodgesReady, b.p.dodgeCds.length]);
   }
 }
 
@@ -162,6 +163,7 @@ function worldFrame(dt: number) {
   }
   ui.setAction(G.mode === 'gather' && chop ? gatherVerb() : prey ? 'Attack!' : near ? near.label : null);
   over.objective = G.mode === 'world' ? objective() : null;
+  over.layers = storyLayers;
   over.keyHints = usingKeyboard();
   ui.dragHint(G.mode === 'world' && !G.trans && !s.tips.includes('moved'));
   ui.dock(G.mode === 'world');
@@ -270,6 +272,8 @@ requestAnimationFrame(frame);
   get xpRate() { return G.xpRate; },
   get music() { return G.music; },
   get audio() { return G.audio; },
+  /** The Pebblors' procession in Echo Cavern (game/stories/drums.ts). */
+  get drums() { return drumsDebug(); },
   get sound() { return G.sound; },
   set zoom(z: number) { debugZoom = z; },
   /** A regular grass encounter right here (or in `zone`). */

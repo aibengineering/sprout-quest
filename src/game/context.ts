@@ -138,6 +138,7 @@ export function syncWorld() {
     if (o.kind === 'bridge') o.hidden = s.flags.includes('bridge:woods');
     // Bram's cabin goes up at the end of his story.
     if (o.kind === 'prop' && o.id === 'bramhut') o.hidden = !s.flags.includes('bram:hut');
+    if (o.shown) o.hidden = !o.shown(s);
     // A story's monsters are only there at their step.
     if (o.story) o.hidden ||= (s.stories[o.story.id] ?? 0) !== o.story.step;
   }

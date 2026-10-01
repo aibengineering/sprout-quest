@@ -3,11 +3,13 @@
 // map follow from that.
 import type { ActorSpec } from '../actors';
 import type { BattleSetup } from '../battle/types';
+import type { MapLayers } from '../overworld';
 import type { WorldObj } from '../world';
 import { G, persist, syncWorld } from './context';
 import { BRAM_STORY } from './stories/bram';
 import { GRANNY_STORY } from './stories/granny';
 import { PIP_STORY } from './stories/pip';
+import { DRUMS } from './stories/drums';
 import { POPPY } from './stories/poppy';
 
 export interface StoryStep {
@@ -18,6 +20,8 @@ export interface StoryStep {
   hidden?: boolean;
   /** Where the waypoint arrow points. */
   target?: () => { x: number; y: number } | null;
+  /** No arrow at all while this holds (not even the main quest's): you find your own way, by ear. */
+  noArrow?: () => boolean;
   /** Is this step done? Checked every frame while you're free to move. */
   done: () => boolean;
   /** What plays once it's done (a scene, a reward), before the next step begins. */
@@ -49,21 +53,24 @@ export interface Story {
   felled?: (o: WorldObj) => void;
   /** You fainted and woke at your checkpoint (someone you were escorting waits where you left off). */
   fainted?: () => void;
+  /** What it paints onto the map (see Overworld.layers), whether or not it's started. */
+  layers?: Partial<MapLayers>;
 }
 
-export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY, PIP_STORY];
+export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY, DRUMS, PIP_STORY];
 
 /** How far through a story you are (0 = not started; the step count = finished). */
 export const stepOf = (id: string) => G.save.stories[id] ?? 0;
 export const finished = (st: Story) => stepOf(st.id) >= st.steps.length;
 
-/** The story you're in the middle of (for the tracker and the waypoint), if any. */
+/** The story you're in the middle of (for the tracker and the waypoint), if any: one under way before one that's only waiting to start. */
 export function activeStory(): { story: Story; step: StoryStep } | null {
-  for (const story of STORIES) {
-    const i = stepOf(story.id), step = story.steps[i];
-    if (step && !step.hidden && story.available()) return { story, step };
-  }
-  return null;
+  const open = STORIES.filter((st) => {
+    const step = st.steps[stepOf(st.id)];
+    return step && !step.hidden && st.available();
+  });
+  const story = open.find((st) => stepOf(st.id) > 0) ?? open[0];
+  return story ? { story, step: story.steps[stepOf(story.id)] } : null;
 }
 
 /** Every story you've started, for the Journal. */
@@ -162,6 +169,16 @@ export function storyFightExtras(o: WorldObj): Partial<BattleSetup> | undefined 
   const st = STORIES.find((s) => s.id === o.story?.id);
   return o.flag ? st?.fight?.(o.flag) : undefined;
 }
+
+/** Every story's paint on the map, for the Overworld to draw. */
+export const storyLayers: MapLayers = {
+  ground: (ctx, ts) => STORIES.forEach((st) => st.layers?.ground?.(ctx, ts)),
+  over: (ctx, ts, view) => STORIES.forEach((st) => st.layers?.over?.(ctx, ts, view)),
+  headroom: () => Math.max(0, ...STORIES.map((st) => st.layers?.headroom?.() ?? 0)),
+};
+
+/** The active story wants no arrow at all just now. */
+export const storyNoArrow = () => !!activeStory()?.step.noArrow?.();
 
 /** The waypoint for the active story, if it has one. */
 export function storyTarget(): { x: number; y: number } | null {

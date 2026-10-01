@@ -41,6 +41,9 @@ export function playerStats(s: SaveState): PlayerStats {
   };
 }
 
+/** Dodges you can make back to back in a fight: two with the Pebblors' Echo Anklet (see game/stories/drums.ts). */
+export const dodgeCharges = (s: SaveState) => (s.perks.includes('echoanklet') ? 2 : 1);
+
 /**
  * The level gap in a fight: each level the attacker has over the defender makes its hits land 8% harder, and each level
  * under, 8% softer, between 0.6× and 1.6×. At your level, fights take a real exchange; outlevel an area and its

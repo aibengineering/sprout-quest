@@ -177,7 +177,7 @@ export function allIconIds(): string[] {
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
     ...buildings.map((b) => `b_${b}`), 'npc_elder',
     // Story portraits and keepsakes.
-    'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots',
+    'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots', 'echoanklet',
     'npc_bram', 'npc_bram_happy', 'npc_bram_hurt', 'pie', 'npc_pip', 'npc_pip_wow', ...Object.keys(MEALS).map((m) => `meal_${m}`),
   ];
 }
@@ -653,7 +653,8 @@ export class UI {
     });
   }
 
-  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0) {
+  /** `dodges`: how many dodge charges are ready, of how many (pips on the button once there's more than one). */
+  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0, dodges: [number, number] = [1, 1]) {
     const at = attackFrac.toFixed(2);
     this.set('atk', at, () => ($('btn-attack').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', at)));
     this.set('pot', String(potions), () => {
@@ -663,6 +664,11 @@ export class UI {
     const sk = skillFrac.toFixed(2), dg = dodgeFrac.toFixed(2);
     this.set('skill', sk, () => ($('btn-skill').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', sk)));
     this.set('dodge', dg, () => ($('btn-dodge').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', dg)));
+    this.set('dpips', dodges.join('/'), () => {
+      const el = $('btn-dodge').querySelector<HTMLElement>('.dpips')!, [ready, of] = dodges;
+      el.hidden = of < 2;
+      el.innerHTML = Array.from({ length: of }, (_, i) => `<i class="${i < ready ? 'on' : ''}"></i>`).join('');
+    });
     this.set('skname', skillName, () => ($('skill-name').textContent = skillName));
     this.set('run', String(canRun), () => ($('btn-run').hidden = !canRun));
   }
@@ -1158,10 +1164,13 @@ export class UI {
         <div class="pbar"><i style="width:${max ? 100 : (100 * m.xp) / need}%"></i></div></div>
         <button class="go ghost hopen" data-pick="hpath:${k}">Path ›</button></div>`;
     }).join('');
-    const PERKS: Record<string, [string, string, string]> = { trailboots: ['trailboots', 'Trail Boots', 'From Granny Clover: walk 25% faster outside of fights.'] };
+    const PERKS: Record<string, [string, string, string, string]> = {
+      trailboots: ['trailboots', 'Trail Boots', 'From Granny Clover: walk 25% faster outside of fights.', '👢'],
+      echoanklet: ['echoanklet', 'Echo Anklet', 'From the Pebblors: in a fight, dodge twice in a row.', '🪘'],
+    };
     const perks = s.perks.filter((p) => PERKS[p]).map((p) => {
-      const [id, name, desc] = PERKS[p];
-      return `<div class="mcard row"><div class="ico">${icon(id, '👢')}</div><div class="info"><div class="name">${esc(name)}</div><div class="desc">${esc(desc)}</div></div></div>`;
+      const [id, name, desc, emoji] = PERKS[p];
+      return `<div class="mcard row"><div class="ico">${icon(id, emoji)}</div><div class="info"><div class="name">${esc(name)}</div><div class="desc">${esc(desc)}</div></div></div>`;
     }).join('');
     return `${mend ? `<h3>Old tools</h3>${mend}` : ''}${rows ? `<h3>Skills</h3>${rows}` : ''}${handling ? `<h3>Weapon handling</h3>${handling}` : ''}${perks ? `<h3>Perks</h3>${perks}` : ''}`;
   }

@@ -1,6 +1,7 @@
 // Overworld map generation and collision. Coordinates are in tiles.
 import { WORLD_H, WORLD_W, ZONES, zoneAtX, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
 import { ROUTES } from './routes';
+import type { SaveState } from './state';
 
 export const T = {
   GROUND: 0,
@@ -68,6 +69,8 @@ export interface WorldObj {
   facing?: -1 | 1;
   /** Only there at this step of a side story. */
   story?: { id: string; step: number };
+  /** A prop that's only there sometimes (a story's), checked whenever the map syncs with the save. */
+  shown?: (s: SaveState) => boolean;
 }
 
 export function hash2(x: number, y: number, seed: number): number {

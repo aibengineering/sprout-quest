@@ -442,7 +442,32 @@ def flower():
     return r
 
 
-ITEMS = {'pie': pie, 'meal_pancakes': pancakes, 'meal_tea': tea, 'meal_goojelly': goojelly, 'meal_stew': stew}
+def echoanklet():
+    """The Pebblors' gift: tiny drum-stones strung on a cord, with one glowing echo bead."""
+    r = empty('i')
+    loop = empty('loop', r)
+    loop.rotation_euler = (1.15, 0, 0.2)
+    torus((0, 0, 0), 0.36, 0.024, toon('#a87a52'), loop, seg=40, line=0.01)
+    n = 7
+    for i in range(n):
+        a = i / n * math.tau + 0.35
+        d = empty('drum', loop, (math.cos(a) * 0.36, math.sin(a) * 0.36, 0))
+        d.rotation_euler = (math.pi / 2, 0, a + math.pi / 2)
+        if i == 3:
+            sphere((0, 0, 0), 0.095, toon('#8ae8ff', rim=0.5, emit=0.5), d, seg=16, line=0.012)
+            continue
+        cylinder((0, 0, 0), 0.095, 0.13, toon(('#9aa0b0', '#8a8e9e')[i % 2]), d, seg=16, line=0.012)
+        cylinder((0, 0, 0.067), 0.088, 0.014, toon('#f4e2c0'), d, seg=16, line=0.006)
+        cylinder((0, 0, -0.067), 0.088, 0.014, toon('#f4e2c0'), d, seg=16, line=0.006)
+        torus((0, 0, 0), 0.097, 0.014, toon('#6a4a32'), d, seg=16, line=0)
+    # The knot, and its two loose ends.
+    sphere((0, -0.36, 0), 0.04, toon('#8a5a3a'), loop, line=0.008)
+    for s in (-1, 1):
+        cylinder((0.04 * s, -0.46, 0), 0.016, 0.2, toon('#a87a52'), loop, rot=(math.pi / 2, 0, 0.3 * s), seg=6, line=0.006)
+    return r
+
+
+ITEMS = {'echoanklet': echoanklet, 'pie': pie, 'meal_pancakes': pancakes, 'meal_tea': tea, 'meal_goojelly': goojelly, 'meal_stew': stew}
 
 CHARMS = {'clovercharm': clovercharm, 'toothcharm': toothcharm, 'crystalheart': crystalheart, 'impring': impring}
 MATERIALS = {

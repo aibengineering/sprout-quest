@@ -36,6 +36,13 @@ const DEPTH = 0.5;
  */
 const GARDEN_BEDS: [number, number][] = [[0, 2], [0, 0.7], [-1.45, 2], [-1.45, 0.7], [1.45, 2], [1.45, 0.7]];
 
+export interface MapLayers {
+  ground(ctx: CanvasRenderingContext2D, ts: number): void;
+  over(ctx: CanvasRenderingContext2D, ts: number, view: { x: number; y: number; w: number; h: number }): void;
+  /** Extra tiles the camera may look past the map's top just now (a story's tunnels up against it, clear of the HUD). */
+  headroom(): number;
+}
+
 /** `roamer` is the monster that caught you, or null for an ambush from the grass. */
 export type WorldEvent = { type: 'encounter'; roamer: Roamer | null } | { type: 'zone'; zone: Zone } | null;
 
@@ -70,6 +77,13 @@ export class Overworld {
   private view = { top: 0, ts: 1, vh: 1 };
   /** Story characters on the map. */
   readonly actors = new Actors();
+  /**
+   * What the side stories paint onto the map: on the ground (under everyone), and over everything (light and dark,
+   * ripples, a gaze on the floor), under the feelings over people's heads. `view` is the screen, in map pixels.
+   */
+  layers: MapLayers | null = null;
+  /** The camera's extra headroom over the map's top (eased toward what the layers ask for). */
+  private headroom = 0;
   /** Tree being chopped, and how long it keeps shaking from the last strike. */
   chopping: WorldObj | null = null;
   private shakeT = 0;
@@ -192,6 +206,7 @@ export class Overworld {
     this.shakeT = Math.max(0, this.shakeT - dt);
     this.fx.update(dt);
     this.actors.update(dt, this);
+    this.headroom += ((this.layers?.headroom() ?? 0) - this.headroom) * (1 - Math.exp(-dt * 3));
     const target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? { x: this.x, y: this.y };
     const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : 12));
     this.camX += (target.x - this.camX) * k;
@@ -265,7 +280,7 @@ export class Overworld {
     camX = mapW <= vw ? (mapW - vw) / 2 : Math.max(0, Math.min(mapW - vw, camX));
     // The camera can look a little past the top and bottom of the map (the forest carries on out there), so nothing
     // on the edge rows hides under the HUD or the buttons.
-    const overTop = ts * OVERSCROLL.top, overBottom = ts * OVERSCROLL.bottom;
+    const overTop = ts * (OVERSCROLL.top + this.headroom), overBottom = ts * OVERSCROLL.bottom;
     camY = mapH + overTop + overBottom <= vh ? (mapH - vh) / 2 : Math.max(-overTop, Math.min(mapH - vh + overBottom, camY));
     camX = Math.round(camX);
     camY = Math.round(camY);
@@ -305,7 +320,7 @@ export class Overworld {
 
     const x0 = Math.max(0, Math.floor(camX / ts) - 1), x1 = Math.min(W.w - 1, Math.ceil((camX + vw) / ts) + 1);
     // Rows past the map's edges are forest (World.tile calls them obstacles).
-    const y0 = Math.max(-Math.ceil(OVERSCROLL.top) - 1, Math.floor(camY / ts) - 1), y1 = Math.min(W.h + Math.ceil(OVERSCROLL.bottom), Math.ceil((camY + vh) / ts) + 2);
+    const y0 = Math.max(-Math.ceil(OVERSCROLL.top + this.headroom) - 1, Math.floor(camY / ts) - 1), y1 = Math.min(W.h + Math.ceil(OVERSCROLL.bottom), Math.ceil((camY + vh) / ts) + 2);
 
     // Ground layer
     for (let y = y0; y <= y1; y++) {
@@ -325,6 +340,8 @@ export class Overworld {
         else if (t === T.DECOR) this.drawDecor(ctx, x, y, px, py, ts, th);
       }
     }
+
+    this.layers?.ground(ctx, ts);
 
     // Y-sorted: obstacles, buildings and the hero
     const items: { y: number; draw: () => void }[] = [];
@@ -352,6 +369,7 @@ export class Overworld {
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
     this.fx.draw(ctx);
+    this.layers?.over(ctx, ts, { x: camX, y: camY, w: vw, h: vh });
     // Feelings float above everything, so you can read them from across the screen.
     for (const a of this.actors.list) {
       const emoji = a.bubble?.emoji ?? a.mood;
