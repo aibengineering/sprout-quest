@@ -1182,6 +1182,21 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.flag === 'bram:ambush2').hidden`), 'the second ambush vanished');
 });
 
+scenario('leaving the game (home screen, another app, browser closed) silences it, and coming back brings the sound back', null, async (page) => {
+  // A tap unlocks sound, as on a phone.
+  await page.mouse.click(200, 400);
+  await waitFor(page, 'sound to start', async () => (await game<string>(page, 'g.audio.context?.state')) === 'running');
+  const away = (hidden: boolean) => page.evaluate((hidden) => {
+    Object.defineProperty(document, 'hidden', { value: hidden, configurable: true });
+    Object.defineProperty(document, 'visibilityState', { value: hidden ? 'hidden' : 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, hidden);
+  await away(true);
+  await waitFor(page, 'the sound to stop', async () => (await game<string>(page, 'g.audio.context.state')) === 'suspended');
+  await away(false);
+  await waitFor(page, 'the sound to come back', async () => (await game<string>(page, 'g.audio.context.state')) === 'running');
+});
+
 scenario('sound settings: mute everything, or turn the music and the effects up and down, and they stay that way', null, async (page) => {
   await openMore(page);
   const slider = (kind: string) => `#modal:not([hidden]) input[data-vol="${kind}"]`;

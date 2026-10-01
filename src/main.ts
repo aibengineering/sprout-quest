@@ -67,10 +67,17 @@ applySound(false);
 // lands: listen for both (and keys), so the very first tap unlocks it.
 for (const ev of ['pointerdown', 'pointerup', 'touchend', 'keydown']) window.addEventListener(ev, () => G.audio.unlock(), { passive: true });
 document.addEventListener('visibilitychange', () => {
+  // Off screen (home screen, another app, the browser closed but still running): no music or sound playing on. The
+  // game itself already waits, since the browser stops drawing frames for a hidden page.
+  if (document.hidden) G.audio.sleep();
+  else G.audio.wake();
   if (!document.hidden || G.mode === 'title') return;
   persist();
   flushTime();
 });
+// Some phone browsers only say "pagehide" when a tab is closed or swapped out, and "pageshow" when it's restored.
+window.addEventListener('pagehide', () => G.audio.sleep());
+window.addEventListener('pageshow', () => { if (!document.hidden) G.audio.wake(); });
 
 // ------------------------------------------------------------------ loop
 

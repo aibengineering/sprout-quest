@@ -64,6 +64,18 @@ export class Audio {
     if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
 
+  /**
+   * Silences everything (music and effects) while the game isn't on screen: the phone's home screen, another app, a
+   * closed tab still running in the background. `wake` brings it back.
+   */
+  sleep() {
+    if (this.ctx?.state === 'running') void this.ctx.suspend();
+  }
+
+  wake() {
+    if (this.ctx?.state === 'suspended') void this.ctx.resume();
+  }
+
   private tone(freq: number, dur: number, type: OscillatorType, vol: number, slideTo?: number, delay = 0) {
     const ctx = this.ctx!;
     const t0 = ctx.currentTime + delay;
