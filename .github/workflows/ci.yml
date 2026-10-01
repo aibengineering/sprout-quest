@@ -59,6 +59,7 @@ jobs:
       - run: bunx playwright-core install --with-deps chromium-headless-shell
       - run: bun run e2e --shots
       - run: bun run tests/e2e/crafting.ts
+      - run: bun run tests/e2e/icons3d.ts
       # Each scenario's last screen, to see what went wrong.
       - if: failure()
         uses: actions/upload-artifact@v7

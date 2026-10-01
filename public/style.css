@@ -933,6 +933,17 @@ body.kbd .drag-hint .keys { display: flex; }
 .tagcard .desc { font-size: 12.5px; font-weight: 700; opacity: 0.75; line-height: 1.35; }
 .tagcard .chips { margin-top: 5px; }
 .tagcard .tact { flex: none; }
+/* One item (or you) in live 3D over its icon, which shows until the model is drawn (src/itemview.ts). */
+.view3d { position: relative; display: inline-block; line-height: 0; }
+.tagcard .tart:has(.view3d) { width: 72px; height: 72px; }
+.tagcard .tart .view3d { width: 100%; height: 100%; }
+.tagcard .tart:has(.view3d.hero) { width: 80px; height: 100px; margin: -8px 0; }
+.view3d > canvas.live3d { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: pan-y; cursor: grab;
+  animation: pop3d 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) backwards; }
+.view3d.live > :not(canvas) { visibility: hidden; }
+@keyframes pop3d { from { transform: scale(0.4); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .view3d > canvas.live3d { animation: none; } }
+button.portrait { padding: 0; font: inherit; cursor: pointer; }
 
 /* ---------- The smithy's workbench (Forge) ---------- */
 .theme-forge .body {

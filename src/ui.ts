@@ -17,6 +17,7 @@ import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
 import { PLANKS_PER_LOG, SAW, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate, type SawLog } from './sawmill';
 import { CROPS, CROP_ORDER, gardenUpdate, growthStage, isReady, plotCount, readyIn, type Plot } from './garden';
 import { usingKeyboard } from './input';
+import { heroView, mountItemView, stopItemView, view3d } from './itemview';
 import { canShareFiles } from './share';
 import { reportInfo } from './stats';
 import { newerThan } from './semver';
@@ -954,6 +955,7 @@ export class UI {
     this.menuOpen = false;
     this.lastTab = null;
     this.modal.hidden = true;
+    stopItemView();
     if (!silent) this.hooks.menuClosed();
   }
 
@@ -989,7 +991,7 @@ export class UI {
     this.sheet.innerHTML = `
       <div class="grab" aria-hidden="true"></div>
       <header class="mhead">
-        <div class="portrait">${icon(s.equip.armor, '🌱')}</div>
+        ${this.tab === 'items' ? `<button class="portrait" data-pick="items:you" aria-label="You">${icon(s.equip.armor, '🌱')}</button>` : `<div class="portrait">${icon(s.equip.armor, '🌱')}</div>`}
         <div class="who">
           <div class="name">Sprout <span class="lvl">Lv ${s.lv}</span></div>
           <div class="mini hp"><i style="width:${(100 * s.hp) / st.maxHp}%"></i><span>${Math.ceil(s.hp)} / ${st.maxHp} HP</span></div>
@@ -1007,6 +1009,7 @@ export class UI {
       el?.scrollIntoView({ block: 'center' });
       el?.classList.add('flash');
     }
+    mountItemView(this.sheet);
   }
 
   private seg(tab: string, options: [string, string][]) {
@@ -1090,9 +1093,9 @@ export class UI {
     let detail = '';
     if (pocket === 'gear') {
       const owned = GEAR_ORDER.filter((id) => s.owned.includes(id));
-      const chosen = pick && (GEAR[pick] || pick === 'potion') ? pick : s.equip.weapon;
+      const chosen = pick && (GEAR[pick] || pick === 'potion') ? pick : 'you';
       body = `<div class="slotgrid">${owned.map((id) => slotTile('items', id, icon(id, GEAR[id].icon), GEAR[id].name, { sel: chosen === id, worn: s.equip[GEAR[id].slot] === id, cls: `tier${GEAR[id].tier ?? 0}` })).join('')}${emptySlots(owned.length)}</div>`;
-      detail = chosen === 'potion' ? this.potionTag(s, st.maxHp) : this.gearTag(s, GEAR[chosen]);
+      detail = chosen === 'potion' ? this.potionTag(s, st.maxHp) : chosen === 'you' ? this.youTag(s) : this.gearTag(s, GEAR[chosen]);
       if (owned.length <= 2 && s.unlocked.includes('forge')) body += `<div class="note">⚒ Craft new gear at the Forge, then equip it here.</div>`;
     } else if (pocket === 'stuff') {
       const mats = MAT_ORDER.filter((m) => s.mats[m] > 0);
@@ -1111,6 +1114,13 @@ export class UI {
     return `<div class="satchel"><div class="worn">${sockets}${flask}</div>${pockets}${above}${body}${below}</div>`;
   }
 
+  /** You, in what you're wearing (live in 3D, turning). */
+  private youTag(s: SaveState): string {
+    const worn = (['weapon', 'armor', 'charm'] as Slot[]).map((k) => s.equip[k] && GEAR[s.equip[k]!]).filter((g): g is Gear => !!g);
+    return tagCard(heroView(s.equip.armor, s.equip.weapon, icon(s.equip.armor, '🌱')), `Sprout <span class="lvl">Lv ${s.lv}</span>`,
+      `<div class="desc">${worn.map((g) => esc(g.name)).join(' · ')}</div>`);
+  }
+
   /** A piece of gear's tag: stats, what it's like, and wearing it. */
   private gearTag(s: SaveState, g: Gear | undefined): string {
     if (!g) return '';
@@ -1118,7 +1128,7 @@ export class UI {
     const action = on
       ? g.slot === 'charm' ? `<button class="go ghost" data-equip="${g.id}">Take off</button>` : '<span class="tag">✓ Worn</span>'
       : `<button class="go" data-equip="${g.id}">Wear</button>`;
-    return tagCard(icon(g.id, g.icon), `${esc(g.name)} ${stars(g)}`, `<div class="stats">${gearStats(g)}</div><div class="desc">${esc(g.desc)}</div>`, action);
+    return tagCard(view3d(g.id, icon(g.id, g.icon)), `${esc(g.name)} ${stars(g)}`, `<div class="stats">${gearStats(g)}</div><div class="desc">${esc(g.desc)}</div>`, action);
   }
 
   private potionTag(s: SaveState, maxHp: number): string {
@@ -1191,7 +1201,7 @@ export class UI {
         const owned = s.tools[t.skill] >= t.tier, lock = owned ? null : levelLock(s, t), can = !owned && at && hasMats(s, t.recipe);
         return {
           id: t.id, art: icon(t.id, t.icon), name: t.name, tier: t.tier, owned, lock, can,
-          tag: () => tagCard(icon(t.id, t.icon), `${esc(t.name)} <span class="stars">${'★'.repeat(t.tier)}</span>`,
+          tag: () => tagCard(view3d(t.id, icon(t.id, t.icon)), `${esc(t.name)} <span class="stars">${'★'.repeat(t.tier)}</span>`,
             `<div class="desc">${esc(t.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, t.recipe)}</div>`}`,
             owned ? '<span class="tag">✓ Owned</span>' : `<button class="go" data-tool="${t.id}" ${can ? '' : 'disabled'}>Craft</button>`),
         };
@@ -1201,7 +1211,7 @@ export class UI {
         const can = at && hasMats(s, p.recipe) && s.potions < MAX_POTIONS;
         return {
           id: p.id, art: icon(p.id, '🧪'), name: p.name, tier: 0, owned: false, lock: null, can,
-          tag: () => tagCard(icon(p.id, '🧪'), esc(p.name), `<div class="desc">You carry ${s.potions}/${MAX_POTIONS}.</div><div class="chips">${costChips(s, p.recipe)}</div>`,
+          tag: () => tagCard(view3d(p.id, icon(p.id, '🧪')), esc(p.name), `<div class="desc">You carry ${s.potions}/${MAX_POTIONS}.</div><div class="chips">${costChips(s, p.recipe)}</div>`,
             `<button class="go" data-potion="${p.id}" ${can ? '' : 'disabled'}>${s.potions >= MAX_POTIONS ? 'Full' : 'Brew'}</button>`),
         };
       });
@@ -1213,7 +1223,7 @@ export class UI {
           : `<button class="go" data-craft="${id}" ${can ? '' : 'disabled'}>Craft</button>`;
         return {
           id, art: icon(g.id, g.icon), name: g.name, tier: g.tier ?? 0, owned, lock, can,
-          tag: () => tagCard(icon(g.id, g.icon), `${esc(g.name)} ${stars(g)}`,
+          tag: () => tagCard(view3d(g.id, icon(g.id, g.icon)), `${esc(g.name)} ${stars(g)}`,
             `<div class="stats">${gearStats(g)}</div><div class="desc">${esc(g.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, g.recipe!)}</div>`}`, action),
         };
       });
@@ -1336,6 +1346,7 @@ export class UI {
       const r = this.resolveDialog;
       this.resolveDialog = null;
       this.modal.hidden = true;
+      stopItemView();
       r?.(d.dialog);
       return;
     }
@@ -1350,6 +1361,7 @@ export class UI {
     if (d.pick) {
       const k = d.pick.indexOf(':');
       this.pick[d.pick.slice(0, k)] = d.pick.slice(k + 1);
+      if (d.pick === 'items:you') this.sub.items = 'gear';
       this.renderMenu(false);
       return;
     }
@@ -1407,6 +1419,7 @@ export class UI {
       return `<button class="go ${c ?? ''}" data-dialog="${value}">${label}${cap ? `<kbd class="key">${cap}</kbd>` : ''}</button>`;
     }).join('');
     this.sheet.innerHTML = `<div class="result">${html}<div class="btns">${btns}</div></div>`;
+    mountItemView(this.sheet);
     return new Promise((res) => (this.resolveDialog = res));
   }
 
@@ -1617,7 +1630,7 @@ export class UI {
   itemFound(id: string, name: string, text: string, emoji = '🗡️', heading = 'You found', key = false) {
     this.hooks.sound(key ? 'keyItem' : 'treasure');
     return this.dialog(
-      `${ribbon(heading)}${stage(icon(id, emoji, 'icon xxl'))}
+      `${ribbon(heading)}${stage(view3d(id, icon(id, emoji, 'icon xxl')))}
        <div class="big">${esc(name)}!</div><p>${esc(text)}</p>`,
       [['ok', 'Take it!']],
       'celebrate',
@@ -1678,7 +1691,7 @@ export class UI {
     }
     this.hooks.sound('treasure');
     return this.dialog(
-      `${ribbon(`New ${g.slot}!`)}${stage(icon(g.id, g.icon, 'icon xxl'))}
+      `${ribbon(`New ${g.slot}!`)}${stage(view3d(g.id, icon(g.id, g.icon, 'icon xxl')))}
        <div class="big">${esc(g.name)}</div>
        <p>${esc(g.desc)}</p>
        <div class="chips">${cmp('atk')}${cmp('def')}${cmp('hp')}</div><br>`,

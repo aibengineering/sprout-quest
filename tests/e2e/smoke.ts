@@ -1728,6 +1728,65 @@ if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, r
   await gl.close();
 } });
 
+/** How many pixels the live 3D view has painted, and a fingerprint of them (to see it turn). */
+const liveCanvas = (page: Page) => page.locator('canvas.live3d').evaluate((c) => {
+  const cv = c as HTMLCanvasElement, d = cv.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data;
+  let n = 0, sum = 0;
+  for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 0) { n++; sum = (sum * 31 + d[i] + d[i + 1] * 7 + d[i + 2] * 13) >>> 0; }
+  return { n, sum, share: n / (d.length / 4) };
+});
+
+scenario('Found items, the Forge and the Bag show one item at a time in live 3D', (g) => {
+  g.save.owned.push('stonesword', 'fluffvest');
+}, async (page) => {
+  const live = () => game<string | null>(page, 'g.itemView');
+  await run(page, `void g.ui.itemFound('twig', 'Twig Sword', 'A stick.', '🗡️', 'You found', true)`);
+  await waitFor(page, 'the Twig Sword in 3D', async () => await live() === 'twig', 15000);
+  check((await liveCanvas(page)).share > 0.02, 'the found item drew nothing');
+  await page.click('[data-dialog="ok"]');
+  check(await live() === null && await page.locator('canvas.live3d').count() === 0, 'the found view outlived its card');
+  // The Bag opens on you, in your armour with your weapon.
+  await run(page, `g.ui.openMenu({ atForge: true, inVillage: true }, 'items')`);
+  await waitFor(page, 'you in 3D', async () => await live() === 'hero', 15000);
+  check((await liveCanvas(page)).share > 0.02, 'the hero preview drew nothing');
+  // Picking an item replaces it: still only one live view.
+  await page.click('.sock[aria-label="Weapon"]');
+  await waitFor(page, 'the weapon in 3D', async () => await live() === 'twig', 15000);
+  check(await page.locator('canvas.live3d').count() === 1, 'more than one live view');
+  await page.click('.portrait');
+  await waitFor(page, 'back to you', async () => await live() === 'hero', 15000);
+  // The Forge's tag for the picked recipe.
+  await page.click('[data-tab="forge"]');
+  await waitFor(page, 'a recipe in 3D', async () => !!(await live()) && await live() !== 'hero', 15000);
+  check(await page.locator('canvas.live3d').count() === 1, 'more than one live view in the Forge');
+  await run(page, `g.ui.closeMenu()`);
+  check(await live() === null && await page.locator('canvas.live3d').count() === 0, 'the view outlived the menu');
+}, { webgl: true });
+
+scenario('A live 3D item holds still with reduced motion, and turns when dragged', null, async (page) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await run(page, `void g.ui.itemFound('meal_tea', 'Clover Tea', 'Warm.', '🍵', 'New recipe')`);
+  await waitFor(page, 'the tea in 3D', async () => await game(page, 'g.itemView') === 'meal_tea', 15000);
+  const still = await liveCanvas(page);
+  await page.waitForTimeout(600);
+  check((await liveCanvas(page)).sum === still.sum, 'it turned by itself with reduced motion');
+  const box = (await page.locator('canvas.live3d').boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  check((await liveCanvas(page)).sum !== still.sum, 'dragging did not turn it');
+}, { webgl: true });
+
+scenario('Without WebGL, found items and tags keep their icons', null, async (page) => {
+  await run(page, `void g.ui.itemFound('twig', 'Twig Sword', 'A stick.', '🗡️', 'You found', true)`);
+  await page.waitForSelector('.view3d img.icon');
+  await page.waitForTimeout(500);
+  check(await game(page, 'g.itemView') === null, 'a live view started without WebGL');
+  check(await page.locator('canvas.live3d').count() === 0 && await page.locator('.view3d img.icon').isVisible(), 'the icon is not showing');
+});
+
 queue.sort((a, b) => weight(a.name) - weight(b.name));
 let next = 0;
 await Promise.all(Array.from({ length: Math.min(JOBS, queue.length) }, async () => {

@@ -5,8 +5,16 @@
 #        bun run art models     (just the 3D models: characters, armour, weapons and crafting scenes [name,name,...])
 #        bun run art crafting   (the crafting scenes' 3D models [id,id,...])
 #        bun run art buildings  (the village buildings' 3D models, for their scenes [id,id,...])
+#        bun run art icons3d    (inventory icons rendered from the items' 3D models [id,id,...]; no Blender needed)
 set -euo pipefail
 cd "$(dirname "$0")"
+
+# Gear, tool, potion and meal icons come from their 3D models (scripts/icons3d.ts), so a changed model changes its icon.
+#   bun run art icons3d [id,id,...] [--sheet before-after.png]
+if [ "${1:-}" = icons3d ]; then
+  shift
+  exec bun ../scripts/icons3d.ts "$@"
+fi
 BLENDER="${BLENDER:-blender}"
 command -v "$BLENDER" >/dev/null || { echo "Blender not found (set BLENDER=/path/to/blender)"; exit 1; }
 
@@ -83,3 +91,5 @@ if [ $# -gt 0 ]; then PACK_ARGS=(-- --incremental); fi
 "$BLENDER" -b --factory-startup --python-exit-code 1 -P pack.py "${PACK_ARGS[@]}" 2>&1 | grep -E "PACKED|Error|Traceback"
 
 if [ $# -eq 0 ]; then buildings all; fi
+# Packing rewrites the icons from art/out; the model icons are always redrawn from their models after it.
+bun ../scripts/icons3d.ts

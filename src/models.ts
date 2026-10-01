@@ -706,6 +706,72 @@ function motion(keys: number[][], t: number): number[] {
 const CRAFT_VIEW = { gear: { yaw: -0.42, elevation: 0.36 }, building: { yaw: -0.49, elevation: MODEL_ELEVATION } };
 const CRAFT_SWAY = { gear: 0.28, building: 0.1 };
 
+/** A camera looking down at the model from `elevation` (radians), straight ahead, like the Blender scenes'. */
+function eyeAt(elevation: number) {
+  const eye = new OrthographicCamera(-1, 1, 1, -1, 0.1, 50);
+  eye.position.set(0, Math.sin(elevation) * 20, Math.cos(elevation) * 20);
+  eye.lookAt(0, 0, 0);
+  eye.updateMatrixWorld();
+  return eye;
+}
+
+/** A loaded scene's own copy, its middle at the origin of `turn` (what spins), with its size across. */
+function placed(prepared: Object3D) {
+  const model = prepared.clone(true), turn = new Object3D();
+  turn.add(model);
+  model.updateMatrixWorld(true);
+  const box = new Box3().setFromObject(model, true), centre = box.getCenter(new Vector3());
+  model.position.copy(centre).negate();
+  return { model, turn, size: box.getSize(new Vector3()).length() };
+}
+
+/**
+ * Points `eye` so what it sees of `turn` at every one of `yaws` fills a `w`×`h` view (any units), with `room` to spare
+ * (1.12 is 12% more than the model). Returns the scene units per view unit.
+ */
+function frameTurn(eye: OrthographicCamera, turn: Object3D, yaws: number[], w: number, h: number, room: number) {
+  const view = new Box3(), seen = new Object3D();
+  seen.matrixAutoUpdate = false;
+  seen.matrix.copy(eye.matrixWorldInverse);
+  const parent = turn.parent, yaw = turn.rotation.y;
+  seen.add(turn);
+  for (const y of yaws) {
+    turn.rotation.y = y;
+    seen.updateMatrixWorld(true);
+    view.union(new Box3().setFromObject(seen, true));
+  }
+  seen.remove(turn);
+  parent?.add(turn);
+  turn.rotation.y = yaw;
+  const mid = view.getCenter(new Vector3()), span = view.getSize(new Vector3());
+  const unit = Math.max((span.x * room) / w, (span.y * room) / h);
+  Object.assign(eye, { left: mid.x - (w / 2) * unit, right: mid.x + (w / 2) * unit, top: mid.y + (h / 2) * unit, bottom: mid.y - (h / 2) * unit });
+  eye.updateProjectionMatrix();
+  return unit;
+}
+
+/** Renders `turn` through `eye` with the characters' toon look into the 2D `canvas` (its full pixel size). */
+function drawTurn(r: WebGLRenderer, canvas: HTMLCanvasElement, turn: Object3D, eye: OrthographicCamera, size: number) {
+  const w = canvas.width, h = canvas.height;
+  const have = r.getSize(new Vector2());
+  if (have.x < w || have.y < h) r.setSize(Math.max(have.x, w), Math.max(have.y, h), false);
+  lightDir.value.copy(LIGHT).transformDirection(eye.matrixWorldInverse);
+  Object.assign(sun.shadow.camera, { left: -size, right: size, top: size, bottom: -size, near: 0.5, far: 20 + size });
+  sun.shadow.camera.updateProjectionMatrix();
+  gold.value = 0;
+  outlineScale.value = 1;
+  scene.add(turn);
+  r.setViewport(0, 0, w, h);
+  r.setScissor(0, 0, w, h);
+  r.setScissorTest(true);
+  r.clear();
+  r.render(scene, eye);
+  scene.remove(turn);
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(r.domElement, 0, r.domElement.height - h, w, h, 0, 0, w, h);
+}
+
 /**
  * Starts a crafting scene on `canvas` with the `shown` layers already in place, or null if it can't be drawn (no
  * WebGL, or its model didn't load). The whole model is framed to fill the canvas, however it sways.
@@ -715,15 +781,8 @@ export function craftView(canvas: HTMLCanvasElement, url: string, shown: string[
   const r = prepared && gl();
   if (!prepared || !r) return null;
   const { yaw, elevation } = CRAFT_VIEW[kind], sway = CRAFT_SWAY[kind];
-  const eye = new OrthographicCamera(-1, 1, 1, -1, 0.1, 50);
-  eye.position.set(0, Math.sin(elevation) * 20, Math.cos(elevation) * 20);
-  eye.lookAt(0, 0, 0);
-  eye.updateMatrixWorld();
-  const model = prepared.clone(true), turn = new Object3D();
-  turn.add(model);
-  model.updateMatrixWorld(true);
-  const box = new Box3().setFromObject(model, true), centre = box.getCenter(new Vector3());
-  const size = box.getSize(new Vector3()).length();
+  const eye = eyeAt(elevation);
+  const { model, turn, size } = placed(prepared);
   // Each layer turns and squashes about its own middle.
   const layers = new Map<string, { pivot: Object3D; rest: Vector3; arrive?: { contact: CraftContact; start: number } }>();
   for (const node of [...model.children]) {
@@ -734,27 +793,12 @@ export function craftView(canvas: HTMLCanvasElement, url: string, shown: string[
     pivot.visible = shown.includes(node.name);
     layers.set(node.name, { pivot, rest: pivot.position.clone() });
   }
-  model.position.copy(centre).negate();
   // Frame what the camera sees of the model over its whole sway, with a little room for the layers' overshoot.
-  const view = new Box3(), seen = new Object3D();
-  seen.matrixAutoUpdate = false;
-  seen.matrix.copy(eye.matrixWorldInverse);
-  seen.add(turn);
-  for (const k of [-1, 0, 1]) {
-    turn.rotation.y = yaw + k * sway;
-    seen.updateMatrixWorld(true);
-    view.union(new Box3().setFromObject(seen, true));
-  }
-  seen.remove(turn);
   const css = { w: canvas.clientWidth || 258, h: canvas.clientHeight || 258 };
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = Math.round(css.w * dpr);
   canvas.height = Math.round(css.h * dpr);
-  const mid = view.getCenter(new Vector3()), span = view.getSize(new Vector3());
-  const unit = Math.max((span.x * 1.12) / css.w, (span.y * 1.12) / css.h);
-  Object.assign(eye, { left: mid.x - (css.w / 2) * unit, right: mid.x + (css.w / 2) * unit, top: mid.y + (css.h / 2) * unit, bottom: mid.y - (css.h / 2) * unit });
-  eye.updateProjectionMatrix();
-  const ctx = canvas.getContext('2d')!;
+  const unit = frameTurn(eye, turn, [-1, 0, 1].map((k) => yaw + k * sway), css.w, css.h, 1.12);
   let answer: { contact: CraftContact; start: number } | undefined, swayFrom: number | null = null, drawn = false;
 
   const pose = (now: number) => {
@@ -779,27 +823,6 @@ export function craftView(canvas: HTMLCanvasElement, url: string, shown: string[
     }
     turn.rotation.y = yaw + (swayFrom === null ? 0 : sway * Math.sin((now - swayFrom) / 1400));
     return moving || swayFrom !== null;
-  };
-
-  const render = () => {
-    const w = canvas.width, h = canvas.height;
-    const have = r.getSize(new Vector2());
-    if (have.x < w || have.y < h) r.setSize(Math.max(have.x, w), Math.max(have.y, h), false);
-    lightDir.value.copy(LIGHT).transformDirection(eye.matrixWorldInverse);
-    const reach = size;
-    Object.assign(sun.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach, near: 0.5, far: 20 + reach });
-    sun.shadow.camera.updateProjectionMatrix();
-    gold.value = 0;
-    outlineScale.value = 1;
-    scene.add(turn);
-    r.setViewport(0, 0, w, h);
-    r.setScissor(0, 0, w, h);
-    r.setScissorTest(true);
-    r.clear();
-    r.render(scene, eye);
-    scene.remove(turn);
-    ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(r.domElement, 0, r.domElement.height - h, w, h, 0, 0, w, h);
   };
 
   return {
@@ -838,4 +861,78 @@ export function craftView(canvas: HTMLCanvasElement, url: string, shown: string[
       drawn = true;
     },
   };
+  function render() { drawTurn(r!, canvas, turn, eye, size); }
+}
+
+// ------------------------------------------------------------------------------------------------- one item, live
+
+/** How a single item is shown: its model (a crafting scene, or the model worn or held), and how to stand it. */
+export interface ItemModel {
+  url: string;
+  /** Layers that aren't part of the finished piece (fuel, supports). */
+  gone?: string[];
+  /** How far from above it's seen (radians). */
+  elevation: number;
+  /** A held weapon's model lies along the ground: tilt it up the diagonal, as weapon icons and scenes stand. */
+  tilt?: boolean;
+}
+
+/** Loads an item's model if it isn't already (crafting scenes all are, from the title screen). */
+export function loadItemModel(url: string): Promise<boolean> {
+  return craftScenes.has(url) ? Promise.resolve(true) : loadCraftScenes([url]).then(() => craftScenes.has(url));
+}
+export const itemModelReady = (url: string) => craftScenes.has(url);
+
+/**
+ * One item on `canvas` (sized by the caller, in pixels), turning to whatever yaw each frame asks for, framed so it
+ * fits at every yaw in `yaws` (a full turn by default). Null without WebGL or before its model has loaded.
+ */
+export function itemView(canvas: HTMLCanvasElement, item: ItemModel, yaws = Array.from({ length: 16 }, (_, i) => (i / 16) * Math.PI * 2), room = 1.06) {
+  const prepared = craftScenes.get(item.url);
+  const r = prepared && gl();
+  if (!prepared || !r) return null;
+  const eye = eyeAt(item.elevation);
+  const { model, turn, size } = placed(prepared);
+  for (const node of model.children) node.visible = !item.gone?.includes(node.name);
+  // Stood up the diagonal (Blender's preview turn of -45° about its Y axis, which is -Z here), then re-centred.
+  if (item.tilt) {
+    model.removeFromParent();
+    const tilt = new Object3D();
+    tilt.rotation.z = Math.PI / 4;
+    tilt.add(model);
+    model.position.set(0, 0, 0);
+    tilt.updateMatrixWorld(true);
+    const c = new Box3().setFromObject(tilt, true).getCenter(new Vector3());
+    tilt.position.copy(c).negate();
+    turn.add(tilt);
+  }
+  frameTurn(eye, turn, yaws, canvas.width, canvas.height, room);
+  return {
+    frame(yaw: number) {
+      turn.rotation.y = yaw;
+      drawTurn(r, canvas, turn, eye, size);
+    },
+  };
+}
+
+/**
+ * An item's inventory icon, rendered from its model (scripts/icons3d.ts): square, `px` across, seen straight on at its
+ * elevation, drawn 4× over and scaled down for smooth edges. Null if it can't be drawn.
+ */
+export function renderIcon(item: ItemModel, px = 128, room = 1.16): HTMLCanvasElement | null {
+  let big = document.createElement('canvas');
+  big.width = big.height = px * 4;
+  const view = itemView(big, item, [0], room);
+  if (!view) return null;
+  view.frame(0);
+  // Halve twice: each step averages 2×2 pixels, as a box filter would.
+  for (let n = px * 2; n >= px; n /= 2) {
+    const c = document.createElement('canvas');
+    c.width = c.height = n;
+    const ctx = c.getContext('2d')!;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(big, 0, 0, n, n);
+    big = c;
+  }
+  return big;
 }
