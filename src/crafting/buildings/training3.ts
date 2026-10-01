@@ -4,6 +4,7 @@ export default {
   "id": "training3",
   "duration": 3360,
   "scene": "building",
+  "model": "assets/crafting3d/training3.glb",
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {

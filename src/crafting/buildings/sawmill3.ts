@@ -4,6 +4,7 @@ export default {
   "id": "sawmill3",
   "duration": 3360,
   "scene": "building",
+  "model": "assets/crafting3d/sawmill3.glb",
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {

@@ -4,6 +4,7 @@ export default {
   "id": "cottage1",
   "duration": 4880,
   "scene": "building",
+  "model": "assets/crafting3d/cottage1.glb",
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {

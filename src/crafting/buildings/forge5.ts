@@ -4,6 +4,7 @@ export default {
   "id": "forge5",
   "duration": 3360,
   "scene": "building",
+  "model": "assets/crafting3d/forge5.glb",
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {

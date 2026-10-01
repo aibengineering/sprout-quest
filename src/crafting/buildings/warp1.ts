@@ -4,6 +4,7 @@ export default {
   "id": "warp1",
   "duration": 3360,
   "scene": "building",
+  "model": "assets/crafting3d/warp1.glb",
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {

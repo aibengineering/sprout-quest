@@ -171,8 +171,9 @@ def export(name):
     )
 
 
-args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
-names = args[0].split(',') if args and args[0] else list(CHARACTERS)
-for n in names:
-    export(n)
-print(f'EXPORTED {len(names)} models')
+if __name__ == '__main__':
+    args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
+    names = args[0].split(',') if args and args[0] else list(CHARACTERS)
+    for n in names:
+        export(n)
+    print(f'EXPORTED {len(names)} models')

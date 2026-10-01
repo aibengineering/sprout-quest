@@ -4,7 +4,7 @@
 #        bun run art monsters   (one group; the rest are reused from art/out)
 #        bun run art models     (just the 3D character models)
 #        bun run art crafting   (registered assembly layers and icons [id,id,...])
-#        bun run art buildings  (village buildings rising from their materials [id,id,...])
+#        bun run art buildings  (village buildings rising from their materials [id,id,...] [--glb for 3D models])
 set -euo pipefail
 cd "$(dirname "$0")"
 BLENDER="${BLENDER:-blender}"
@@ -44,8 +44,23 @@ fi
 
 # Village buildings rising from their materials (art/buildings), into public/assets/buildings. Their map sprites and
 # menu icons are the same models: re-render those with `bun run art env <names>` and `bun run art icons2 <names>`.
+# With --glb, they're 3D models for the live crafting scene instead (art/building_models.py), into
+# public/assets/crafting3d: `bun run art buildings [id,id,...] --glb`.
 if [ "${1:-}" = buildings ]; then
-  "$BLENDER" -b --factory-startup --python-exit-code 1 -P crafting.py -- buildings "${2:-all}"
+  ids=all glb=
+  for a in "${@:2}"; do if [ "$a" = --glb ]; then glb=1; else ids="$a"; fi; done
+  if [ -z "$glb" ]; then
+    "$BLENDER" -b --factory-startup --python-exit-code 1 -P crafting.py -- buildings "$ids"
+    exit 0
+  fi
+  "$BLENDER" -b --factory-startup --python-exit-code 1 -P building_models.py -- "$ids" 2>&1 | grep -E "EXPORTED|Error|Traceback|File \"" || true
+  for raw in ../public/assets/crafting3d/*.raw.glb; do
+    [ -e "$raw" ] || continue
+    # Keep the named layer nodes, so the scene can show each one on its own.
+    bunx gltfpack -i "$raw" -o "${raw%.raw.glb}.glb" -cc -kn > /dev/null
+    rm "$raw"
+  done
+  echo "BUILDINGS $(ls ../public/assets/crafting3d/*.glb | wc -l) files, $(du -cb ../public/assets/crafting3d/*.glb | tail -1 | cut -f1) bytes"
   exit 0
 fi
 

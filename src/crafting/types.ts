@@ -49,6 +49,11 @@ export interface CraftPresentation {
   eyebrow?: string;
   /** Village buildings rise on a plot, on a wider 4:3 canvas (640×480), instead of the Forge's bench. */
   scene?: 'building';
+  /**
+   * A 3D model (assets/crafting3d/<id>.glb) to build the scene from instead of the layer images: each top-level node
+   * is named after a layer id. When present, the scene is 3D.
+   */
+  model?: string;
 }
 
 export interface CraftItem {

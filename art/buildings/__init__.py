@@ -1,8 +1,9 @@
 """Village buildings, one module per project level (<project><level>.py), split into the materials that build them.
 
 Each module exports `build_building(root)` returning `{layer_id: [bpy objects]}` in build order, and `CAMERA`. The
-map sprite (env.SCENERY) and the assembly layers (`bun run art buildings`) share that one builder, so the finished
-building on the map is the scene's final frame. A level's `base` layer is what already stood before the upgrade.
+map sprite (env.SCENERY), the assembly layers (`bun run art buildings`) and the 3D scene models (`... --glb`) share that
+one builder, so the finished building on the map is the scene's final frame. A level's `base` layer is what
+already stood before the upgrade.
 """
 import importlib
 import os

@@ -4,6 +4,7 @@ export default {
   "id": "garden2",
   "duration": 3360,
   "scene": "building",
+  "model": "assets/crafting3d/garden2.glb",
   "eyebrow": "SOWERBY · BUILT BY HAND",
   "layers": [
     {

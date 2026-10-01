@@ -12,7 +12,7 @@ async function register(folder: string, catalog: string, name: string, what: str
     const item: CraftPresentation = (await import(`../src/crafting/${folder}/${file}`)).default;
     const id = file.slice(0, -3);
     if (item.id !== id || !/^[a-z][a-z0-9]*$/.test(id)) throw new Error(`${file}: export id must match the ${what} id/filename`);
-    for (const src of [...item.layers.map((p) => p.src), item.complete]) {
+    for (const src of [...item.layers.map((p) => p.src), item.complete, ...item.model ? [item.model] : []]) {
       if (!await Bun.file(`public/${src}`).exists()) throw new Error(`${id}: missing ${src}`);
     }
     names.push(id);
