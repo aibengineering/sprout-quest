@@ -45,6 +45,19 @@ export function buildPresentation(project: ProjectId, level: number): CraftPrese
   return covers(BUILD_PRESENTATIONS[`${project}${level}`], PROJECTS[project].levels[level - 1]?.cost);
 }
 
+/** Scene art fetched ahead of time, and held so it stays loaded: a scene can start the moment its popup opens. */
+const warm = new Map<string, HTMLImageElement>();
+export function warmCraft(item: CraftPresentation | undefined) {
+  if (!item || typeof Image === 'undefined') return;
+  for (const src of [...item.layers.map((l) => l.src), item.complete]) {
+    if (warm.has(src)) continue;
+    const img = new Image();
+    img.src = src;
+    warm.set(src, img);
+  }
+}
+export const warmGearCraft = (id: string) => warmCraft(CRAFT_PRESENTATIONS[id]);
+
 export function craftMarkup(g: CraftItem, item: CraftPresentation, before: Recipe): string {
   const recipe = g.recipe!;
   const bag = (id: MatId) => `<div class="craft-material" data-material="${id}">
@@ -208,16 +221,20 @@ export function playCraft(root: HTMLElement, item: CraftPresentation, recipe: Re
     if (t >= item.duration) finish();
     else frame = requestAnimationFrame(tick);
   };
-  // Decode before starting so the first bundle cannot arrive at an invisible garment on a slow connection.
-  // A timeout or failed art is a quiet completed reveal, never a blocked transaction or an endless loading screen.
+  // Decode before starting so the first bundle cannot arrive at an invisible garment on a slow connection (the menus
+  // warm the art ahead, so this is usually instant). Some phones refuse decode() on art that loaded fine, so only art
+  // that really didn't load, or a very slow connection, is a quiet completed reveal: never a blocked transaction or
+  // an endless loading screen.
   let loadTimer = 0;
-  const loaded = Promise.all([...parts, root.querySelector<HTMLImageElement>('.craft-complete')!].map((p) => p.decode().catch(() => { throw new Error('craft art unavailable'); })));
-  const timeout = new Promise<never>((_, reject) => { loadTimer = window.setTimeout(() => reject(new Error('craft art timed out')), 2500); });
+  const art = (img: HTMLImageElement) => img.decode().catch(() => { if (!img.complete || !img.naturalWidth) throw new Error('craft art unavailable'); });
+  const loaded = Promise.all([...parts, root.querySelector<HTMLImageElement>('.craft-complete')!].map(art));
+  const timeout = new Promise<never>((_, reject) => { loadTimer = window.setTimeout(() => reject(new Error('craft art timed out')), 6000); });
   if (media.matches || document.hidden) finish(!document.hidden);
   Promise.race([loaded, timeout]).then(() => {
     if (!ended && !disposed) frame = requestAnimationFrame(tick);
-  }).catch(() => {
+  }).catch((e) => {
     if (disposed || !scene.isConnected) { dispose(); return; }
+    console.warn(e);
     garment.hidden = true;
     root.querySelector<HTMLImageElement>('.craft-fallback')!.hidden = false;
     finish();
