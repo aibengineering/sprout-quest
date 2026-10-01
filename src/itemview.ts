@@ -1,8 +1,9 @@
 // One item in live 3D, where a single item is shown on its own: the "You found" card, the Forge's and the Bag's tag
-// for what you picked, and you in what you're wearing. It turns slowly, you can drag it round, and it pops in. The
-// item is its crafting scene's model (or the model the hero holds or wears), drawn by the same shared renderer and
-// toon look as everything else, so there's never more than one WebGL context. Only one view is live at a time; it
-// stops when its card closes or is replaced. Without WebGL (or before its model is in) the card keeps its icon.
+// for what you picked, and you in what you're wearing. It pops in and turns once round, then rests, drawn again only
+// while you drag it round. The item is its crafting scene's model (or the model the hero holds, or a material's own),
+// drawn by the same shared renderer and toon look as everything else, so there's never more than one WebGL context.
+// Only one view is live at a time; it stops when its card closes or is replaced. Without WebGL (or before its model is
+// in) the card keeps its icon.
 import { drawHero } from './assets';
 import { CRAFT_PRESENTATIONS } from './crafting/catalog';
 import { GEAR, MATS, MAT_ORDER, POTION_RECIPES, TOOLS, type MatId } from './data';
@@ -158,32 +159,29 @@ function heroDrawer(canvas: HTMLCanvasElement, armor: string, weapon: string) {
   };
 }
 
-/**
- * Every material's model, for the Bag and for the pieces that fly into crafting scenes, fetched in the background once
- * the title is up (they're small, and until one is in, its pieces fly as its icon).
- */
-export async function loadMaterialArt() {
-  // One at a time, so they never hold up a frame between them.
-  for (const m of MAT_ORDER) await loadItemModel(itemModel(m)!.url);
-}
-
 /** Frames in a tumbling piece's strip, and its size in CSS pixels (as .craft-flight). */
 export const TUMBLE_FRAMES = 12;
 const TUMBLE_CSS = 48;
 const strips = new Map<MatId, string>();
 
 /**
- * A material tumbling in 3D, as an image strip of TUMBLE_FRAMES frames side by side (made once per material), or null
- * if its model isn't loaded or there's no WebGL.
+ * Every material's model, for the Bag, and its tumbling pieces for crafting scenes: fetched in the background once the
+ * title is up, one at a time, each piece made when the browser is idle, so none of it ever holds up a frame or a
+ * crafting scene. Until a material's are made, its pieces fly as its icon.
  */
-export function tumbling(mat: MatId): string | null {
-  const have = strips.get(mat);
-  if (have) return have;
-  const item = itemModel(mat);
-  if (!item || !itemModelReady(item.url)) return null;
-  const strip = tumbleStrip(item, Math.round(TUMBLE_CSS * Math.min(2, window.devicePixelRatio || 1)), TUMBLE_FRAMES);
-  if (!strip) return null;
-  const url = strip.toDataURL();
-  strips.set(mat, url);
-  return url;
+export async function loadMaterialArt() {
+  for (const m of MAT_ORDER) {
+    const item = itemModel(m)!;
+    if (!(await loadItemModel(item.url))) continue;
+    await new Promise((idle) => ('requestIdleCallback' in window ? requestIdleCallback(idle, { timeout: 2000 }) : setTimeout(idle, 50)));
+    const strip = tumbleStrip(item, Math.round(TUMBLE_CSS * Math.min(2, window.devicePixelRatio || 1)), TUMBLE_FRAMES);
+    const blob = strip && await new Promise<Blob | null>((done) => strip.toBlob(done));
+    if (blob) strips.set(m, URL.createObjectURL(blob));
+  }
 }
+
+/**
+ * A material tumbling in 3D, as an image of TUMBLE_FRAMES frames side by side, or null if it isn't made yet (or
+ * there's no WebGL).
+ */
+export const tumbled = (mat: MatId): string | null => strips.get(mat) ?? null;

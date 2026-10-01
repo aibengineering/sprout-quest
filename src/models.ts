@@ -775,7 +775,8 @@ function frameTurn(eye: OrthographicCamera, turn: Object3D, turns: Turn[], w: nu
 }
 
 /** Renders `turn` through `eye` with the characters' toon look into the 2D `canvas` (its full pixel size). */
-function drawTurn(r: WebGLRenderer, canvas: HTMLCanvasElement, turn: Object3D, eye: OrthographicCamera, size: number) {
+/** With `turns`, each one is drawn into its own square across the canvas, side by side, and read back once. */
+function drawTurn(r: WebGLRenderer, canvas: HTMLCanvasElement, turn: Object3D, eye: OrthographicCamera, size: number, turns?: Turn[]) {
   const w = canvas.width, h = canvas.height;
   const have = r.getSize(new Vector2());
   if (have.x < w || have.y < h) r.setSize(Math.max(have.x, w), Math.max(have.y, h), false);
@@ -785,11 +786,15 @@ function drawTurn(r: WebGLRenderer, canvas: HTMLCanvasElement, turn: Object3D, e
   gold.value = 0;
   outlineScale.value = 1;
   scene.add(turn);
-  r.setViewport(0, 0, w, h);
-  r.setScissor(0, 0, w, h);
-  r.setScissorTest(true);
-  r.clear();
-  r.render(scene, eye);
+  const each = turns ? w / turns.length : w;
+  for (const [i, t] of (turns ?? [null]).entries()) {
+    if (t) turn.rotation.set(t.x, t.y, 0);
+    r.setViewport(i * each, 0, each, h);
+    r.setScissor(i * each, 0, each, h);
+    r.setScissorTest(true);
+    r.clear();
+    r.render(scene, eye);
+  }
   scene.remove(turn);
   const ctx = canvas.getContext('2d')!;
   ctx.clearRect(0, 0, w, h);
@@ -943,6 +948,10 @@ export function itemView(canvas: HTMLCanvasElement, item: ItemModel, turns = FUL
       turn.rotation.set(tip, yaw, 0);
       drawTurn(r, canvas, turn, eye, size);
     },
+    /** Every one of `turns`, side by side across the canvas (`turns.length` squares wide), in one go. */
+    strip(turns: Turn[]) {
+      drawTurn(r, canvas, turn, eye, size, turns);
+    },
   };
 }
 
@@ -974,17 +983,13 @@ export function renderIcon(item: ItemModel, px = 128, room = 1.16): HTMLCanvasEl
  */
 export function tumbleStrip(item: ItemModel, px: number, n = 12): HTMLCanvasElement | null {
   const turns = Array.from({ length: n }, (_, i): Turn => ({ x: 0.55 * Math.sin((i / n) * Math.PI * 2), y: (i / n) * Math.PI * 2 }));
-  const one = document.createElement('canvas');
-  one.width = one.height = px;
-  const view = itemView(one, item, turns, 1.1);
-  if (!view) return null;
   const strip = document.createElement('canvas');
   strip.width = px * n;
   strip.height = px;
-  const ctx = strip.getContext('2d')!;
-  turns.forEach(({ x, y }, i) => {
-    view.frame(y, x);
-    ctx.drawImage(one, i * px, 0);
-  });
+  // Framed as one square (the view's aspect), drawn n times across.
+  const view = itemView(Object.assign(strip, { width: px, height: px }), item, turns, 1.1);
+  if (!view) return null;
+  strip.width = px * n;
+  view.strip(turns);
   return strip;
 }

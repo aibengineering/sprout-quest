@@ -288,9 +288,9 @@ the title screen, and played live with the same toon look as the ingredients fly
 
 Every material has a small 3D model too (`crafting3d/mat_<id>.glb`, `bun run art materials`, from the builders in
 `art/icons.py`), loaded in the background once the title is up: its pieces tumble into crafting scenes. Wherever one
-item is shown on its own (the "You found" card, the Forge's and the Bag's tags) it turns slowly in live 3D from its model,
-and you can drag it round; the Bag opens on you in what you're wearing (`src/itemview.ts`). One view is live at a time,
-on the same shared renderer. The inventory icons of gear, tools, potions, meals and materials are rendered from those
+item is shown on its own (the "You found" card, the Forge's and the Bag's tags) it pops in and turns once round in live
+3D from its model, then rests until you drag it round; the Bag opens on you in what you're wearing (`src/itemview.ts`).
+One view is live at a time, on the same shared renderer. The inventory icons of gear, tools, potions, meals and materials are rendered from those
 same models (`bun run art icons3d [id,...]`, scripts/icons3d.ts, in headless Chromium with the game's own renderer;
 `--sheet out.png` writes a before/after contact sheet, `--check` lists icons out of date with their models), so changing
 a model changes its icon. Without WebGL, items show their icons.

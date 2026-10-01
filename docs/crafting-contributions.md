@@ -88,7 +88,7 @@ Chromium, no Blender) draws the finished piece (every layer but those marked `fi
 look, straight on and fitted to the 128 px square, into `public/assets/icons/<id>.webp` (meals: `meal_<id>`). Weapons
 are seen side on, tools, armour and charms a little from above, potions and meals from further above (src/itemview.ts).
 So re-export the scene, then re-run icons3d, whenever the geometry changes. The old Blender-icon settings (`CAMERA`,
-`COMPLETE_PARTS`, `ICON_ID`) are no longer read. The same model turns slowly in live 3D on the item's cards (the
+`COMPLETE_PARTS`, `ICON_ID`) are no longer read. The same model turns in live 3D on the item's cards (the
 "You crafted" card, the Forge's and the Bag's tags).
 
 ## Checks and publication

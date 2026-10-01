@@ -7,7 +7,7 @@ import { CRAFT_PRESENTATIONS } from './crafting/catalog';
 import { BUILD_PRESENTATIONS } from './crafting/building-catalog';
 import type { CraftFlight, CraftItem, CraftPresentation } from './crafting/types';
 import { craftView, loadCraftScenes } from './models';
-import { tumbling } from './itemview';
+import { tumbled } from './itemview';
 export type { CraftFlight, CraftPresentation } from './crafting/types';
 
 /** Most pieces flown in for one contact (the count rides on the lead one), and the beat between them (ms). */
@@ -93,8 +93,6 @@ export function playCraft(root: HTMLElement, item: CraftPresentation, recipe: Re
   // The layers showing, also listed on the canvas (data-layers) for tests.
   const showing = new Set(item.layers.filter((p) => initially(item, p)).map((p) => p.id));
   const view = craftView(canvas, item.model, [...showing], item.scene ?? 'gear');
-  // Each ingredient's tumbling pieces, made before anything flies.
-  if (view) materials.forEach(tumbling);
   const show = (layer: string, contact?: CraftFlight['contact']) => {
     showing.add(layer);
     canvas.dataset.layers = [...showing].join(' ');
@@ -163,7 +161,7 @@ export function playCraft(root: HTMLElement, item: CraftPresentation, recipe: Re
     const transform = (px: number, py: number, scale: string, rotation: number) => `translate(${px}px,${py}px) rotate(${rotation}deg) scale(${scale})`;
     // A handful comes over as a little stream: the lead piece carries the count, a few more follow it in, each a beat
     // later and a touch off its line, so a big pile of planks looks like one.
-    const pieces = Math.min(f.count, STREAM_MAX), strip = tumbling(f.material);
+    const pieces = Math.min(f.count, STREAM_MAX), strip = tumbled(f.material);
     for (let i = 0; i < pieces; i++) {
       const particle = document.createElement('div');
       particle.className = `craft-flight ${f.material}${i ? ' trail' : ''}`;
