@@ -7,7 +7,7 @@ import { CRAFT_PRESENTATIONS } from './crafting/catalog';
 import { BUILD_PRESENTATIONS } from './crafting/building-catalog';
 import type { CraftFlight, CraftItem, CraftPresentation } from './crafting/types';
 import { craftView, loadCraftScenes } from './models';
-import { tumbled } from './itemview';
+import { TUMBLE_FRAMES, tumbled } from './itemview';
 export type { CraftFlight, CraftPresentation } from './crafting/types';
 
 /** Most pieces flown in for one contact (the count rides on the lead one), and the beat between them (ms). */
@@ -168,7 +168,7 @@ export function playCraft(root: HTMLElement, item: CraftPresentation, recipe: Re
       const particle = document.createElement('div');
       particle.className = `craft-flight ${f.material}${i ? ' trail' : ''}`;
       // The piece tumbles in 3D (its model, as a strip of frames), or flies as its icon.
-      particle.innerHTML = `${strip ? `<i class="piece" style="background-image:url(${strip});animation-delay:-${(i * 97) % 600}ms"></i>` : `<img src="${iconUrl(f.material)}" alt="">`}${i ? '' : `<b>×${f.count}</b>`}`;
+      particle.innerHTML = `${strip ? `<i class="piece" style="--frames:${TUMBLE_FRAMES};background-image:url(${strip});animation-delay:-${(i * 97) % 600}ms"></i>` : `<img src="${iconUrl(f.material)}" alt="">`}${i ? '' : `<b>×${f.count}</b>`}`;
       flightLayer.prepend(particle);
       const jx = i ? (((i * 37) % 11) - 5) * 3 : 0, jy = i ? (((i * 23) % 9) - 4) * 3 : 0;
       animate(particle, [

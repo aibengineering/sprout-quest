@@ -18,7 +18,3 @@ def build_item(root):
 
 def build_icon():
     return icon(build_item)
-
-
-CAMERA = dict(ppu=440, anchor=(0, 0, -.015), elevation=0.41887902047863906)
-

@@ -104,6 +104,9 @@ describe('Fluffy Vest presentation lifecycle', () => {
     // One contact's flight: the lead piece with the count, and a short stream of pieces behind it.
     expect(root.querySelectorAll('.craft-flight:not(.trail)')).toHaveLength(1);
     expect(root.querySelectorAll('.craft-flight.trail').length).toBeGreaterThan(0);
+    // No tumbling pieces have been made for the material yet (src/itemview.ts loadMaterialArt): they fly as its icon.
+    expect(root.querySelectorAll('.craft-flight img').length).toBe(root.querySelectorAll('.craft-flight').length);
+    expect(root.querySelector('.craft-flight .piece')).toBeNull();
     expect(s.sounds).toEqual(['craftPull']);
     frame(741);
     expect(shows).toEqual([['left-panel', 'soft']]);

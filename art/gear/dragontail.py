@@ -7,7 +7,6 @@ import math
 import lib
 
 LENGTH = .95
-CAMERA = dict(ppu=680, anchor=(0.15, 0, -0.14), elevation=0)
 # The shipped assembly art is framed flat and unscaled (the lash hangs below the grip), not in the tilted weapon view.
 PREVIEW_ROTATION = (0, 0, 0)
 PREVIEW_SCALE = (1, 1, 1)

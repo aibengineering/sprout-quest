@@ -273,7 +273,7 @@ function measure(root: Object3D, clips: Record<string, AnimationClip>) {
 }
 
 /** The hero's moving parts (art/hero.py), which armour hangs on. */
-const HERO_PIVOTS = ['hero', 'bodyPivot', 'arm-1', 'arm1', 'head', 'foot-1', 'foot1'];
+export const HERO_PIVOTS = ['hero', 'bodyPivot', 'arm-1', 'arm1', 'head', 'foot-1', 'foot1'];
 
 /** The base hero and the armours, kept as loaded: every armour's hero is put together from them. */
 const heroParts = new Map<string, Promise<GLTF>>();
@@ -289,19 +289,25 @@ function heroPart(name: string): Promise<GLTF> {
 }
 
 /**
- * The hero in an armour (`hero_<armor>`): the base hero (art/hero.py build_base) with each armour piece hung on the
- * pivot it's named after, as the weapons hang in the hand. A helmet hides the bangs and the leaf sprout.
+ * The hero in an armour: a copy of the base hero (art/hero.py build_base, `hero_base`) with each piece of the armour
+ * (`armor_<id>`) hung on the pivot it's named after, as the weapons hang in the hand. A helmet hides the bangs and the
+ * leaf sprout. Neither model is changed.
  */
-async function dressedHero(armor: string): Promise<{ scene: Object3D; animations: AnimationClip[] }> {
-  const [base, worn] = await Promise.all([heroPart('hero_base'), heroPart(`armor_${armor}`)]);
-  const scene = base.scene.clone(true), armour = worn.scene.clone(true);
-  if (armour.getObjectByName('helmet')) for (const hair of ['bangs', 'sprout']) scene.getObjectByName(hair)?.removeFromParent();
+export function dress(base: Object3D, armour: Object3D): Object3D {
+  const hero = base.clone(true), worn = armour.clone(true);
+  if (worn.getObjectByName('helmet')) for (const hair of ['bangs', 'sprout']) hero.getObjectByName(hair)?.removeFromParent();
   // The pieces under each armour pivot sit where they would on the hero's pivot of the same name.
   for (const name of HERO_PIVOTS) {
-    const from = armour.getObjectByName(name), to = scene.getObjectByName(name);
+    const from = worn.getObjectByName(name), to = hero.getObjectByName(name);
     if (from && to) for (const piece of [...from.children]) if (!HERO_PIVOTS.includes(piece.name)) to.add(piece);
   }
-  return { scene, animations: base.animations };
+  return hero;
+}
+
+/** The hero in an armour (`hero_<armor>`), with the base hero's animations. */
+async function dressedHero(armor: string): Promise<{ scene: Object3D; animations: AnimationClip[] }> {
+  const [base, worn] = await Promise.all([heroPart('hero_base'), heroPart(`armor_${armor}`)]);
+  return { scene: dress(base.scene, worn.scene), animations: base.animations };
 }
 
 /** Loads a model (once); resolves null if it can't be (the caller keeps its sprite or drawing). */
@@ -380,7 +386,7 @@ function gl(): WebGLRenderer | null {
     renderer.setClearColor(0x000000, 0);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = PCFShadowMap;
-    renderer.setSize(256, 256, false);
+    renderer.setSize(charNeed.w, charNeed.h, false);
     sun.position.copy(LIGHT).multiplyScalar(8);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -559,7 +565,7 @@ export function drawModel(ctx: CanvasRenderingContext2D, slot: string, id: strin
     s.key = key;
     gold.value = pose.gold ? 1 : 0;
     outlineScale.value = pose.bold ? 1 : OUTLINE_SCALE;
-    render(r, s, clip, step / 24, (yaw * Math.PI) / 36, ppu, heldKey ? h : undefined);
+    render(r, s, clip, step / 24, (yaw * Math.PI) / 36, ppu, heldKey ? h : undefined, heldSlots.has(slot));
   }
   draw(s.frame);
   return true;
@@ -568,7 +574,7 @@ export function drawModel(ctx: CanvasRenderingContext2D, slot: string, id: strin
 /** Rendering counters, for tuning (window.game.modelStats). */
 export const modelStats = { renders: 0, ms: 0, copyMs: 0, shadowMs: 0 };
 
-function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, yaw: number, ppu: number, held?: Held) {
+function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, yaw: number, ppu: number, held?: Held, view = false) {
   const t0 = performance.now();
   modelStats.renders++;
   // A weapon in hand or on the back reaches further than the character does: grow the image to fit it.
@@ -580,8 +586,12 @@ function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, ya
   const w = Math.ceil(radius * 2 * ppu) + pad * 2;
   const up = (height * cos + radius * sin) * ppu, down = radius * sin * ppu;
   const h = Math.ceil(up + down) + pad * 2;
-  const size = r.getSize(new Vector2());
-  if (size.x < w || size.y < h) r.setSize(Math.max(size.x, w, 256), Math.max(size.y, h, 256), false);
+  // (A held slot is a view in a menu, not the map: it may grow the renderer only for a while.)
+  if (!view) {
+    charNeed.w = Math.max(charNeed.w, w);
+    charNeed.h = Math.max(charNeed.h, h);
+  }
+  fit(r, w, h);
   const ch = r.domElement.height;
   // Pose it.
   for (const [name, a] of Object.entries(s.actions)) {
@@ -629,11 +639,38 @@ function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, ya
   s.frame = { img: s.canvas, x: 0, y: 0, w, h, ax, ay, ppu };
 }
 
-/** Call once a frame: forgets characters that haven't been drawn for a while. */
+/**
+ * Everything renders into the shared renderer's bottom-left corner, which grows to fit. The characters keep it at the
+ * most they've needed; a crafting scene or an item view can need more, but only while it's drawing.
+ */
+const charNeed = { w: 256, h: 256 };
+let bigAt = -1;
+function fit(r: WebGLRenderer, w: number, h: number) {
+  const have = r.getSize(new Vector2());
+  if (have.x < w || have.y < h) r.setSize(Math.max(have.x, w), Math.max(have.y, h), false);
+  if (w > charNeed.w || h > charNeed.h) bigAt = clock;
+}
+
+/** Slots kept while unseen: a view that's only drawn now and then (the Bag's hero, between drags). */
+const heldSlots = new Set<string>();
+export const holdSlot = (name: string, keep: boolean) => void (keep ? heldSlots.add(name) : heldSlots.delete(name));
+
+/**
+ * Call once a frame: forgets characters that haven't been drawn for a while, and shrinks the renderer back to what the
+ * characters need a second after anything bigger last drew.
+ */
 export function tickModels() {
   clock++;
-  for (const [name, s] of slots) if (clock - s.seen > 120) slots.delete(name);
+  for (const [name, s] of slots) if (clock - s.seen > 120 && !heldSlots.has(name)) slots.delete(name);
+  if (renderer && bigAt >= 0 && clock - bigAt > 60) {
+    bigAt = -1;
+    const have = renderer.getSize(new Vector2());
+    if (have.x > charNeed.w || have.y > charNeed.h) renderer.setSize(charNeed.w, charNeed.h, false);
+  }
 }
+
+/** The shared renderer's drawing size (for tests: window.game.modelStats). */
+export const rendererSize = () => (renderer ? renderer.getSize(new Vector2()).toArray() : null);
 
 // ------------------------------------------------------------------------------------------------ crafting scenes
 
@@ -736,6 +773,38 @@ function eyeAt(elevation: number) {
   return eye;
 }
 
+/**
+ * A low oval of ground, `rx` by `rz` across and `h` deep with its top at y 0, in the toon look: grass, with a patch of
+ * dug earth in the middle and an outline round its rim. A building rises on it, so it sits in the scene's own view.
+ */
+function plot(rx: number, rz: number, h: number, line: number): Object3D {
+  const slab = (r: number, depth: number, top: string, side: string, y: number) => {
+    const g = new CylinderGeometry(r, r, depth, 48).toNonIndexed();
+    g.scale(rx, 1, rz);
+    g.translate(0, y - depth / 2, 0);
+    g.computeVertexNormals();
+    const n = g.getAttribute('normal'), c = [new Color(top), new Color(side)];
+    const base = new Float32Array(n.count * 3), params = new Float32Array(n.count * 3);
+    for (let i = 0; i < n.count; i++) {
+      base.set(c[n.getY(i) > 0.5 ? 0 : 1].toArray(), i * 3);
+      params.set([0.12, 0, line], i * 3);
+    }
+    g.setAttribute('toonBase', new Float32BufferAttribute(base, 3));
+    g.setAttribute('toonParams', new Float32BufferAttribute(params, 3));
+    const m = new Mesh(g, toonMaterial);
+    m.receiveShadow = true;
+    return m;
+  };
+  const ground = new Object3D(), grass = slab(1, h, '#a8c878', '#7a9a58', 0);
+  const shell = new BufferGeometry();
+  shell.setAttribute('position', grass.geometry.getAttribute('position').clone());
+  const smooth = mergeVertices(shell, 1e-4);
+  smooth.computeVertexNormals();
+  smooth.setAttribute('thickness', new Float32BufferAttribute(new Float32Array(smooth.attributes.position.count).fill(line), 1));
+  ground.add(grass, slab(0.6, h * 0.1, '#c9a57a', '#b08d64', h * 0.05), new Mesh(smooth, outlineMaterial));
+  return ground;
+}
+
 /** A loaded scene's own copy, its middle at the origin of `turn` (what spins), with its size across. */
 function placed(prepared: Object3D) {
   const model = prepared.clone(true), turn = new Object3D();
@@ -743,6 +812,7 @@ function placed(prepared: Object3D) {
   model.updateMatrixWorld(true);
   const box = new Box3().setFromObject(model, true), centre = box.getCenter(new Vector3());
   model.position.copy(centre).negate();
+  model.updateMatrixWorld(true);
   return { model, turn, size: box.getSize(new Vector3()).length() };
 }
 
@@ -775,26 +845,20 @@ function frameTurn(eye: OrthographicCamera, turn: Object3D, turns: Turn[], w: nu
 }
 
 /** Renders `turn` through `eye` with the characters' toon look into the 2D `canvas` (its full pixel size). */
-/** With `turns`, each one is drawn into its own square across the canvas, side by side, and read back once. */
-function drawTurn(r: WebGLRenderer, canvas: HTMLCanvasElement, turn: Object3D, eye: OrthographicCamera, size: number, turns?: Turn[]) {
+function drawTurn(r: WebGLRenderer, canvas: HTMLCanvasElement, turn: Object3D, eye: OrthographicCamera, size: number) {
   const w = canvas.width, h = canvas.height;
-  const have = r.getSize(new Vector2());
-  if (have.x < w || have.y < h) r.setSize(Math.max(have.x, w), Math.max(have.y, h), false);
+  fit(r, w, h);
   lightDir.value.copy(LIGHT).transformDirection(eye.matrixWorldInverse);
   Object.assign(sun.shadow.camera, { left: -size, right: size, top: size, bottom: -size, near: 0.5, far: 20 + size });
   sun.shadow.camera.updateProjectionMatrix();
   gold.value = 0;
   outlineScale.value = 1;
   scene.add(turn);
-  const each = turns ? w / turns.length : w;
-  for (const [i, t] of (turns ?? [null]).entries()) {
-    if (t) turn.rotation.set(t.x, t.y, 0);
-    r.setViewport(i * each, 0, each, h);
-    r.setScissor(i * each, 0, each, h);
-    r.setScissorTest(true);
-    r.clear();
-    r.render(scene, eye);
-  }
+  r.setViewport(0, 0, w, h);
+  r.setScissor(0, 0, w, h);
+  r.setScissorTest(true);
+  r.clear();
+  r.render(scene, eye);
   scene.remove(turn);
   const ctx = canvas.getContext('2d')!;
   ctx.clearRect(0, 0, w, h);
@@ -815,15 +879,22 @@ export function craftView(canvas: HTMLCanvasElement, url: string, shown: string[
   const { yaw, elevation } = CRAFT_VIEW[kind], sway = CRAFT_SWAY[kind];
   const eye = eyeAt(elevation);
   const { model, turn, size } = placed(prepared);
-  // Each layer turns and squashes about its own middle.
+  // Each layer turns and squashes about its own middle (where its ingredients land).
   const layers = new Map<string, { pivot: Object3D; rest: Vector3; arrive?: { contact: CraftContact; start: number } }>();
   for (const node of [...model.children]) {
     const pivot = new Object3D();
-    new Box3().setFromObject(node, true).getCenter(pivot.position);
+    pivot.position.copy(model.worldToLocal(new Box3().setFromObject(node, true).getCenter(new Vector3())));
     model.add(pivot);
     pivot.attach(node);
     pivot.visible = shown.includes(node.name);
     layers.set(node.name, { pivot, rest: pivot.position.clone() });
+  }
+  // A building rises on its plot, drawn in the scene so its ground lies flat under it at the scene's own angle.
+  if (kind === 'building') {
+    const box = new Box3().setFromObject(model, true), mid = box.getCenter(new Vector3()), span = box.getSize(new Vector3());
+    const ground = plot(span.x * 0.66, span.z * 0.66, size * 0.02, size * 0.004);
+    ground.position.set(mid.x, box.min.y, mid.z);
+    turn.add(ground);
   }
   // Frame what the camera sees of the model over its whole sway, with a little room for the layers' overshoot.
   const css = { w: canvas.clientWidth || 258, h: canvas.clientHeight || 258 };
@@ -944,13 +1015,10 @@ export function itemView(canvas: HTMLCanvasElement, item: ItemModel, turns = FUL
   }
   frameTurn(eye, turn, turns, canvas.width, canvas.height, room);
   return {
+    /** Draws it turned `yaw` about the up axis, after tipping it `tip` toward or away from you. */
     frame(yaw: number, tip = 0) {
       turn.rotation.set(tip, yaw, 0);
       drawTurn(r, canvas, turn, eye, size);
-    },
-    /** Every one of `turns`, side by side across the canvas (`turns.length` squares wide), in one go. */
-    strip(turns: Turn[]) {
-      drawTurn(r, canvas, turn, eye, size, turns);
     },
   };
 }
@@ -977,19 +1045,5 @@ export function renderIcon(item: ItemModel, px = 128, room = 1.16): HTMLCanvasEl
   return big;
 }
 
-/**
- * A material tumbling through one full turn, `n` frames side by side on one strip, each `px` square (the pieces that fly
- * into a crafting scene step through it). Null if it can't be drawn.
- */
-export function tumbleStrip(item: ItemModel, px: number, n = 12): HTMLCanvasElement | null {
-  const turns = Array.from({ length: n }, (_, i): Turn => ({ x: 0.55 * Math.sin((i / n) * Math.PI * 2), y: (i / n) * Math.PI * 2 }));
-  const strip = document.createElement('canvas');
-  strip.width = px * n;
-  strip.height = px;
-  // Framed as one square (the view's aspect), drawn n times across.
-  const view = itemView(Object.assign(strip, { width: px, height: px }), item, turns, 1.1);
-  if (!view) return null;
-  strip.width = px * n;
-  view.strip(turns);
-  return strip;
-}
+/** The turns of a material tumbling through one full turn in `n` frames (and tipping as it goes). */
+export const tumbleTurns = (n: number) => Array.from({ length: n }, (_, i): Turn => ({ x: 0.55 * Math.sin((i / n) * Math.PI * 2), y: (i / n) * Math.PI * 2 }));

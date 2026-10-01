@@ -5,7 +5,6 @@ from gear._crystal_glimmer_detail import GLOW, GLOW_DEEP, GLOW_PINK, ICE, ICE_MI
 from gear._woodland_shapes import add, pivots, vest
 
 PARTS = ('jelly-drape', 'jelly-collar', 'shard-left', 'shard-right', 'core-brooch')
-CAMERA = dict(ppu=440, anchor=(0, 0.067111, 0.33), elevation=math.radians(12))
 
 
 def _hem(width, top, bottom, bumps):

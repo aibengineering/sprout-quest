@@ -1,11 +1,9 @@
 """Iron plates, copper fastenings, stone guards and pine braces. No plume."""
-import math
 from lib import box, lathe, toon
 from gear._metal import beam, pivots, rivet, shell, shoulder, stone
 
 PARTS = ('pine-braces', 'iron-shell', 'iron-helmet', 'stone-guards', 'copper-rivets')
 HELMET = True
-CAMERA = dict(ppu=370, anchor=(0, 0, .67), elevation=math.radians(12))
 
 
 def build_armor(P):

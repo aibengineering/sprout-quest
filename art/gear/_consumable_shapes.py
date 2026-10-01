@@ -31,8 +31,10 @@ def plate(root, z=-.36):
 
 
 def bottle(root, color, tall=False):
-    """A thick glass heel, open rim and two highlights suggest glass without hiding the infusion."""
+    """A thick glass heel, open rim and two highlights suggest glass without hiding the infusion. Inside, a pale
+    glass body just smaller than the infusion shows the empty bottle until the infusion fills (and covers) it."""
     z = .53 if tall else .40
+    lathe([(r * .96, h * .97) for r, h in _flask(tall)], toon('#e6f6f3', rim=.3), root, seg=32, line=.008, name='glass_body')
     lathe([(0, -.42), (.19, -.42), (.25, -.37), (.25, -.32), (.19, -.32), (0, -.32)],
           toon('#d6eff1'), root, seg=32, line=.014, name='glass_heel')
     cylinder((0, 0, z-.10), .125, .21, toon('#c8ece4'), root, seg=24, line=.012, name='glass_neck')
@@ -42,9 +44,13 @@ def bottle(root, color, tall=False):
     sphere((-.15, -.31, -.20), (.02, .012, .027), toon('#ffffff', rim=0), root, line=0)
 
 
+def _flask(tall):
+    """The bottle's inside (the infusion's outline), as (radius, height) up its axis."""
+    return [(0, -.365), (.24, -.365), (.32, -.23), (.33, .05), (.24, .25), (.115, .30), (.11, .43 if tall else .30), (0, .43 if tall else .30)]
+
+
 def liquid(root, color, tall=False):
-    pts = [(0, -.365), (.24, -.365), (.32, -.23), (.33, .05), (.24, .25), (.115, .30), (.11, .43 if tall else .30), (0, .43 if tall else .30)]
-    lathe(pts, toon(color, rim=.3), root, seg=40, line=.016, name='infusion')
+    lathe(_flask(tall), toon(color, rim=.3), root, seg=40, line=.016, name='infusion')
 
 
 def clover(root, x=0, y=0, z=0, size=.10):

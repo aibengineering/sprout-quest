@@ -1,11 +1,9 @@
 """Shroom Hood: thick spotted cap canopy, layered cap mantle, Wolf Fang toggles."""
-import math
 from lib import lathe, profile, sphere, toon
 from gear._woodland_shapes import add, fang, pivots, vest
 
 PARTS = ('cap-mantle', 'cap-left', 'cap-right', 'cap-canopy', 'fang-toggles')
 HELMET = True
-CAMERA = dict(ppu=324.443804, anchor=(0, 0.142039, 0.66824), elevation=math.radians(12))
 
 
 def build(body, arms=None, head=None):

@@ -7,7 +7,6 @@ import math
 import lib
 
 LENGTH = 1.6
-CAMERA = dict(ppu=350, anchor=(0.47, 0, 0), elevation=0)
 PARTS = ('iron', 'horn', 'crystal', 'ember')
 
 

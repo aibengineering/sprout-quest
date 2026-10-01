@@ -9,7 +9,6 @@ from lib import cylinder, profile, sphere, toon, torus
 
 PARTS = ('fang-grip', 'cap-wraps', 'cap-coils', 'fang-tip')
 LENGTH = .9
-CAMERA = dict(ppu=449.016897, anchor=(.230628, .036355, .171035), elevation=math.radians(12))
 
 
 def build_weapon(root):

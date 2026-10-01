@@ -8,7 +8,7 @@ import { drawHero } from './assets';
 import { CRAFT_PRESENTATIONS } from './crafting/catalog';
 import { GEAR, MATS, MAT_ORDER, POTION_RECIPES, TOOLS, type MatId } from './data';
 import { MEALS } from './kitchen';
-import { hasModel, itemModelReady, itemView, loadItemModel, loadModel, tumbleStrip, webglAvailable, type ItemModel } from './models';
+import { hasModel, holdSlot, itemModelReady, itemView, loadItemModel, loadModel, tumbleTurns, webglAvailable, type ItemModel } from './models';
 import { MOVESETS } from './weapons';
 import { carriedWeapon } from './weaponPose';
 
@@ -56,10 +56,11 @@ export const heroView = (armor: string, weapon: string, art: string) => `<span c
 const SPIN = 1.4;
 const DRAG = 0.014;
 
-let live: { el: HTMLElement; stop: () => void } | null = null;
+/** The live view: what it shows (`key`), where, and whether it has started drawing. */
+let live: { key: string; el: HTMLElement; started: boolean; stop: () => void } | null = null;
 
-/** Is a view live (for tests: window.game.itemView)? */
-export const liveView = () => (live ? live.el.dataset.view3d! : null);
+/** Is a view live, drawing (for tests: window.game.itemView)? */
+export const liveView = () => (live?.started ? live.el.dataset.view3d! : null);
 
 /** Stops the live view, if any. */
 export function stopItemView() {
@@ -67,34 +68,65 @@ export function stopItemView() {
   live = null;
 }
 
+/** What a view shows: its item, or you in your armour and weapon. */
+const viewKey = (el: HTMLElement) => [el.dataset.view3d, el.dataset.armor, el.dataset.weapon].join('|');
+
 /**
  * Brings the first `[data-view3d]` under `root` to life, replacing whichever view was live. Call after rendering a
- * card. Does nothing without WebGL.
+ * card. A view of the same thing (a menu drawn again) carries on in its new place without starting over. Does nothing
+ * without WebGL.
  */
 export function mountItemView(root: ParentNode) {
   const found = root.querySelector<HTMLElement>('[data-view3d]');
-  if (live?.el === found) return;
+  if (found && live?.key === viewKey(found)) {
+    if (live.el !== found) {
+      const canvas = live.el.querySelector('canvas.live3d');
+      live.el = found;
+      if (canvas) {
+        found.append(canvas);
+        found.classList.add('live');
+      }
+    }
+    return;
+  }
   stopItemView();
   if (!found || !webglAvailable()) return;
-  const el = found;
-  const id = el.dataset.view3d!;
+  const id = found.dataset.view3d!;
   const item = id === 'hero' ? null : itemModel(id);
   let stopped = false, raf = 0;
-  const me = { el, stop: () => { stopped = true; cancelAnimationFrame(raf); el.querySelector('canvas.live3d')?.remove(); el.classList.remove('live'); } };
+  const me = {
+    key: viewKey(found), el: found, started: false,
+    stop: () => {
+      stopped = true;
+      cancelAnimationFrame(raf);
+      me.el.querySelector('canvas.live3d')?.remove();
+      me.el.classList.remove('live');
+      if (!item) holdSlot(HERO_SLOT, false);
+    },
+  };
   live = me;
   const ready = item ? (itemModelReady(item.url) ? Promise.resolve(true) : loadItemModel(item.url))
-    : Promise.all([loadModel(`hero_${el.dataset.armor}`), loadModel(`wpn_${el.dataset.weapon}`)]).then(([hero]) => !!hero);
-  void ready.then((ok) => { if (ok && !stopped && el.isConnected) start(); });
+    : Promise.all([loadModel(`hero_${found.dataset.armor}`), loadModel(`wpn_${found.dataset.weapon}`)]).then(([hero]) => !!hero);
+  void ready.then((ok) => {
+    if (stopped) return;
+    if (ok && me.el.isConnected) start();
+    else if (live === me) stopItemView();
+  });
 
   function start() {
+    const el = me.el;
     const canvas = document.createElement('canvas');
     canvas.className = 'live3d';
-    el.append(canvas);
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.round((el.clientWidth || 64) * dpr);
     canvas.height = Math.round((el.clientHeight || 64) * dpr);
     const draw = item ? itemView(canvas, item) : heroDrawer(canvas, el.dataset.armor!, el.dataset.weapon!);
-    if (!draw) return me.stop();
+    if (!draw) {
+      if (live === me) stopItemView();
+      return;
+    }
+    el.append(canvas);
+    me.started = true;
     // It turns once round as it appears (unless motion is reduced), then rests, drawn again only while you drag it.
     const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let yaw = 0, turnLeft = still ? 0 : Math.PI * 2, last = 0, dirty = false, drag: { id: number; x: number } | null = null;
@@ -143,9 +175,13 @@ export function mountItemView(root: ParentNode) {
   }
 }
 
-/** You, standing in the Bag: your armour, your weapon on your back, breathing, turned to `yaw`. */
+/** The Bag's hero's character slot: kept while the view is live, so a drag after a rest doesn't rebuild it. */
+const HERO_SLOT = 'bag-hero';
+
+/** You, standing in the Bag: your armour, your weapon on your back, in your idle pose as of each frame, turned to `yaw`. */
 function heroDrawer(canvas: HTMLCanvasElement, armor: string, weapon: string) {
   const ctx = canvas.getContext('2d')!;
+  holdSlot(HERO_SLOT, true);
   const g = GEAR[weapon];
   const held = g ? carriedWeapon(g, MOVESETS[g.style ?? 'sword']?.size ?? 1) : undefined;
   const t0 = performance.now();
@@ -154,28 +190,45 @@ function heroDrawer(canvas: HTMLCanvasElement, armor: string, weapon: string) {
       const w = canvas.width, h = canvas.height;
       ctx.clearRect(0, 0, w, h);
       // Feet near the bottom, one model unit about half the height (the hero is about 1.5 tall with the hair).
-      drawHero(ctx, armor, w / 2, h * 0.92, h * 0.56, Math.PI / 2 - yaw, false, (performance.now() - t0) / 1000, {}, 'bag-hero', held && hasModel(held.id) ? held : undefined);
+      drawHero(ctx, armor, w / 2, h * 0.92, h * 0.56, Math.PI / 2 - yaw, false, (performance.now() - t0) / 1000, {}, HERO_SLOT, held && hasModel(held.id) ? held : undefined);
     },
   };
 }
 
-/** Frames in a tumbling piece's strip, and its size in CSS pixels (as .craft-flight). */
+/** Frames in a tumbling piece's strip (style.css steps through `--frames` of them), and its size in CSS pixels (as .craft-flight). */
 export const TUMBLE_FRAMES = 12;
 const TUMBLE_CSS = 48;
 const strips = new Map<MatId, string>();
 
+/** Waits until the browser is idle (Safari has no requestIdleCallback: a short timeout stands in). */
+const idle = () => new Promise((done) => ('requestIdleCallback' in window ? window.requestIdleCallback(done, { timeout: 2000 }) : setTimeout(done, 50)));
+
 /**
  * Every material's model, for the Bag, and its tumbling pieces for crafting scenes: fetched in the background once the
- * title is up, one at a time, each piece made when the browser is idle, so none of it ever holds up a frame or a
- * crafting scene. Until a material's are made, its pieces fly as its icon.
+ * title is up, one at a time, each frame of each piece drawn in its own idle moment, so none of it ever holds up a frame
+ * or a crafting scene. Until a material's are made, its pieces fly as its icon.
  */
 export async function loadMaterialArt() {
+  const px = Math.round(TUMBLE_CSS * Math.min(2, window.devicePixelRatio || 1)), turns = tumbleTurns(TUMBLE_FRAMES);
   for (const m of MAT_ORDER) {
     const item = itemModel(m)!;
     if (!(await loadItemModel(item.url))) continue;
-    await new Promise((idle) => ('requestIdleCallback' in window ? requestIdleCallback(idle, { timeout: 2000 }) : setTimeout(idle, 50)));
-    const strip = tumbleStrip(item, Math.round(TUMBLE_CSS * Math.min(2, window.devicePixelRatio || 1)), TUMBLE_FRAMES);
-    const blob = strip && await new Promise<Blob | null>((done) => strip.toBlob(done));
+    await idle();
+    // One square frame at a time, each copied into its place along the strip.
+    const frame = document.createElement('canvas');
+    frame.width = frame.height = px;
+    const view = itemView(frame, item, turns, 1.1);
+    if (!view) return;
+    const strip = document.createElement('canvas');
+    strip.width = px * turns.length;
+    strip.height = px;
+    const ctx = strip.getContext('2d')!;
+    for (const [i, t] of turns.entries()) {
+      await idle();
+      view.frame(t.y, t.x);
+      ctx.drawImage(frame, i * px, 0);
+    }
+    const blob = await new Promise<Blob | null>((done) => strip.toBlob(done));
     if (blob) strips.set(m, URL.createObjectURL(blob));
   }
 }

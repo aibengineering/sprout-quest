@@ -45,5 +45,4 @@ def build_weapon(root):
 
 
 # Standard diagonal weapon presentation (root Y=-pi/4, scale=(1,1.25,1.25)); icon == complete.
-CAMERA = dict(ppu=420, anchor=(0.29, 0, 0.30), elevation=0)
 LENGTH = 1.3

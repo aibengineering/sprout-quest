@@ -4,9 +4,6 @@ from lib import empty, sphere, toon
 from gear._charm_shapes import collect, cord
 
 
-CAMERA = {'ppu': 445, 'anchor': (0, 0, 0), 'elevation': math.radians(12)}
-
-
 def build_item(root):
     parts = {}
     for i in range(4):
