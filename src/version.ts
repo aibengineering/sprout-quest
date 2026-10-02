@@ -36,6 +36,21 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.7',
+    date: '2026-10-02',
+    title: 'Rooms, Recipes and Echoes',
+    notes: [
+      "🌱 Tend Poppy's Garden by hand, planting, watering and picking",
+      "🏡 Walk into Granny's Kitchen and Bram's Sawmill",
+      "🪚 Carry logs to Bram's saw, pull its lever and collect the planks",
+      "🍳 Pick Granny's recipes, carry one plate to the pot and watch it cook",
+      "🪨 Follow Poppy underground and hide from the Pebblers' eye beams",
+      "🕯️ Echo Cavern stays moody, with clearer rocks and a lit cave entrance",
+      "📖 Granny's recipe book fits phones and wide screens",
+      "🐛 Fixes: Granny's reunion freeze and the blocked sawmill approach",
+    ],
+  },
+  {
     version: '0.3.6',
     date: '2026-09-30',
     title: 'Made by Hand',
