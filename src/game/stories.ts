@@ -14,6 +14,7 @@ import { POPPY } from './stories/poppy';
 import { VILLAGE_STORY } from './stories/village';
 import { DOJO_STORY } from './stories/dojo';
 import { NEIGHBOUR_STORIES } from './stories/neighbours';
+import { HUNT_STORY } from './stories/hunts';
 import { RESIDENT_STORIES } from './stories/residents';
 
 export interface StoryStep {
@@ -50,7 +51,7 @@ export interface Story {
   /** Props belonging to the separate underground map, rather than the overworld. */
   undergroundObjs?: WorldObj[];
   /** Which map owns this step's cast (the entrance scene can still be outdoors). */
-  castSpace?: (step: number) => 'world' | 'echo';
+  castSpace?: (step: number) => 'world' | 'echo' | 'gallery';
   /** Extra setup for one of its fights (by flag), such as someone watching from the edge. */
   fight?: (flag: string) => Partial<BattleSetup> | undefined;
   /** Small touches every frame (moods that react to what's around). */
@@ -67,7 +68,7 @@ export interface Story {
   layers?: Partial<MapLayers>;
 }
 
-export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY, DRUMS, ...NEIGHBOUR_STORIES, VILLAGE_STORY, PIP_STORY, ...RESIDENT_STORIES, DOJO_STORY];
+export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY, DRUMS, HUNT_STORY, ...NEIGHBOUR_STORIES, VILLAGE_STORY, PIP_STORY, ...RESIDENT_STORIES, DOJO_STORY];
 
 /** How far through a story you are (0 = not started; the step count = finished). */
 export const stepOf = (id: string) => G.save.stories[id] ?? 0;
@@ -110,7 +111,7 @@ export function syncStories() {
   for (const st of STORIES) {
     const cast = castOut(st) ? st.cast(stepOf(st.id)) : [];
     const space = st.castSpace?.(stepOf(st.id)) ?? 'world';
-    for (const [key, actors] of [['world', G.over.actors], ['echo', G.over.echo.actors]] as const) {
+    for (const [key, actors] of [['world', G.over.actors], ['echo', G.over.echo.actors], ['gallery', G.over.oreGallery.actors]] as const) {
       const specs = key === space ? cast : [];
       for (const a of actors.list.filter((a) => a.id.startsWith(`${st.id}:`) && !specs.some((c) => c.id === a.id))) actors.remove(a.id);
       for (const spec of specs) {

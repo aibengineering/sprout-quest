@@ -177,7 +177,7 @@ export function allIconIds(): string[] {
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
     ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
-    ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_hazel', 'npc_moss', 'npc_alder', ...KITCHEN_PLANS.map((p)=>`b_${p.art}`),
+    ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_rook', 'npc_moss', 'npc_alder', ...KITCHEN_PLANS.map((p)=>`b_${p.art}`),
     // Story portraits and keepsakes.
     'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots', 'echoanklet',
     'npc_bram', 'npc_bram_happy', 'npc_bram_hurt', 'pie', 'npc_pip', 'npc_pip_wow', ...Object.keys(MEALS).map((m) => `meal_${m}`),

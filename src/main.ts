@@ -11,7 +11,7 @@ import { revive, spirit } from './game/death';
 import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/gathering';
 import { interact } from './game/interact';
 import { doorwayTick, drawRoomHud, enterRoom, leaveRoom, roomTick } from './game/rooms';
-import { enterEchoCave, leaveEchoCave, undergroundTick } from './game/underground';
+import { enterEchoCave, leaveEchoCave, enterOreGallery, leaveOreGallery, useBurrow, undergroundTick } from './game/underground';
 import { kitchenDebug } from './game/kitchenRoom';
 import { drawGardenHud, gardenDebug, gardenTick, inGarden } from './game/gardenWork';
 import { sawmillDebug } from './game/sawmillRoom';
@@ -312,6 +312,9 @@ requestAnimationFrame(frame);
   leaveRoom,
   enterEchoCave,
   leaveEchoCave,
+  enterOreGallery,
+  leaveOreGallery,
+  useBurrow,
   /** What's going on in Granny's Kitchen (the ingredient plate and creation animation). */
   get kitchen() { return kitchenDebug(); },
   /** What's going on in Bram's Sawmill (what you're carrying, what's on the bench). */

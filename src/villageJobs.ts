@@ -16,31 +16,31 @@ export const VILLAGE_JOBS: VillageJob[] = [
   KITCHEN_EXTENSION,
   home('pip', 1, 'Pip’s been sleeping underground. Reckon we can manage a roof. Clover wants flowers by his door.'),
   { ...project('training1', 'training', 1, 'Alder', 'Alder heard about the Woolves. Says we need somewhere to practise our footwork. I’ll build his dojo; he does the teaching.', 1), recruit: 'alder' },
-  home('hazel', 1, 'Pip knows an herbalist. Hazel brought cuttings for Poppy’s beds. Let’s give her somewhere to keep them.'),
+  home('rook', 1, 'Rook’s back from the Hollow. Wants a lodge, shelves and a board for his commissions. I can do the timber.'),
   project('garden2', 'garden', 2, 'Poppy', 'Poppy’s running out of beds. She wants room for herbs. More plots, same gate.', 1),
   home('pip', 2, 'Pip’s stones are taking over the floor. A study should keep them out of Clover’s kitchen.'),
   project('training2', 'training', 2, 'Alder', 'Alder needs room for the moving targets. Pine for the deck. He’ll show you how to meet a rush.', 2),
   home('moss', 1, 'Clover knows a baker who needs an oven and a roof. Moss can use her new kitchen. Berries and flowers will make him welcome.'),
-  home('hazel', 2, 'Hazel wants to shelter Poppy’s cuttings through winter. Pine beams, crystal glass, flowers round the sill.'),
+  home('rook', 2, 'Rook’s filled the shelves already. Says the collectors back home favour the bigger specimens. More shelves, then.'),
   project('garden3', 'garden', 3, 'Poppy', 'Poppy has filled the beds again. Let’s give them the whole field, with lamps for the late watering.', 3),
   home('moss', 2, 'Moss needs a cool place for his dough. Glimmerwood and crystal. He asked for flowers where Clover can see them.'),
   project('training3', 'training', 3, 'Alder', 'Alder’s ready for the harder lessons. Stronger timber, a proper gong. Poppy insists on flowers beside the door.', 3),
   kitchen(2), kitchen(3),
   home('pip', 3, 'Pip wants to catalogue the stones he’s brought home. Glimmer shelves, iron brackets, crystal windows.'),
-  home('hazel', 3, 'Hazel’s delicate cuttings need a warm conservatory. Glimmer timber, crystal and flowers from the beds.'),
+  home('rook', 3, 'Rook wants a grand hall for his finest commissions. Glimmer beams and crystal windows. Clover asked for curtains.'),
   home('moss', 3, 'Moss wants an oven of his own beside the larder. Ember beams and obsidian, with berries for the first batch.'),
 ];
 export const jobDone = (s: SaveState, j: VillageJob) => j.home ? homeLevel(s, j.home) >= j.level : j.project ? s.build[j.project] >= j.level : kitchenLevel(s) >= j.level;
 export const villageDue = (s: SaveState) => s.flags.includes('bram:hut') && s.build.sawmill > 0;
 const completed = (s: SaveState, id: string) => jobDone(s, VILLAGE_JOBS.find((j) => j.id === id)!);
-const FOUNDATIONS: Record<string, string[]> = { kitchen: ['garden1'], pip1: ['kitchen'], training1: ['pip1'], hazel1: ['pip1', 'garden1'], moss1: ['hazel1', 'kitchen'] };
+const FOUNDATIONS: Record<string, string[]> = { kitchen: ['garden1'], pip1: ['kitchen'], training1: ['pip1'], rook1: ['pip1', 'garden1'], moss1: ['pip1', 'kitchen'] };
 export function jobLock(s: SaveState, j: VillageJob): string | null {
   if (!villageDue(s)) return 'Help Bram settle into Sowerby first.';
   if (jobDone(s, j)) return 'That work is already complete.';
   if (j.level > 1) {
     const previous = VILLAGE_JOBS.find((p) => p.owner === j.owner && p.level === j.level - 1)!;
     if (!jobDone(s, previous)) return `Build ${previous.name} first.`;
-    if (j.home && !s.flags.includes(j.home === 'pip' ? 'pip:candy' : `${j.home}:recipe`)) return `Visit ${j.owner} at their home first.`;
+    if (j.home && !s.flags.includes(j.home === 'pip' ? 'pip:candy' : j.home === 'rook' ? 'rook:lodge' : `${j.home}:recipe`)) return `Visit ${j.owner} at their home first.`;
     if (j.project === 'training' && !s.flags.includes('alder:met')) return 'Meet Alder at his dojo first.';
   }
   if ((FOUNDATIONS[j.id] ?? []).some((id) => !completed(s, id))) return 'Finish the earlier village foundations first.';

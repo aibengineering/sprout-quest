@@ -10,10 +10,10 @@ export default {
     { material: 'flower', part: 'flower', at: 1560, duration: 480, contact: 'soft', sound: 'craftFluff' },
   ],
   phases: [
-    { at: 0, stage: 'steep', text: 'Hazel’s herbs steep into a soft green tea…' },
+    { at: 0, stage: 'steep', text: 'Poppy’s herbs steep into a soft green tea…' },
     { at: 1500, stage: 'bloom', text: 'Two meadow flowers open on the surface.' },
     { at: 2500, stage: 'reveal', text: 'Meadow Tea, ready for a steady hand.', sound: 'craftStitch' },
   ],
   sceneLabel: 'Herbs form the green tea and floating leaves. Two flowers crown the reusable cup.',
-  pattern: 'herbs below, flowers above', intro: 'Granny sets out Hazel’s favourite cup.', finished: 'A warm cup for the mining trail.',
+  pattern: 'herbs below, flowers above', intro: 'Granny sets out her favourite cup.', finished: 'A warm cup for the mining trail.',
 } satisfies CraftPresentation;

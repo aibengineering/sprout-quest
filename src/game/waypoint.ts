@@ -17,7 +17,10 @@ export function objective(): { x: number; y: number } | null {
   // A side story you're in the middle of leads the way (or has you find it yourself).
   if (storyNoArrow()) return null;
   const side = storyTarget();
-  if (G.over.underground && (!side || side.x < G.over.echo.x0 || side.x >= G.over.echo.x0 + G.over.echo.w)) return ECHO_EXIT;
+  if (G.over.underground) {
+    const map=G.over.underground;
+    if(!side || side.x<map.x0 || side.x>=map.x0+map.w) return map===G.over.echo ? ECHO_EXIT : {x:G.over.oreGallery.spawn.x,y:14.5};
+  }
   if (side) return side;
   const s = G.save, w = G.world;
   const q = currentQuest(s);

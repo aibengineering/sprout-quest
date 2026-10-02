@@ -14,7 +14,7 @@ import { gardenOpen } from '../garden';
 import { poppyAway } from '../procession';
 import { kitchenOpen } from '../kitchen';
 import { enterRoom, roomAct } from './rooms';
-import { enterEchoCave, leaveEchoCave } from './underground';
+import { enterEchoCave, leaveEchoCave, enterOreGallery, leaveOreGallery, useBurrow } from './underground';
 import { gardenAct, gardenStation, POPPY_AWAY } from './gardenWork';
 import { askBramForHome } from './housing';
 import { visitResident } from './stories/residents';
@@ -83,7 +83,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
   },
 
   elder: () => talkToElder(),
-  residence: (o) => visitResident(o.home!),
+  residence: (o) => o.home==='rook' && G.save.homes.rook ? enterRoom('hunter') : visitResident(o.home!),
 
   /** Granny's blue house: her Kitchen, once she cooks. */
   house() {
@@ -94,8 +94,8 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
   /** Something to work at by hand in a room, or the way back out. */
   // The Garden's sign by the field's gate: its next level, in the village plans.
   station: (o) => (o.id === 'garden:sign' ? askBramForHome() : o.id?.startsWith('garden:') ? gardenStation(o) : roomAct(o)),
-  door: (o) => o.id === 'echo:exit' ? leaveEchoCave() : roomAct(o),
-  prop: (o) => { if (o.id === 'prop_cavemouth') enterEchoCave(); },
+  door: (o) => o.id?.startsWith('burrow:') ? useBurrow(o.id.slice(7)) : o.id==='resource:exit' ? leaveOreGallery() : o.id === 'echo:exit' ? leaveEchoCave() : roomAct(o),
+  prop: (o) => { if (o.id === 'prop_cavemouth') enterEchoCave(); else if(o.id==='resource:mouth')enterOreGallery(); },
 
   async pickup() {
     await paused(() => G.ui.itemFound('twig', 'Twig Sword', "It's just a stick… but it feels right in your hand.", '🗡️', 'You found', true));

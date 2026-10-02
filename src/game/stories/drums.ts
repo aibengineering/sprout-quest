@@ -282,7 +282,7 @@ function drawCeremony(ctx: CanvasRenderingContext2D, ts: number) {
 /** Darkness is a mask with small, wall-clipped pools of light: mainly the carried core. */
 function drawDark(ctx: CanvasRenderingContext2D, ts: number, view: { x: number; y: number; w: number; h: number }) {
   const cave = G.over.currentZone.id === 'cave', me = you();
-  const underground = !!G.over.underground;
+  const underground = !!(G.over.underground === G.over.echo);
   // The main cavern stays readable everywhere; the secluded tunnels keep the deeper mood.
   const want = cave ? (underground ? .78 : .28) : 0;
   dim += (want - dim) * Math.min(1, Math.max(0, clock - last) * 5);
@@ -336,10 +336,10 @@ function drawDark(ctx: CanvasRenderingContext2D, ts: number, view: { x: number; 
 
 const layers: Partial<MapLayers> = {
   // The tunnels run along the top of the Cavern: let the camera look up past it, so they're clear of the HUD.
-  headroom: () => G.over.underground ? 3 : 0,
+  headroom: () => (G.over.underground === G.over.echo) ? 3 : 0,
   ground(ctx, ts) {
     if (G.over.currentZone.id !== 'cave') return;
-    if (drumsStep(G.save) === 3) drawPetals(ctx, ts, G.over.underground ? PETALS.slice(0, 6) : PETALS.slice(5));
+    if (drumsStep(G.save) === 3) drawPetals(ctx, ts, (G.over.underground === G.over.echo) ? PETALS.slice(0, 6) : PETALS.slice(5));
     if (drumsStep(G.save) === 2 && proc?.phase === 'arrived') drawPetals(ctx, ts, PETALS.slice(0, 3));
     if (crack) drawCrack(ctx, ts);
   },
@@ -348,9 +348,9 @@ const layers: Partial<MapLayers> = {
     last = clock;
     clock = now;
     if (G.over.currentZone.id !== 'cave' && dim < 0.01) return;
-    if (G.over.underground) drawCeremony(ctx, ts);
+    if ((G.over.underground === G.over.echo)) drawCeremony(ctx, ts);
     drawDark(ctx, ts, view);
-    if (G.over.underground && proc && drumsStep(G.save) === 2 && (proc.phase === 'warn' || proc.phase === 'look')) drawGaze(ctx, ts);
+    if ((G.over.underground === G.over.echo) && proc && drumsStep(G.save) === 2 && (proc.phase === 'warn' || proc.phase === 'look')) drawGaze(ctx, ts);
     ripples = ripples.filter((r) => clock - r.t < 1.1);
     for (const r of ripples) drawRipple(ctx, ts, view, r);
   },
@@ -370,7 +370,7 @@ export const DRUMS: Story = {
     {
       id: 'entrance', label: 'Follow Poppy into the cave',
       target: () => POPPY_START,
-      done: () => !G.over.underground && G.over.currentZone.id === 'cave' && near(POPPY_START, 4.2),
+      done: () => !(G.over.underground === G.over.echo) && G.over.currentZone.id === 'cave' && near(POPPY_START, 4.2),
       async then() {
         await scene(async () => {
           await pan(POPPY_START.x, POPPY_START.y - .7, 600);
@@ -384,8 +384,8 @@ export const DRUMS: Story = {
     },
     {
       id: 'catch', label: 'Catch up with Poppy and talk to her',
-      target: () => G.over.underground ? CATCH_AT : MOUTH,
-      done: () => !!G.over.underground && G.save.flags.includes('drums:caught'),
+      target: () => (G.over.underground === G.over.echo) ? CATCH_AT : MOUTH,
+      done: () => !!(G.over.underground === G.over.echo) && G.save.flags.includes('drums:caught'),
       async then() {
         // A procession, carrying a glowing core into the side tunnels.
         proc = new Procession(2.4);
@@ -413,9 +413,9 @@ export const DRUMS: Story = {
       id: 'tail',
       get label() { return proc?.phase === 'arrived' ? 'Talk to Poppy above the gate' : 'Follow the Pebblors, unseen'; },
       // In the Cavern you go by their echoes; anywhere else, the arrow takes you back to the tunnels.
-      noArrow: () => proc?.phase !== 'arrived' && !!G.over.underground,
-      target: () => !G.over.underground ? MOUTH : proc?.phase === 'arrived' ? POPPY_AT : MOUTH,
-      done: () => !!G.over.underground && proc?.phase === 'arrived' && G.save.flags.includes('drums:listen') && near(POPPY_AT, 1.8),
+      noArrow: () => proc?.phase !== 'arrived' && !!(G.over.underground === G.over.echo),
+      target: () => !(G.over.underground === G.over.echo) ? MOUTH : proc?.phase === 'arrived' ? POPPY_AT : MOUTH,
+      done: () => !!(G.over.underground === G.over.echo) && proc?.phase === 'arrived' && G.save.flags.includes('drums:listen') && near(POPPY_AT, 1.8),
       async then() {
         // Commit the unique gift before the cinematic can be interrupted by a reload.
         if (!G.save.perks.includes('echoanklet')) G.save.perks.push('echoanklet');
@@ -481,7 +481,7 @@ export const DRUMS: Story = {
     },
     {
       id: 'home', label: 'Go home to Sowerby',
-      target: () => G.over.underground ? ECHO_EXIT : ({ x: GRANNY_AT.x, y: GRANNY_AT.y + 1 }),
+      target: () => (G.over.underground === G.over.echo) ? ECHO_EXIT : ({ x: GRANNY_AT.x, y: GRANNY_AT.y + 1 }),
       done: () => inVillage() && near(GRANNY_AT, 2.8),
       async then() {
         await scene(async () => {
@@ -539,7 +539,7 @@ export const DRUMS: Story = {
 
   tick(step) {
     const me = you();
-    if (!G.over.underground) return;
+    if (!(G.over.underground === G.over.echo)) return;
     // Nothing jumps out at you in the tunnels, or by the way up while you're following the procession.
     if (inSideArea(me) || (step < 3 && near(MOUTH, 5))) G.over.roamers.calm = Math.max(G.over.roamers.calm, 0.5);
     // The rubble slope at the far end of the pocket climbs back up.

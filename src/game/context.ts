@@ -17,6 +17,8 @@ import { poppyAway } from '../procession';
 import { World } from '../world';
 import { homeLevel } from '../housing';
 import { shortcutById, shortcutLock } from '../shortcuts';
+import { seamOpen, SEAMS } from '../seams';
+import { HUNTS, hunting } from '../hunts';
 
 /**
  * What the game is doing, which decides what takes input and what's drawn:
@@ -85,7 +87,7 @@ export function persist() {
   G.save.pos = G.over.savedPos;
   if (G.over.room) G.save.room = G.over.room.id;
   else delete G.save.room;
-  if (G.over.underground) G.save.underground = { id: 'echo', x: G.over.x, y: G.over.y };
+  if (G.over.underground) G.save.underground = { id: G.over.underground === G.over.echo ? 'echo' : 'resource', x: G.over.x, y: G.over.y };
   else delete G.save.underground;
   saveState(G.save);
 }
@@ -126,6 +128,7 @@ export function showZoneBanner(z: Zone) {
 export function syncWorld() {
   const s = G.save;
   G.world.setShortcuts(s);
+  G.over.oreGallery.sync(s);
   for (const o of [...G.world.objs, ...G.over.echo.objs]) {
     const z = o.zone ? zoneById(o.zone) : null;
     if (o.kind === 'gate' && z?.guardian) o.hidden = s.bosses.includes(z.guardian.kind);
@@ -158,6 +161,10 @@ export function syncWorld() {
     }
     // Bram's cabin goes up at the end of his story.
     if (o.kind === 'prop' && o.id === 'bramhut') o.hidden = !s.flags.includes('bram:hut');
+    if(o.boulder) { o.hidden=seamOpen(s,o.boulder); o.label='Break boulder'; }
+    if(o.tunnel) o.hidden=!seamOpen(s,o.tunnel);
+    if(o.id==='burrow:home') o.hidden=!SEAMS.some(p=>seamOpen(s,p.id));
+    if(o.hunt){const a=hunting(s).active,d=HUNTS.find(d=>d.kind===o.hunt)!;o.hidden=!a||a.kind!==o.hunt||a.status!=='tracking';o.foes=a?[{kind:a.kind,lv:a.lv}]:[];o.text=d.name;}
     if (o.shown) o.hidden = !o.shown(s);
     // A story's monsters are only there at their step.
     if (o.story) o.hidden ||= (s.stories[o.story.id] ?? 0) !== o.story.step;

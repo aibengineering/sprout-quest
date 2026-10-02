@@ -1,3 +1,4 @@
+import { VARIANTS } from '../hunts';
 // The fight simulation: you, the monsters, strikes, shots and effects. Drawing lives in render.ts, each monster's
 // behaviour in monsters.ts, and each weapon element's trick in elements.ts.
 import { ARENA_RX, ARENA_RY, OvalArena } from '../arena';
@@ -151,14 +152,16 @@ export class Battle implements FoeWorld, HitWorld {
   private spawn(f: Foe, x: number, y: number, minion: boolean): Enemy {
     const def = MONSTERS[f.kind];
     const s = scaleMonster(def, f.lv, f.golden);
+    const variant=f.variant?VARIANTS[f.variant]:null;
+    if(variant){s.hp=Math.round(s.hp*variant.hp);s.atk=Math.round(s.atk*variant.atk);s.def=Math.round(s.def*variant.def);}
     // The prologue's gentle foes still fall to one three-hit combo.
     if (f.gentle) s.hp = Math.round(s.hp / MONSTER_HP);
     const e: Enemy = {
-      kind: f.kind, def, lv: f.lv, golden: f.golden,
+      kind: f.kind, def, lv: f.lv, golden: f.golden, variant:f.variant,
       // The level gap: a monster above you hits harder, one below you softer (see levelEdge).
-      hp: s.hp, maxHp: s.hp, atk: Math.round((f.gentle ? s.atk * GENTLE_ATK : s.atk) * levelEdge(f.lv, this.stats.lv)), dfn: s.def, xp: Math.round(s.xp * xpEdge(this.stats.lv, f.lv)), spd: def.spd * (f.golden ? 1.1 : 1),
+      hp: s.hp, maxHp: s.hp, atk: Math.round((f.gentle ? s.atk * GENTLE_ATK : s.atk) * levelEdge(f.lv, this.stats.lv)), dfn: s.def, xp: Math.round(s.xp * xpEdge(this.stats.lv, f.lv)), spd: def.spd * (f.golden ? 1.1 : 1) * (variant?.speed??1),
       x, y, vx: 0, vy: 0, kx: 0, ky: 0,
-      r: def.r, z: 0, state: MONSTER_AI[f.kind].start, t: rand(0.3, 1.2), dir: 0, face: 1, orb: Math.atan2(y, x), sub: 0, last: null,
+      r: def.r*(variant?1.12:1), z: 0, state: MONSTER_AI[f.kind].start, t: rand(0.3, 1.2), dir: 0, face: 1, orb: Math.atan2(y, x), sub: 0, last: null,
       windup: 0, flash: 0, stun: 0, evadeCd: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
       burn: 0, burnDmg: 0, burnTick: 0, dotColor: BURN_COLOR, slow: 0, squash: 0, tx: 0, ty: 0, flag: false, minion,
     };

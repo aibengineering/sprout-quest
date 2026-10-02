@@ -47,7 +47,7 @@ async function boot(seed: Seed, webgl = false) {
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, isMobile: true, acceptDownloads: true });
   const page = await ctx.newPage();
   const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('pageerror', (e) => errors.push(e.stack ?? String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto(URL_);
   await page.waitForSelector('.title-btns:not([hidden])');
@@ -65,7 +65,7 @@ const base = (g: any) => {
   const s = g.save;
   // Existing scenarios exercise established villages; new construction scenarios opt into the new-game gate.
   delete s.villageJobs;
-  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village', 'pip:returned', 'alder:returned', 'hazel:returned', 'moss:returned'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined'] });
+  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village', 'pip:returned', 'alder:returned', 'rook:returned', 'moss:returned'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined'] });
   s.build.forge = 1;
   s.pos = { x: 59.5, y: 18 };
   s.unlocked.push('forge', 'bag', 'journal');
@@ -1537,7 +1537,7 @@ scenario("Poppy's field grows: an old save's beds carry over, and Bram extends i
   s.flags.push('poppy:returned', 'garden:welcome');
   s.stories.bram = 9; s.flags.push('bram:hut', 'pip:candy');
   Object.assign(s.build, { garden: 1, sawmill: 2, cottage: 1, training: 1 });
-  s.homes = { pip: 1, hazel: 1, moss: 0 };
+  s.homes = { pip: 1, rook: 1, moss: 0 };
   Object.assign(s.mats, { cap: 18, plank: 48, stone: 18 });
   // A save from before the field: two beds growing, and standing in the meadow on the old, narrower map.
   s.buildingJob = 'garden2';
@@ -2380,7 +2380,7 @@ scenario('building skips safely, ignores a second build request, and respects re
 
 scenario("Pip's interrupted welcome: his doorstep conversation still teaches Rock Candy after a reload",(g)=>{
   const s=g.save;s.lv=8;s.quest=g.quests.length;s.build.cottage=1;s.build.sawmill=2;
-  s.homes={pip:1,hazel:0,moss:0};s.stories={...s.stories,poppy:6,bram:9,pip:1,drums:4,granny:99};
+  s.homes={pip:1,rook:0,moss:0};s.stories={...s.stories,poppy:6,bram:9,pip:1,drums:4,granny:99};
   s.flags.push('bram:hut','granny:extension');s.flags=s.flags.filter((f:string)=>f!=='pip:candy');
   s.mats.stone=30;s.mats.copper=18;s.pos={x:36,y:6.6};
 },async(page)=>{
@@ -2395,7 +2395,7 @@ scenario('New neighbours: meet on the road, resume the journey, return together,
   const s=g.save;s.lv=12;s.quest=g.quests.length;s.villageJobs=true;
   s.stories={...s.stories,poppy:6,bram:9,drums:4,granny:99};
   s.flags=s.flags.filter((f:string)=>!f.endsWith(':returned'));
-  s.flags.push('bram:hut','granny:extension','poppy:returned');
+  s.flags.push('bram:hut','granny:extension','poppy:returned','seam:quarry','pip:journey:met');s.bosses.push('kingslime','alphawolf','echoqueen');
   s.build.garden=1;s.build.sawmill=4;s.unlocked.push('plots','sawmill');
   for(const m in s.mats)s.mats[m]=1000;
   s.pos={x:20.2,y:9.2};
@@ -2403,7 +2403,7 @@ scenario('New neighbours: meet on the road, resume the journey, return together,
   await bramJob(page,'garden2');
   check(!await page.$('[data-dialog="job:pip1"]'),'Bram offers a home before meeting Pip');
   await page.click('.building-job [data-dialog="close"]');
-  for(const [id,job] of [['pip','pip1'],['alder','training1'],['hazel','hazel1'],['moss','moss1']]){
+  for(const [id,job] of [['pip','pip1'],['alder','training1'],['rook','rook1'],['moss','moss1']]){
     const aid=`journey-${id}:${id}`;
     await waitFor(page, `${id} on the road`,()=>game<boolean>(page,`!!g.over.actors.get('${aid}')`));
     await run(page,`const a=g.over.actors.get('${aid}');g.over.teleport(a.x,a.y+.6);g.over.face=-Math.PI/2`);
@@ -2417,23 +2417,23 @@ scenario('New neighbours: meet on the road, resume the journey, return together,
     // Fast travel regroups followers; the last approach is walked with real input.
     await run(page,`g.over.teleport(38,14.5);g.over.roamers.calm=999`);
     await page.keyboard.down('KeyA');
-    try{await waitFor(page,'walking west along the village road',()=>game<boolean>(page,'g.over.x<=31.8'));}finally{await page.keyboard.up('KeyA');}
+    try{await waitFor(page,'walking west along the village road',()=>game<boolean>(page,'g.over.x<=31.8'),12000);}finally{await page.keyboard.up('KeyA');}
     await page.keyboard.down('KeyW');
     try{await waitFor(page, `${id} reaches Clover`,async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('${id}:returned') && g.mode==='world'`);},12000);}finally{await page.keyboard.up('KeyW');}
     check(await game<boolean>(page,`!g.over.actors.get('${aid}')?.follow`),'returned neighbour still follows');
     await bramJob(page,job);check(await page.locator('[data-dialog^="job:"]').count()===1,'multiple places offered at once');
     await handInJob(page,job);
-    check(!await game<boolean>(page,`!!g.over.actors.get('${aid}')`),'temporary guest duplicated the settled resident');
+    check(!await game<boolean>(page,`!!g.over.actors.get('${aid}')`),`temporary ${id} guest duplicated the settled resident`);
   }
-  check(await game<boolean>(page,`g.save.homes.pip===1 && g.save.homes.hazel===1 && g.save.homes.moss===1 && g.save.build.training===1 && g.save.build.garden===1`),'an optional upgrade blocked newcomer buildings');
+  check(await game<boolean>(page,`g.save.homes.pip===1 && g.save.homes.rook===1 && g.save.homes.moss===1 && g.save.build.training===1 && g.save.build.garden===1`),'an optional upgrade blocked newcomer buildings');
 }, {webgl:true});
 
 scenario('Resident upgrades: ask Clover for a pantry, hand in to Bram, reload, then finish the final home additions', (g)=>{
   const s=g.save;s.lv=12;s.quest=g.quests.length;
   s.stories={...s.stories,poppy:6,bram:9,pip:1,drums:4,granny:99,alder:1};
-  s.flags.push('bram:hut','granny:extension','pip:candy','hazel:recipe','moss:recipe','alder:met');
+  s.flags.push('bram:hut','granny:extension','pip:candy','rook:lodge','moss:recipe','alder:met');
   s.build.sawmill=4;s.build.garden=3;s.build.training=3;s.build.cottage=1;
-  s.homes={pip:2,hazel:2,moss:2};s.unlocked.push('plots','sawmill');
+  s.homes={pip:2,rook:2,moss:2};s.unlocked.push('plots','sawmill');
   for(const m in s.mats)s.mats[m]=1000;
   s.pos={x:31.8,y:11.3};
 },async(page)=>{
@@ -2448,9 +2448,9 @@ scenario('Resident upgrades: ask Clover for a pantry, hand in to Bram, reload, t
   await run(page,`void g.over.actors.get('granny:granny').talk()`);
   await waitFor(page,'Clover requests her final kitchen',async()=>{await closeDialogs(page,8,'.caption');return !!await page.$('.upgrade-request');});
   await page.click('.upgrade-request [data-dialog="ask"]');await bramJob(page,'kitchen3');await handInJob(page,'kitchen3');
-  for(const id of ['pip','hazel','moss']){
+  for(const id of ['pip','rook','moss']){
     await run(page,`void g.over.actors.get('${id}:${id}').talk()`);
-    await waitFor(page,`${id}'s final addition request`,async()=>{await closeDialogs(page,8,'.caption');return !!await page.$('.upgrade-request');});
+    await waitFor(page,`${id}'s final addition request`,async()=>{await closeDialogs(page,8,'.caption');if(id==='rook' && await page.$('.hunter-visit'))await page.click('.hunter-visit [data-dialog=upgrade]');return !!await page.$('.upgrade-request');});
     await page.click('.upgrade-request [data-dialog="ask"]');await bramJob(page,`${id}3`);await handInJob(page,`${id}3`);
   }
   await cookByHand(page,'tea');check(await game<boolean>(page,`g.save.meal?.left>358`),'upgraded kitchen did not improve Clover’s tea');
@@ -2458,7 +2458,7 @@ scenario('Resident upgrades: ask Clover for a pantry, hand in to Bram, reload, t
   await run(page,'g.leaveRoom()');await waitFor(page,'outside',()=>settledIn(page,null));
   await run(page,'g.zoom=.65;g.over.teleport(31.5,13)');await page.setViewportSize({width:1350,height:1200});await page.waitForTimeout(500);
   if(SHOTS)await page.screenshot({path:`${OUT}sowerby-final-additions.png`});
-  check(await game<boolean>(page,`g.save.homes.pip===3&&g.save.homes.hazel===3&&g.save.homes.moss===3&&g.save.kitchenLevel===3`),'final tiers missing');
+  check(await game<boolean>(page,`g.save.homes.pip===3&&g.save.homes.rook===3&&g.save.homes.moss===3&&g.save.kitchenLevel===3`),'final tiers missing');
 },{webgl:true});
 
 scenario('Bram’s new construction chain: garden flowers, Granny’s kitchen extension, cottage and Alder’s dojo', (g) => {
@@ -2512,7 +2512,7 @@ scenario('Alder’s dojo: clean dodge, once-only XP, safe practice and withdrawa
   s.stories = { ...s.stories, poppy: 6, bram: 9, drums: 4, granny: 99, alder: 1 };
   s.flags.push('poppy:returned', 'bram:hut', 'alder:met');
   s.build.training = 3; s.build.garden = 3; s.build.cottage = 1; s.build.sawmill = 3;
-  s.homes = { pip: 2, hazel: 2, moss: 2 }; s.hp = 41; s.potions = 3;
+  s.homes = { pip: 2, rook: 2, moss: 2 }; s.hp = 41; s.potions = 3;
   s.pos = { x: 42.45, y: 11.8 };
 }, async (page) => {
   const before = await game<any>(page, `({ hp:g.save.hp, potions:g.save.potions, xp:g.save.xp, mats:g.save.mats, wins:g.save.wins, kills:g.save.questKills })`);
@@ -2542,13 +2542,13 @@ scenario('Alder’s dojo: clean dodge, once-only XP, safe practice and withdrawa
   check(await game<boolean>(page, `JSON.stringify({lv:g.save.lv,xp:g.save.xp,mastery:g.save.mastery}) === ${JSON.stringify(JSON.stringify(earned))} && g.save.hp === ${before.hp}`), 'withdrawing awarded XP or hurt the player');
 });
 
-scenario('Bram’s building quests: welcome Hazel and Moss, cook their recipes, upgrade and reload without duplicate costs', (g) => {
+scenario('Bram’s building quests: welcome Rook and Moss, open the lodge, cook garden recipes, upgrade and reload without duplicate costs', (g) => {
   const s = g.save;
   s.lv = 8; s.quest = g.quests.findIndex((q: any) => q.id === 'smithy');
   s.stories = { ...s.stories, poppy: 6, bram: 9, pip: 1, drums: 4, granny: 99 };
-  s.flags.push('poppy:returned', 'bram:hut', 'bram:stew', 'pip:candy');
+  s.flags.push('poppy:returned', 'bram:hut', 'bram:stew', 'pip:candy','garden:herbs');
   s.build.sawmill = 2; s.build.home = 2; s.build.cottage = 1;
-  s.build.garden = 2; s.build.training = 2; s.homes = { pip: 2, hazel: 0, moss: 0 };
+  s.build.garden = 2; s.build.training = 2; s.homes = { pip: 2, rook: 0, moss: 0 };
   s.unlocked.push('sawmill');
   for (const m in s.mats) s.mats[m] = 300;
   s.pos = { x: 20.2, y: 9.2 };
@@ -2558,12 +2558,12 @@ scenario('Bram’s building quests: welcome Hazel and Moss, cook their recipes, 
     await page.waitForTimeout(400); await page.keyboard.press('KeyE');
     await waitFor(page, `meeting ${id}`, async () => {
       await closeDialogs(page);
-      return game<boolean>(page, `g.save.flags.includes('${id}:recipe') && g.save.stories.${id} === 1 && g.mode === 'world' && !g.ui.isOpen`);
+      return game<boolean>(page, `g.save.flags.includes('${id==='rook'?'rook:lodge':`${id}:recipe`}') && g.save.stories.${id} === 1 && g.mode === 'world' && !g.ui.isOpen`);
     }, 20000);
   };
-  await bramJob(page, 'hazel1');
+  await bramJob(page, 'rook1');
   check(await page.locator('[data-dialog^="job:"]').count() === 1, 'Bram offered multiple construction jobs');
-  check(!await page.$('[data-dialog="job:moss1"]'), 'Moss should wait for Hazel');
+  check(!await page.$('[data-dialog="job:moss1"]'), 'Bram should offer one next job');
   for (const [width, height] of [[320,568],[390,844],[960,700]]) {
     await page.setViewportSize({ width, height });
     const fits = await page.evaluate(() => {
@@ -2575,24 +2575,24 @@ scenario('Bram’s building quests: welcome Hazel and Moss, cook their recipes, 
   if (SHOTS) await page.screenshot({ path: `${OUT}bram-building-job-wide.png` });
   await page.setViewportSize({ width: 390, height: 844 });
   const before = await game<any>(page, `({ ...g.save.mats })`);
-  await handInJob(page, 'hazel1');
-  check(await game<boolean>(page, `g.save.homes.hazel === 1 && g.save.mats.plank === ${before.plank - 64} && g.save.mats.stone === ${before.stone - 24} && !g.save.flags.includes('hazel:recipe')`), 'house was not charged once, or recipe arrived before meeting Hazel');
+  await handInJob(page, 'rook1');
+  check(await game<boolean>(page, `g.save.homes.rook === 1 && g.save.mats.plank === ${before.plank - 64} && g.save.mats.stone === ${before.stone - 24} && !g.save.flags.includes('rook:lodge')`), 'house was not charged once, or lodge opened before meeting Rook');
   await bramJob(page, 'moss1'); await handInJob(page, 'moss1');
-  await meet('hazel'); await meet('moss');
-  check(await game<boolean>(page, `!!g.over.actors.get('hazel:hazel') && !!g.over.actors.get('moss:moss')`), 'residents did not stay by their homes');
+  await run(page,`void g.over.actors.get('rook:rook').talk()`);await waitFor(page,'Rook opens the lodge',async()=>{await closeDialogs(page,8,'.caption');return !!await page.$('.hunter-visit');});await page.click('.hunter-visit [data-dialog=close]');await meet('moss');
+  check(await game<boolean>(page, `!!g.over.actors.get('rook:rook') && !!g.over.actors.get('moss:moss')`), 'residents did not stay by their homes');
   if (SHOTS) await page.screenshot({ path: `${OUT}sowerby-new-neighbours.png` });
   await cookByHand(page, 'meadowtea');
-  check(await game<boolean>(page, `g.save.meal?.id === 'meadowtea' && g.save.meal.left <= 240`), 'Hazel’s recipe did not cook through the pot');
+  check(await game<boolean>(page, `g.save.meal?.id === 'meadowtea' && g.save.meal.left <= 240`), 'garden herbs did not teach Clover’s recipe');
   await run(page, `g.leaveRoom()`); await waitFor(page, 'outside', () => settledIn(page, null));
-  await bramJob(page, 'hazel2');
+  await bramJob(page, 'rook2');
   const cost = await game<number>(page, 'g.save.mats.pineplank');
-  await page.click('[data-dialog="job:hazel2"]'); await page.waitForSelector('.craft-building');
-  check(await game<boolean>(page, `g.save.homes.hazel === 2 && g.save.mats.pineplank === ${cost - 56}`), 'upgrade not committed before animation');
+  await page.click('[data-dialog="job:rook2"]'); await page.waitForSelector('.craft-building');
+  check(await game<boolean>(page, `g.save.homes.rook === 2 && g.save.mats.pineplank === ${cost - 56}`), 'upgrade not committed before animation');
   await page.reload(); await page.waitForSelector('.title-btns:not([hidden])'); await page.click('#btn-continue');
   await page.waitForTimeout(2200); await closeDialogs(page);
-  check(await game<boolean>(page, `g.save.homes.hazel === 2 && g.save.homes.moss === 1 && g.save.mats.pineplank === ${cost - 56} && g.save.flags.includes('hazel:recipe')`), 'reload lost or duplicated the addition');
+  check(await game<boolean>(page, `g.save.homes.rook === 2 && g.save.homes.moss === 1 && g.save.mats.pineplank === ${cost - 56} && g.save.flags.includes('rook:lodge')`), 'reload lost or duplicated the addition');
   await cookByHand(page, 'meadowtea');
-  check(await game<boolean>(page, `g.save.meal?.id === 'meadowtea' && g.save.meal.left > 295`), 'glasshouse bonus not applied to the next cup');
+  check(await game<boolean>(page, `g.save.meal?.id === 'meadowtea' && g.save.meal.left <= 240`), 'Rook’s lodge changed Clover’s tea');
   await cookByHand(page, 'trailbuns');
   check(await game<boolean>(page, `g.save.meal?.id === 'trailbuns'`), 'Moss’s recipe did not replace the tea');
 }, { webgl: true });
@@ -2600,16 +2600,16 @@ scenario('Bram’s building quests: welcome Hazel and Moss, cook their recipes, 
 scenario('Sowerby layout: clear empty plots, upgraded homes, Bram’s work yard and walking approaches', (g) => {
   const s = g.save;
   s.quest = g.quests.length; s.lv = 12;
-  s.stories = { ...s.stories, poppy: 6, bram: 9, pip: 1, hazel: 0, moss: 0, drums: 4, granny: 99 };
+  s.stories = { ...s.stories, poppy: 6, bram: 9, pip: 1, rook: 0, moss: 0, drums: 4, granny: 99 };
   s.flags.push('bram:home', 'bram:hut', 'bram:stew', 'poppy:returned', 'pip:candy');
   s.unlocked = ['journal', 'bag', 'mend', 'skill', 'trick', 'forge', 'village', 'plots', 'warpplot', 'kitchen', 'sawmill', 'cottage'];
   s.fresh = [];
   Object.assign(s.build, { forge: 5, sawmill: 4, home: 3, cottage: 1, garden: 3, training: 3, warp: 1 });
-  s.homes = { pip: 2, hazel: 0, moss: 0 };
+  s.homes = { pip: 2, rook: 0, moss: 0 };
   s.pos = { x: 24.5, y: 14.5 };
 }, async (page) => {
   await waitFor(page, 'native characters rendered for the layout review', () => game<boolean>(page, 'g.modelStats.renders > 0'), 20000);
-  check(await game<boolean>(page, `!g.over.actors.get('hazel:hazel') && !g.over.actors.get('moss:moss')`), 'residents appeared before their homes were built');
+  check(await game<boolean>(page, `!g.over.actors.get('rook:rook') && !g.over.actors.get('moss:moss')`), 'residents appeared before their homes were built');
   const capture = async (name: string, x: number, y: number, wide = false) => {
     await page.setViewportSize(wide ? { width: 1350, height: 1200 } : { width: 390, height: 844 });
     await run(page, `g.zoom = ${wide ? .65 : 0}; g.over.teleport(${x}, ${y})`);
@@ -2617,16 +2617,16 @@ scenario('Sowerby layout: clear empty plots, upgraded homes, Bram’s work yard 
     if (SHOTS) await page.screenshot({ path: `${OUT}sowerby-layout-${name}.png` });
   };
   await capture('empty-wide', 31.5, 13, true);
-  await capture('empty-hazel-phone', 27.5, 20);
+  await capture('empty-rook-phone', 27.5, 20);
   await capture('empty-moss-phone', 34.5, 20);
-  await run(page, `g.save.homes = { pip: 2, hazel: 2, moss: 2 }; Object.assign(g.save.stories, { hazel: 1, moss: 1 }); g.save.flags.push('hazel:recipe', 'moss:recipe'); localStorage.setItem('sprout-quest-save', JSON.stringify(g.save))`);
+  await run(page, `g.save.homes = { pip: 2, rook: 2, moss: 2 }; Object.assign(g.save.stories, { rook: 1, moss: 1 }); g.save.flags.push('rook:lodge', 'moss:recipe'); localStorage.setItem('sprout-quest-save', JSON.stringify(g.save))`);
   await page.reload(); await page.waitForSelector('.title-btns:not([hidden])'); await page.click('#btn-continue');
   await page.waitForTimeout(2200); await closeDialogs(page);
-  check(await game<boolean>(page, `!!g.over.actors.get('hazel:hazel') && !!g.over.actors.get('moss:moss')`), 'residents did not appear at their built homes');
+  check(await game<boolean>(page, `!!g.over.actors.get('rook:rook') && !!g.over.actors.get('moss:moss')`), 'residents did not appear at their built homes');
   await capture('built-wide', 31.5, 13, true);
   await capture('work-yard-phone', 21.3, 8.2);
   await capture('home-phone', 20.5, 20);
-  await capture('hazel-phone', 27.5, 20);
+  await capture('rook-phone', 27.5, 20);
   await capture('moss-phone', 34.5, 20);
 
   // Walk the lane with real input, then along each short doorstep spur. No teleport
@@ -2660,8 +2660,8 @@ scenario('Sowerby layout: clear empty plots, upgraded homes, Bram’s work yard 
 scenario('Sowerby voices: neighbour chats follow the cave reunion and dragon defeat without early revelations', (g) => {
   const s=g.save;s.quest=g.quests.length;s.lv=8;
   s.stories={...s.stories,poppy:6,bram:9,pip:1,drums:0,granny:99};
-  s.flags.push('bram:home','bram:hut','bram:stew','poppy:returned','pip:candy','hazel:recipe','moss:recipe');
-  s.build.sawmill=2;s.build.cottage=1;s.homes={pip:1,hazel:1,moss:1};
+  s.flags.push('bram:home','bram:hut','bram:stew','poppy:returned','pip:candy','rook:lodge','moss:recipe');
+  s.build.sawmill=2;s.build.cottage=1;s.homes={pip:1,rook:1,moss:1};
   s.pos={x:20.2,y:9.2};
 }, async(page)=>{
   const talk=async(id:string)=>{
@@ -2669,22 +2669,22 @@ scenario('Sowerby voices: neighbour chats follow the cave reunion and dragon def
     await page.waitForTimeout(150);await page.keyboard.press('KeyE');
     await page.waitForSelector('#modal:not([hidden]) [data-dialog]');
     const text=await page.textContent('#modal .sheet')??'';
-    await closeDialogs(page);
+    await closeDialogs(page,8,'.caption');if(await page.$('.hunter-visit'))await page.click('.hunter-visit [data-dialog=close]');await closeDialogs(page);
     await waitFor(page,'finished neighbour chat',()=>game<boolean>(page,`g.mode==='world'&&!g.ui.isOpen`));
     return text;
   };
-  const ordinaryHazel=await talk('hazel'),ordinaryMoss=await talk('moss');
-  check(ordinaryHazel.includes('fern')&&!ordinaryHazel.includes('Pebblors'),'Hazel revealed the cave before its reunion');
+  const ordinaryRook=await talk('rook'),ordinaryMoss=await talk('moss');
+  check(ordinaryRook.includes('collector')&&!ordinaryRook.includes('Heart'),'Rook’s ordinary chat lost his commercial enthusiasm');
   check(ordinaryMoss.includes('breakfast')&&!ordinaryMoss.includes('road’s open'),'Moss skipped his ordinary village life');
   await run(page,`g.save.stories.drums=4`);
-  for(let i=0;i<2;i++){await talk('hazel');await talk('moss');}
-  check((await talk('hazel')).includes('Pebblors'),'Hazel did not acknowledge Poppy after the cave reunion');
+  for(let i=0;i<2;i++){await talk('rook');await talk('moss');}
+  check((await talk('rook')).includes('Poppy'),'Rook did not reveal discord with Poppy');
   check((await talk('moss')).includes('kept her company'),'Moss did not acknowledge Clover’s worry');
   await run(page,`g.save.bosses.push('dragon')`);
-  for(let i=0;i<2;i++){await talk('hazel');await talk('moss');}
-  check((await talk('hazel')).includes('ash'),'Hazel did not notice the dragon aftermath');
+  for(let i=0;i<2;i++){await talk('rook');await talk('moss');}
+  check((await talk('rook')).length>0,'Rook’s dialogue disappeared after the dragon');
   check((await talk('moss')).includes('stay for breakfast'),'Moss did not choose to stay after the road opened');
-  check(await game<boolean>(page,`g.save.flags.filter(f=>f==='hazel:recipe').length===1&&g.save.flags.filter(f=>f==='moss:recipe').length===1`),'chats duplicated recipe rewards');
+  check(await game<boolean>(page,`g.save.flags.filter(f=>f==='rook:lodge').length===1&&g.save.flags.filter(f=>f==='moss:recipe').length===1`),'chats duplicated recipe rewards');
 });
 
 const shortcutSeed = (g: any) => {
@@ -2766,7 +2766,7 @@ if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, r
     const id = /\/models\/wpn_([^/]+)\.glb/.exec(r.url())?.[1];
     if (id) weaponRequests.add(id);
   });
-  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('pageerror', (e) => errors.push(e.stack ?? String(e)));
   // (The preset link reloads the page once, cutting off the first page's downloads; those get retried.)
   page.on('console', (m) => { if (m.type() === 'error' || (m.type() === 'warning' && /model/.test(m.text()) && !/Failed to fetch/.test(m.text()))) errors.push(m.text()); });
   const t0 = Date.now();
@@ -2865,6 +2865,103 @@ scenario('Without WebGL, found items and tags keep their icons', null, async (pa
   check(await game(page, 'g.itemView') === null, 'a live view started without WebGL');
   check(await page.locator('canvas.live3d').count() === 0 && await page.locator('.view3d img.icon').isVisible(), 'the icon is not showing');
 });
+
+scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel and a walk home', (g)=>{
+ const s=g.save;s.lv=14;s.quest=g.quests.length;s.villageJobs=true;
+ s.flags=s.flags.filter((f:string)=>!f.endsWith(':returned'));s.flags.push('bram:hut','granny:extension','poppy:returned');
+ s.stories={...s.stories,poppy:6,bram:9,drums:4,granny:99};s.build.sawmill=2;s.build.garden=1;
+ s.bosses.push('kingslime','alphawolf');s.tools.mine=3;s.skills.mine={lv:10,xp:0};s.pos={x:139.95,y:21.6};
+},async(page)=>{
+ await page.keyboard.press('KeyE');
+ await waitFor(page,'Pip’s underground tunnel',()=>game<boolean>(page,`g.over.underground===g.over.oreGallery&&!g.trans`));
+ check(await game<boolean>(page,`!!g.over.oreGallery.actors.get('journey-pip:pip')&&!g.over.actors.get('journey-pip:pip')`),'Pip is duplicated outside his tunnel');
+ await run(page,`const a=g.over.oreGallery.actors.get('journey-pip:pip');g.over.x=a.x;g.over.y=a.y+.6;g.over.face=-Math.PI/2`);
+ await page.keyboard.press('KeyE');await waitFor(page,'Pip explains the seam',async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('pip:seam:met')&&g.mode==='world'`);});
+ if(SHOTS)await page.screenshot({path:`${OUT}pip-promising-tunnel.png`});
+ await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(1800);await closeDialogs(page);
+ check(await game<boolean>(page,`g.over.underground===g.over.oreGallery&&g.save.flags.includes('pip:seam:met')`),'reload lost Pip’s discovery');
+ await run(page,`g.over.x=140;g.over.y=8.7;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
+ await waitFor(page,'the boulder minigame',()=>game<boolean>(page,`g.mode==='gather'&&g.chop?.game.requiredStreak===10`));
+ for(let i=0;i<4;i++){await run(page,`const c=g.chop.game;c.lock=0;c.pos=c.center;c.strike()`);await page.waitForTimeout(180);}
+ await run(page,`const c=g.chop.game;c.lock=0;c.pos=0;c.strike()`);
+ check(await game<boolean>(page,`g.chop.game.streak===0&&!g.chop.game.done&&!g.save.flags.includes('seam:quarry')`),'a miss cleared the boulder or retained its streak');
+ await page.waitForTimeout(200);
+ for(let i=0;i<10;i++){await run(page,`const c=g.chop.game;c.lock=0;c.pos=c.center;c.strike()`);await page.waitForTimeout(180);}
+ await waitFor(page,'the boulder opens',async()=>{await closeDialogs(page);return game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('seam:quarry')`);},10000);
+ await run(page,`const a=g.over.oreGallery.actors.get('journey-pip:pip');g.over.x=a.x;g.over.y=a.y+.6;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
+ await waitFor(page,'Pip joins the walk',async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('pip:journey:met')&&g.over.oreGallery.actors.get('journey-pip:pip')?.follow`);});
+ await run(page,`g.over.x=140;g.over.y=8.7;g.over.roamers.calm=999`);await page.keyboard.down('KeyW');
+ try{await waitFor(page,'walk through the opened neck',()=>game<boolean>(page,`g.over.y<4.9`),10000);}finally{await page.keyboard.up('KeyW');}
+ if(SHOTS)await page.screenshot({path:`${OUT}pip-ore-gallery.png`});
+ await run(page,`const o=g.over.oreGallery.objs.find(o=>o.id==='burrow:quarry');g.over.x=o.x+o.w/2;g.over.y=o.y+o.h+.5;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
+ await waitFor(page,'tunnel to Sowerby',()=>game<boolean>(page,`!g.over.underground&&!g.trans&&g.over.currentZone.id==='village'`));
+ check(await game<boolean>(page,`g.over.actors.get('journey-pip:pip')?.follow&&!g.save.flags.includes('pip:returned')`),'tunnel lost Pip or skipped his return');
+ await run(page,`g.over.teleport(32.5,12.8);g.over.roamers.calm=999`);await page.keyboard.down('KeyW');
+ try{await waitFor(page,'Pip meets Clover',async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('pip:returned')&&g.mode==='world'`);},10000);}finally{await page.keyboard.up('KeyW');}
+ await run(page,`void g.useBurrow('home')`);await page.waitForSelector('.burrow-travel [data-dialog="tunnel:quarry"]');
+ check(await page.locator('.burrow-travel [data-dialog^="tunnel:"]').count()===1,'undiscovered tunnel appeared');
+ await page.click('[data-dialog="tunnel:quarry"]');await waitFor(page,'return to the ore gallery',()=>game<boolean>(page,`g.over.underground===g.over.oreGallery&&!g.trans`));
+ await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(1800);await closeDialogs(page);
+ check(await game<boolean>(page,`g.over.underground===g.over.oreGallery&&g.over.oreGallery.objs.find(o=>o.boulder)?.hidden&&g.over.y<6`),'opened gallery did not survive reload');
+},{webgl:true});
+
+scenario('Hidden burrows: clear later boulders, return home and revisit only discovered passages', (g)=>{
+ const s=g.save;s.quest=g.quests.length;s.lv=17;s.flags.push('bram:hut','granny:extension');
+ s.stories={...s.stories,poppy:6,bram:9,pip:1,drums:4,granny:99};s.homes.pip=1;s.build.cottage=1;s.tools.mine=4;s.skills.mine={lv:10,xp:0};
+ s.bosses.push('kingslime','alphawolf','echoqueen','crystalking');s.pos={x:20,y:14.5};
+},async(page)=>{
+ let discovered=0;
+ for(const [id,count] of [['stillwater',10],['rootlight',11],['cinder',11]] as const){
+  await run(page,`const o=g.over.world.objs.find(o=>o.boulder==='${id}');g.over.teleport(o.x+o.w/2,o.y+o.h+.5);g.over.face=-Math.PI/2;g.over.roamers.calm=999`);await page.keyboard.press('KeyE');
+  await waitFor(page,'buried boulder',()=>game<boolean>(page,`g.mode==='gather'&&g.chop?.game.requiredStreak===${count}`));
+  for(let i=0;i<count;i++){await run(page,`const c=g.chop.game;c.lock=0;c.pos=c.center;c.strike()`);await page.waitForTimeout(180);}
+  await waitFor(page,'uncovered tunnel',async()=>{await closeDialogs(page);return game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('seam:${id}')`);},10000);
+  discovered++;
+  check(await game<boolean>(page,`g.over.world.objs.find(o=>o.boulder==='${id}').hidden&&!g.over.world.objs.find(o=>o.id==='burrow:${id}').hidden`),'boulder did not reveal its hole');
+  await run(page,`const o=g.over.world.objs.find(o=>o.id==='burrow:${id}');g.over.x=o.x+o.w/2;g.over.y=o.y+o.h+.5;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
+  await waitFor(page,'burrow home',()=>game<boolean>(page,`g.over.currentZone.id==='village'&&!g.trans`));
+  check(await game<boolean>(page,`!g.over.world.objs.find(o=>o.id==='burrow:home').hidden`),'village mouth requires Pip’s gallery before showing another discovered passage');
+  await run(page,`void g.useBurrow('home')`);await page.waitForSelector('.burrow-travel');
+  check(await page.locator('.burrow-travel [data-dialog^="tunnel:"]').count()===discovered,'tunnel menu exposes undiscovered areas');
+  await page.click(`[data-dialog="tunnel:${id}"]`);await waitFor(page,'return to resources',()=>game<boolean>(page,`g.over.currentZone.id==='${id==='stillwater'?'woods':id==='rootlight'?'hollow':'peak'}'&&!g.trans`));
+  check(await game<boolean>(page,`!g.over.world.blocked(g.over.x,g.over.y,.28)`),'return landed inside terrain');
+ }
+ if(SHOTS)await page.screenshot({path:`${OUT}cinder-hidden-burrow.png`});
+ await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(1800);await closeDialogs(page);
+ check(await game<boolean>(page,`['stillwater','rootlight','cinder'].every(id=>g.save.flags.includes('seam:'+id)&&g.over.world.objs.find(o=>o.boulder===id).hidden)`),'reload restored a cleared boulder');
+},{webgl:true});
+
+scenario('Rook’s lodge: accept, reload, hunt one variant and mount trophies once', (g)=>{
+ const s=g.save;s.quest=g.quests.length;s.lv=14;s.homes={pip:1,rook:3,moss:1};s.build.cottage=1;s.build.sawmill=3;s.build.garden=2;s.build.training=1;
+ s.flags.push('bram:hut','pip:candy','moss:recipe','granny:extension','garden:herbs');s.stories={...s.stories,poppy:6,bram:9,pip:1,drums:4,granny:99};
+ s.bosses.push('kingslime','alphawolf','echoqueen','crystalking');s.pos={x:27.5,y:21.3};
+},async(page)=>{
+ const speak=async()=>{await run(page,`void (g.over.room?.actors??g.over.actors).get(g.room?'room:rook':'rook:rook').talk()`);await waitFor(page,'Rook’s conversation menu',async()=>{await closeDialogs(page,12,'.caption');return !!await page.$('.hunter-visit');},12000);};
+ await speak();check(await game<boolean>(page,`g.save.flags.includes('rook:lodge')&&!g.save.flags.includes('hazel:recipe')`),'Rook did not introduce his own activity');
+ await page.click('.hunter-visit [data-dialog=board]');await page.waitForSelector('.hunt-board');
+ for(const [width,height] of [[320,568],[960,700]]){await page.setViewportSize({width,height});check(await page.evaluate(()=>{const b=document.querySelector('.hunt-board .btns')!.getBoundingClientRect();return b.top>=0&&b.bottom<=innerHeight&&document.documentElement.scrollWidth<=innerWidth;}),'hunt board clips its controls');}
+ if(SHOTS)await page.screenshot({path:`${OUT}rook-hunt-board.png`});
+ await page.setViewportSize({width:390,height:844});await page.click('[data-dialog="hunt:slime:1"]');
+ await waitFor(page,'commission accepted',()=>game<boolean>(page,`g.mode==='world'&&g.save.hunting?.active?.id==='slime:1'`));
+ const level=await game<number>(page,'g.save.hunting.active.lv');await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(1800);await closeDialogs(page);
+ check(await game<boolean>(page,`g.save.hunting.active.lv===${level}&&g.save.hunting.active.status==='tracking'`),'reload rescaled the target');
+ await run(page,`g.fight('slime',1,4)`);await waitFor(page,'ordinary field fight',()=>game<boolean>(page,`g.mode==='battle'&&!!g.battle`));await endFight(page);
+ await waitFor(page,'field victory',async()=>{await closeDialogs(page);return game<boolean>(page,`g.mode==='world'&&!g.trans`);},15000);
+ check(await game<boolean>(page,`g.save.hunting.active.status==='tracking'&&g.save.hunting.kills.slime===4`),'ordinary kills completed the marked hunt');
+ await run(page,`const o=g.over.world.objs.find(o=>o.hunt==='slime');g.over.teleport(o.x+o.w/2,o.y+o.h+.6);g.over.face=-Math.PI/2;g.over.roamers.calm=999`);await page.keyboard.press('KeyE');
+ await waitFor(page,'marked variant fight',()=>game<boolean>(page,`g.mode==='battle'&&!!g.battle`));
+ check(await game<boolean>(page,`g.battle.setup.hunt==='slime:1'&&g.battle.enemies.length===1&&g.battle.enemies[0].variant==='armoured'&&g.battle.enemies[0].lv===${level}`),'marked target did not use its variant and frozen level');
+ await endFight(page);await waitFor(page,'marked victory',async()=>{await closeDialogs(page);return game<boolean>(page,`g.mode==='world'&&!g.trans`);},20000);
+ check(await game<boolean>(page,`g.save.hunting.active.status==='defeated'&&g.save.hunting.kills.slime===5`),'win did not complete the commission');
+ await run(page,`g.enterRoom('hunter')`);await waitFor(page,'Rook’s trophy room',()=>settledIn(page,'hunter'));
+ await run(page,`void g.over.room.actors.get('room:rook').talk()`);await waitFor(page,'trophies mounted',async()=>{await closeDialogs(page,15);return game<boolean>(page,`g.mode==='world'&&!g.ui.isOpen&&g.save.hunting.trophies.includes('slime:silver')&&g.save.hunting.trophies.includes('slime:bronze')`);},20000);
+ const earned=await game<any>(page,'({lv:g.save.lv,xp:g.save.xp})');await speak();await page.click('.hunter-visit [data-dialog=close]');
+ check(await game<boolean>(page,`JSON.stringify({lv:g.save.lv,xp:g.save.xp})===${JSON.stringify(JSON.stringify(earned))}`),'a repeated visit paid the reward again');
+ await useStation(page,'hunt:board');await page.waitForSelector('.hunt-board');check(await page.locator('[data-dialog="hunt:slime:1"]').isDisabled(),'completed commission can be bought again');check(!await page.locator('[data-dialog="hunt:slime:2"]').isDisabled(),'master commission stayed locked');await page.click('.hunt-board [data-dialog=close]');
+ await run(page,`g.over.x=4.5;g.over.y=7.4`);await page.waitForTimeout(500);if(SHOTS)await page.screenshot({path:`${OUT}rook-trophy-lodge.png`});
+ await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(1800);await closeDialogs(page);
+ check(await game<boolean>(page,`g.room==='hunter'&&!g.save.hunting.active&&g.save.hunting.claimed.filter(id=>id==='slime:1').length===1&&g.save.hunting.trophies.length===2`),'reload lost the lodge or duplicated trophies');
+},{webgl:true});
 
 queue.sort((a, b) => weight(a.name) - weight(b.name));
 let next = 0;

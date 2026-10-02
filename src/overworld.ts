@@ -22,6 +22,8 @@ import type { SaveState } from './state';
 import { hash2, T, type TileMap, type World, type WorldObj } from './world';
 import { WALL_RISE, type Room } from './room';
 import { EchoCave, ECHO_OUTSIDE } from './echoCave';
+import { ResourceCave } from './resourceCave';
+import { HUNTS, VARIANTS } from './hunts';
 import { SHORTCUTS, shortcutById, shortcutBuilt, shortcutWorldPoint, type Shortcut } from './shortcuts';
 import { HOMES, homeLevel } from './housing';
 import { drawBubble, drawSpeech } from './bubble';
@@ -100,7 +102,8 @@ export class Overworld {
   readonly actors = new Actors();
   readonly echo = new EchoCave();
   /** Separate underground map, with its own collision and cast. */
-  underground: EchoCave | null = null;
+  readonly oreGallery = new ResourceCave();
+  underground: EchoCave | ResourceCave | null = null;
   /**
    * What the side stories paint onto the map: on the ground (under everyone), and over everything (light and dark,
    * ripples, a gaze on the floor), under the feelings over people's heads. `view` is the screen, in map pixels.
@@ -158,7 +161,7 @@ export class Overworld {
 
   /** Where your save puts you: outside the door while you're in a room (rooms aren't saved positions). */
   get savedPos() {
-    return this.underground ? { ...ECHO_OUTSIDE } : this.room ? { ...this.outside } : { x: this.x, y: this.y };
+    return this.underground ? this.underground === this.echo ? { ...ECHO_OUTSIDE } : { ...this.oreGallery.outside } : this.room ? { ...this.outside } : { x: this.x, y: this.y };
   }
 
   /** Steps into a room, from `outside` (where you'll come back out). */
@@ -198,6 +201,15 @@ export class Overworld {
   enterCave(at = this.echo.spawn) {
     this.teleport(ECHO_OUTSIDE.x, ECHO_OUTSIDE.y);
     this.underground = this.echo;
+    this.relocate(at.x, at.y);
+    this.face = -Math.PI / 2;
+    this.chopping = null;
+  }
+
+  enterOreGallery(at = this.oreGallery.spawn) {
+    this.teleport(this.oreGallery.outside.x, this.oreGallery.outside.y);
+    this.oreGallery.sync(this.save);
+    this.underground = this.oreGallery;
     this.relocate(at.x, at.y);
     this.face = -Math.PI / 2;
     this.chopping = null;
@@ -503,6 +515,9 @@ export class Overworld {
     for (const it of items) it.draw();
     if (this.carried) drawCarried(ctx, this.x * ts, this.y * ts, ts, this.carried.icon, this.carried.emoji, this.carried.count, this.t);
     this.fx.draw(ctx);
+    if(this.underground===this.oreGallery&&!this.oreGallery.opened){
+      ctx.fillStyle='rgba(23,21,32,.92)';ctx.fillRect((this.oreGallery.x0+1)*ts,ts,12*ts,5*ts);
+    }
     this.layers?.over(ctx, ts, { x: camX, y: camY, w: vw, h: vh });
     // Feelings float above everything, so you can read them from across the screen.
     for (const a of this.cast.list) {
@@ -746,7 +761,7 @@ export class Overworld {
 
   /** A gathering node: a ribboned tree or an ore-flecked rock when ready, a stump or rubble while it comes back. */
   private drawTree(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
-    const ready = (this.save.nodes[o.id!] ?? 0) <= Date.now();
+    const ready = !!o.boulder || (this.save.nodes[o.id!] ?? 0) <= Date.now();
     const rock = NODES[o.node!].skill === 'mine';
     // Rocks have no drawn fallback: skip them (glow and all) until the sprites are in.
     if (rock && !frame(`env/${o.node}_node`)) return;
@@ -765,7 +780,7 @@ export class Overworld {
     shadow(ctx, cx, by, ts * (ready ? 0.42 : 0.3));
     const sprite = frame(`env/${o.node}_${ready ? 'node' : rock ? 'rubble' : 'stump'}`) ?? (ready && !rock ? frame(o.node === 'pine' ? 'env/pine0' : 'env/tree1') : null);
     // A touch bigger than the scenery trees so they stand out.
-    if (sprite) drawFrame(ctx, sprite, cx, by, (ts / TILE_BU) * (ready ? 1.12 : 1), { rot: ready ? shake + Math.sin(this.t * 1.2 + o.x) * 0.012 : 0 });
+    if (sprite) drawFrame(ctx, sprite, cx, by, (ts / TILE_BU) * (o.boulder ? o.boulder==='quarry'?3.1:1.65 : ready ? 1.12 : 1), { rot: ready ? shake + Math.sin(this.t * 1.2 + o.x) * 0.012 : 0 });
     else if (!ready) {
       ctx.fillStyle = '#9a6a44';
       ctx.beginPath();
@@ -1139,6 +1154,15 @@ export class Overworld {
   /** Draws something on the map: a sprite if the art is loaded, otherwise a simple canvas drawing. */
   private drawObj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
     if (o.hidden) return;
+    if(o.id?.startsWith('burrow:')||o.id==='resource:mouth'||o.id==='resource:exit'){
+      const x=(o.x+o.w/2)*ts,y=(o.y+o.h)*ts;
+      ctx.fillStyle='#6a5a4f';ctx.beginPath();ctx.ellipse(x,y-ts*.13,ts*.6,ts*.32,0,0,TAU);ctx.fill();
+      ctx.fillStyle='#211d2b';ctx.beginPath();ctx.ellipse(x,y-ts*.17,ts*.46,ts*.24,0,0,TAU);ctx.fill();
+      ctx.strokeStyle='#c0a16f';ctx.lineWidth=ts*.045;ctx.beginPath();ctx.ellipse(x,y-ts*.16,ts*.51,ts*.28,0,Math.PI,TAU);ctx.stroke();
+      if(o.id==='resource:mouth'){ctx.fillStyle='#ffd790';ctx.fillRect(x+ts*.44,y-ts*.5,ts*.12,ts*.17);if(Math.hypot(this.x-o.x,this.y-o.y)<5)this.nameTag(ctx,'⛏️ A promising tunnel',x,y-ts*.8,ts);}
+      else if(o.id!=='resource:exit'&&Math.hypot(this.x-o.x,this.y-o.y)<4)this.nameTag(ctx,o.id==='burrow:home'?'⛏️ Pip’s tunnels':'⛏️ Tunnel to Sowerby',x,y-ts*.6,ts);
+      return;
+    }
     switch (o.kind) {
       case 'gate':
         if (this.drawGate(ctx, o, ts)) return;
@@ -1278,8 +1302,9 @@ export class Overworld {
     for (const { m, i, x, y } of spots.sort((a, b) => a.y - b.y)) {
       if (!monsterReady(m.kind)) continue;
       shadow(ctx, x * ts, y * ts, ts * 0.28 * spriteScale(m.kind));
-      drawMonsterAt(ctx, `${slotOf(o, 'pack')}:${i}`, m.kind, false, this.t + i / 3, o.facing ? o.facing < 0 : i % 2 === 0, x * ts, y * ts, ts * 0.74 * spriteScale(m.kind));
+      drawMonsterAt(ctx, `${slotOf(o, 'pack')}:${i}`, m.kind, false, this.t + i / 3, o.facing ? o.facing < 0 : i % 2 === 0, x * ts, y * ts, ts * (o.hunt?0.9:0.74) * spriteScale(m.kind), o.hunt?{tint:VARIANTS[HUNTS.find(d=>d.kind===o.hunt)!.variant].color,tintAmount:.3}:{});
     }
+    if(o.hunt)this.nameTag(ctx,`${o.text} · Lv ${o.foes![0].lv}`,(o.x+o.w/2)*ts,(o.y-.8)*ts,ts);
   }
 
   /** A building's sprite (by its upgrade level) and how far to push it back so its front meets the collision box. */

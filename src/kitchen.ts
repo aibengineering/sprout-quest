@@ -24,7 +24,7 @@ export interface Meal {
 
 export const MEALS: Record<MealId, Meal> = {
   meadowtea: { id: 'meadowtea', name: 'Meadow Tea', icon: '🍵', recipe: { herb: 6, flower: 2 },
-    desc: 'A wider sweet spot when mining, for 4 minutes.', seconds: 240, from: 'Hazel' },
+    desc: 'A wider sweet spot when mining, for 4 minutes.', seconds: 240, from: 'Granny Clover' },
   trailbuns: { id: 'trailbuns', name: 'Trail Buns', icon: '🥖', recipe: { berry: 8, fluff: 6 },
     desc: '+20% woodcutting and mining XP for 4 minutes.', seconds: 240, from: 'Moss' },
   pancakes: {
@@ -56,12 +56,12 @@ export const MEALS: Record<MealId, Meal> = {
 export const MEAL_ORDER: MealId[] = ['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy', 'tart', 'meadowtea', 'trailbuns'];
 
 /** The flag that teaches Granny a newcomer's recipe (or, for her tart, the Garden's first berries). */
-const TAUGHT: Partial<Record<MealId, string>> = { stew: 'bram:stew', rockcandy: 'pip:candy', tart: 'garden:berries', meadowtea: 'hazel:recipe', trailbuns: 'moss:recipe' };
+const TAUGHT: Partial<Record<MealId, string>> = { stew: 'bram:stew', rockcandy: 'pip:candy', tart: 'garden:berries', meadowtea: 'garden:herbs', trailbuns: 'moss:recipe' };
 
 /** A better home gives the resident room to improve their own recipe, without adding a permanent combat bonus. */
 export function mealSeconds(s: SaveState, id: MealId) {
-  const resident = id === 'rockcandy' ? 'pip' : id === 'meadowtea' ? 'hazel' : id === 'trailbuns' ? 'moss' : null;
-  return MEALS[id].seconds + (resident ? Math.max(0, homeLevel(s, resident) - 1) * 60 : Math.max(0, kitchenLevel(s) - 1) * 30);
+  const resident = id === 'rockcandy' ? 'pip' : id === 'trailbuns' ? 'moss' : null;
+  return MEALS[id].seconds + (id==='meadowtea' && s.legacyHerbLevel ? Math.max(0,s.legacyHerbLevel-1)*60 : resident ? Math.max(0, homeLevel(s, resident) - 1) * 60 : Math.max(0, kitchenLevel(s) - 1) * 30);
 }
 export const mealDescription = (s: SaveState, id: MealId) => MEALS[id].desc.replace(`${MEALS[id].seconds / 60} minutes`, `${mealSeconds(s, id) / 60} minutes`);
 
@@ -69,7 +69,7 @@ export const mealDescription = (s: SaveState, id: MealId) => MEALS[id].desc.repl
 export const kitchenOpen = (s: SaveState) => (s.stories.poppy ?? 0) >= 6 && (!s.villageJobs || s.flags.includes('granny:extension'));
 
 /** Recipes Granny can make: her own, plus whatever newcomers have taught her. */
-export const knownMeals = (s: SaveState) => MEAL_ORDER.filter((id) => !TAUGHT[id] || s.flags.includes(TAUGHT[id]!));
+export const knownMeals = (s: SaveState) => MEAL_ORDER.filter((id) => !TAUGHT[id] || s.flags.includes(TAUGHT[id]!) || (id==='meadowtea' && s.flags.includes('hazel:recipe')));
 
 /** Cooks a meal and eats it, replacing whatever you'd eaten before. */
 export function cook(s: SaveState, id: MealId): 'ok' | 'missing' | 'unknown' {

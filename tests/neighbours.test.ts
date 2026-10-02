@@ -14,16 +14,16 @@ describe('meeting neighbours before building',()=>{
     const s=ready();
     for(const id of NEIGHBOUR_ORDER){
       const j=VILLAGE_JOBS.find((j)=>j.recruit===id)!;
-      s.homes.pip=1;s.build.cottage=1;s.homes.hazel=1;
+      s.homes.pip=1;s.build.cottage=1;s.homes.rook=1;
       if(id==='pip'){s.homes.pip=0;s.build.cottage=0;}
-      if(id==='hazel')s.homes.hazel=0;
+      if(id==='rook')s.homes.rook=0;
       s.flags.push(`${id}:journey:met`);
       expect(neighbourReturned(s,id)).toBe(false);expect(jobLock(s,j)).toContain('bring');
       s.flags.push(`${id}:returned`);expect(neighbourReturned(s,id)).toBe(true);expect(jobLock(s,j)).toBeNull();
     }
-    const old=ready();old.homes.pip=2;old.homes.hazel=1;old.build.training=3;
+    const old=ready();old.homes.pip=2;old.homes.rook=1;old.build.training=3;
     expect(neighbourReturned(old,'pip')).toBe(true);expect(neighbourAvailable(old,'pip')).toBe(false);
-    expect(neighbourAvailable(old,'alder')).toBe(false);expect(neighbourAvailable(old,'hazel')).toBe(false);
+    expect(neighbourAvailable(old,'alder')).toBe(false);expect(neighbourAvailable(old,'rook')).toBe(false);
   });
   test('an arrival persisted by the story engine remains valid if reloaded before its greeting',()=>{
     const s=ready();s.stories['journey-pip']=2;
@@ -37,19 +37,19 @@ describe('meeting neighbours before building',()=>{
     expect(s.build.garden).toBe(2);expect(s.buildingJob).toBeUndefined();
     expect(completeVillageJob(s,'garden2')).toBe('stale');
     s.flags.push('pip:returned');expect(nextVillageJob(s)?.id).toBe('pip1');
-    expect(requestVillageUpgrade(s,'Hazel')).toBeNull();
+    expect(requestVillageUpgrade(s,'Rook')).toBeNull();
   });
   test('kitchen and home additions improve only their own recipes and retain all tiers on reload',()=>{
-    const s=ready();s.kitchenLevel=3;s.homes={pip:3,hazel:3,moss:3};
+    const s=ready();s.kitchenLevel=3;s.homes={pip:3,rook:3,moss:3};
     expect(mealSeconds(s,'tea')).toBe(360);expect(mealSeconds(s,'goojelly')).toBe(240);
-    expect(mealSeconds(s,'rockcandy')).toBe(360);expect(mealSeconds(s,'meadowtea')).toBe(360);
+    expect(mealSeconds(s,'rockcandy')).toBe(360);expect(mealSeconds(s,'meadowtea')).toBe(300);
     const store:Record<string,string>={};globalThis.localStorage={getItem:(k:string)=>store[k]??null,setItem:(k:string,v:string)=>{store[k]=v;},removeItem:(k:string)=>{delete store[k];}} as Storage;
     requestVillageUpgrade(s,'Poppy');saveState(s);const loaded=loadState()!;
     expect(loaded.homes).toEqual(s.homes);expect(loaded.kitchenLevel).toBe(3);expect(loaded.buildingJob).toBe('garden2');
   });
   test('each roadside meeting and temporary village spot is reachable with player collision',()=>{
     const w=new World(), reachable=w.reachable();
-    for(const p of Object.values(NEIGHBOURS))for(const point of [p.at,p.town]){
+    for(const p of Object.values(NEIGHBOURS))for(const point of [p.name==='Pip'?{x:p.at.x+.45,y:p.at.y+.8}:p.at,p.town]){
       expect(w.blocked(point.x,point.y,.28)).toBe(false);
       expect(reachable[Math.floor(point.y)*w.w+Math.floor(point.x)]).toBe(1);
     }

@@ -1,3 +1,4 @@
+import { VARIANTS } from '../hunts';
 // Draws a fight: the clearing, telegraphs, fighters, shots and effects, and the overlay text. Reads the battle's
 // state and never changes the simulation (it only adds cosmetic particles).
 import { ARENA_RX, ARENA_RY } from '../arena';
@@ -466,13 +467,13 @@ function drawEnemy(b: Battle, ctx: Ctx, e: Enemy) {
     const pop = popIn(b, e);
     sxk *= pop;
     syk *= pop;
-    drawMonsterAt(ctx, slotOf(e, 'enemy'), e.kind, e.golden, (b.t * (e.def.boss ? 5 : 7) + e.seed) / 6, e.face < 0, e.x + shake, e.y - e.z - (1 - pop) * 14, UNIT * spriteScale(e.kind), {
+    drawMonsterAt(ctx, slotOf(e, 'enemy'), e.kind, e.golden, (b.t * (e.def.boss ? 5 : 7) + e.seed) / 6, e.face < 0, e.x + shake, e.y - e.z - (1 - pop) * 14, UNIT * spriteScale(e.kind) * (e.variant ? 1.12 : 1), {
       alpha, sx: sxk, sy: syk,
       // Bosses get hit constantly, so their flash is softer to keep them readable.
       flash: e.flash > 0 || (e.dead && alpha > 0.7) ? (e.def.boss && !e.dead ? 0.45 : 1) : 0,
       // A Pebblor glows gold while it's open to hits after its slam.
-      tint: e.burn > 0 ? e.dotColor : e.slow > 0 ? '#8af09a' : e.state === 'exposed' ? '#ffe07a' : e.windup > 0.5 ? '#ff4a4a' : undefined,
-      tintAmount: e.burn > 0 ? 0.25 + Math.sin(b.t * 20) * 0.1 : e.slow > 0 ? 0.3 : e.state === 'exposed' ? 0.35 + Math.sin(b.t * 14) * 0.12 : (e.windup - 0.5) * 0.5,
+      tint: e.burn > 0 ? e.dotColor : e.slow > 0 ? '#8af09a' : e.state === 'exposed' ? '#ffe07a' : e.windup > 0.5 ? '#ff4a4a' : e.variant?VARIANTS[e.variant].color:undefined,
+      tintAmount: e.burn > 0 ? 0.25 + Math.sin(b.t * 20) * 0.1 : e.slow > 0 ? 0.3 : e.state === 'exposed' ? 0.35 + Math.sin(b.t * 14) * 0.12 : e.windup > .5 ? (e.windup - 0.5) * 0.5 : e.variant ? .28 : 0,
     });
   } else {
     ctx.save();

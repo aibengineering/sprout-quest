@@ -6,6 +6,7 @@ import type { GardenState } from './garden';
 import type { RoomId } from './room';
 import { inSideArea, MOUTH } from './procession';
 import type { Homes } from './housing';
+import type { HuntingState } from './hunts';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
 export interface SaveState {
@@ -40,6 +41,9 @@ export interface SaveState {
   build: Record<ProjectId, number>;
   /** Resident homes and additions, independent of workshop upgrades. */
   homes: Homes;
+  hunting?: HuntingState;
+  /** Retain the duration of recipes already earned from the retired herbalist. */
+  legacyHerbLevel?: number;
   /** Zones whose campfire checkpoint has been lit. */
   camps: ZoneId[];
   /** Where you wake up after fainting. */
@@ -76,7 +80,7 @@ export interface SaveState {
   /** The room you're in (Granny's Kitchen, Bram's Sawmill): you carry on there. `pos` is then just outside its door. */
   room?: RoomId;
   /** A separate underground instance; pos remains outside its entrance. */
-  underground?: { id: 'echo'; x: number; y: number };
+  underground?: { id: 'echo' | 'resource'; x: number; y: number };
   /** Set once the Forge has its five levels (older saves had three: Smithy was ★★★–★★★★, Master Forge the third). */
   forgeLevels?: 5;
   /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */
@@ -126,7 +130,7 @@ export function newState(): SaveState {
     crafted: 0,
     bosses: [],
     build: { home: 1, forge: 0, garden: 0, training: 0, warp: 0, sawmill: 0, cottage: 0 },
-    homes: { pip: 0, hazel: 0, moss: 0 },
+    homes: { pip: 0, rook: 0, moss: 0 },
     camps: [],
     respawn: 'glade',
     unlocked: [],
@@ -199,8 +203,21 @@ export function loadState(): SaveState | null {
       skills: { ...base.skills, ...data.skills },
       mastery: { ...base.mastery, ...data.mastery },
     } as SaveState;
+    // Hazel's existing building becomes Rook's lodge at the same tier. Never charge for the replacement.
+    const former = (data.homes as (Partial<Homes> & {hazel?:number}) | undefined)?.hazel;
+    if (former !== undefined) {
+      merged.homes.rook = Math.max(merged.homes.rook, Number(former) || 0);
+      merged.legacyHerbLevel ??= Math.max(0, Math.min(3, Number(former) || 0));
+      delete (merged.homes as Homes & {hazel?:number}).hazel;
+      if (former > 0) merged.flags.push(...['rook:returned','rook:lodge'].filter(f=>!merged.flags.includes(f)));
+      if (merged.buildingJob?.startsWith('hazel')) merged.buildingJob = merged.buildingJob.replace('hazel','rook');
+    }
+    if (merged.flags.includes('hazel:recipe') && !merged.flags.includes('garden:herbs')) merged.flags.push('garden:herbs');
+    for (const key of ['met','waiting'] as const) if(merged.flags.includes(`hazel:journey:${key}`) && !merged.flags.includes(`rook:journey:${key}`)) merged.flags.push(`rook:journey:${key}`);
+    if ((merged.stories['journey-hazel']??0)>0) merged.stories['journey-rook']=Math.max(merged.stories['journey-rook']??0,merged.stories['journey-hazel']);
+    if (merged.flags.includes('hazel:returned') && !merged.flags.includes('rook:returned')) merged.flags.push('rook:returned');
     merged.homes.pip = Math.max(merged.homes.pip, merged.build.cottage);
-    for (const id of ['pip', 'hazel', 'moss'] as const) {
+    for (const id of ['pip', 'rook', 'moss'] as const) {
       merged.homes[id] = Math.max(0, Math.min(3, Math.floor(Number(merged.homes[id]) || 0)));
     }
     if (merged.homes.pip) merged.build.cottage = 1;

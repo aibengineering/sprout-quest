@@ -1,3 +1,4 @@
+import { recordHuntWin, hunting, huntDef, huntLock, VARIANTS } from '../hunts';
 // Starting and finishing fights: field encounters, guardians and scripted prologue fights, rewards, the swoop in and
 // out, and the in-battle coaching.
 import { Battle, type BattleOutcome, type BattleSetup, type Foe } from '../battle/battle';
@@ -85,6 +86,7 @@ export function startBattle(zone: Zone, foes: Foe[], boss: boolean, flag?: strin
  * pair are gentle level-1 foes; a story's group brings its own lineup.
  */
 export function challengeFoe(o: WorldObj) {
+  if(o.hunt)return challengeHunt(o.hunt);
   if (!G.save.flags.includes('sword')) {
     G.ui.toast('😰 You need something to fight with! Something was glinting back in the clearing…');
     return;
@@ -123,6 +125,7 @@ function grantWin(o: BattleOutcome, b: Battle): LevelMark {
   gainXp(s, o.xp);
   mergeDrops(s.mats, o.drops);
   gainMastery(s, mark.style, o.xp);
+  if(!b.setup.tower&&!b.setup.dojo) {recordHuntWin(s,b.enemies.filter(e=>e.dead&&!e.minion).map(e=>e.kind),b.setup.hunt);syncWorld();}
   if (!b.setup.boss && !b.setup.tower) recordKills(s, b.setup.zone.id, o.defeated.length);
   return mark;
 }
@@ -252,4 +255,11 @@ export function coachBattle(b: Battle) {
     return ui.coach(`Low HP! ${press('H', '🧪')} to drink a potion.`, 'btn-potion');
   }
   ui.coach(null);
+}
+
+function challengeHunt(kind:string){
+ const a=hunting(G.save).active,d=a&&huntDef(a.id);
+ if(!a||!d||a.kind!==kind||a.status!=='tracking'||huntLock(G.save,d,a.rank))return;
+ startBattle(zoneById(d.zone),[{kind:d.kind,lv:a.lv,golden:false,variant:d.variant}],false,undefined,{hunt:a.id});
+ G.ui.toast(`${d.name} · Lv ${a.lv} · ${VARIANTS[d.variant].label}`,4000);
 }

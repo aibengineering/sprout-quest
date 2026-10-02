@@ -66,3 +66,20 @@ def build_alder():
     cylinder((.37, -.12, .62), .025, 1.3, toon('#89633f'), P['body'], seg=8, line=.006)
     box((0,-.245,.27),(.46,.035,.09),toon('#526f72'),P['body'],bevel=.02)
     return P
+
+
+def build_rook():
+    P = neighbour('rook', '#80564d', '#6a4434', '#e7b88b', trainer=True)
+    head, body = P['head'], P['body']
+    cylinder((0, 0, .24), .40, .045, toon('#695643'), head, seg=24)
+    cylinder((0, .025, .33), .255, .20, toon('#80694f'), head, seg=24)
+    torus((0, .025, .27), .26, .025, toon('#ad7657'), head, seg=24)
+    sphere((-.26,.045,.38),(.045,.055,.19),toon('#d9c59a'),head,rot=(0,.35,0),line=.008)
+    # A tidy travelling waistcoat, specimen case, and a bandaged leg from Ember Peak.
+    box((0,-.24,.39),(.34,.035,.40),toon('#d9c59a'),body,bevel=.05)
+    for z in (.30,.41,.52): sphere((0,-.268,z),.024,toon('#bd8c52'),body,line=.004)
+    box((.29,-.1,.24),(.23,.22,.30),toon('#674633'),body,bevel=.035)
+    box((.29,-.22,.26),(.12,.025,.06),toon('#d8b576'),body,bevel=.015)
+    for z in (.09,.14,.19): torus((0,0,z),.095,.018,toon('#e5d5b6'),P['foot1'],seg=12)
+    sphere((.10,-.32,.1),(.09,.018,.025),toon('#6a4434'),head,line=.004)
+    return P

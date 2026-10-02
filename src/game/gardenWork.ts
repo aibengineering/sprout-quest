@@ -134,7 +134,7 @@ async function work(i: number) {
       return;
     }
     case 'pick': {
-      const first = !s.flags.includes('garden:berries');
+      const first = !s.flags.includes('garden:berries'), firstHerbs=!s.flags.includes('garden:herbs');
       const got = pick(s, i);
       if (!got) return;
       G.audio.play('pickup');
@@ -150,6 +150,9 @@ async function work(i: number) {
         G.mode = 'world';
         G.input.reset();
         say("Our first berries! Granny's going to bake her berry tart, I just know it!", 3.5);
+      }
+      if(firstHerbs && got.mat==='herb'){
+        G.mode='dialog';await G.ui.itemFound('meal_meadowtea','Meadow Tea','Granny can brew it now: herbs and flowers settle your hands for mining.','🍵','New recipe');G.mode='world';G.input.reset();say('Granny said these go in her tea. I’ll save her the flowers!',3.5);
       }
       return;
     }

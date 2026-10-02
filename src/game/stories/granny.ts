@@ -27,9 +27,10 @@ function lines(): [string, string?][] {
   if (step <= 4) return [['Poor Poppy. That bunny is her best friend in the whole world.', 'worried']];
   if (step === 5) return [["You found him? Oh, go on, give him to her, dear!"]];
   if (!kitchenOpen(G.save)) return [["Thank you for bringing Mr. Floppers home, dear. I’d love to cook something with you, but this little kitchen barely fits me."], [G.save.flags.includes('bram:hut') ? "Bram’s putting a kitchen beside the house. Grow some flowers with Poppy, then bring him the timber and oven stone." : "Once Bram’s home, I’ll ask about a kitchen with proper benches. Poppy wants flowers in every window."]];
-  const neighbours = G.save.flags.includes('moss:recipe')
-    ? 'Moss knows bread. Hazel knows leaves. I know how to squeeze another chair round this table.'
-    : G.save.flags.includes('hazel:recipe') ? 'Hazel brought cuttings. Poppy’s making labels for them. Mind you, some of the names are hers.'
+  const neighbours = G.save.flags.includes('moss:recipe') && G.save.flags.includes('rook:lodge')
+    ? 'Moss knows bread. Rook knows prices. I’d rather nobody put a price on Poppy’s friends.'
+    : G.save.flags.includes('moss:recipe') ? 'Moss has been baking beside me. It’s lovely to have someone at the oven again.'
+    : G.save.flags.includes('rook:lodge') ? 'Rook’s charming, dear. I wish he’d stop talking about what everything is worth.'
     : "Those boots holding up? Poppy hasn't stopped talking about you. And that grove of hers has lovely timber and stone, now the bullies are gone.";
   return [[neighbours], ["Look at all this room! Come inside and have some food, dear. I'll join you by the recipe book, and we'll find something lovely to make."]];
 }

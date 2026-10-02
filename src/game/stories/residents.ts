@@ -1,5 +1,6 @@
 // New neighbours belong to the village track: closed roads brought them here; shared work gives them reasons to stay.
 // Story and voice notes: the sibling Sprout Quest Bible, "Sowerby's neighbours".
+import { visitHunter } from '../hunting';
 import { offerVillageUpgrade } from '../housing';
 import { homeLevel, type HomeId } from '../../housing';
 import { residentDoor } from '../../villageLayout';
@@ -8,22 +9,6 @@ import { say, type Speaker } from '../scenes';
 import type { Story } from '../stories';
 
 const PEOPLE = {
-  hazel: { name: 'Hazel', emoji: '🌿', portrait: () => 'npc_hazel', meal: 'meadowtea', recipe: 'Meadow Tea',
-    welcome: [
-      'I’m Hazel. Pip told me Poppy was growing a garden here.',
-      'I brought cuttings through the Woods. They need somewhere to take root.',
-      'Clover saved me a place by the kettle. I’ll show her my Meadow Tea.',
-      'Use Poppy’s herbs and flowers. A cup settles your hands before mining.',
-    ],
-    lines: [
-      'That fern survived the closed road in my coat pocket. Poppy’s found it a bed.',
-      'Pip found a leaf inside a stone. I’m growing the nearest match I can find.',
-      'Some of Poppy’s weeds are useful. I set those aside before she clears the beds.',
-      'Poppy wants to name every seedling. We’re starting with the ones she can reach.',
-    ],
-    afterCave: 'Poppy asked whether Pebblors like flowers. I said we could leave some and see.',
-    afterDragon: 'There’s less ash on the beds today. Poppy noticed before I did.',
-    upgraded: 'There’s room for Poppy’s cuttings in the glasshouse now. Clover’s tea keeps a minute longer, too.' },
   moss: { name: 'Moss', emoji: '🥖', portrait: () => 'npc_moss', meal: 'trailbuns', recipe: 'Trail Buns',
     welcome: [
       'I’m Moss. I used to bake for people passing through.',
@@ -42,20 +27,21 @@ const PEOPLE = {
     upgraded: 'Room for an extra tray in the cool larder. Clover’s Trail Buns last a minute longer.' },
 } as const;
 type NewResident = keyof typeof PEOPLE;
-const chatter: Record<NewResident, number> = { hazel: 0, moss: 0 };
+const chatter: Record<NewResident, number> = { moss: 0 };
 export function visitResident(id: HomeId) {
+  if(id==='rook')return visitHunter();
   if (id === 'pip' || !homeLevel(G.save, id)) return G.ui.toast('🧔 Talk to Bram outside the Sawmill about building this home.');
   const p = PEOPLE[id], speaker: Speaker = p;
   return paused(async () => {
     if (!G.save.flags.includes(`${id}:recipe`)) {
-      if(G.save.flags.includes(`${id}:returned`) || (G.save.stories[`journey-${id}`]??0)>=2) await say(speaker,id==='hazel'?'The cuttings made it home. And now a place of my own beside them. Thank you.':'Clover’s oven, and a roof of my own. Think I’ll stop packing those buns for the road.');
+      if(G.save.flags.includes(`${id}:returned`) || (G.save.stories[`journey-${id}`]??0)>=2) await say(speaker,'Clover’s oven, and a roof of my own. Think I’ll stop packing those buns for the road.');
       for (const text of p.welcome.slice(G.save.flags.includes(`${id}:returned`) || (G.save.stories[`journey-${id}`]??0)>=2 ? 1 : 0)) await say(speaker, text);
       if (!G.save.flags.includes(`${id}:recipe`)) G.save.flags.push(`${id}:recipe`);
       persist();
     } else {
       const turn = chatter[id]++;
       const milestone = G.save.bosses.includes('dragon') ? p.afterDragon : (G.save.stories.drums ?? 0) >= 4 ? p.afterCave : null;
-      const final = id==='hazel' ? 'The conservatory keeps the delicate cuttings warm. Clover’s tea keeps two extra minutes now.' : 'My own oven beside the larder! Clover’s buns keep two extra minutes now.';
+      const final = 'My own oven beside the larder! Clover’s buns keep two extra minutes now.';
       const text = homeLevel(G.save, id) >= 2 && turn % 5 === 0 ? homeLevel(G.save,id)>=3 ? final : p.upgraded
         : milestone && turn % 3 === 0 ? milestone : p.lines[turn % p.lines.length];
       await say(speaker, text);
@@ -73,4 +59,7 @@ function residentStory(id: NewResident): Story {
       label: G.save.flags.includes(`${id}:recipe`) ? 'Talk' : `Meet ${p.name}`, talk: () => visitResident(id) }],
   };
 }
-export const RESIDENT_STORIES = [residentStory('hazel'), residentStory('moss')];
+const ROOK_STORY:Story={id:'rook',title:'Rook’s Hunting Lodge',icon:'🏹',available:()=>homeLevel(G.save,'rook')>0,objs:[],steps:[{
+ id:'welcome',label:'Visit Rook at his hunting lodge',target:()=>residentDoor('rook'),done:()=>G.save.flags.includes('rook:lodge'),
+}],cast:()=>[{id:'rook:rook',name:'Rook',look:{kind:'walker',name:'rook'},...residentDoor('rook'),face:Math.PI/2,label:'Talk',talk:visitHunter}]};
+export const RESIDENT_STORIES = [residentStory('moss'),ROOK_STORY];

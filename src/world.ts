@@ -8,6 +8,8 @@ import { RESIDENT_PLOTS, TOWN_CABIN, TOWN_FORGE, TOWN_HOME, TOWN_SAWMILL, TOWN_S
 import type { SaveState } from './state';
 import { SHORTCUTS, shortcutBuilt } from './shortcuts';
 import { LANDMARK_SIGNS, ROUTE_GUIDES } from './mapDesign';
+import { SEAMS, TUNNEL_HOME } from './seams';
+import { HUNTS } from './hunts';
 
 export const T = {
   GROUND: 0,
@@ -75,6 +77,10 @@ export interface WorldObj {
   node?: NodeKind;
   id?: string;
   grass?: boolean;
+  /** Permanent mining barrier / revealed burrow / contracted specimen. */
+  boulder?: string;
+  tunnel?: string;
+  hunt?: string;
   /** A story's monster group: who you fight when you walk into it (a guardian-style fight if `boss`). */
   foes?: { kind: MonsterKind; lv: number }[];
   boss?: boolean;
@@ -230,7 +236,7 @@ export class World extends TileMap {
       }
     }
     // Small roadside stops for newcomers; clear the approach before resource objects are generated.
-    for (const p of Object.values(NEIGHBOURS)) for (let y=Math.floor(p.at.y)-1;y<=Math.ceil(p.at.y)+1;y++) for (let x=Math.floor(p.at.x)-1;x<=Math.ceil(p.at.x)+1;x++) {
+    for (const p of Object.values(NEIGHBOURS).filter(p=>p.name==='Alder'||p.name==='Moss')) for (let y=Math.floor(p.at.y)-1;y<=Math.ceil(p.at.y)+1;y++) for (let x=Math.floor(p.at.x)-1;x<=Math.ceil(p.at.x)+1;x++) {
       if (this.tile(x,y)!==T.PATH) this.set(x,y,T.GROUND);
     }
     this.placeObjects();
@@ -285,7 +291,7 @@ export class World extends TileMap {
     this.placeField();
     // The Guest Cottage, up in the north-east corner behind the Waystone: once Bram's settled in, for whoever comes next.
     add({ kind: 'plot', project: 'cottage', ...RESIDENT_PLOTS.pip, label: 'Ask Bram', text: 'Guest Cottage' });
-    for (const home of ['hazel', 'moss'] as const) add({ kind: 'residence', home, ...RESIDENT_PLOTS[home], label: 'Ask Bram' });
+    for (const home of ['rook', 'moss'] as const) add({ kind: 'residence', home, ...RESIDENT_PLOTS[home], label: 'Ask Bram' });
     // Bram's old logging camp, in the Woods' north-west corner: the stump with his axe in it, the caved-in mill, logs.
     const W = ZONES.find((z) => z.id === 'woods')!.x0;
     add({ kind: 'prop', id: 'prop_campmill', zone: 'woods', x: W + 3.8, y: 3.2, w: 2.6, h: 1, label: '' }, false);
@@ -324,6 +330,15 @@ export class World extends TileMap {
       }
     }
     for (const p of LANDMARK_SIGNS) add({ kind: 'sign', zone: p.zone, x: zoneById(p.zone).x0 + p.x, y: p.y, w: .6, h: .5, label: 'Read', text: p.text }, false);
+    for (const p of SEAMS) {
+      if(p.id==='quarry') add({kind:'prop',id:'resource:mouth',...p.at,w:.9,h:.45,label:'Explore tunnel'},false);
+      else {
+        add({kind:'node',id:`boulder:${p.id}`,boulder:p.id,node:p.rock,x:p.at.x-.55,y:p.at.y-.6,w:1.1,h:.65,label:'Break boulder'},false);
+        add({kind:'door',id:`burrow:${p.id}`,tunnel:p.id,x:p.at.x-.5,y:p.at.y-.4,w:1,h:.5,label:'Tunnel to Sowerby',walkable:true,hidden:true},false);
+      }
+    }
+    add({kind:'door',id:'burrow:home',...TUNNEL_HOME,w:.65,h:.4,label:'Pip’s tunnels',walkable:true,hidden:true},false);
+    for(const d of HUNTS) add({kind:'foe',id:`hunt:${d.kind}`,hunt:d.kind,zone:d.zone,x:d.at.x-.45,y:d.at.y-.7,w:.9,h:.7,label:'Hunt',text:d.name,walkable:true,hidden:true},false);
   }
 
   /**

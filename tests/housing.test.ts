@@ -12,26 +12,26 @@ import { existsSync } from 'node:fs';
 import type { MatId } from '../src/data';
 
 function ready() {
-  const s = newState(); s.flags.push('bram:hut','pip:returned','hazel:returned','moss:returned'); s.stories.bram = 9; s.stories.poppy = 6; s.flags.push('granny:extension'); s.build.sawmill = 1;
+  const s = newState(); s.flags.push('bram:hut','pip:returned','rook:returned','moss:returned'); s.stories.bram = 9; s.stories.poppy = 6; s.flags.push('granny:extension'); s.build.sawmill = 1;
   for (const m of Object.keys(s.mats) as MatId[]) s.mats[m] = 500;
   return s;
 }
 describe('Bram’s resident homes', () => {
   test('welcomes neighbours in order and requires the appropriate mill, even with plenty of planks', () => {
     const s = ready();
-    expect(canBuildHome(s, 'hazel')).toBe('locked');
+    expect(canBuildHome(s, 'rook')).toBe('locked');
     expect(buildHome(s, 'pip', 0)).toBe('ok');
-    expect(buildHome(s, 'hazel', 0)).toBe('ok');
+    expect(buildHome(s, 'rook', 0)).toBe('ok');
     expect(canBuildHome(s, 'moss')).toBe('locked');
-    expect(canBuildHome(s, 'hazel')).toBe('locked');
+    expect(canBuildHome(s, 'rook')).toBe('locked');
     s.build.sawmill = 2;
     expect(buildHome(s, 'moss', 0)).toBe('ok');
-    expect(buildHome(s, 'hazel', 1)).toBe('ok');
+    expect(buildHome(s, 'rook', 1)).toBe('ok');
     expect(canBuildHome(s, 'moss')).toBe('locked');
     s.build.sawmill = 3;
     expect(buildHome(s, 'moss', 1)).toBe('ok');
     expect(buildHome(s, 'pip', 1)).toBe('ok');
-    for (const id of ['pip','hazel'] as const) expect(buildHome(s,id,2)).toBe('ok');
+    for (const id of ['pip','rook'] as const) expect(buildHome(s,id,2)).toBe('ok');
     expect(canBuildHome(s,'moss')).toBe('locked'); s.build.sawmill=4;
     expect(buildHome(s,'moss',2)).toBe('ok');
     for (const id of HOME_ORDER) expect(canBuildHome(s, id)).toBe('maxed');
@@ -40,13 +40,13 @@ describe('Bram’s resident homes', () => {
     const s = ready(); s.build.cottage = 1;
     const before = { ...s.mats }, workshops = { ...s.build }, stats = playerStats(s);
     s.mats.plank = 63;
-    expect(buildHome(s, 'hazel', 0)).toBe('missing');
-    expect(homeLevel(s, 'hazel')).toBe(0); expect(s.mats.stone).toBe(before.stone);
+    expect(buildHome(s, 'rook', 0)).toBe('missing');
+    expect(homeLevel(s, 'rook')).toBe(0); expect(s.mats.stone).toBe(before.stone);
     s.mats.plank = 64;
-    expect(buildHome(s, 'hazel', 0)).toBe('ok');
-    expect(s.mats.plank).toBe(0); expect(s.mats.stone).toBe(before.stone - 24); expect(s.mats.herb).toBe(before.herb - 8);
+    expect(buildHome(s, 'rook', 0)).toBe('ok');
+    expect(s.mats.plank).toBe(0); expect(s.mats.stone).toBe(before.stone - 24); expect(s.mats.fang).toBe(before.fang - 8);
     const paid = { ...s.mats };
-    expect(buildHome(s, 'hazel', 0)).toBe('stale'); expect(s.mats).toEqual(paid);
+    expect(buildHome(s, 'rook', 0)).toBe('stale'); expect(s.mats).toEqual(paid);
     expect(s.build).toEqual(workshops); expect(playerStats(s)).toEqual(stats);
   });
   test('old Guest Cottages retain Pip and his recipe, without charging again; partial home saves round-trip', () => {
@@ -56,20 +56,20 @@ describe('Bram’s resident homes', () => {
     delete (s as Partial<typeof s>).homes;
     saveState(s);
     const old = loadState()!;
-    expect(old.homes).toEqual({ pip: 1, hazel: 0, moss: 0 }); expect(old.mats).toEqual(s.mats);
+    expect(old.homes).toEqual({ pip: 1, rook: 0, moss: 0 }); expect(old.mats).toEqual(s.mats);
     expect(old.stories.pip).toBe(1); expect(knownMeals(old)).toContain('rockcandy');
-    old.build.sawmill = 2; buildHome(old, 'hazel', 0); buildHome(old, 'hazel', 1);
+    old.build.sawmill = 2; buildHome(old, 'rook', 0); buildHome(old, 'rook', 1);
     saveState(old); expect(loadState()).toEqual(old);
   });
   test('recipes are learned by meeting residents, and additions improve only their own recipe', () => {
-    const s = ready(); s.homes = { pip: 2, hazel: 2, moss: 2 };
+    const s = ready(); s.homes = { pip: 2, rook: 2, moss: 2 };
     expect(cook(s, 'meadowtea')).toBe('unknown'); expect(cook(s, 'trailbuns')).toBe('unknown');
-    s.flags.push('hazel:recipe', 'moss:recipe', 'pip:candy');
+    s.flags.push('garden:herbs', 'moss:recipe', 'pip:candy');s.kitchenLevel=3;s.legacyHerbLevel=2;
     for (const dish of ['meadowtea', 'trailbuns', 'rockcandy'] as const) {
       expect(mealSeconds(s, dish)).toBe(300); expect(mealDescription(s, dish)).toContain('5 minutes');
       expect(cook(s, dish)).toBe('ok'); expect(s.meal?.left).toBe(300);
     }
-    expect(mealSeconds(s, 'stew')).toBe(240); expect(mealSeconds(s, 'goojelly')).toBe(180);
+    expect(mealSeconds(s, 'stew')).toBe(300); expect(mealSeconds(s, 'goojelly')).toBe(240);
     cook(s, 'meadowtea'); expect(miningSweetBoost(s)).toBe(1.3); expect(gatheringXpBoost(s)).toBe(1);
     cook(s, 'trailbuns'); expect(miningSweetBoost(s)).toBe(1);
     const plain = ready();

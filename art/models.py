@@ -104,6 +104,7 @@ CHARACTERS = {
     'npc_bram': lambda: (hero.build_bram(), walker_anims()),
     'npc_bram_hurt': lambda: (hero.build_bram('hurt', hurt=True), walker_anims()),
     'npc_pip': lambda: (hero.build_pip(), walker_anims()),
+    'npc_rook': lambda: (residents.build_rook(), walker_anims()),
     'npc_hazel': lambda: (residents.build_hazel(), walker_anims()),
     'npc_alder': lambda: (residents.build_alder(), walker_anims()),
     'npc_moss': lambda: (residents.build_moss(), walker_anims()),

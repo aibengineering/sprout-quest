@@ -29,7 +29,7 @@ describe('Sowerby’s lots and paths', () => {
       [world.obj('plot', 'home')!, 'home3', .42], [world.obj('plot', 'sawmill')!, 'sawmill4', .3],
       [TOWN_CABIN, 'bramhut', .2], [world.obj('fountain')!, 'fountain', .45],
       [world.obj('plot', 'training')!, 'training3', .28], [world.obj('plot', 'warp')!, 'warp1', .1],
-      [RESIDENT_PLOTS.pip, 'res_pip3', .28], [RESIDENT_PLOTS.hazel, 'res_hazel3', .28],
+      [RESIDENT_PLOTS.pip, 'res_pip3', .28], [RESIDENT_PLOTS.rook, 'res_rook3', .28],
       [RESIDENT_PLOTS.moss, 'res_moss3', .28],
     ];
     // Match drawBuilding/drawFrame: native Blender units are 1.6 per map tile.
@@ -63,14 +63,14 @@ describe('Sowerby’s lots and paths', () => {
 
   test('southern homes face the same lane with separate door paths and an open green behind them', () => {
     const world = new World();
-    for (const o of [world.obj('plot', 'home')!, RESIDENT_PLOTS.hazel, RESIDENT_PLOTS.moss]) {
+    for (const o of [world.obj('plot', 'home')!, RESIDENT_PLOTS.rook, RESIDENT_PLOTS.moss]) {
       const x = Math.floor(o.x + o.w / 2), y = o.y + o.h;
       expect(y).toBe(21);
       expect(world.tile(x, y)).toBe(T.PATH);
       expect(world.tile(x, y + 1)).toBe(T.PATH);
       expect(world.blocked(o.x + o.w / 2, y + .6, .28)).toBe(false);
     }
-    for (const id of ['hazel', 'moss'] as const) {
+    for (const id of ['rook', 'moss'] as const) {
       const door = residentDoor(id);
       expect(world.blocked(door.x, door.y, .28)).toBe(false);
       // No long vertical road running through the house's grass lot.

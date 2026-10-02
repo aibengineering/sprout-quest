@@ -1399,3 +1399,17 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 .dojo-lessons .mcard { margin: 8px 0; }
 .dojo-lessons h3 { margin: 0; }
 .sheet.building-job .bp-costs { justify-content: center; }
+
+/* Rook's board stays inside the viewport on phones and wide screens. */
+.sheet.hunt-board { max-height: calc(100dvh - 24px - var(--safe-t) - var(--safe-b)); }
+.sheet.hunt-board .result { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 14px 12px 12px; }
+.hunt-board .result > h2, .hunt-board .result > p, .hunt-board .btns, .hunt-active { flex: none; }
+.hunt-board h2 { margin: 0; font-size: 22px; }
+.hunt-board .result > p { font-size: 13px; margin: 8px 0; }
+.hunt-board .hunt-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; align-content: start; }
+.hunt-board .btns { margin-top: 10px; }
+.hunt-list { display: grid; gap: 10px; margin: 14px 0; }
+.hunt-card { display: grid; gap: 4px; width: 100%; padding: 12px 14px; text-align: left; border: 2px solid #d9c7a6; border-radius: 16px; background: #fffaf0; color: #39253f; }
+.hunt-card span, .hunt-card small { font-size: .85em; }
+.hunt-card:disabled { opacity: .62; }
+.hunt-active { background: #e7efd7; border-radius: 14px; padding: 12px; }

@@ -104,12 +104,12 @@ elif GROUP == 'env':
         shot(f'env/{name}', int(w * 1.3), int(h * 1.25), 64, fit_origin=0.86)
 
 elif GROUP == 'homes':
-    for name in ('res_pip2', 'res_hazel1', 'res_hazel2', 'res_moss1', 'res_moss2', 'res_pip3', 'res_hazel3', 'res_moss3', 'kitchen1', 'kitchen2', 'kitchen3', 'training1', 'training2', 'training3', 'cottage1'):
+    for name in ('res_pip2', 'res_rook1', 'res_rook2', 'res_moss1', 'res_moss2', 'res_pip3', 'res_rook3', 'res_moss3', 'kitchen1', 'kitchen2', 'kitchen3', 'training1', 'training2', 'training3', 'cottage1'):
         lib.clear_objects()
         buildings.whole(name)
         shot(f'env/{name}', 320, 288, 64, fit_origin=.86)
         shot(f'icon/b_{name}', 128, 128, 30, fit_origin=.82)
-    for name, fn in (('hazel', residents.build_hazel), ('moss', residents.build_moss), ('alder', residents.build_alder)):
+    for name, fn in (('rook', residents.build_rook), ('moss', residents.build_moss), ('alder', residents.build_alder)):
         lib.clear_objects()
         fn()
         shot(f'icon/npc_{name}', 128, 128, 88, anchor=(0, 0, .70), elevation=math.radians(12), fit_origin=.5)

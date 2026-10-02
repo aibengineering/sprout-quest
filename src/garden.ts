@@ -172,6 +172,7 @@ export function pick(s: SaveState, i: number, now = Date.now()): { mat: MatId; n
   g.plots[i] = null;
   // The first berries teach Granny her tart (see kitchen.ts).
   if (p.crop === 'berry' && !s.flags.includes('garden:berries')) s.flags.push('garden:berries');
+  if (p.crop === 'herb' && !s.flags.includes('garden:herbs')) s.flags.push('garden:herbs');
   return { mat: p.crop, n };
 }
 

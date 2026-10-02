@@ -8,6 +8,7 @@ import { poppyAway } from '../procession';
 import { Room, ROOMS, type RoomId } from '../room';
 import type { WorldObj } from '../world';
 import { G, persist, transition } from './context';
+import { HUNTER_PLAY } from './hunterRoom';
 import { KITCHEN_PLAY } from './kitchenRoom';
 import { SAWMILL_PLAY } from './sawmillRoom';
 import { sawmillBuilt } from './stories/bram';
@@ -33,7 +34,7 @@ export interface RoomPlay {
 }
 
 /** Each room's play (looked up when needed: they import from here too). */
-const play = (id: RoomId): RoomPlay => ({ kitchen: KITCHEN_PLAY, sawmill: SAWMILL_PLAY })[id];
+const play = (id: RoomId): RoomPlay => ({ kitchen: KITCHEN_PLAY, sawmill: SAWMILL_PLAY, hunter:HUNTER_PLAY })[id];
 const built: Partial<Record<RoomId, Room>> = {};
 
 function room(id: RoomId): Room {
@@ -47,7 +48,7 @@ function room(id: RoomId): Room {
 
 /** Each room's doorway on the map: the foot of its building's front door, in the middle of its front. */
 function doorway(id: RoomId): { x: number; y: number } | null {
-  const o = id === 'kitchen' ? G.world.obj('house') : G.world.objs.find((o) => o.project === 'sawmill');
+  const o = id === 'hunter' ? G.world.objs.find(o=>o.home==='rook') : id === 'kitchen' ? G.world.obj('house') : G.world.objs.find((o) => o.project === 'sawmill');
   return o ? { x: o.x + o.w / 2, y: o.y + o.h } : null;
 }
 
@@ -58,12 +59,12 @@ export function doorstep(id: RoomId): { x: number; y: number } {
 }
 
 /** The rooms whose doors are open just now: Granny's once she cooks (not while Poppy's away), Bram's once he's in. */
-const open = (id: RoomId) => (id === 'kitchen' ? kitchenOpen(G.save) && !poppyAway(G.save) : sawmillBuilt());
+const open = (id: RoomId) => (id === 'hunter' ? G.save.homes.rook>0 : id === 'kitchen' ? kitchenOpen(G.save) && !poppyAway(G.save) : sawmillBuilt());
 
 /** Walking up into an open door on the map takes you in, like the action button at it. */
 export function doorwayTick() {
   if (G.trans || G.over.room || G.input.axis().y > -0.5) return;
-  for (const id of ['kitchen', 'sawmill'] as RoomId[]) {
+  for (const id of ['kitchen', 'sawmill', 'hunter'] as RoomId[]) {
     const d = doorway(id);
     if (d && open(id) && Math.abs(G.over.x - d.x) < 0.5 && G.over.y > d.y && G.over.y < d.y + 0.6) return enterRoom(id);
   }

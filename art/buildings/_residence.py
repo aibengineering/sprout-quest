@@ -7,7 +7,7 @@ from buildings._cottage import build as guest_cottage
 
 def cottage(root, who):
     P = Parts(root)
-    w, d = (2.4 if who == 'hazel' else 2.5)*TILE*.82, 1.5*TILE*.72
+    w, d = (2.4 if who in ('hazel','rook') else 2.5)*TILE*.82, 1.5*TILE*.72
     front = -d/2
     stone = P('stone')
     box((0, 0, .14), (w, d, .28), toon('#aba197'), stone, bevel=.06)
@@ -19,28 +19,31 @@ def cottage(root, who):
             box((x, y, .90), (.15, .15, 1.35), toon('#765b40'), frame, bevel=.025)
     walls = P('walls')
     box((0, 0, .94), (w-.1, d-.1, 1.35), toon('#cda975'), walls, bevel=.04)
-    plank_wall(walls, (0, front-.03, .94), w-.1, 1.35, '#d6b883' if who == 'hazel' else '#c79261', '#957146')
-    box((0, front-.105, .74), (.56, .075, 1.02), toon('#527960' if who == 'hazel' else '#8f4c46'), walls, bevel=.06)
+    plank_wall(walls, (0, front-.03, .94), w-.1, 1.35, '#d6b883' if who in ('hazel','rook') else '#c79261', '#957146')
+    box((0, front-.105, .74), (.56, .075, 1.02), toon('#527960' if who in ('hazel','rook') else '#8f4c46'), walls, bevel=.06)
     sphere((.18, front-.15, .73), .035, toon('#e5c88a'), walls, line=.006)
     for x in (-w*.30, w*.30):
         box((x, front-.12, 1.12), (.51, .09, .50), toon('#775d49'), walls, bevel=.03)
-        box((x, front-.18, 1.12), (.40, .025, .40), toon('#ddedd5' if who == 'hazel' else '#ffe5b1', emit=.12), walls, line=0)
+        box((x, front-.18, 1.12), (.40, .025, .40), toon('#ddedd5' if who in ('hazel','rook') else '#ffe5b1', emit=.12), walls, line=0)
         box((x, front-.205, 1.12), (.025, .025, .42), toon('#775d49'), walls, line=0)
     roof = P('roof')
-    profile([(-w/2-.18, 1.59), (0, 2.55), (w/2+.18, 1.59)], d+.30, toon('#64836b' if who == 'hazel' else '#a9644e'), roof, bevel=.035)
+    profile([(-w/2-.18, 1.59), (0, 2.55), (w/2+.18, 1.59)], d+.30, toon('#64836b' if who in ('hazel','rook') else '#a9644e'), roof, bevel=.035)
     for side in (-1, 1):
         for i in range(6):
             x = side*(i+.5)*(w/2+.18)/6
             z = 2.55-abs(x)*.96/(w/2+.18)
-            box((x, 0, z+.015), (.035, d+.30, .025), toon('#405f50' if who == 'hazel' else '#805144'), roof, line=0)
-    garden = P('herb' if who == 'hazel' else 'berry')
+            box((x, 0, z+.015), (.035, d+.30, .025), toon('#405f50' if who in ('hazel','rook') else '#805144'), roof, line=0)
+    garden = P('fang' if who=='rook' else 'herb' if who=='hazel' else 'berry')
     for x in (-w*.30, w*.30):
         box((x, front-.26, .82), (.62, .26, .16), toon('#8b6348'), garden, bevel=.02)
         for k in range(5):
             dx = x+(k-2)*.1
-            sphere((dx, front-.27, .96), (.06, .06, .12), toon('#58874f'), garden, line=.006)
+            sphere((dx, front-.27, .96), (.045, .045, .13), toon('#e8d9b4' if who=='rook' else '#58874f'), garden, line=.006)
             if who == 'moss':
                 sphere((dx+.02, front-.31, .98), .035, toon('#ce617b'), garden, line=.004)
+    if who=='rook':
+        box((0,front-.19,1.59),(.62,.07,.22),toon('#694a38'),garden,bevel=.02)
+        for side in (-1,1): sphere((.13*side,front-.24,1.61),(.045,.035,.12),toon('#e8d9b4'),garden,rot=(0,.45*side,0),line=.006)
     flower = P('flower')
     flowers(flower, .6, [(-.25, front-.30, '#ff8ab0'), (.25, front-.30, '#ffd35a')], z=.84)
     return P.objects()
@@ -97,9 +100,9 @@ def final_addition(root, who):
     elif who=='pip':
         metal=P('iron')
         for x in (-.7,.7): box((x,-1.15,2.33),(.12,.05,.3),toon('#72818c'),metal,bevel=.02)
-    garden=P('berry' if who=='moss' else 'herb') if who!='pip' else None
+    garden=P('berry' if who=='moss' else 'fang' if who=='rook' else 'herb') if who!='pip' else None
     if garden:
-        for x in (-.45,0,.45): sphere((x,-1.19,2.14),(.1,.06,.15),toon('#697b4e' if who=='hazel' else '#c36683'),garden,line=.005)
+        for x in (-.45,0,.45): sphere((x,-1.19,2.14),(.1,.06,.15),toon('#e8d9b4' if who=='rook' else '#697b4e' if who=='hazel' else '#c36683'),garden,line=.005)
     flower=P('flower')
     for x in (-.65,.65):
         box((x,-1.18,.9),(.4,.22,.14),toon('#9f83b9'),flower,bevel=.02)

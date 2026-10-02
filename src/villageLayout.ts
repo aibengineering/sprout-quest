@@ -5,7 +5,7 @@ import type { HomeId } from './housing';
 const V = ZONES.find((z) => z.id === 'village')!.x0;
 export const RESIDENT_PLOTS: Record<HomeId, { x: number; y: number; w: number; h: number }> = {
   pip: { x: V + 18.9, y: 4.5, w: 2.2, h: 1.5 },
-  hazel: { x: V + 10.3, y: 19.5, w: 2.4, h: 1.5 },
+  rook: { x: V + 10.3, y: 19.5, w: 2.4, h: 1.5 },
   moss: { x: V + 17.25, y: 19.5, w: 2.5, h: 1.5 },
 };
 export const residentDoor = (id: HomeId) => {

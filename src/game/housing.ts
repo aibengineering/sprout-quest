@@ -6,7 +6,7 @@ import { hasMats } from '../rules';
 import { RESIDENT_PLOTS } from '../villageLayout';
 import { NEIGHBOURS, neighbourReturned } from '../neighbours';
 import { kitchenPresentation } from '../crafting/kitchen-extension';
-import { G, paused, persist, syncWorld } from './context';
+import { G, paused, persist } from './context';
 import { logEvent } from '../stats';
 import { say } from './scenes';
 import { BRAM } from './stories/bram';
@@ -33,7 +33,9 @@ export async function bramHousePlans() {
       const before = { ...s.mats };
       if (completeVillageJob(s, job.id) !== 'ok') return;
       logEvent(s, { kind: 'build', id: job.home ? `house:${job.home}` : job.project ?? 'granny:extension', lv: job.level });
-      persist(); syncWorld();
+      persist();
+      // A completed escort keeps its cast key, so remove the waiting guest before the assembly starts.
+      (await import('./stories')).syncStories();
       const target = G.over.camTarget;
       const p = job.home ? RESIDENT_PLOTS[job.home] : job.project ? G.world.obj('plot', job.project)! : G.world.objs.find((o) => o.kind === 'house')!;
       G.over.camTarget = { x: p.x + p.w / 2, y: p.y + p.h };
@@ -58,7 +60,7 @@ export async function offerVillageUpgrade(owner: string) {
     Poppy: 'The beds are full again! Could we ask Bram for more? Mr. Floppers wants to help with the measuring.',
     'Granny Clover': j.level===2 ? 'Every jar ends up on my bench, dear. Could you ask Bram about proper pantry shelves?' : 'A warm shelf for supper, and a little more light over the benches. Could you ask Bram, dear?',
     Pip: j.level===2 ? 'Stones under the chair, stones on the chair. I could do with a study. Reckon Bram would help?' : 'I’d like to keep every find and still see the floor. Could you ask Bram about an archive?',
-    Hazel: j.level===2 ? 'These cuttings need shelter through winter. Will you ask Bram about a glasshouse?' : 'The delicate ones need more shelter. Could we ask Bram to extend the conservatory?',
+    Rook: j.level===2 ? 'These shelves barely do them justice! Ask Bram about a trophy hall? I have buyers to impress.' : 'The finest specimens deserve the finest room. Could Bram manage a grand lodge?',
     Moss: j.level===2 ? 'Nowhere cool to put the dough. Could you ask Bram about a larder?' : 'Clover’s oven is getting crowded. Could Bram add one beside my larder?',
     Alder: 'The moving targets need more room. Ask Bram about the next dojo, and I’ll put the space to use.',
   };

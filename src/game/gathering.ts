@@ -1,5 +1,5 @@
 // Chopping and mining: starting the timing minigame at a tree or rock, playing it, paying out, and node labels.
-import { NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind } from '../data';
+import { zoneById, NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind } from '../data';
 import { Chop, GatherView, type Look } from '../gather';
 import { isTreeKind, type RockColors, type RockKind, type TreeKind } from '../nodeart';
 import { usingKeyboard } from '../input';
@@ -11,6 +11,8 @@ import { celebrateSkill, lootLines } from './rewards';
 import { progressQuests } from './story';
 import { storyFelled, storyNoisy, storyTooLoud } from './stories';
 import { sweetBoost, miningSweetBoost } from '../kitchen';
+import { seamById, seamOpen, openSeam } from '../seams';
+import { syncWorld } from './context';
 
 /** The minigame in progress, if any, and what it paid out once the node gave way. */
 export let chop: { game: Chop; obj: WorldObj; view: GatherView; reward?: GatherReward; fromLv?: number; shown?: ReturnType<typeof revealed>; noise?: number } | null = null;
@@ -39,6 +41,10 @@ const timeLeft = (ms: number) => {
 /** Walk up to a tree or rock and start the timing minigame, if you have the tool for it. */
 export function tryGather(o: WorldObj) {
   const s = G.save, n = NODES[o.node!];
+  const seam = o.boulder ? seamById(o.boulder) : undefined;
+  if(seam && seamOpen(s,seam.id)) return;
+  const guardian=seam&&zoneById(seam.zone).guardian;
+  if(guardian&&!s.bosses.includes(guardian.kind)){G.ui.toast('Open the road to this region first.');return;}
   const why = canGather(s, o.node!, o.id!);
   if (why === 'tool') {
     const t = TOOLS.find((t) => t.skill === n.skill && t.tier === n.tier)!;
@@ -63,7 +69,7 @@ export function tryGather(o: WorldObj) {
   view.onSound = (sfx) => G.audio.play(sfx);
   // Woodcutter's Stew (Granny's) widens the sweet spot on trees.
   const width = sweetWidth(s.skills[n.skill].lv) * (n.skill === 'wood' ? sweetBoost(s) : miningSweetBoost(s));
-  chop = { game: new Chop(n.hp, toolPower(tool, n.tier), width), obj: o, view, noise: storyNoisy(o) ? 0 : undefined };
+  chop = { game: new Chop(n.hp, toolPower(tool, n.tier), width, Math.random, seam?.streak ?? 0), obj: o, view, noise: storyNoisy(o) ? 0 : undefined };
   chopStart = performance.now();
   G.over.startChop(o);
   G.mode = 'gather';
@@ -126,6 +132,10 @@ function collect(c: NonNullable<typeof chop>) {
   c.fromLv = s.skills[n.skill].lv;
   c.shown = revealed(s);
   c.reward = harvest(s, c.obj.node!, c.obj.id!, !!c.obj.grass, c.game.flawless);
+  if(c.obj.boulder && openSeam(s,c.obj.boulder,c.game.streak)) {
+    syncWorld();
+    G.ui.toast(c.obj.boulder==='quarry' ? '⛏️ The boulder gives way! An ore gallery—and a tunnel home.' : '⛏️ A hidden burrow! You can take this tunnel home.',4200);
+  }
   c.view.reward(c.reward.drops);
   persist();
 }
@@ -158,7 +168,7 @@ export function drawGather(ctx: CanvasRenderingContext2D, vw: number, vh: number
   const how = mine ? 'when the pick lines up with the seam!' : 'in the green!';
   const hint = seen ? 'Walk away to stop' : usingKeyboard() ? `Press E or Space ${how}` : `Tap ${how}`;
   const icon = TOOLS.find((t) => t.skill === n.skill)!.icon;
-  chop.view.draw(ctx, chop.game, vw, vh, `${icon} ${chop.obj.grass ? 'Wild ' : ''}${n.name}`, chop.noise !== undefined ? 'Clean hits are quiet. Misses are loud!' : hint);
+  chop.view.draw(ctx, chop.game, vw, vh, chop.obj.boulder ? `${icon} Boulder · streak ${chop.game.streak}/${chop.game.requiredStreak}` : `${icon} ${chop.obj.grass ? 'Wild ' : ''}${n.name}`, chop.obj.boulder ? 'Clean hits build the streak. A miss resets it.' : chop.noise !== undefined ? 'Clean hits are quiet. Misses are loud!' : hint);
   if (chop.noise !== undefined) drawNoise(ctx, vw, chop.noise);
 }
 
@@ -192,9 +202,9 @@ export const gatherVerb = () => (chop ? `${SKILL_VERB[NODES[chop.obj.node!].skil
 /** Nodes say "Chop" or "Mine" when ready, and what they're doing while they come back. */
 export function syncNodes() {
   const now = Date.now();
-  for (const o of G.world.objs) {
+  for (const o of [...G.world.objs,...G.over.oreGallery.objs]) {
     if (o.kind !== 'node') continue;
     const skill = NODES[o.node!].skill;
-    o.label = (G.save.nodes[o.id!] ?? 0) <= now ? SKILL_VERB[skill] : skill === 'wood' ? 'Regrowing' : 'Rubble';
+    o.label = o.boulder ? 'Break boulder' : (G.save.nodes[o.id!] ?? 0) <= now ? SKILL_VERB[skill] : skill === 'wood' ? 'Regrowing' : 'Rubble';
   }
 }

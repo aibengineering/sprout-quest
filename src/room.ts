@@ -2,10 +2,12 @@
 // stations you work at by hand), entered through the iris from its door outside and left by walking back out of it.
 // The Overworld walks you around whichever room you're in (see Overworld.room); game/rooms.ts runs what the stations
 // do and paints them.
+import { MONSTERS } from './data';
+import { HUNTS } from './hunts';
 import { Actors } from './actors';
 import { T, TileMap, type WorldObj } from './world';
 
-export type RoomId = 'kitchen' | 'sawmill';
+export type RoomId = 'kitchen' | 'sawmill' | 'hunter';
 
 /** Paints a room: its floor and walls, each station (in depth order with everyone), and what floats over it. */
 export interface RoomPainter {
@@ -104,4 +106,8 @@ export const SAWMILL: RoomSpec = {
   ],
 };
 
-export const ROOMS: Record<RoomId, RoomSpec> = { kitchen: KITCHEN, sawmill: SAWMILL };
+export const HUNTER:RoomSpec={id:'hunter',name:'Rook’s Hunting Lodge',w:9,h:11,door:4,bg:'#302630',stations:[
+ ...HUNTS.map((d,i)=>({id:`trophy:${d.kind}`,x:1.05+(i%3)*2.25,y:2+Math.floor(i/3)*2.05,w:1.9,h:.9,label:'View trophy',text:MONSTERS[d.kind].name})),
+ {id:'hunt:board',x:3.9,y:8.2,w:1.65,h:.6,label:'Hunt board'},
+]};
+export const ROOMS: Record<RoomId, RoomSpec> = { kitchen: KITCHEN, sawmill: SAWMILL, hunter:HUNTER };

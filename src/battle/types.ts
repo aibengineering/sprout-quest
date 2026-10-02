@@ -1,3 +1,4 @@
+import type { HuntVariant } from '../hunts';
 // Shapes shared by the battle simulation, monster behaviours and the renderer, plus small math helpers.
 import type { MatId, MonsterDef, MonsterKind, Zone } from '../data';
 import type { Strike } from '../weapons';
@@ -36,6 +37,7 @@ export interface Enemy {
   def: MonsterDef;
   lv: number;
   golden: boolean;
+  variant?: HuntVariant;
   hp: number;
   maxHp: number;
   atk: number;
@@ -140,7 +142,7 @@ export interface Spike { x: number; y: number; t: number; life: number; size: nu
 export interface Crack { pts: [number, number][]; t: number }
 export interface Spark { x: number; y: number; t: number; size: number; color: string; rot: number }
 
-export interface Foe { kind: MonsterKind; lv: number; golden: boolean; /** Prologue foe: hits softer (GENTLE_ATK). */ gentle?: boolean }
+export interface Foe { variant?: HuntVariant; kind: MonsterKind; lv: number; golden: boolean; /** Prologue foe: hits softer (GENTLE_ATK). */ gentle?: boolean }
 
 export interface BattleSetup {
   zone: Zone;
@@ -154,6 +156,8 @@ export interface BattleSetup {
   tower?: number;
   /** A safe practice challenge: no monster loot, story kills or death penalties. */
   dojo?: string;
+  /** Persistent field commission; retries keep its accepted level. */
+  hunt?: string;
 }
 
 export interface BattleOutcome {

@@ -1,4 +1,4 @@
-// Pip, the mole miner: the first newcomer. Once Bram's settled in, his planks build Sowerby a Guest Cottage, and Pip
+// Pip, the mole miner: found in his promising Echo Cavern tunnel before his first cottage. Once Bram's settled in, his planks build Sowerby a Guest Cottage, and Pip
 // tunnels up beside it the day it's finished: tiny, chatty and cheerful, he knows every rock in the valley (and was the
 // first to talk about the warm black stone on Ember Peak). He teaches Granny his Rock Candy. See the story bible
 // (Side quests).
@@ -44,8 +44,8 @@ export const visitPip = () => {
     ? [homeLevel(G.save,'pip')>=3 ? 'An archive! I can keep every find, and still see the floor. Clover’s Rock Candy keeps two extra minutes now.' : 'My own study! Room for every pebble. I taught Clover the slower way to cool Rock Candy; it lasts a whole minute longer now.']
     : G.save.flags.includes('moss:recipe') && turn % 5 === 3
       ? ['Moss says it’s breakfast. Clover says I’ve already had breakfast. Bram says to stay out of the floor.']
-    : G.save.flags.includes('hazel:recipe') && turn % 5 === 0
-      ? ['Hazel’s growing a fern like the one I found in a stone. I’ll bring her the stone.']
+    : G.save.flags.includes('rook:lodge') && turn % 5 === 0
+      ? ['Rook offered to buy my best stone. I wanted to show it to him. Different thing, buying.']
     : LINES[turn % LINES.length];
   return paused(async()=>{await say(PIP,text,mood);await offerVillageUpgrade('Pip');});
 };

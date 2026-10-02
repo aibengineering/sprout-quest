@@ -14,7 +14,7 @@ export const housePresentation = (id: HomeId, level: number): CraftPresentation 
   return {
     id: plan.art, model: `assets/crafting3d/${plan.art}.glb`, scene: 'building', eyebrow: 'BRAM · BUILDING TOGETHER',
     duration: last + 1200, layers: [...(level > 1 ? [{ id: 'base', initial: true }] : []), ...layers.map((id) => ({ id }))],
-    roles: Object.fromEntries(materials.map((m) => [m, m === timber ? 'Timber frame, boards and roof' : m === 'stone' ? 'Footing and chimney' : m === 'crystal' ? 'Bright glazing and a pantry lantern' : m === 'iron' ? 'Strong brackets for the study' : 'A window box from the Garden'])),
+    roles: Object.fromEntries(materials.map((m) => [m, m === timber ? 'Timber frame, boards and roof' : m === 'stone' ? 'Footing and chimney' : m === 'crystal' ? 'Bright glazing and a pantry lantern' : m === 'iron' ? 'Strong brackets for the study' : m === 'fang' ? 'Hunting trophies and the lodge crest' : 'A window box from the Garden'])),
     targets, phases: [
       { at: 0, stage: 'frame', text: level > 1 ? 'Bram adds to the home that already stands.' : 'Bram sets out the footing and measures your timber.' },
       { at: last, stage: 'reveal', text: plan.perk, sound: 'ding' },
