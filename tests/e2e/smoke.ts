@@ -1630,7 +1630,7 @@ scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the l
   await run(page, `void g.over.cast.get('bram:bram').talk()`);
   await waitFor(page, 'Bram’s house plans', async () => !!(await page.$('.sheet.house-plans')));
   await page.click('[data-dialog="mill"]');
-  await waitFor(page, 'Bram explaining the mill', async () => !!(await page.textContent('.caption-text'))?.includes('Inside the mill'));
+  await waitFor(page, 'Bram explaining the mill', async () => !!(await page.textContent('.caption-text'))?.includes('Logs onto the bench'));
   await closeDialogs(page);
   await page.waitForSelector('.sheet.house-plans');
   await page.keyboard.press('Escape');
@@ -1680,7 +1680,7 @@ scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the l
   await page.keyboard.down('KeyS');
   await waitFor(page, 'outside again', async () => (await game<string>(page, 'g.room')) === null, 5000);
   await page.keyboard.up('KeyS');
-  check(await game<boolean>(page, `Math.hypot(g.over.x - 18.8, g.over.y - 8.2) < 1`), 'not back outside the Sawmill');
+  check(await game<boolean>(page, `(() => { const o = g.over.world.objs.find((o) => o.project === 'sawmill'); return Math.hypot(g.over.x - o.x - o.w/2, g.over.y - o.y - o.h - .7) < 1; })()`), 'not back outside the Sawmill');
   check(await game<boolean>(page, `!!g.over.cast.get('bram:bram')`), 'Bram should still be outside after leaving');
 });
 
@@ -2420,6 +2420,66 @@ scenario('Bram’s house plans: welcome Hazel and Moss, cook their recipes, upgr
   check(await game<boolean>(page, `g.save.meal?.id === 'meadowtea' && g.save.meal.left > 295`), 'glasshouse bonus not applied to the next cup');
   await cookByHand(page, 'trailbuns');
   check(await game<boolean>(page, `g.save.meal?.id === 'trailbuns'`), 'Moss’s recipe did not replace the tea');
+}, { webgl: true });
+
+scenario('Sowerby layout: clear empty plots, upgraded homes, Bram’s work yard and walking approaches', (g) => {
+  const s = g.save;
+  s.quest = g.quests.length; s.lv = 12;
+  s.stories = { ...s.stories, poppy: 6, bram: 9, pip: 1, hazel: 0, moss: 0, drums: 4, granny: 99 };
+  s.flags.push('bram:home', 'bram:hut', 'bram:stew', 'poppy:returned', 'pip:candy');
+  s.unlocked = ['journal', 'bag', 'mend', 'skill', 'trick', 'forge', 'village', 'plots', 'warpplot', 'kitchen', 'sawmill', 'cottage'];
+  s.fresh = [];
+  Object.assign(s.build, { forge: 5, sawmill: 4, home: 3, cottage: 1, garden: 3, training: 3, warp: 1 });
+  s.homes = { pip: 2, hazel: 0, moss: 0 };
+  s.pos = { x: 24.5, y: 14.5 };
+}, async (page) => {
+  await waitFor(page, 'native characters rendered for the layout review', () => game<boolean>(page, 'g.modelStats.renders > 0'), 20000);
+  check(await game<boolean>(page, `!g.over.actors.get('hazel:hazel') && !g.over.actors.get('moss:moss')`), 'residents appeared before their homes were built');
+  const capture = async (name: string, x: number, y: number, wide = false) => {
+    await page.setViewportSize(wide ? { width: 1350, height: 1200 } : { width: 390, height: 844 });
+    await run(page, `g.zoom = ${wide ? .65 : 0}; g.over.teleport(${x}, ${y})`);
+    await page.waitForTimeout(600);
+    if (SHOTS) await page.screenshot({ path: `${OUT}sowerby-layout-${name}.png` });
+  };
+  await capture('empty-wide', 31.5, 13, true);
+  await capture('empty-hazel-phone', 27.5, 20);
+  await capture('empty-moss-phone', 34.5, 20);
+  await run(page, `g.save.homes = { pip: 2, hazel: 2, moss: 2 }; Object.assign(g.save.stories, { hazel: 1, moss: 1 }); g.save.flags.push('hazel:recipe', 'moss:recipe'); localStorage.setItem('sprout-quest-save', JSON.stringify(g.save))`);
+  await page.reload(); await page.waitForSelector('.title-btns:not([hidden])'); await page.click('#btn-continue');
+  await page.waitForTimeout(2200); await closeDialogs(page);
+  check(await game<boolean>(page, `!!g.over.actors.get('hazel:hazel') && !!g.over.actors.get('moss:moss')`), 'residents did not appear at their built homes');
+  await capture('built-wide', 31.5, 13, true);
+  await capture('work-yard-phone', 21.3, 8.2);
+  await capture('home-phone', 20.5, 20);
+  await capture('hazel-phone', 27.5, 20);
+  await capture('moss-phone', 34.5, 20);
+
+  // Walk the lane with real input, then along each short doorstep spur. No teleport
+  // into a supposedly accessible front to hide a path blocked by a house or fence.
+  const leg = async (axis: 'x' | 'y', target: number, key: string) => {
+    const from = await game<number>(page, `g.over.${axis}`), positive = target > from;
+    await page.keyboard.down(key);
+    try {
+      await waitFor(page, `walking to ${axis}=${target}`, () => game<boolean>(page, `g.over.${axis} ${positive ? '>=' : '<='} ${target}`), 8000);
+    } finally { await page.keyboard.up(key); }
+    check(await game<boolean>(page, `g.mode === 'world' && !g.over.map.blocked(g.over.x, g.over.y, .28)`), 'walk ended inside a building or dialogue');
+  };
+  await run(page, `g.over.teleport(24.5, 14.5)`);
+  await leg('y', 22.5, 'KeyS');
+  await leg('x', 27.5, 'KeyD');
+  await leg('y', 21.65, 'KeyW');
+  await leg('y', 22.5, 'KeyS');
+  await leg('x', 34.5, 'KeyD');
+  await leg('y', 21.65, 'KeyW');
+  check(await game<boolean>(page, `Math.abs(g.over.x - 34.5) < .7 && g.over.y > 21`), 'could not walk up to Moss’s front');
+
+  // One continuous walk from the main road up the mill approach and through its door.
+  await run(page, `const o = g.over.world.objs.find(o => o.project === 'sawmill'); g.over.teleport(o.x + o.w/2, 14.5)`);
+  await page.keyboard.down('KeyW');
+  try { await waitFor(page, 'walking from the road into the Sawmill', () => settledIn(page, 'sawmill'), 8000); }
+  finally { await page.keyboard.up('KeyW'); }
+  await run(page, `g.leaveRoom()`); await waitFor(page, 'leaving onto the new mill path', () => settledIn(page, null));
+  check(await game<boolean>(page, `!g.over.map.blocked(g.over.x, g.over.y, .28) && !!g.over.actors.get('bram:bram')`), 'mill exit or Bram was blocked after moving the cabin');
 }, { webgl: true });
 
 scenario('Sowerby voices: neighbour chats follow the cave reunion and dragon defeat without early revelations', (g) => {

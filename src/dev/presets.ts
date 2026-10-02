@@ -6,6 +6,7 @@ import { GEAR, MAX_POTIONS, forgeLevelFor, MAT_ORDER, PROJECTS, QUESTS, TOOLS, Z
 import { playerStats } from '../rules';
 import { newState, type SaveState } from '../state';
 import { FIELD, GATE_Y, World } from '../world';
+import { TOWN_FORGE } from '../villageLayout';
 
 export interface Preset {
   id: string;
@@ -158,7 +159,7 @@ function drums(step: number, x: number, y: number, then?: (s: SaveState) => void
 export const PRESETS: Preset[] = [
   {
     id: 'fluffy-craft', name: 'Make a Fluffy Vest', desc: 'At the Forge with 36 Bunny Fluff and 12 Slime Goo. Try the automatic crafting reveal.',
-    make: () => base('cottage', 'meadow', zoneById('village').x0 + 7, 10.7, (s) => {
+    make: () => base('cottage', 'meadow', TOWN_FORGE.x + TOWN_FORGE.w / 2, TOWN_FORGE.y + TOWN_FORGE.h + .7, (s) => {
       s.build.forge = 1;
       s.lv = 4;
       s.equip.armor = 'tunic';

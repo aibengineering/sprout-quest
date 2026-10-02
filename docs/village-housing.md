@@ -14,7 +14,7 @@ Bram’s outdoor conversation opens his House Plans once his own cabin quest is 
 
 Pip’s home opens Hazel’s plan; Hazel’s opens Moss’s. Plans require the mill that cuts their timber (oak level 1, pine level 2, glimmer level 3). Meeting Hazel or Moss unlocks their recipe once. Their dialogue acknowledges neighbours and their own addition. A home addition improves future meals, and meals still replace one another rather than stacking. It gives no permanent combat stats, gear recipes or workshop levels.
 
-The residential lane sits south of the main road: player home, Bram’s cabin, Hazel and Moss, with footpaths between them. Veyra’s Spring remains a plaza between the homes. Pip stays northeast near his tunnel and Granny; the Waystone and Training Yard move onto clear northern approaches. Workshop doorways stay open. New home additions retain their original footprint and visibly extend the original house.
+The player, Hazel and Moss face one shared lane south of the main road, with short paths from their aligned doorsteps. A single branch connects that lane and Veyra’s Spring to the main road, leaving an open green instead of four parallel roads through the plots. Bram’s cabin sits beside the Sawmill in the northwestern work yard; its approach joins the mill’s without blocking either door. Pip stays northeast near his tunnel and Granny, and the Training Yard sits east of the Waystone. The Garden keeps its own gate and approach. Lots leave room for the largest upgraded roofs as well as the collision boxes. New home additions retain their original footprint and visibly extend the original house.
 
 ## Story integration
 

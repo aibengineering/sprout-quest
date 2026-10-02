@@ -3,7 +3,7 @@ import { WORLD_H, WORLD_W, ZONES, zoneAtX, zoneById, type MonsterKind, type Node
 import { FIELD_COLS, FIELD_ROWS } from './garden';
 import { ROUTES } from './routes';
 import type { HomeId } from './housing';
-import { RESIDENT_PLOTS, TOWN_HOME, TOWN_TRAINING, TOWN_WAYSTONE } from './villageLayout';
+import { RESIDENT_PLOTS, TOWN_CABIN, TOWN_FORGE, TOWN_HOME, TOWN_SAWMILL, TOWN_SPRING, TOWN_TRAINING, TOWN_WAYSTONE, VILLAGE_PATHS } from './villageLayout';
 import type { SaveState } from './state';
 import { SHORTCUTS, shortcutBuilt } from './shortcuts';
 import { LANDMARK_SIGNS, ROUTE_GUIDES } from './mapDesign';
@@ -222,7 +222,7 @@ export class World extends TileMap {
         const nearPath = y >= py - 1 && y <= py + 2;
         const gladeClearing = zone.id === 'glade' && x < GLADE_PATH_X;
         if ((y === py || y === py + 1) && !gladeClearing) t = T.PATH;
-        else if (y < 2 || y >= h - 2 || x === 0 || x === w - 1) t = T.OBST;
+        else if (y < 2 || y >= WORLD_H - 2 || x === 0 || x === w - 1) t = T.OBST;
         else if (zone.id === 'glade') t = this.gladeTile(x, y, nearPath, seed);
         else t = this.villageTile(x, y, seed, nearPath);
         this.set(x, y, t);
@@ -240,7 +240,7 @@ export class World extends TileMap {
   }
 
   private villageTile(x: number, y: number, seed: number, nearPath: boolean): number {
-    const edgeTree = (y < 4 || y > this.h - 5 || (x - V < 2 && !nearPath)) && hash2(x, y, seed + 21) < 0.55;
+    const edgeTree = (y < 4 || y > WORLD_H - 5 || (x - V < 2 && !nearPath)) && hash2(x, y, seed + 21) < 0.55;
     if (edgeTree) return T.OBST;
     if (hash2(x, y, seed + 22) < 0.12) return T.DECOR;
     return T.GROUND;
@@ -267,23 +267,20 @@ export class World extends TileMap {
     const gy = pathY(10) - 1;
     add({ kind: 'foe', flag: 'glade1', monster: 'slime', x: 10, y: gy, w: 1, h: 4, label: 'Fight', text: 'Slime' }, false);
     add({ kind: 'foe', flag: 'glade2', monster: 'bunny', x: 13, y: gy, w: 1, h: 4, label: 'Fight', text: 'Hopbun' }, false);
-    add({ kind: 'forge', x: V + 5, y: 7, w: 4, h: 3, label: 'Forge', text: 'The Forge' });
+    add({ kind: 'forge', ...TOWN_FORGE, label: 'Forge', text: 'The Forge' });
     add({ kind: 'house', x: V + 13, y: 6.5, w: 3, h: 3, label: '' });
     add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
     add({ kind: 'plot', project: 'home', ...TOWN_HOME, label: 'Build', text: 'Home' });
     add({ kind: 'plot', project: 'training', ...TOWN_TRAINING, label: 'Build', text: 'Training Yard' });
     add({ kind: 'plot', project: 'warp', ...TOWN_WAYSTONE, label: 'Build', text: 'Waystone' });
-    // The Sawmill beside the Forge; Bram's cabin sits south of the road with the homes,
-    // leaving the workshop approach and his outdoor conversation spot clear.
-    add({ kind: 'plot', project: 'sawmill', x: V + 1.1, y: 5.5, w: 3.4, h: 2, label: 'Build', text: 'Sawmill' });
-    add({ kind: 'prop', id: 'bramhut', x: V + 8.2, y: 19, w: 2, h: 1.3, label: '' });
+    // Bram lives beside his mill, across the work yard from the Forge. His cabin
+    // stays behind the yard's path so it cannot block the mill's front door.
+    add({ kind: 'plot', project: 'sawmill', ...TOWN_SAWMILL, label: 'Build', text: 'Sawmill' });
+    add({ kind: 'prop', id: 'bramhut', ...TOWN_CABIN, label: '' });
     this.placeField();
     // The Guest Cottage, up in the north-east corner behind the Waystone: once Bram's settled in, for whoever comes next.
     add({ kind: 'plot', project: 'cottage', ...RESIDENT_PLOTS.pip, label: 'Ask Bram', text: 'Guest Cottage' });
     for (const home of ['hazel', 'moss'] as const) add({ kind: 'residence', home, ...RESIDENT_PLOTS[home], label: 'Ask Bram' });
-    // A lane connects the south-side homes; spurs leave every doorstep on open ground.
-    for (let x = V + 3; x <= V + 20; x++) this.set(x, 22, T.PATH);
-    for (const x of [V + 6, V + 10, V + 15, V + 20]) for (let y = 15; y <= 22; y++) this.set(x, y, T.PATH);
     // Bram's old logging camp, in the Woods' north-west corner: the stump with his axe in it, the caved-in mill, logs.
     const W = ZONES.find((z) => z.id === 'woods')!.x0;
     add({ kind: 'prop', id: 'prop_campmill', zone: 'woods', x: W + 3.8, y: 3.2, w: 2.6, h: 1, label: '' }, false);
@@ -291,7 +288,9 @@ export class World extends TileMap {
     add({ kind: 'prop', id: 'prop_logs', zone: 'woods', x: W + 11, y: 4.1, w: 1, h: 0.6, label: '' }, false);
     // Local plans at physical crossing sites; the stake must not obstruct its bank approach.
     for (const p of SHORTCUTS) add({ kind: 'bridge', id: p.id, flag: p.flag, zone: p.zone, x: zoneById(p.zone).x0 + p.marker.x, y: p.marker.y, w: .6, h: .5, label: 'Inspect crossing', text: p.name, walkable: true }, false);
-    add({ kind: 'fountain', x: V + 12, y: 17, w: 2, h: 2, label: 'Rest', text: "Veyra's Spring" });
+    add({ kind: 'fountain', ...TOWN_SPRING, label: 'Rest', text: "Veyra's Spring" });
+    for (const p of VILLAGE_PATHS) for (let y = p.y; y < p.y + p.h; y++)
+      for (let x = p.x; x < p.x + p.w; x++) this.set(x, y, T.PATH);
     // Veyra's shrine, where Elder Oswin prays: north of where he stands, between the forge and the blue house.
     add({
       kind: 'statue', id: 'veyra', zone: 'village', x: V + 10.1, y: 7.6, w: 0.8, h: 0.6, label: 'Look',

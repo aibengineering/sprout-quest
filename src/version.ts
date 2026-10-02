@@ -49,7 +49,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "🌿 Welcome Hazel and Moss to Sowerby and learn two new kitchen recipes",
       "🌉 Help Bram, then build timber shortcuts from oak through Emberwood",
       "🗺️ Explore larger Quarry, crystal garden and lava basin route loops",
-      "🐛 Fixes: Granny's reunion freeze and the blocked sawmill approach",
+      "🐛 Fixes: Granny's reunion freeze and crowded village paths and plots",
     ],
   },
   {
