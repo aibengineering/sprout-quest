@@ -924,7 +924,7 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   // A loud chop brings Woolves early (and the tree waits).
   check(await game<boolean>(page, `g.over.world.objs.some((o) => o.kind === 'node' && o.node === 'pine' && o.x < 100 && o.y < 8)`), 'no pines at the camp');
   // Three pines felled (the chopping itself is covered by its own scenario), and the raid comes anyway.
-  await run(page, `g.over.world.objs.filter((o) => o.kind === 'node' && o.node === 'pine' && o.x > 79 && o.x < 91 && o.y > 2.5 && o.y < 8).slice(0, 3).forEach((o) => g.save.flags.push('bram:pine:' + o.id))`);
+  await run(page, `g.over.world.objs.filter((o) => o.kind === 'node' && o.node === 'pine' && o.x > 88 && o.x < 100 && o.y > 2.5 && o.y < 8).slice(0, 3).forEach((o) => g.save.flags.push('bram:pine:' + o.id))`);
   await playUntil('the raid and the scarred Woolf', async () => (await step()) === 6 && (await game<string>(page, 'g.mode')) === 'world', 90000);
   check(await game<boolean>(page, `['bram:wave1', 'bram:wave2', 'bram:scar'].every((f) => g.save.flags.includes(f))`), 'the raid did not play out');
   check(await game<boolean>(page, `g.over.actors.get('bram:bram').follow && g.over.actors.get('bram:bram').look.name === 'bram_hurt'`), 'Bram is not leaning on you');
@@ -1253,7 +1253,7 @@ scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Grann
   check(await game<number>(page, 'g.save.garden.plots.filter(Boolean).length') === 4, 'four plots should be planted');
   await click('.btns [data-dialog="close"]');
   // Time passes: the first plot gets thirsty and stops, the second grows weeds.
-  await run(page, `const [a, b, c] = g.save.garden.plots; for (const p of [a, b, c]) { delete p.thirstAt; delete p.weedsAt; p.at -= 100000; }
+  await run(page, `const [a, b, c, d] = g.save.garden.plots; delete d.thirstAt; delete d.weedsAt; for (const p of [a, b, c]) { delete p.thirstAt; delete p.weedsAt; p.at -= 100000; }
     a.thirstAt = 60; b.weedsAt = 30; c.at += 100000`);
   await waitFor(page, 'a thirsty, weedy garden', async () => game<boolean>(page, `(() => { const [a, b] = g.save.garden.plots; return !!a.thirsty && !!b.weeds; })()`));
   check(await game<string>(page, `g.over.actors.get('poppy:poppy').mood`) === '💧', 'Poppy should show the garden is thirsty');

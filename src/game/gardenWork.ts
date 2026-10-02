@@ -177,6 +177,8 @@ export function gardenAct() {
 export function gardenStation(o: WorldObj) {
   const s = G.save;
   if (!gardenWorkable()) return G.ui.toast(POPPY_AWAY);
+  // Keep holding the button and walk out onto the plots: it carries on there.
+  lastAct = -1;
   if (o.id === 'garden:butt') {
     const full = hand && 'can' in hand && hand.can >= CAN_POURS;
     hand = { can: CAN_POURS };
