@@ -47,7 +47,8 @@ trackInputDevice();
 G.ui = new UI(menuHooks);
 setUpTitle();
 // Save slots and preset saves for testing; compiled out of the published game.
-if (__DEV__) void import('./dev/devtools').then((m) => m.install());
+let devTick: ((dt: number) => void) | null = null;
+if (__DEV__) void import('./dev/devtools').then((m) => { m.install(); devTick = m.tickPlaytest; });
 
 // ------------------------------------------------------------------ page buttons
 
@@ -242,6 +243,7 @@ function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   updateTransitions(dt);
+  if (__DEV__) devTick?.(dt);
   if (G.mode !== 'title') {
     G.save.playtime += dt;
     // Granny's meals count down while you play (on the map, fighting, chopping), not while you're in a menu.

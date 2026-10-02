@@ -15,6 +15,8 @@ import { TOWER_SLOT, XP_RATES, XP_RATE_KEY, loadXpRate, openCamp } from '../game
 import { LAB_CSS, lab } from './lab';
 import { PRESETS, towerRun } from './presets';
 import { towerSaveFromLink } from './towerLink';
+import { installPlaytest } from './playtest';
+export { tickPlaytest } from './playtest';
 
 /** Set across the reload so the game continues without a stop at the title screen. */
 const AUTOPLAY = 'sprout-quest-autoplay';
@@ -30,6 +32,7 @@ const name = (slot: string | null) => slot ?? MAIN;
 const slotOf = (name: string) => (name === MAIN ? null : name);
 
 export function install() {
+  installPlaytest();
   const url = new URL(location.href);
   const preset = url.searchParams.get('preset'), slot = url.searchParams.get('slot');
   if (url.searchParams.has('tower')) {

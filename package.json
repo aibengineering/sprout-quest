@@ -6,11 +6,12 @@
   "scripts": {
     "dev": "bun run server.ts",
     "build": "bun run build.ts",
-    "test": "bun test",
+    "test": "bun test --isolate",
     "balance": "bun run src/balance.ts",
     "typecheck": "tsc --noEmit",
     "art": "bash art/build.sh",
     "e2e": "bun run tests/e2e/smoke.ts",
+    "e2e:playtest": "bun run tests/e2e/playtest.ts",
     "sim": "bun run sim/simulate.ts",
     "sim:compare": "bun run sim/compare.ts",
     "sim:smoke": "bun run sim/smoke.ts",

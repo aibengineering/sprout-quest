@@ -42,7 +42,7 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
-      - run: bun test
+      - run: bun test --isolate
       - run: bun run build
 
   e2e:
@@ -57,7 +57,9 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bunx playwright-core install --with-deps chromium-headless-shell
+      - run: bun run tests/e2e/sprite-effects.ts
       - run: bun run e2e --shots
+      - run: bun run e2e:playtest
       - run: bun run tests/e2e/crafting.ts
       - run: bun run tests/e2e/icons3d.ts
       # Each scenario's last screen, to see what went wrong.

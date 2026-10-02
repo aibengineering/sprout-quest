@@ -118,12 +118,28 @@ balance checkpoints. Presets also work as links: `?preset=poppy-chase`, and `?sl
 slot a small badge at the bottom of the screen shows which slot you're in. None of this is in the published build
 (`__DEV__` is compiled out).
 
+For agent playthroughs, dev builds also have an opt-in controller with no player-facing controls. Open
+`http://localhost:3000/?autoplay=1` to automate combat and gathering, or use `?autoplay=combat` / `?autoplay=gather`
+for just one. It also works with slot/preset URLs. From the browser console, `window.sproutPlaytest.enable()` turns
+both on; `enable({ combat: true, gather: false })` selects modes, `disable()` stops, and `status` shows what is active.
+It steers and uses normal attacks, dodges, unlocked skills, available potions and timed chopping/mining strikes.
+Navigation, dialogue and choosing a node stay manual. Stats, cooldowns, rewards and defeat rules apply normally;
+automated play reports describe a bot's performance. It is off by default, never stored in the save, and the
+production build fails if its console API appears in the bundle. GitHub Pages builds without `--dev`.
+
 The end-to-end smoke test (`tests/e2e/smoke.ts`) needs Playwright's Chromium once:
 `bunx playwright-core install chromium-headless-shell`. It plays a new game through the prologue, wins a fight
 through its level-up screens, mashes every weapon class, fights every monster, mines crystal, checks the Forge's
 mystery cards, exports a play report, plays Poppy's side story start to finish and starts a preset save in its own
 slot, failing on any page error.
 `bun run e2e --only <name>` runs just the scenarios whose name contains it.
+
+On a minimal Linux installation, screenshots also need an emoji font for the HUD, menu buttons and speech bubbles.
+Install `fonts-noto-color-emoji`, or give the test browser an existing font without installing it globally:
+`SPROUT_EMOJI_FONT=/path/to/NotoColorEmoji.ttf bun run e2e --shots` (also works with `bun run e2e:playtest`).
+Screenshot runs check for the font before launching; the local font configuration stays in test tooling and is not
+part of the production build. Visual playthrough captures should keep WebGL enabled and use a device scale factor
+of 2 for phone screenshots; the default smoke runner disables WebGL for most logic checks.
 
 Two visual tools for the 3D art, in the same headless Chromium: `bun run tests/e2e/hero-armors.ts [out.png]` draws the
 hero in every armour (idle, walking, from behind, sword in hand) to check worn armour after re-exporting it, and

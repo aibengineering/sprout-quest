@@ -140,7 +140,9 @@ function flashed(f: Frame, color: string, amount: number): HTMLCanvasElement {
     scratch.height = Math.max(scratch.height, f.h);
   }
   const c = scratch.getContext('2d')!;
-  c.clearRect(0, 0, f.w, f.h);
+  // Scaling can sample just outside the source rectangle. Clear the whole buffer so a larger sprite's old
+  // flash can't bleed into a smaller one's bottom/right edges as faint rectangular lines.
+  c.clearRect(0, 0, scratch.width, scratch.height);
   c.globalCompositeOperation = 'source-over';
   c.globalAlpha = 1;
   c.drawImage(f.img, f.x, f.y, f.w, f.h, 0, 0, f.w, f.h);
