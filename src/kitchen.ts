@@ -4,8 +4,9 @@
 import type { Recipe } from './data';
 import { hasMats, playerStats, spend } from './rules';
 import type { SaveState } from './state';
+import { homeLevel } from './housing';
 
-export type MealId = 'pancakes' | 'tea' | 'goojelly' | 'stew' | 'rockcandy' | 'tart';
+export type MealId = 'pancakes' | 'tea' | 'goojelly' | 'stew' | 'rockcandy' | 'tart' | 'meadowtea' | 'trailbuns';
 
 export interface Meal {
   id: MealId;
@@ -21,6 +22,10 @@ export interface Meal {
 }
 
 export const MEALS: Record<MealId, Meal> = {
+  meadowtea: { id: 'meadowtea', name: 'Meadow Tea', icon: '🍵', recipe: { herb: 6, flower: 2 },
+    desc: 'A wider sweet spot when mining, for 4 minutes.', seconds: 240, from: 'Hazel' },
+  trailbuns: { id: 'trailbuns', name: 'Trail Buns', icon: '🥖', recipe: { berry: 8, fluff: 6 },
+    desc: '+20% woodcutting and mining XP for 4 minutes.', seconds: 240, from: 'Moss' },
   pancakes: {
     id: 'pancakes', name: 'Fluff Pancakes', icon: '🥞', recipe: { fluff: 15, goo: 9 },
     desc: '+15% XP from fights for 5 minutes.', seconds: 300,
@@ -47,10 +52,17 @@ export const MEALS: Record<MealId, Meal> = {
   },
 };
 
-export const MEAL_ORDER: MealId[] = ['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy', 'tart'];
+export const MEAL_ORDER: MealId[] = ['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy', 'tart', 'meadowtea', 'trailbuns'];
 
 /** The flag that teaches Granny a newcomer's recipe (or, for her tart, the Garden's first berries). */
-const TAUGHT: Partial<Record<MealId, string>> = { stew: 'bram:stew', rockcandy: 'pip:candy', tart: 'garden:berries' };
+const TAUGHT: Partial<Record<MealId, string>> = { stew: 'bram:stew', rockcandy: 'pip:candy', tart: 'garden:berries', meadowtea: 'hazel:recipe', trailbuns: 'moss:recipe' };
+
+/** A better home gives the resident room to improve their own recipe, without adding a permanent combat bonus. */
+export function mealSeconds(s: SaveState, id: MealId) {
+  const resident = id === 'rockcandy' ? 'pip' : id === 'meadowtea' ? 'hazel' : id === 'trailbuns' ? 'moss' : null;
+  return MEALS[id].seconds + (resident && homeLevel(s, resident) >= 2 ? 60 : 0);
+}
+export const mealDescription = (s: SaveState, id: MealId) => MEALS[id].desc.replace('4 minutes', `${mealSeconds(s, id) / 60} minutes`);
 
 /** The kitchen opens once Mr. Floppers is home (Poppy's story finished). */
 export const kitchenOpen = (s: SaveState) => (s.stories.poppy ?? 0) >= 6;
@@ -65,7 +77,7 @@ export function cook(s: SaveState, id: MealId): 'ok' | 'missing' | 'unknown' {
   if (!hasMats(s, m.recipe)) return 'missing';
   spend(s, m.recipe);
   const before = playerStats(s).maxHp;
-  s.meal = { id, left: m.seconds };
+  s.meal = { id, left: mealSeconds(s, id) };
   fitHp(s, before);
   return 'ok';
 }
@@ -106,6 +118,8 @@ function fitHp(s: SaveState, before: number) {
 
 /** Woodcutter's Stew widens the sweet spot on trees. */
 export const sweetBoost = (s: SaveState) => (eating(s, 'stew') ? 1.3 : 1);
+export const miningSweetBoost = (s: SaveState) => (eating(s, 'meadowtea') ? 1.3 : 1);
+export const gatheringXpBoost = (s: SaveState) => (eating(s, 'trailbuns') ? 1.2 : 1);
 
 /** Rock Candy: extra ore from every rock you break (see rules.ts, harvest). */
 export const oreBoost = (s: SaveState) => (eating(s, 'rockcandy') ? 1 : 0);

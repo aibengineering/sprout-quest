@@ -1195,6 +1195,19 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
   .rays, .stage-art, .sparkles i { animation: none; }
 }
 
+/* Bram's resident plans: header and dismissal stay visible while the homes scroll. */
+.sheet.house-plans { width: min(800px, 100%); max-height: calc(100dvh - 24px - var(--safe-t) - var(--safe-b)); }
+.sheet.house-plans .result { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 16px 12px 12px; }
+.house-plans-head, .house-plans .btns { flex: none; }
+.house-plans-head h2 { margin: 0; font-size: 23px; }
+.house-plans-head p { font-size: 14px; margin: 8px 0 12px; }
+.house-plans-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; display: grid; gap: 12px; text-align: left; padding: 0 4px 4px; }
+.house-plans-list .mcard { margin: 0; }
+.house-plans-list p { font-size: 14px; margin: 8px 0; }
+.house-plans .btns { flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.house-plans .btns .go { min-height: 44px; font-size: 14px; padding: 10px 12px; }
+@media (min-width: 700px) { .house-plans-list { grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; } }
+
 /* ================= Granny's Kitchen ================= */
 /* What you last ate, pinned to the corner of the health card. */
 #hud .meal {

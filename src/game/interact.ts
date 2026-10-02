@@ -19,6 +19,8 @@ import { kitchenOpen } from '../kitchen';
 import { enterRoom, roomAct } from './rooms';
 import { enterEchoCave, leaveEchoCave } from './underground';
 import { gardenAct, gardenStation, POPPY_AWAY } from './gardenWork';
+import { askBramForHome } from './housing';
+import { visitResident } from './stories/residents';
 
 /** Opens the menu with the world waiting behind it. */
 function openMenu(...args: Parameters<typeof G.ui.openMenu>) {
@@ -71,7 +73,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     // Bram's Sawmill, once it's built: his bench, logs in and planks out.
     if (o.project === 'sawmill' && sawmillBuilt()) return enterRoom('sawmill');
     // The Guest Cottage, once Pip's moved in: a knock on his door.
-    if (o.project === 'cottage' && (G.save.stories.pip ?? 0) >= 1) return visitPip();
+    if (o.project === 'cottage') return (G.save.stories.pip ?? 0) >= 1 ? visitPip() : askBramForHome();
     // Poppy's Garden, once she tends it: her plots (not while she's off after the drums in Echo Cavern).
     if (o.project === 'garden' && gardenOpen(G.save) && poppyAway(G.save)) return G.ui.toast(POPPY_AWAY);
     // Worked by hand: the plot you're on (Poppy offers advice when you talk to her).
@@ -80,6 +82,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
   },
 
   elder: () => talkToElder(),
+  residence: (o) => visitResident(o.home!),
 
   /** Granny's blue house: her Kitchen, once she cooks. */
   house() {

@@ -5,6 +5,7 @@ import type { SawState } from './sawmill';
 import type { GardenState } from './garden';
 import type { RoomId } from './room';
 import { inSideArea, MOUTH } from './procession';
+import type { Homes } from './housing';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
 export interface SaveState {
@@ -31,6 +32,8 @@ export interface SaveState {
   /** Guardians (and the dragon) defeated. */
   bosses: string[];
   build: Record<ProjectId, number>;
+  /** Resident homes and additions, independent of workshop upgrades. */
+  homes: Homes;
   /** Zones whose campfire checkpoint has been lit. */
   camps: ZoneId[];
   /** Where you wake up after fainting. */
@@ -116,6 +119,7 @@ export function newState(): SaveState {
     crafted: 0,
     bosses: [],
     build: { home: 1, forge: 0, garden: 0, training: 0, warp: 0, sawmill: 0, cottage: 0 },
+    homes: { pip: 0, hazel: 0, moss: 0 },
     camps: [],
     respawn: 'glade',
     unlocked: [],
@@ -183,10 +187,16 @@ export function loadState(): SaveState | null {
       mats: { ...base.mats, ...data.mats },
       equip: { ...base.equip, ...data.equip },
       build: { ...base.build, ...data.build },
+      homes: { ...base.homes, ...data.homes },
       tools: { ...base.tools, ...data.tools },
       skills: { ...base.skills, ...data.skills },
       mastery: { ...base.mastery, ...data.mastery },
     } as SaveState;
+    merged.homes.pip = Math.max(merged.homes.pip, merged.build.cottage);
+    for (const id of ['pip', 'hazel', 'moss'] as const) {
+      merged.homes[id] = Math.max(0, Math.min(2, Math.floor(Number(merged.homes[id]) || 0)));
+    }
+    if (merged.homes.pip) merged.build.cottage = 1;
     if (data.mastery === undefined) migrateToTracks(merged);
     // Saves from before the story update: credit progress that already happened.
     if (data.flags === undefined) {

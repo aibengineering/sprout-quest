@@ -20,6 +20,7 @@ import type { SaveState } from './state';
 import { hash2, T, type TileMap, type World, type WorldObj } from './world';
 import { WALL_RISE, type Room } from './room';
 import { EchoCave, ECHO_OUTSIDE } from './echoCave';
+import { HOMES, homeLevel } from './housing';
 import { drawBubble, drawSpeech } from './bubble';
 
 const TAU = Math.PI * 2;
@@ -1208,12 +1209,17 @@ export class Overworld {
       case 'camp': return { name: 'campfire', back: 0.05 };
       case 'statue': return { name: `statue_${o.id}`, back: 0.1 };
       case 'prop': return { name: o.id!, back: 0.2 };
+      case 'residence': {
+        const l = homeLevel(this.save, o.home!);
+        return { name: l ? HOMES[o.home!].plans[l - 1].art : 'plot', back: .28 };
+      }
       case 'bridge': return { name: 'sign', back: 0.05 };
       case 'plot': {
         const p = o.project!, l = lv(p);
         if (p === 'home') return { name: `home${l}`, back: 0.42 };
         if (p === 'warp') return { name: `warp${l}`, back: 0.1 };
         if (p === 'sawmill') return { name: `sawmill${l}`, back: 0.3 };
+        if (p === 'cottage') return { name: homeLevel(this.save, 'pip') >= 2 ? 'res_pip2' : l ? 'cottage1' : 'plot', back: .28 };
         return { name: l ? `${p}${l}` : 'plot', back: 0.28 };
       }
       default: return null;
@@ -1247,6 +1253,11 @@ export class Overworld {
     drawFrame(ctx, sprite, ax, ay, unit, cold ? { tint: '#4a4058', tintAmount: 0.55 } : {});
     const top = ay - sprite.ay * (unit / sprite.ppu);
     switch (o.kind) {
+      case 'residence': {
+        const who = HOMES[o.home!];
+        this.nameTag(ctx, `${who.icon} ${who.name}’s home`, ax, top, ts);
+        break;
+      }
       case 'forge': {
         const lit = this.save.build.forge > 0;
         if (lit && Math.random() < 0.08) this.fx.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });

@@ -48,11 +48,13 @@ import stonehammer from './items/stonehammer';
 import stonesword from './items/stonesword';
 import tart from './items/tart';
 import tea from './items/tea';
+import meadowtea from './items/meadowtea';
+import trailbuns from './items/trailbuns';
 import toothcharm from './items/toothcharm';
 import wyrmbreaker from './items/wyrmbreaker';
 import wyrmfire from './items/wyrmfire';
 import type { CraftPresentation } from './types';
 
 export const CRAFT_PRESENTATIONS: Readonly<Record<string, CraftPresentation>> = Object.fromEntries(
-  [axe1, axe2, axe3, axe4, barkvest, batcloak, batwand, batwhip, clovercharm, copperhammer, coppermail, coppersword, crystalhammer, crystalheart, crystalmail, crystalsword, dragonmail, dragontail, emberblade, embertonic, fluffvest, glimmershawl, glimmerwand, glimmerwhip, goojelly, herbtonic, impring, ironhammer, ironplate, ironsword, jellypot, jellywand, jellywhip, magmamail, pancakes, pick1, pick2, pick3, pick4, rockcandy, shroombrew, shroomhood, sporewand, sporewhip, stew, stonehammer, stonesword, tart, tea, toothcharm, wyrmbreaker, wyrmfire].map((item) => [item.id, item]),
+  [axe1, axe2, axe3, axe4, barkvest, batcloak, batwand, batwhip, clovercharm, copperhammer, coppermail, coppersword, crystalhammer, crystalheart, crystalmail, crystalsword, dragonmail, dragontail, emberblade, embertonic, fluffvest, glimmershawl, glimmerwand, glimmerwhip, goojelly, herbtonic, impring, ironhammer, ironplate, ironsword, jellypot, jellywand, jellywhip, magmamail, pancakes, pick1, pick2, pick3, pick4, rockcandy, shroombrew, shroomhood, sporewand, sporewhip, stew, stonehammer, stonesword, tart, tea, toothcharm, wyrmbreaker, wyrmfire, meadowtea, trailbuns].map((item) => [item.id, item]),
 );

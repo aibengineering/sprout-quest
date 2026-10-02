@@ -32,6 +32,7 @@ def _tagged(color, shade=None, rim=0.22, emit=0.0, name=None):
 lib.toon = _tagged
 
 import hero  # noqa: E402
+import residents  # noqa: E402
 import monsters  # noqa: E402
 import weapons  # noqa: E402
 
@@ -103,6 +104,8 @@ CHARACTERS = {
     'npc_bram': lambda: (hero.build_bram(), walker_anims()),
     'npc_bram_hurt': lambda: (hero.build_bram('hurt', hurt=True), walker_anims()),
     'npc_pip': lambda: (hero.build_pip(), walker_anims()),
+    'npc_hazel': lambda: (residents.build_hazel(), walker_anims()),
+    'npc_moss': lambda: (residents.build_moss(), walker_anims()),
     **{f'mon_{k}': monster(k) for k in monsters.BUILDERS},
     **{f'wpn_{w}': (lambda w=w: weapon(w)) for w in weapons.WEAPONS},
 }

@@ -7,13 +7,16 @@ import { cottageDue } from '../../rules';
 import { G, paused, persist, syncWorld } from '../context';
 import { bubble, narrate, pan, say, scene, wait, type Speaker } from '../scenes';
 import type { Story } from '../stories';
+import { residentDoor } from '../../villageLayout';
+import { homeLevel } from '../../housing';
+import { mealDescription } from '../../kitchen';
+import { BRAM_AT } from './bram';
 
 export const PIP: Speaker = { name: 'Pip', emoji: '⛏️', portrait: (m) => (m === 'wow' ? 'npc_pip_wow' : 'npc_pip') };
 const ID = 'pip:pip';
 
-const V = ZONES.find((z) => z.id === 'village')!.x0;
 /** By the Guest Cottage's door (the plot's in world.ts), just clear of the Waystone. */
-const HOME = { x: V + 20.4, y: 6.5 };
+const HOME = residentDoor('pip');
 
 /** Talking to someone outside a scene: a few lines with the world waiting. */
 const chat = (lines: [Speaker, string, string?][]) => paused(async () => {
@@ -31,7 +34,10 @@ let line = 0;
 
 /** A chat with Pip by his door (also what the Guest Cottage does once he lives there, see interact.ts). */
 export const visitPip = () => {
-  const [text, mood] = LINES[line++ % LINES.length];
+  const turn = line++;
+  const [text, mood] = homeLevel(G.save, 'pip') >= 2 && turn % 6 === 5
+    ? ['My own study! Room for every pebble. I taught Clover the slower way to cool Rock Candy; it lasts a whole minute longer now.']
+    : LINES[turn % LINES.length];
   return chat([[PIP, text, mood]]);
 };
 
@@ -54,11 +60,8 @@ export const PIP_STORY: Story = {
 
   steps: [
     {
-      id: 'cottage', label: 'Build a Guest Cottage in Sowerby',
-      target: () => {
-        const o = G.world.obj('plot', 'cottage');
-        return o ? { x: o.x + o.w / 2, y: o.y + o.h + 0.6 } : HOME;
-      },
+      id: 'cottage', label: 'Ask Bram to build the Guest Cottage with your planks',
+      target: () => BRAM_AT,
       done: () => G.save.build.cottage >= 1,
       async then() {
         syncWorld();
@@ -78,7 +81,7 @@ export const PIP_STORY: Story = {
         });
         G.save.flags.push('pip:candy');
         persist();
-        await paused(() => G.ui.itemFound('meal_rockcandy', 'Rock Candy', 'Granny can cook it now: an extra ore from every rock you mine, for 4 minutes. Stone and Copper.', '🍬', 'New recipe'));
+        await paused(() => G.ui.itemFound('meal_rockcandy', 'Rock Candy', `Granny can cook it now: ${mealDescription(G.save, 'rockcandy')} Stone and Copper.`, '🍬', 'New recipe'));
       },
     },
   ],

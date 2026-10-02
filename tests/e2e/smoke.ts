@@ -113,7 +113,7 @@ async function cookByHand(page: Page, id: MealId) {
 }
 
 /** Clicks through popups (not the menu) until none are left; returns the text of each one. */
-async function closeDialogs(page: Page, max = 8, sheet = '.sheet:not(.menu)') {
+async function closeDialogs(page: Page, max = 8, sheet = '.sheet:not(.menu):not(.house-plans)') {
   const seen: string[] = [];
   for (let i = 0, t0 = Date.now(); i < max; i++) {
     const btn = await page.$(`#modal:not([hidden]) ${sheet} [data-dialog]:last-of-type`);
@@ -1282,20 +1282,20 @@ scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra han
     }, ms);
   };
   const step = () => game<number>(page, 'g.save.stories.pip ?? 0');
-  // Bram's settled in: the Guest Cottage's plot is open. Build it from the village plans.
+  // Bram's settled in: bring him the Guest Cottage's planks outside the mill.
   await playUntil('the cottage plot', async () => game<boolean>(page, `g.mode === 'world' && !g.over.world.objs.find((o) => o.project === 'cottage').hidden`));
   check(!(await game<boolean>(page, `!!g.over.actors.get('pip:pip')`)), 'Pip is here before his cottage');
-  await run(page, `const o = g.over.world.objs.find((o) => o.project === 'cottage'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5)`);
+  await run(page, `const a = g.over.actors.get('bram:bram'); g.over.teleport(a.x, a.y + .6); g.over.face = -Math.PI / 2`);
   await page.waitForTimeout(400);
   await page.keyboard.press('KeyE');
-  await waitFor(page, 'the plans', async () => !!(await page.$('#modal:not([hidden]) [data-build="cottage"]:not([disabled])')));
-  await page.click('#modal [data-build="cottage"]');
+  await waitFor(page, 'Bram’s plans', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="home:pip:0"]:not([disabled])')));
+  await page.click('#modal [data-dialog="home:pip:0"]');
   // The Guest Cottage rises from its materials (skipped here); Pip's arrival follows.
   await page.waitForSelector('.craft-building');
   await page.keyboard.press('Escape');
   await page.click('#modal [data-dialog="ok"]');
   await page.waitForTimeout(400);
-  if (await page.$('#modal:not([hidden]) .sheet.menu')) await page.keyboard.press('Escape');
+  if (await page.$('#modal:not([hidden]) .sheet.house-plans')) await page.keyboard.press('Escape');
   // He pops up by the door, moves in and teaches Granny his Rock Candy.
   await playUntil('Pip moving in', async () => (await step()) === 1 && (await game<string>(page, 'g.mode')) === 'world' && !(await page.$('#modal:not([hidden])')));
   check(said.some((t) => t.includes("I'm Pip")), 'Pip never introduced himself');
@@ -1627,8 +1627,12 @@ scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the l
   // Bram chats outside and joins you inside: in through the Sawmill's door, by the action button at it.
   check(await game<boolean>(page, `!!g.over.actors.get('bram:bram')`), 'Bram should be outside after settling in');
   await run(page, `void g.over.cast.get('bram:bram').talk()`);
-  await waitFor(page, 'Bram inviting you inside', async () => !!(await page.textContent('.caption-text'))?.includes('Come inside'));
+  await waitFor(page, 'Bram’s house plans', async () => !!(await page.$('.sheet.house-plans')));
+  await page.click('[data-dialog="mill"]');
+  await waitFor(page, 'Bram explaining the mill', async () => !!(await page.textContent('.caption-text'))?.includes('Inside the mill'));
   await closeDialogs(page);
+  await page.waitForSelector('.sheet.house-plans');
+  await page.keyboard.press('Escape');
   await run(page, `const o = g.over.world.objs.find((o) => o.project === 'sawmill'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5); g.over.face = -Math.PI / 2`);
   await page.waitForTimeout(300);
   await page.keyboard.press('KeyE');
@@ -2350,6 +2354,72 @@ scenario('building skips safely, ignores a second build request, and respects re
   if (SHOTS) await page.screenshot({ path: `${OUT}smithy-small-phone.png` });
   await page.click('[data-dialog="ok"]');
 });
+
+scenario('Bram’s house plans: welcome Hazel and Moss, cook their recipes, upgrade and reload without duplicate costs', (g) => {
+  const s = g.save;
+  s.lv = 8; s.quest = g.quests.findIndex((q: any) => q.id === 'smithy');
+  s.stories = { ...s.stories, poppy: 6, bram: 9, pip: 1, drums: 4, granny: 99 };
+  s.flags.push('poppy:returned', 'bram:hut', 'bram:stew', 'pip:candy');
+  s.build.sawmill = 2; s.build.home = 2; s.build.cottage = 1;
+  s.unlocked.push('sawmill');
+  for (const m in s.mats) s.mats[m] = 300;
+  s.pos = { x: 20.2, y: 9.2 };
+}, async (page) => {
+  const plans = async () => {
+    await run(page, `const a = g.over.actors.get('bram:bram'); g.over.teleport(a.x, a.y + .6); g.over.face = -Math.PI/2`);
+    await page.waitForTimeout(300); await page.keyboard.press('KeyE');
+    await page.waitForSelector('.sheet.house-plans');
+  };
+  const build = async (id: string, level: number) => {
+    await page.click(`[data-dialog="home:${id}:${level}"]`);
+    await page.waitForSelector('.craft-building');
+    await page.keyboard.press('Escape'); await page.locator('.craft-ready').waitFor();
+    await page.click('[data-dialog="ok"]'); await page.waitForSelector('.sheet.house-plans');
+  };
+  const meet = async (id: string) => {
+    await run(page, `const o = g.over.world.objs.find((o) => o.home === '${id}'); g.over.teleport(o.x + o.w/2, o.y + o.h + 1.2); g.over.face = -Math.PI/2`);
+    await page.waitForTimeout(400); await page.keyboard.press('KeyE');
+    await waitFor(page, `meeting ${id}`, async () => {
+      await closeDialogs(page);
+      return game<boolean>(page, `g.save.flags.includes('${id}:recipe') && g.save.stories.${id} === 1 && g.mode === 'world' && !g.ui.isOpen`);
+    }, 20000);
+  };
+  await plans();
+  check(!await page.locator('[data-dialog="home:hazel:0"]').isDisabled(), 'Hazel’s house should be ready with Pip’s cottage');
+  check(await page.locator('[data-dialog="home:moss:0"]').isDisabled(), 'Moss should wait for Hazel');
+  for (const [width, height] of [[320,568],[390,844],[960,700]]) {
+    await page.setViewportSize({ width, height });
+    const fits = await page.evaluate(() => {
+      const header = document.querySelector('.house-plans-head')!.getBoundingClientRect(), buttons = document.querySelector('.house-plans .btns')!.getBoundingClientRect();
+      return header.top >= 0 && buttons.bottom <= innerHeight && document.documentElement.scrollWidth <= innerWidth;
+    });
+    check(fits, `house plans clipped at ${width}×${height}`);
+  }
+  if (SHOTS) await page.screenshot({ path: `${OUT}bram-house-plans-wide.png` });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const before = await game<any>(page, `({ ...g.save.mats })`);
+  await build('hazel', 0);
+  check(await game<boolean>(page, `g.save.homes.hazel === 1 && g.save.mats.plank === ${before.plank - 48} && g.save.mats.stone === ${before.stone - 18} && !g.save.flags.includes('hazel:recipe')`), 'house was not charged once, or the recipe arrived before meeting Hazel');
+  await build('moss', 0);
+  await page.keyboard.press('Escape'); await waitFor(page, 'leaving the plans', async () => game<boolean>(page, `g.mode === 'world' && !g.ui.isOpen`));
+  await meet('hazel'); await meet('moss');
+  check(await game<boolean>(page, `!!g.over.actors.get('hazel:hazel') && !!g.over.actors.get('moss:moss')`), 'residents did not stay by their homes');
+  if (SHOTS) await page.screenshot({ path: `${OUT}sowerby-new-neighbours.png` });
+  await cookByHand(page, 'meadowtea');
+  check(await game<boolean>(page, `g.save.meal?.id === 'meadowtea' && g.save.meal.left <= 240`), 'Hazel’s recipe did not cook through the pot');
+  await run(page, `g.leaveRoom()`); await waitFor(page, 'outside', () => settledIn(page, null));
+  await plans();
+  const cost = await game<number>(page, 'g.save.mats.pineplank');
+  await page.click('[data-dialog="home:hazel:1"]'); await page.waitForSelector('.craft-building');
+  check(await game<boolean>(page, `g.save.homes.hazel === 2 && g.save.mats.pineplank === ${cost - 40}`), 'upgrade not committed before animation');
+  await page.reload(); await page.waitForSelector('.title-btns:not([hidden])'); await page.click('#btn-continue');
+  await page.waitForTimeout(2200); await closeDialogs(page);
+  check(await game<boolean>(page, `g.save.homes.hazel === 2 && g.save.homes.moss === 1 && g.save.mats.pineplank === ${cost - 40} && g.save.flags.includes('hazel:recipe')`), 'reload lost or duplicated the addition');
+  await cookByHand(page, 'meadowtea');
+  check(await game<boolean>(page, `g.save.meal?.id === 'meadowtea' && g.save.meal.left > 295`), 'glasshouse bonus not applied to the next cup');
+  await cookByHand(page, 'trailbuns');
+  check(await game<boolean>(page, `g.save.meal?.id === 'trailbuns'`), 'Moss’s recipe did not replace the tea');
+}, { webgl: true });
 
 // The 3D characters: every model loads, and the hero, villagers and monsters render (in software WebGL here) without
 // errors, on the map and in a fight.

@@ -15,6 +15,7 @@ import { gardenOpen } from '../garden';
 import { kitchenOpen } from '../kitchen';
 import { poppyAway } from '../procession';
 import { World } from '../world';
+import { homeLevel } from '../housing';
 
 /**
  * What the game is doing, which decides what takes input and what's drawn:
@@ -136,8 +137,12 @@ export function syncWorld() {
       o.hidden = !plotOpen(s, o.project!);
       if (o.project === 'home') o.label = has(s, 'village') ? 'Build' : 'Rest';
       if (o.project === 'sawmill') o.label = s.build.sawmill ? 'Sawmill' : 'Build';
-      if (o.project === 'cottage') o.label = s.build.cottage ? 'Visit' : 'Build';
+      if (o.project === 'cottage') o.label = s.build.cottage ? 'Visit' : 'Ask Bram';
       if (o.project === 'garden') o.label = gardenOpen(s) ? 'Garden' : 'Build';
+    }
+    if (o.kind === 'residence') {
+      o.hidden = !s.flags.includes('bram:hut') && !homeLevel(s, o.home!);
+      o.label = homeLevel(s, o.home!) ? 'Visit' : 'Ask Bram';
     }
     if (o.kind === 'station' && o.id?.startsWith('garden:')) o.hidden = o.id === 'garden:sign' ? !s.build.garden || !plotOpen(s, 'garden') : !gardenOpen(s);
     if (o.id === 'garden:sign') o.label = s.build.garden < PROJECTS.garden.levels.length ? 'Upgrade' : '';

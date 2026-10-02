@@ -11,6 +11,7 @@ import { GRANNY_STORY } from './stories/granny';
 import { PIP_STORY } from './stories/pip';
 import { DRUMS } from './stories/drums';
 import { POPPY } from './stories/poppy';
+import { RESIDENT_STORIES } from './stories/residents';
 
 export interface StoryStep {
   id: string;
@@ -61,7 +62,7 @@ export interface Story {
   layers?: Partial<MapLayers>;
 }
 
-export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY, DRUMS, PIP_STORY];
+export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY, DRUMS, PIP_STORY, ...RESIDENT_STORIES];
 
 /** How far through a story you are (0 = not started; the step count = finished). */
 export const stepOf = (id: string) => G.save.stories[id] ?? 0;

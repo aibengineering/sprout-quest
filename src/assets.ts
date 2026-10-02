@@ -76,7 +76,7 @@ export async function loadAssets(onProgress?: (p: LoadProgress) => void): Promis
   };
   // The main atlas, and alongside it the rooms' props (Granny's Kitchen, Bram's Sawmill) and the Garden's tools: a
   // small atlas of their own, which can go missing without taking the rest down.
-  const [main] = await Promise.allSettled([load('assets/'), load('assets/rooms/'), load('assets/echo/')]);
+  const [main] = await Promise.allSettled([load('assets/'), load('assets/rooms/'), load('assets/echo/'), load('assets/homes/')]);
   ready = main.status === 'fulfilled';
   return ready;
 }

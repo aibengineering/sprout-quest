@@ -15,6 +15,8 @@ import echo  # noqa: E402
 import gather  # noqa: E402
 from gear_parts import item_module  # noqa: E402
 import hero  # noqa: E402
+import residents  # noqa: E402
+import buildings  # noqa: E402
 import icons  # noqa: E402
 import lib  # noqa: E402
 import monsters  # noqa: E402
@@ -100,6 +102,17 @@ elif GROUP == 'env':
         lib.clear_objects()
         fn()
         shot(f'env/{name}', int(w * 1.3), int(h * 1.25), 64, fit_origin=0.86)
+
+elif GROUP == 'homes':
+    for name in ('res_pip2', 'res_hazel1', 'res_hazel2', 'res_moss1', 'res_moss2'):
+        lib.clear_objects()
+        buildings.whole(name)
+        shot(f'env/{name}', 320, 288, 64, fit_origin=.86)
+        shot(f'icon/b_{name}', 128, 128, 30, fit_origin=.82)
+    for name, fn in (('hazel', residents.build_hazel), ('moss', residents.build_moss)):
+        lib.clear_objects()
+        fn()
+        shot(f'icon/npc_{name}', 128, 128, 88, anchor=(0, 0, .70), elevation=math.radians(12), fit_origin=.5)
 
 elif GROUP in ('rooms', 'echo'):
     # The rooms you walk into, and the Garden's hand tools (art/rooms.py): packed into their own atlas.

@@ -2,6 +2,8 @@
 import { WORLD_H, WORLD_W, ZONES, zoneAtX, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
 import { FIELD_COLS, FIELD_ROWS } from './garden';
 import { ROUTES } from './routes';
+import type { HomeId } from './housing';
+import { RESIDENT_PLOTS, TOWN_HOME, TOWN_TRAINING, TOWN_WAYSTONE } from './villageLayout';
 import type { SaveState } from './state';
 
 export const T = {
@@ -45,7 +47,7 @@ const NODE_MARKS: [string, NodeKind, boolean][] = [
  * room's stove or saw bench, the Garden's water butt), told apart by its `id`. 'door': the way into a room, or out.
  * 'fence': a run of the Garden field's fence (drawn with the field).
  */
-export type ObjKind = 'fence' | 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop' | 'bridge' | 'station' | 'door';
+export type ObjKind = 'residence' | 'fence' | 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop' | 'bridge' | 'station' | 'door';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -60,6 +62,7 @@ export interface WorldObj {
   zone?: ZoneId;
   /** Construction project on this plot. */
   project?: ProjectId;
+  home?: HomeId;
   /** Hidden objects are neither drawn nor solid (opened gates, unlit camps). */
   hidden?: boolean;
   /** Story flag set when this scripted object is resolved (sword picked up, prologue foe beaten). */
@@ -265,16 +268,20 @@ export class World extends TileMap {
     add({ kind: 'forge', x: V + 5, y: 7, w: 4, h: 3, label: 'Forge', text: 'The Forge' });
     add({ kind: 'house', x: V + 13, y: 6.5, w: 3, h: 3, label: '' });
     add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
-    add({ kind: 'plot', project: 'home', x: V + 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
-    add({ kind: 'plot', project: 'training', x: V + 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
-    add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Waystone' });
+    add({ kind: 'plot', project: 'home', ...TOWN_HOME, label: 'Build', text: 'Home' });
+    add({ kind: 'plot', project: 'training', ...TOWN_TRAINING, label: 'Build', text: 'Training Yard' });
+    add({ kind: 'plot', project: 'warp', ...TOWN_WAYSTONE, label: 'Build', text: 'Waystone' });
     // The Sawmill beside the Forge; Bram's cabin sits south of the road with the homes,
     // leaving the workshop approach and his outdoor conversation spot clear.
     add({ kind: 'plot', project: 'sawmill', x: V + 1.1, y: 5.5, w: 3.4, h: 2, label: 'Build', text: 'Sawmill' });
     add({ kind: 'prop', id: 'bramhut', x: V + 8.2, y: 19, w: 2, h: 1.3, label: '' });
     this.placeField();
     // The Guest Cottage, up in the north-east corner behind the Waystone: once Bram's settled in, for whoever comes next.
-    add({ kind: 'plot', project: 'cottage', x: V + 18.8, y: 4.5, w: 2.2, h: 1.4, label: 'Build', text: 'Guest Cottage' });
+    add({ kind: 'plot', project: 'cottage', ...RESIDENT_PLOTS.pip, label: 'Ask Bram', text: 'Guest Cottage' });
+    for (const home of ['hazel', 'moss'] as const) add({ kind: 'residence', home, ...RESIDENT_PLOTS[home], label: 'Ask Bram' });
+    // A lane connects the south-side homes; spurs leave every doorstep on open ground.
+    for (let x = V + 3; x <= V + 20; x++) this.set(x, 22, T.PATH);
+    for (const x of [V + 6, V + 10, V + 15, V + 20]) for (let y = 15; y <= 22; y++) this.set(x, y, T.PATH);
     // Bram's old logging camp, in the Woods' north-west corner: the stump with his axe in it, the caved-in mill, logs.
     const W = ZONES.find((z) => z.id === 'woods')!.x0;
     add({ kind: 'prop', id: 'prop_campmill', zone: 'woods', x: W + 3.8, y: 3.2, w: 2.6, h: 1, label: '' }, false);

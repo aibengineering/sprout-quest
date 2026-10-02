@@ -10,6 +10,7 @@ import { challengeFoe, startBattle } from '../fights';
 import { bubble, narrate, pan, say, scene, walk, wait, type Speaker } from '../scenes';
 import { stopWaiting, waitAt, type Story } from '../stories';
 import { GRANNY, GRANNY_AT, GRANNY_ID } from './granny';
+import { bramHousePlans } from '../housing';
 
 export const BRAM: Speaker = { name: 'Bram', emoji: '🧔', portrait: (m) => (m === 'happy' ? 'npc_bram_happy' : m === 'hurt' ? 'npc_bram_hurt' : 'npc_bram') };
 const ID = 'bram:bram';
@@ -18,7 +19,8 @@ const W = ZONES.find((z) => z.id === 'woods')!.x0;
 const V = ZONES.find((z) => z.id === 'village')!.x0;
 /** Where he sits at his camp, by the stump with his axe in it, and his place in Sowerby once he's moved in. */
 const CAMP = { x: W + 8.1, y: 6.3 };
-const MILL = { x: V + 4.2, y: 8.6 };
+export const BRAM_AT = { x: V + 4.2, y: 8.6 };
+const MILL = BRAM_AT;
 /** Where the pack comes in: the clearing's east mouth. */
 const MOUTH = { x: W + 13.5, y: 5.6 };
 
@@ -282,7 +284,7 @@ export const BRAM_STORY: Story = {
       })];
     }
     // Settled in: chat outside, and he joins you at the bench when you enter his Sawmill.
-    return [at(MILL, undefined, () => chat([[BRAM, "Good to see you, partner. Clover's stew keeps me going. Come inside when you've got logs to cut; I'll show you the bench.", 'happy']]))];
+    return [at(MILL, undefined, bramHousePlans)];
   },
 
   fainted() {

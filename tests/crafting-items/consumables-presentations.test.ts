@@ -16,8 +16,10 @@ import stew from '../../src/crafting/items/stew';
 import rockcandy from '../../src/crafting/items/rockcandy';
 import herbtonic from '../../src/crafting/items/herbtonic';
 import tart from '../../src/crafting/items/tart';
+import meadowtea from '../../src/crafting/items/meadowtea';
+import trailbuns from '../../src/crafting/items/trailbuns';
 
-const presentations: CraftPresentation[] = [jellypot, shroombrew, embertonic, herbtonic, pancakes, tea, goojelly, stew, rockcandy, tart];
+const presentations: CraftPresentation[] = [jellypot, shroombrew, embertonic, herbtonic, pancakes, tea, goojelly, stew, rockcandy, tart, meadowtea, trailbuns];
 const recipes = Object.fromEntries([...POTION_RECIPES, ...Object.values(MEALS)].map((item) => [item.id, item.recipe]));
 
 describe('recipe-faithful potion and Kitchen timelines', () => {
@@ -80,8 +82,8 @@ describe('recipe-faithful potion and Kitchen timelines', () => {
     for (const id of MEAL_ORDER) {
       const save = newState();
       save.stories.poppy = 6;
-      save.flags.push('bram:stew', 'pip:candy', 'garden:berries');
-      Object.assign(save.mats, { goo: 150, fluff: 150, clover: 50, pine: 150, cap: 150, stone: 150, copper: 150, berry: 100 });
+      save.flags.push('bram:stew', 'pip:candy', 'garden:berries', 'hazel:recipe', 'moss:recipe');
+      Object.assign(save.mats, { goo: 150, fluff: 150, clover: 50, pine: 150, cap: 150, stone: 150, copper: 150, berry: 100, herb: 50, flower: 50 });
       const before = { ...save.mats };
       expect(cook(save, id)).toBe('ok');
       expect(save.meal).toEqual({ id, left: MEALS[id].seconds });

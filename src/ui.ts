@@ -14,6 +14,8 @@ import type { SoundSettings } from './sound';
 import type { Unlock, UnlockId } from './unlocks';
 import { CLASS_NOTES, MOVESETS, SKILL_LEVELS, TRICKS, TRICK_LEVEL, comboTime, handlingStep, skillAt } from './weapons';
 import { MEALS, mealLeft } from './kitchen';
+import { HOMES, HOME_ORDER, homeLevel, type HomeId } from './housing';
+import { housePresentation } from './crafting/houses';
 import { usingKeyboard } from './input';
 import { heroView, mountItemView, stopItemView, view3d } from './itemview';
 import { canShareFiles } from './share';
@@ -174,7 +176,7 @@ export function allIconIds(): string[] {
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
     ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
-    ...buildings.map((b) => `b_${b}`), 'npc_elder',
+    ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_hazel', 'npc_moss',
     // Story portraits and keepsakes.
     'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots', 'echoanklet',
     'npc_bram', 'npc_bram_happy', 'npc_bram_hurt', 'pie', 'npc_pip', 'npc_pip_wow', ...Object.keys(MEALS).map((m) => `meal_${m}`),
@@ -798,7 +800,7 @@ export class UI {
         return;
       }
       const btns = [...this.sheet.querySelectorAll<HTMLButtonElement>('[data-dialog]')];
-      const primary = btns[btns.length - 1], secondary = btns.length > 1 ? btns[0] : null;
+      const primary = btns[btns.length - 1], secondary = this.sheet.classList.contains('house-plans') ? btns.find((b) => b.dataset.dialog === 'close') : btns.length > 1 ? btns[0] : null;
       if (k === 'Enter' || k === 'Space' || k === 'KeyE' || k === 'NumpadEnter') {
         swallow();
         this.armed = true;
@@ -1221,7 +1223,7 @@ export class UI {
       : `<div class="note">📍 You can plan here. Head back to Sowerby to build.</div>`;
     // Ready to build first, then what's still missing something, then what's finished, then plots not open yet.
     const order = (id: ProjectId) => (!plotOpen(s, id) ? 3 : s.build[id] >= PROJECTS[id].levels.length ? 2 : canBuild(s, id) === 'ok' ? 0 : 1);
-    const cards = [...PROJECT_ORDER].sort((a, b) => order(a) - order(b)).map((id) => {
+    const cards = PROJECT_ORDER.filter((id) => id !== 'cottage').sort((a, b) => order(a) - order(b)).map((id) => {
       const p = PROJECTS[id];
       const lv = s.build[id];
       const max = p.levels.length;
@@ -1259,7 +1261,8 @@ export class UI {
         ${costs ? `<div class="bp-costs">${costs}</div>` : ''}
         <button class="go wide bp-go" data-build="${id}" ${ok && here ? '' : 'disabled'}>${label}</button></div>`;
     }).join('');
-    return `<div class="board">${note}<div class="blueprints">${cards}</div></div>`;
+    const neighbours = HOME_ORDER.map((id) => `${HOMES[id].icon} ${HOMES[id].name}: ${homeLevel(s, id) ? HOMES[id].plans[homeLevel(s, id) - 1].name : 'a home to build'}`).join('<br>');
+    return `<div class="board">${note}<div class="note">🧔 Resident homes have their own plans. Talk to Bram outside the Sawmill to build with your planks.<br>${neighbours}</div><div class="blueprints">${cards}</div></div>`;
   }
 
   /** Dev builds add their own row to the More tab (save slots and presets; see src/dev/devtools.ts). */
@@ -1380,7 +1383,7 @@ export class UI {
     this.modal.hidden = false;
     this.sheet.className = `sheet ${cls}`;
     const btns = buttons.map(([value, label, c], i) => {
-      const cap = i === buttons.length - 1 ? 'Enter' : i === 0 ? 'Esc' : '';
+      const cap = i === buttons.length - 1 ? 'Enter' : i === 0 && cls !== 'house-plans' ? 'Esc' : '';
       return `<button class="go ${c ?? ''}" data-dialog="${value}">${label}${cap ? `<kbd class="key">${cap}</kbd>` : ''}</button>`;
     }).join('');
     this.sheet.innerHTML = `<div class="result">${html}<div class="btns">${btns}</div></div>`;
@@ -1565,6 +1568,13 @@ export class UI {
     });
     try { return await choice; }
     finally { craft.dispose(); }
+  }
+
+  /** Bram has already saved the home and spent its planks. Presentation cannot repeat the transaction. */
+  async builtHome(id: HomeId, level: number, before: Recipe) {
+    const plan = HOMES[id].plans[level - 1], presentation = housePresentation(id, level);
+    await this.showCraft({ id: presentation.id, name: plan.name, recipe: plan.cost, iconId: `b_${plan.art}` }, presentation, before,
+      `<p class="craft-perk">${esc(plan.perk)}</p>`, [['ok', 'Wonderful!']]);
   }
 
   challenge(kind: MonsterKind, name: string, title: string, lv: number, playerLv: number, zoneName: string) {

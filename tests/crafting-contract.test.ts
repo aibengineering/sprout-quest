@@ -15,7 +15,7 @@ describe('registered crafting contributions', () => {
   });
 
   test('every craftable item has a presentation, and their models are small', () => {
-    expect(items).toHaveLength(52);
+    expect(items).toHaveLength(54);
     expect(Object.keys(CRAFT_PRESENTATIONS).sort()).toEqual(items.map(i => i.id).sort());
     let total = 0;
     for (const p of Object.values(CRAFT_PRESENTATIONS)) {

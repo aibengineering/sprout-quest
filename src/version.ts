@@ -47,6 +47,8 @@ export const PATCH_NOTES: PatchNote[] = [
       "🪨 Follow Poppy underground and hide from the Pebblers' eye beams",
       "🕯️ Echo Cavern stays moody, with clearer rocks and a lit cave entrance",
       "📖 Granny's recipe book fits phones and wide screens",
+      "🧔 Bring Bram planks to build resident homes and useful house additions",
+      "🌿 Welcome Hazel and Moss to Sowerby and learn two new kitchen recipes",
       "🐛 Fixes: Granny's reunion freeze and the blocked sawmill approach",
     ],
   },

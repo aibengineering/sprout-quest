@@ -85,7 +85,7 @@ fi
 
 # The rooms you walk into (Granny's Kitchen, Bram's Sawmill) and the Garden's hand tools: their own atlas, in
 # public/assets/rooms/ (the main one is left alone).
-if [ "${1:-}" = rooms ] || [ "${1:-}" = echo ]; then
+if [ "${1:-}" = rooms ] || [ "${1:-}" = echo ] || [ "${1:-}" = homes ]; then
   rm -rf "out/$1" "out/$1.json"
   render "$1"
   "$BLENDER" -b --factory-startup --python-exit-code 1 -P pack.py -- --group "$1" 2>&1 | grep -E "PACKED|Error|Traceback"
@@ -113,6 +113,7 @@ if [ $# -gt 0 ]; then PACK_ARGS=(-- --incremental); fi
 if [ $# -eq 0 ]; then
   buildings all
   bash build.sh echo
+  bash build.sh homes
 fi
 # Packing rewrites the icons from art/out; the model icons are always redrawn from their models after it.
 bun ../scripts/icons3d.ts

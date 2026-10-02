@@ -79,8 +79,8 @@ def main():
             e = json.load(open(path))
             latest[e['name']] = dict(e, file=os.path.join(DEST, '..', e['src']))
     entries = list(latest.values())
-    if not GROUP:
-        os.makedirs(os.path.join(DEST, 'icons'), exist_ok=True)
+    icon_dest = os.path.join(HERE, '..', 'public', 'assets', 'icons')
+    os.makedirs(icon_dest, exist_ok=True)
     os.makedirs(DEST, exist_ok=True)
     frames, sprites = {}, []
     for e in entries:
@@ -88,7 +88,7 @@ def main():
             continue
         px = load(e['file'])
         if e['name'].startswith('icon/'):
-            save(px, os.path.join(DEST, 'icons', e['name'][5:] + '.webp'), quality=ICON_QUALITY)
+            save(px, os.path.join(icon_dest, e['name'][5:] + '.webp'), quality=ICON_QUALITY)
             continue
         cut, x0, y0 = trim(px)
         sprites.append((e, cut, e['ax'] - x0, e['ay'] - y0))

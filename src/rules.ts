@@ -1,7 +1,7 @@
 // Pure game rules: stats, damage, leveling, drops and crafting. No DOM access, so it's unit-testable.
 import { GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MAX_POTIONS, NODES, POTION_RECIPES, PROJECTS, SKILL_MAX, SLOW_TOOL, TOOLS, forgeLevelFor, type Gear, type Tool, type MatId, type MonsterDef, type NodeKind, type ProjectId, type Recipe, type SkillId, type Style, type Zone } from './data';
 import type { SaveState } from './state';
-import { oreBoost } from './kitchen';
+import { oreBoost, gatheringXpBoost } from './kitchen';
 import { has, type UnlockId } from './unlocks';
 import { gardenOpen } from './garden';
 import { hpBoost } from './kitchen';
@@ -390,6 +390,7 @@ export function harvest(s: SaveState, kind: NodeKind, nodeId: string, grass: boo
   if (n.seed && gardenOpen(s) && rng() < n.seed.chance) drops[n.seed.mat] = (drops[n.seed.mat] ?? 0) + 1;
   mergeDrops(s.mats, drops);
   s.nodes[nodeId] = now + spot.regrow * 1000;
-  const levels = gainSkillXp(s, n.skill, spot.xp);
-  return { drops, xp: spot.xp, levels };
+  const xp = Math.round(spot.xp * gatheringXpBoost(s));
+  const levels = gainSkillXp(s, n.skill, xp);
+  return { drops, xp, levels };
 }

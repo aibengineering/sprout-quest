@@ -13,6 +13,7 @@ import { activeStory, storyLog } from './stories';
 import { progressQuests } from './story';
 import { moveAt } from '../battle/demo';
 import { showPreview } from './preview';
+import { askBramForHome } from './housing';
 
 /** One transaction/reveal at a time, including taps queued while the Forge is being replaced. */
 let craftingItem = false;
@@ -78,6 +79,7 @@ export const menuHooks: UIHooks = {
   },
 
   async build(id) {
+    if (id === 'cottage') return askBramForHome();
     if (craftingItem) return;
     const s = G.save, shown = revealed(s), before = { ...s.mats };
     if (build(s, id) !== 'ok') return;

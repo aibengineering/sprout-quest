@@ -1,6 +1,6 @@
 // Granny's Kitchen: pick up one plate with all the recipe's ingredients beside the pantry, carry it to the stove,
 // and watch the shared creation animation. The recipe is committed and saved once, before its presentation.
-import { MEALS, cook, kitchenOpen, knownMeals, prepareMeal, type MealTray } from '../kitchen';
+import { MEALS, cook, kitchenOpen, knownMeals, prepareMeal, mealDescription, type MealTray } from '../kitchen';
 import { craftPresentation } from '../crafting';
 import { hasMats } from '../rules';
 import type { Room } from '../room';
@@ -42,7 +42,7 @@ async function book() {
     const rows = knownMeals(s).map((id) => {
       const m = MEALS[id], can = hasMats(s, m.recipe);
       return `<div class="mcard row"><div class="ico">${icon(`meal_${id}`, m.icon)}</div><div class="info">
-        <div class="name">${esc(m.name)}</div><div class="desc">${esc(m.desc)}</div><div class="chips">${costChips(s, m.recipe)}</div></div>
+        <div class="name">${esc(m.name)}</div><div class="desc">${esc(mealDescription(s, id))}</div><div class="chips">${costChips(s, m.recipe)}</div></div>
         <button class="go" data-dialog="dish:${id}" ${can ? '' : 'disabled'}>Prepare</button></div>`;
     }).join('');
     const r = await paused(() => G.ui.dialog(
@@ -74,7 +74,7 @@ async function stove(o: WorldObj) {
   const ts = G.over.ts, at = potAt(o, ts);
   G.over.fx.burst(at.x, at.y, '#fff6c8', 8, ts * 1.4, { star: true, size: ts * 0.06, life: 0.5 });
   try {
-    await paused(() => G.ui.madeItem({ ...meal, iconId: `meal_${meal.id}` }, before, meal.desc, meal.icon, 'You made', meal.id === 'tea' ? 'Drink' : 'Enjoy'));
+    await paused(() => G.ui.madeItem({ ...meal, iconId: `meal_${meal.id}` }, before, mealDescription(G.save, meal.id), meal.icon, 'You made', meal.id.endsWith('tea') ? 'Drink' : 'Enjoy'));
     finished = { dish: meal.id, t: 0 };
     say(`${meal.name}! Lovely. Come back when you're hungry, dear.`);
     feel('😋');

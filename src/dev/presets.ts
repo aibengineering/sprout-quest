@@ -184,7 +184,7 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'poppy-return', name: 'Poppy: bringing him home', desc: 'Mr. Floppers is back; talk to Poppy by the blue house.',
-    make: () => poppy(5, bossFlags, 29.4, 12),
+    make: () => poppy(5, bossFlags, 31.8, 11.4),
   },
   {
     id: 'poppy-done', name: 'Poppy: story finished', desc: 'Trail Boots on, and the Secret Grove free to gather in.',

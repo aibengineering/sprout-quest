@@ -46,7 +46,7 @@ export async function boot() {
   // when first worn or held.
   const armor = loadState()?.equip.armor ?? 'tunic';
   const weapon = loadState()?.equip.weapon ?? 'twig';
-  const characters = [`hero_${armor}`, `wpn_${weapon}`, 'npc_elder', 'npc_granny', 'npc_poppy', 'npc_poppy_hug', 'npc_bram', 'npc_bram_hurt', 'npc_pip', ...Object.keys(MONSTERS).map((k) => `mon_${k}`)];
+  const characters = [`hero_${armor}`, `wpn_${weapon}`, 'npc_elder', 'npc_granny', 'npc_poppy', 'npc_poppy_hug', 'npc_bram', 'npc_bram_hurt', 'npc_pip', 'npc_hazel', 'npc_moss', ...Object.keys(MONSTERS).map((k) => `mon_${k}`)];
   await loadModels(characters, (done, total) => show(0.65 + 0.15 * (done / total), `Waking everyone up… ${done} / ${total}`));
   // Every crafting and building scene, so none ever waits for its model (they can only be drawn with WebGL).
   if (webglAvailable()) await loadCraftArt((done, total) => show(0.8 + 0.1 * (done / total), `Laying out the workbench… ${done} / ${total}`));

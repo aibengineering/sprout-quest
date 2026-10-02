@@ -10,7 +10,7 @@ import { G, persist } from './context';
 import { celebrateSkill, lootLines } from './rewards';
 import { progressQuests } from './story';
 import { storyFelled, storyNoisy, storyTooLoud } from './stories';
-import { sweetBoost } from '../kitchen';
+import { sweetBoost, miningSweetBoost } from '../kitchen';
 
 /** The minigame in progress, if any, and what it paid out once the node gave way. */
 export let chop: { game: Chop; obj: WorldObj; view: GatherView; reward?: GatherReward; fromLv?: number; shown?: ReturnType<typeof revealed>; noise?: number } | null = null;
@@ -62,7 +62,7 @@ export function tryGather(o: WorldObj) {
   const view = new GatherView(look);
   view.onSound = (sfx) => G.audio.play(sfx);
   // Woodcutter's Stew (Granny's) widens the sweet spot on trees.
-  const width = sweetWidth(s.skills[n.skill].lv) * (n.skill === 'wood' ? sweetBoost(s) : 1);
+  const width = sweetWidth(s.skills[n.skill].lv) * (n.skill === 'wood' ? sweetBoost(s) : miningSweetBoost(s));
   chop = { game: new Chop(n.hp, toolPower(tool, n.tier), width), obj: o, view, noise: storyNoisy(o) ? 0 : undefined };
   chopStart = performance.now();
   G.over.startChop(o);
