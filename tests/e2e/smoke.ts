@@ -1404,6 +1404,14 @@ scenario("Poppy's Garden: conversation offers advice without a production menu",
   await run(page, `g.over.teleport(${GATE_X}, ${FY - 0.4}); g.over.face = -Math.PI / 2`);
   await waitFor(page, 'welcome seeds at the field', async () => game<boolean>(page, `g.garden.inside && g.save.mats.berryseed === 6`));
   check(!(await page.$('#modal:not([hidden]) .sheet.garden')), 'walking to the field opened a production menu');
+  if (SHOTS) {
+    await run(page, `g.over.teleport(${FX + 2.5}, ${FY + 2})`);
+    await page.waitForTimeout(7500); // Let the welcome speech and unlock card clear the fence corners.
+    await page.screenshot({ path: `${OUT}garden-fence-phone.png` });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${OUT}garden-fence-wide.png` });
+  }
 });
 
 scenario("Poppy's field by hand: seeds from the basket, hold the button down a row to plant, tug weeds, fill the can and water, tap a ripe plot, sweep a row to pick", (g) => {

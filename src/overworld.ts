@@ -1471,7 +1471,9 @@ export class Overworld {
     if (o.hidden) return;
     const unit = ts / TILE_BU, across = o.w > o.h, x = o.x + o.w / 2, y = o.y + o.h / 2;
     const len = Math.round(across ? o.w : o.h);
-    for (let k = across ? 0 : 1; k < len; k++) {
+    // Side sprites extend one tile back from their post. Include the final
+    // post at the bottom corner so that last section reaches the bottom rail.
+    for (let k = across ? 0 : 1; k < len + (across ? 0 : 1); k++) {
       const at = across ? { x: o.x + 0.12 + k + 0.5, y } : { x, y: o.y + 0.12 + k };
       items.push({
         y: at.y, draw: () => {
@@ -1480,6 +1482,7 @@ export class Overworld {
           else {
             ctx.fillStyle = '#fff4e2';
             if (across) ctx.fillRect((at.x - 0.5) * ts, (at.y - 0.4) * ts, ts, ts * 0.1);
+            else ctx.fillRect(at.x * ts - ts * 0.025, (at.y - 1.4) * ts, ts * 0.05, ts);
             ctx.fillRect(at.x * ts - ts * 0.05, (at.y - 0.5) * ts, ts * 0.1, ts * 0.5);
           }
         },
