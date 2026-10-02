@@ -16,6 +16,7 @@ import { MEALS, type MealId } from '../../src/kitchen';
 import { MOVESETS, comboTime } from '../../src/weapons';
 import { masteryXpToNext } from '../../src/rules';
 import { browserEnv } from './browser-env';
+import { SHORTCUTS, shortcutWorldPoint } from '../../src/shortcuts';
 
 const SHOTS = process.argv.includes('--shots');
 const env = browserEnv(SHOTS);
@@ -2419,6 +2420,72 @@ scenario('Bram’s house plans: welcome Hazel and Moss, cook their recipes, upgr
   check(await game<boolean>(page, `g.save.meal?.id === 'meadowtea' && g.save.meal.left > 295`), 'glasshouse bonus not applied to the next cup');
   await cookByHand(page, 'trailbuns');
   check(await game<boolean>(page, `g.save.meal?.id === 'trailbuns'`), 'Moss’s recipe did not replace the tea');
+}, { webgl: true });
+
+const shortcutSeed = (g: any) => {
+  const s = g.save;
+  s.quest = g.quests.length; s.lv = 12;
+  s.stories = { ...s.stories, poppy: 6, bram: 9, pip: 1, drums: 4, granny: 99 };
+  s.flags.push('bram:home', 'bram:hut', 'bram:stew', 'poppy:returned', 'pip:candy');
+  s.bosses = ['kingslime', 'alphawolf', 'echoqueen', 'crystalking'];
+  s.build.sawmill = 4;
+  for (const m in s.mats) s.mats[m] = 300;
+  s.pos = { x: 59.5, y: 18 };
+};
+
+scenario('Timber shortcuts: six local crossings, cancel, tier locks, real walking and reload during assembly', shortcutSeed, async (page) => {
+  const approach = async (id: string) => {
+    await run(page, `const o = g.over.world.objs.find(o => o.kind === 'bridge' && o.id === '${id}'); g.over.teleport(o.x+.3,o.y+o.h+.45); g.over.face=-Math.PI/2; g.over.roamers.list=[]; g.over.roamers.respawn=1e9; g.over.roamers.calm=1e9`);
+    await page.waitForTimeout(250); await page.keyboard.press('KeyE');
+    await page.waitForSelector('#modal:not([hidden]) [data-dialog]');
+  };
+  await approach('meadow-pond');
+  check(!!await page.$('.shortcut-plan'), 'crossing should offer its own plan');
+  await page.keyboard.press('Escape');
+  check(await game<boolean>(page, `!g.save.flags.includes('shortcut:meadow-pond') && g.save.mats.plank===300`), 'cancel spent planks');
+  await run(page, `g.save.mats.plank=0`); await approach('meadow-pond');
+  check(!await page.$('[data-dialog="yes"]'), 'missing planks allowed construction');
+  await page.keyboard.press('Escape');
+  check(await game<boolean>(page, `g.mode==='world' && !g.ui.isOpen`), 'Escape did not close an unaffordable plan');
+  await run(page, `g.save.mats.plank=300;g.save.build.sawmill=3`); await approach('peak-cinder');
+  check((await page.textContent('#modal'))?.includes('level 4'), 'Emberwood crossing did not require its sawmill tier');
+  await closeDialogs(page); await run(page, `g.save.build.sawmill=4`);
+  for (const p of SHORTCUTS) {
+    await approach(p.id);
+    check((await page.textContent('#modal'))?.includes(p.name), `${p.name} plan was not the nearby action`);
+    const material=Object.keys(p.cost)[0], amount=Object.values(p.cost)[0]!;
+    const before=await game<number>(page, `g.save.mats.${material}`);
+    if (SHOTS) await page.screenshot({path:`${OUT}${p.id}-plan.png`});
+    await page.click('[data-dialog="yes"]');
+    await waitFor(page, `${p.name} saved`, () => game<boolean>(page, `JSON.parse(localStorage.getItem('sprout-quest-save')).flags.includes('${p.flag}')`));
+    if (p.id==='cave-quarry') {
+      await page.reload(); await page.waitForSelector('.title-btns:not([hidden])'); await page.click('#btn-continue');
+      await page.waitForTimeout(2200); await closeDialogs(page);
+    }
+    await waitFor(page, 'assembly finished', () => game<boolean>(page, `g.mode==='world' && !g.ui.isOpen`));
+    check(await game<boolean>(page, `g.save.flags.filter(f=>f==='${p.flag}').length===1 && g.save.mats.${material}===${before-amount}`), `${p.name} charged more than once or was lost`);
+    const a=shortcutWorldPoint(p,p.from), b=shortcutWorldPoint(p,p.to), vertical=p.deck.h>=p.deck.w;
+    await run(page, `g.over.teleport(${a.x},${a.y});g.over.roamers.list=[];g.over.roamers.respawn=1e9;g.over.roamers.calm=1e9`);
+    await page.keyboard.down(vertical?'ArrowUp':'ArrowRight');
+    try { await waitFor(page, `walking across ${p.name}`, () => game<boolean>(page, vertical?`g.over.y<=${b.y+.2}`:`g.over.x>=${b.x-.2}`), 12000); }
+    finally { await page.keyboard.up(vertical?'ArrowUp':'ArrowRight'); }
+    if (SHOTS) await page.screenshot({path:`${OUT}${p.id}-built.png`});
+  }
+  await page.emulateMedia({reducedMotion:'reduce'});await page.setViewportSize({width:320,height:568});
+  await run(page, `g.save.flags=g.save.flags.filter(f=>f!=='shortcut:meadow-pond');g.over.world.setShortcuts(g.save);g.over.world.objs.find(o=>o.id==='meadow-pond').hidden=false`);
+  await approach('meadow-pond');
+  const fits=await page.locator('.shortcut-plan').evaluate(el=>{const b=el.getBoundingClientRect();return b.top>=0&&b.bottom<=innerHeight&&b.width<=innerWidth});
+  check(fits,'crossing plan clipped on a small phone');
+  await page.click('[data-dialog="yes"]');
+  await waitFor(page,'reduced-motion crossing',()=>game<boolean>(page,`g.mode==='world'&&!g.ui.isOpen`));
+  if (SHOTS) {
+    await page.setViewportSize({width:960,height:700});await run(page, `g.zoom=.6`);
+    for (const [id,x,y] of [['quarry',142.5,27.8],['rootlight',180.5,30.8],['cinder-basin',219.5,32.8]] as const) {
+      await run(page, `g.over.teleport(${x},${y});g.over.roamers.calm=1e9`);await page.waitForTimeout(500);
+      await page.screenshot({path:`${OUT}${id}-wide.png`});
+    }
+    await run(page, `g.zoom=0`);
+  }
 }, { webgl: true });
 
 // The 3D characters: every model loads, and the hero, villagers and monsters render (in software WebGL here) without

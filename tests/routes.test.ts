@@ -34,17 +34,17 @@ describe('route maps', () => {
     const exits = [0, 1, 2, 3].map((i) => `${rows[0].length - 1},${GATE_Y + i}`);
 
     test(`${zone.name}: the right size, only known tiles, one arrival point`, () => {
-      expect(rows.length).toBe(WORLD_H);
+      expect(rows.length).toBe(({ cave: 34, hollow: 34, peak: 36 } as Partial<Record<ZoneId, number>>)[id] ?? WORLD_H);
       for (const r of rows) {
         expect(r.length).toBe(zone.w);
-        expect(r).toMatch(/^[#.,=~*ESCLkKpPrRuUiIyYgGfFoO]+$/);
+        expect(r).toMatch(/^[#.,=~^*ESCLkKpPrRuUiIyYgGfFoO]+$/);
       }
       expect(find(rows, 'E').length).toBe(1);
       if (!zone.theme.pool) expect(rows.join('')).not.toContain('~');
     });
 
     test(`${zone.name}: only opens onto its neighbours through the gate rows`, () => {
-      for (let y = 0; y < WORLD_H; y++) {
+      for (let y = 0; y < rows.length; y++) {
         const gate = y >= GATE_Y && y < GATE_Y + 4;
         expect(rows[y][0] !== '#').toBe(gate);
         expect(rows[y][zone.w - 1] !== '#').toBe(gate && !last);

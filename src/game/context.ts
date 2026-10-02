@@ -16,6 +16,7 @@ import { kitchenOpen } from '../kitchen';
 import { poppyAway } from '../procession';
 import { World } from '../world';
 import { homeLevel } from '../housing';
+import { shortcutById, shortcutLock } from '../shortcuts';
 
 /**
  * What the game is doing, which decides what takes input and what's drawn:
@@ -124,7 +125,7 @@ export function showZoneBanner(z: Zone) {
 /** Opens gates whose guardians are beaten, lights campfires and reveals building plots as they unlock. */
 export function syncWorld() {
   const s = G.save;
-  G.world.setBridge(s.flags.includes('bridge:woods'));
+  G.world.setShortcuts(s);
   for (const o of [...G.world.objs, ...G.over.echo.objs]) {
     const z = o.zone ? zoneById(o.zone) : null;
     if (o.kind === 'gate' && z?.guardian) o.hidden = s.bosses.includes(z.guardian.kind);
@@ -149,7 +150,11 @@ export function syncWorld() {
     if (o.kind === 'house') o.label = kitchenOpen(s) && !poppyAway(s) ? 'Kitchen' : '';
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);
-    if (o.kind === 'bridge') o.hidden = s.flags.includes('bridge:woods');
+    if (o.kind === 'bridge') {
+      const p = shortcutById(o.id!);
+      o.hidden = !!p && s.flags.includes(p.flag);
+      o.label = p && !shortcutLock(s, p) ? 'Build shortcut' : 'Inspect crossing';
+    }
     // Bram's cabin goes up at the end of his story.
     if (o.kind === 'prop' && o.id === 'bramhut') o.hidden = !s.flags.includes('bram:hut');
     if (o.shown) o.hidden = !o.shown(s);

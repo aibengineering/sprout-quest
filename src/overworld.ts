@@ -1,5 +1,6 @@
 // Overworld: walking around, tall-grass encounters and drawing the tile map.
-import { GEAR, MATS, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
+import { GEAR, MATS, MONSTERS, NODES, WORLD_H, ZONES, zoneAtX, type Theme, type Zone } from './data';
+import { ROUTES } from './routes';
 import { currentQuest } from './quests';
 import { repelBelow } from './kitchen';
 import { gardenOpen, gardenUpdate, growthStage, plotCount, plotSpot, plotTile, PLOTS_BY_LEVEL } from './garden';
@@ -20,6 +21,7 @@ import type { SaveState } from './state';
 import { hash2, T, type TileMap, type World, type WorldObj } from './world';
 import { WALL_RISE, type Room } from './room';
 import { EchoCave, ECHO_OUTSIDE } from './echoCave';
+import { SHORTCUTS, shortcutById, shortcutBuilt, shortcutWorldPoint, type Shortcut } from './shortcuts';
 import { HOMES, homeLevel } from './housing';
 import { drawBubble, drawSpeech } from './bubble';
 
@@ -112,6 +114,16 @@ export class Overworld {
   /** Tree being chopped, and how long it keeps shaking from the last strike. */
   chopping: WorldObj | null = null;
   private shakeT = 0;
+  private crossingRaisedAt: Record<string, number> = {};
+
+  /** A paid crossing assembles on the map; its saved collision already exists if the page is reloaded. */
+  raiseShortcut(id: string, reduced = false) {
+    const p = shortcutById(id);
+    if (!p) return;
+    this.crossingRaisedAt[id] = this.t - (reduced ? 10 : 0);
+    const at = shortcutWorldPoint(p, { x: p.deck.x + p.deck.w/2, y: p.deck.y + p.deck.h/2 });
+    this.fx.burst(at.x * this.ts, at.y * this.ts, this.bridgePalette(p)[0], reduced ? 0 : 12, this.ts, { size: this.ts*.065, life: 1 });
+  }
 
   constructor(private world: World, private save: SaveState) {
     this.x = save.pos.x;
@@ -370,7 +382,7 @@ export class Overworld {
     const ts = (this.ts = R
       ? Math.round(Math.min(Overworld.tileSize(vw, vh) * 1.25, vw / (R.w - 0.3), (vh - ROOM_BAND.top - ROOM_BAND.bottom) / roomRows) * this.zoom)
       : Math.round(Overworld.tileSize(vw, vh) * this.zoom));
-    const mapW = W.w * ts, mapH = W.h * ts;
+    const mapW = W.w * ts, mapH = (!this.room && !this.underground ? ROUTES[this.zone.id]?.length ?? WORLD_H : W.h) * ts;
     let camX = this.camX * ts - vw / 2;
     let camY = (this.camY - 0.5) * ts - vh / 2;
     const mapLeft = W.x0 * ts, mapTop = W.y0 * ts;
@@ -441,8 +453,11 @@ export class Overworld {
         ctx.fillRect(px, py, ts + 1, ts + 1);
         if (t === T.PATH) this.drawPath(ctx, x, y, px, py, ts, th);
         else if (t === T.POOL) this.drawPool(ctx, x, y, px, py, ts, th);
+        else if (t === T.CHASM) this.drawChasm(ctx, x, y, px, py, ts);
         else if (t === T.BRIDGE) {
-          this.drawPool(ctx, x, y, px, py, ts, th);
+          const p = this.crossingAt(x, y);
+          if (p?.gap === 'chasm') this.drawChasm(ctx, x, y, px, py, ts);
+          else this.drawPool(ctx, x, y, px, py, ts, th);
           this.drawBridge(ctx, x, y, px, py, ts);
         }
         else if (t === T.GRASS) this.drawGrass(ctx, x, y, px, py, ts, th);
@@ -462,7 +477,12 @@ export class Overworld {
           items.push({ y: y + 0.9, draw: () => this.drawObstacle(ctx, x, y, ts, th) });
         }
     for (const o of W.objs) {
-      if (o.x + o.w < x0 - 2 || o.x > x1 + 2) continue;
+      // A crossing's far landing can be visible while its construction stake is off screen.
+      const crossing = o.kind === 'bridge' ? shortcutById(o.id!) : null;
+      const deck = crossing && shortcutWorldPoint(crossing, crossing.deck);
+      const left = deck ? Math.min(o.x, deck.x - .45) : o.x;
+      const right = deck ? Math.max(o.x + o.w, deck.x + crossing!.deck.w + .45) : o.x + o.w;
+      if (right < x0 - 2 || left > x1 + 2) continue;
       if (o.kind === 'fence') this.fenceItems(ctx, o, ts, items);
       else if (o.kind === 'plot' && o.project === 'garden') this.fieldItems(ctx, o, ts, items);
       else items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
@@ -806,23 +826,63 @@ export class Overworld {
     }
   }
 
-  /** Bram's Bridge: planks laid across the water, with a rail along whichever sides are open water. */
+  private crossingAt(x: number, y: number) {
+    return SHORTCUTS.find((p) => {
+      const d = p.deck, x0 = shortcutWorldPoint(p, d).x;
+      return x >= x0 && x < x0+d.w && y >= d.y && y < d.y+d.h;
+    });
+  }
+
+  private bridgePalette(p?: Shortcut): [string, string, string] {
+    return p?.cost.emberplank ? ['#68483f','#4e3532','#eea25c'] : p?.cost.glimplank ? ['#e6dcf6','#c4b3dc','#8c78b3'] : p?.cost.pineplank ? ['#e0be80','#c79d60','#79583c'] : ['#d8a868','#c8965a','#7a5232'];
+  }
+
+  private drawChasm(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number) {
+    const cleft = (dx: number, dy: number) => {
+      const t = this.map.tile(x+dx,y+dy);
+      return t === T.CHASM || t === T.BRIDGE && this.crossingAt(x+dx,y+dy)?.gap === 'chasm';
+    };
+    ctx.fillStyle = '#282139'; ctx.fillRect(px,py,ts+1,ts+1);
+    ctx.fillStyle = '#52455f';
+    if (!cleft(-1,0)) ctx.fillRect(px,py,ts*.13,ts);
+    if (!cleft(1,0)) ctx.fillRect(px+ts*.87,py,ts*.13,ts);
+    if (!cleft(0,-1)) ctx.fillRect(px,py,ts,ts*.12);
+    if (!cleft(0,1)) ctx.fillRect(px,py+ts*.88,ts,ts*.12);
+    ctx.fillStyle = '#8c71ba';
+    if (hash2(x,y,41) > .55) {
+      ctx.beginPath(); ctx.moveTo(px+ts*.31,py+ts*.59);ctx.lineTo(px+ts*.43,py+ts*.35);ctx.lineTo(px+ts*.48,py+ts*.65);ctx.closePath();ctx.fill();
+    }
+  }
+
+  /** Timber colours, deck direction and outside rails follow the crossing's actual material and footprint. */
   private drawBridge(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number) {
-    const W = this.map, bridge = (dx: number) => W.tile(x + dx, y) === T.BRIDGE;
-    const boards = 4, bh = ts / boards;
+    const W = this.map, p = this.crossingAt(x,y), vertical = p ? p.deck.h >= p.deck.w : true;
+    const colours = this.bridgePalette(p), boards = 4, bh = ts / boards;
+    const began = p && this.crossingRaisedAt[p.id];
+    const progress = began === undefined ? 1 : Math.max(0, Math.min(1, (this.t-began-(vertical ? y-p!.deck.y : x-shortcutWorldPoint(p!,p!.deck).x)*.12)/.35));
+    if (!progress) return;
+    ctx.save(); ctx.globalAlpha = progress;
+    ctx.translate(0,-ts*.25*(1-progress));
     for (let i = 0; i < boards; i++) {
-      ctx.fillStyle = (i + y) % 2 ? '#d8a868' : '#c8965a';
-      ctx.fillRect(px - 1, py + i * bh + 1, ts + 2, bh - 2);
+      ctx.fillStyle = colours[(i+x+y)%2];
+      if (vertical) ctx.fillRect(px-1,py+i*bh+1,ts+2,bh-2);
+      else ctx.fillRect(px+i*bh+1,py-1,bh-2,ts+2);
       ctx.fillStyle = 'rgba(90, 58, 34, 0.45)';
-      ctx.fillRect(px + ts * (0.3 + hash2(x, y + i, 7) * 0.4), py + i * bh + bh * 0.35, ts * 0.05, bh * 0.3);
+      if (vertical) ctx.fillRect(px+ts*(.3+hash2(x,y+i,7)*.4),py+i*bh+bh*.35,ts*.05,bh*.3);
+      else ctx.fillRect(px+i*bh+bh*.35,py+ts*(.3+hash2(x+i,y,7)*.4),bh*.3,ts*.05);
     }
-    ctx.fillStyle = '#7a5232';
+    ctx.fillStyle = colours[2];
     for (const side of [-1, 1]) {
-      if (bridge(side)) continue;
-      const rx = side < 0 ? px - ts * 0.04 : px + ts * 0.92;
-      ctx.fillRect(rx, py, ts * 0.12, ts);
-      ctx.fillRect(rx - ts * 0.02, py + ts * 0.08, ts * 0.16, ts * 0.14);
+      if (W.tile(x+(vertical ? side : 0),y+(vertical ? 0 : side)) === T.BRIDGE) continue;
+      if (vertical) {
+        const rx = side < 0 ? px-ts*.04 : px+ts*.92;
+        ctx.fillRect(rx,py,ts*.12,ts);ctx.fillRect(rx-ts*.02,py+ts*.08,ts*.16,ts*.14);
+      } else {
+        const ry = side < 0 ? py-ts*.04 : py+ts*.92;
+        ctx.fillRect(px,ry,ts,ts*.12);ctx.fillRect(px+ts*.08,ry-ts*.02,ts*.14,ts*.16);
+      }
     }
+    ctx.restore();
   }
 
   private drawPool(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
@@ -1089,6 +1149,8 @@ export class Overworld {
         return this.drawPickup(ctx, o, ts);
       case 'node':
         return this.drawTree(ctx, o, ts);
+      case 'bridge':
+        return this.drawShortcutSite(ctx, o, ts);
       case 'foe':
         return this.drawFoe(ctx, o, ts);
       case 'station': {
@@ -1101,6 +1163,28 @@ export class Overworld {
       }
     }
     if (!this.drawBuilding(ctx, o, ts)) this.drawBuildingFallback(ctx, o, ts);
+  }
+
+  private drawShortcutSite(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+    const p = shortcutById(o.id!);
+    if (!p || shortcutBuilt(this.save,p)) return;
+    const d = p.deck, at = shortcutWorldPoint(p,d), vertical = d.h >= d.w, colours = this.bridgePalette(p);
+    // Broken landing boards on both banks make the missing connection legible before the player reads the plans.
+    for (const far of [false,true]) {
+      const x = at.x + (vertical ? 0 : far ? d.w : -.45), y = d.y + (vertical ? far ? d.h : -.45 : 0);
+      ctx.fillStyle = colours[1];
+      ctx.fillRect(x*ts,y*ts,(vertical ? d.w : .45)*ts,(vertical ? .45 : d.h)*ts);
+      ctx.fillStyle = colours[2];
+      for (const side of [0,1]) {
+        const sx = vertical ? (at.x+side*(d.w-.12))*ts : (x+.12)*ts;
+        const sy = vertical ? (y+.12)*ts : (d.y+side*(d.h-.12))*ts;
+        ctx.fillRect(sx,sy-ts*.35,ts*.12,ts*.48);
+      }
+    }
+    const sprite = frame('env/sign');
+    const ax = (o.x+o.w/2)*ts, ay = (o.y+o.h)*ts;
+    if (sprite) drawFrame(ctx,sprite,ax,ay,ts/TILE_BU);
+    if (Math.hypot(this.x-(o.x+.3),this.y-(o.y+.5)) < 4.5) this.nameTag(ctx, `🌉 ${p.name}`, ax, ay-ts*.8, ts);
   }
 
   /** A white name tag centered over an object whose top is at `top`. */

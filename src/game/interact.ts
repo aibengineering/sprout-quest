@@ -1,9 +1,6 @@
 // What happens when you press the action button next to something on the map: one handler per kind of object.
 import { MONSTERS, ZONES, zoneById } from '../data';
-import { hasMats, playerStats, potionRefill, spend } from '../rules';
-import { BRIDGE_COST } from '../data';
-import { logEvent } from '../stats';
-import { costChips } from '../ui';
+import { playerStats, potionRefill } from '../rules';
 import { has } from '../unlocks';
 import type { ObjKind, WorldObj } from '../world';
 import { G, menuCtx, paused, persist, syncWorld } from './context';
@@ -21,6 +18,7 @@ import { enterEchoCave, leaveEchoCave } from './underground';
 import { gardenAct, gardenStation, POPPY_AWAY } from './gardenWork';
 import { askBramForHome } from './housing';
 import { visitResident } from './stories/residents';
+import { constructShortcut } from './shortcuts';
 
 /** Opens the menu with the world waiting behind it. */
 function openMenu(...args: Parameters<typeof G.ui.openMenu>) {
@@ -156,32 +154,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
 
   node: (o) => tryGather(o),
 
-  /** Bram's Bridge over the Woods creek: a shortcut up to the old camp, built from planks. */
-  async bridge() {
-    const s = G.save;
-    if (s.flags.includes('bridge:woods')) return;
-    if (s.build.sawmill < 1) {
-      await paused(() => G.ui.message('🌊 A little creek', 'It cuts right across the old way up to the logging camp. A few planks would bridge it, if only someone in the valley could saw them.'));
-      return;
-    }
-    G.mode = 'dialog';
-    const r = await G.ui.dialog(
-      `<div class="big" style="font-size:24px">🌉 Bram's Bridge</div>
-       <p>Bridge the creek: a shortcut from the west gate straight up to the old logging camp.</p>
-       <div class="chips">${costChips(s, BRIDGE_COST)}</div>`,
-      [['no', 'Not yet'], ['yes', 'Build it!', 'alt']],
-    );
-    G.input.reset();
-    G.mode = 'world';
-    if (r !== 'yes' || !hasMats(s, BRIDGE_COST)) return;
-    spend(s, BRIDGE_COST);
-    s.flags.push('bridge:woods');
-    logEvent(s, { kind: 'build', id: 'bridge', lv: 1 });
-    syncWorld();
-    persist();
-    G.audio.play('craft');
-    G.ui.toast("🌉 Bram's Bridge is built! A shortcut to the old camp.", 3200);
-  },
+  bridge: (o) => constructShortcut(o.id!),
 
   /** A story character: whatever they have to say. */
   async npc(o) {

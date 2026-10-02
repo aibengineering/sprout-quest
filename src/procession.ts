@@ -133,7 +133,7 @@ const sightObjects = (world: TileMap, a: P, b: P) => world.objs.filter((o) => !o
   && o.y <= Math.max(a.y, b.y) && o.y + o.h >= Math.min(a.y, b.y));
 const sightBlocked = (world: TileMap, objs: WorldObj[], x: number, y: number) => {
   const tile = world.tile(Math.floor(x), Math.floor(y));
-  return tile === T.OBST || tile === T.POOL || objs.some((o) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h);
+  return tile === T.OBST || tile === T.POOL || tile === T.CHASM || objs.some((o) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h);
 };
 
 /** The same ray stops both the eye beam and sight detection at solid geometry. */

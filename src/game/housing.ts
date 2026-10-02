@@ -26,10 +26,11 @@ export async function bramHousePlans() {
             ${lock ? `<p class="note">${esc(lock)}</p>` : ''}<button class="go wide" data-dialog="home:${id}:${lv}" ${canBuildHome(s, id) === 'ok' ? '' : 'disabled'}>${lv ? 'Add' : 'Build'} ${esc(plan.name)}</button>` : '<p>✨ Home complete. Drop by and say hello.</p>'}</article>`;
         }).join('');
         const choice = await G.ui.dialog(`<div class="house-plans-head"><h2>🧔 Bram’s House Plans</h2><p>You bring the planks; I’ll build a home. Better timber makes room for our neighbours’ recipes.</p></div><div class="house-plans-list">${cards}</div>`,
-          [['chat', 'Chat', 'ghost'], ['mill', 'About the sawmill', 'ghost'], ['close', 'Back']], 'house-plans');
+          [['chat', 'Chat', 'ghost'], ['mill', 'About the sawmill', 'ghost'], ['roads', 'Shortcuts', 'ghost'], ['close', 'Back']], 'house-plans');
         if (choice === 'close') return;
         if (choice === 'chat') { await say(BRAM, homeLevel(s, 'moss') ? 'A miner, a herbalist, a baker… there’s a good smell coming from every chimney now. Go say hello. Good timber’s only the beginning of a home.' : 'A village grows one doorstep at a time. Pip needs a cottage first; then Hazel and Moss can join us. Don’t forget to drop by when the roof is on.', 'happy'); continue; }
         if (choice === 'mill') { await say(BRAM, 'Inside the mill: pick up logs, put them on the bench, pull the lever, then take your planks. Bring them out here and we’ll put them to work.', 'happy'); continue; }
+        if (choice === 'roads') { await say(BRAM, 'Look for my stakes beside broken crossings. Oak joins Willow Pond and the old camp. Pine crosses Stillwater and the flooded Quarry. Glimmerwood spans Mirror Gorge; Emberwood stands the heat on the Peak. Build right there, and the way stays open.', 'happy'); continue; }
         const [, name, rawLevel] = choice.split(':');
         if (!HOME_ORDER.includes(name as HomeId)) continue;
         const id = name as HomeId, level = Number(rawLevel), before = { ...s.mats };

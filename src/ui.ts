@@ -800,7 +800,8 @@ export class UI {
         return;
       }
       const btns = [...this.sheet.querySelectorAll<HTMLButtonElement>('[data-dialog]')];
-      const primary = btns[btns.length - 1], secondary = this.sheet.classList.contains('house-plans') ? btns.find((b) => b.dataset.dialog === 'close') : btns.length > 1 ? btns[0] : null;
+      const primary = btns[btns.length - 1], secondary = this.sheet.classList.contains('house-plans') ? btns.find((b) => b.dataset.dialog === 'close')
+        : this.sheet.classList.contains('shortcut-plan') ? btns.find((b) => b.dataset.dialog === 'no') : btns.length > 1 ? btns[0] : null;
       if (k === 'Enter' || k === 'Space' || k === 'KeyE' || k === 'NumpadEnter') {
         swallow();
         this.armed = true;

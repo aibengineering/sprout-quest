@@ -451,9 +451,9 @@ export const NODE_SPAWNS: Partial<Record<ZoneId, { kind: NodeKind; safe: number;
   meadow: [{ kind: 'oak', safe: 5, grass: 5 }, { kind: 'rock', safe: 5, grass: 3 }],
   // (Woods pines: four of the six by the path stand in Bram's camp.)
   woods: [{ kind: 'oak', safe: 2, grass: 2 }, { kind: 'pine', safe: 6, grass: 5 }, { kind: 'rock', safe: 1, grass: 2 }, { kind: 'copper', safe: 2, grass: 3 }],
-  cave: [{ kind: 'copper', safe: 2, grass: 2 }, { kind: 'iron', safe: 2, grass: 4 }],
-  hollow: [{ kind: 'crystal', safe: 2, grass: 4 }, { kind: 'iron', safe: 1, grass: 2 }, { kind: 'glimwood', safe: 3, grass: 3 }],
-  peak: [{ kind: 'iron', safe: 2, grass: 3 }, { kind: 'crystal', safe: 1, grass: 2 }, { kind: 'emberwood', safe: 3, grass: 3 }, { kind: 'obsidian', safe: 2, grass: 3 }],
+  cave: [{ kind: 'copper', safe: 2, grass: 2 }, { kind: 'iron', safe: 3, grass: 5 }],
+  hollow: [{ kind: 'crystal', safe: 2, grass: 5 }, { kind: 'iron', safe: 1, grass: 2 }, { kind: 'glimwood', safe: 4, grass: 4 }],
+  peak: [{ kind: 'iron', safe: 2, grass: 3 }, { kind: 'crystal', safe: 1, grass: 2 }, { kind: 'emberwood', safe: 3, grass: 4 }, { kind: 'obsidian', safe: 3, grass: 4 }],
 };
 
 // ----------------------------------------------------------------------------- village construction

@@ -1,10 +1,12 @@
 // Overworld map generation and collision. Coordinates are in tiles.
-import { WORLD_H, WORLD_W, ZONES, zoneAtX, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
+import { WORLD_H, WORLD_W, ZONES, zoneAtX, zoneById, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
 import { FIELD_COLS, FIELD_ROWS } from './garden';
 import { ROUTES } from './routes';
 import type { HomeId } from './housing';
 import { RESIDENT_PLOTS, TOWN_HOME, TOWN_TRAINING, TOWN_WAYSTONE } from './villageLayout';
 import type { SaveState } from './state';
+import { SHORTCUTS, shortcutBuilt } from './shortcuts';
+import { LANDMARK_SIGNS, ROUTE_GUIDES } from './mapDesign';
 
 export const T = {
   GROUND: 0,
@@ -13,12 +15,11 @@ export const T = {
   POOL: 3,
   PATH: 4,
   DECOR: 5,
-  /** Planks over water (Bram's Bridge, once built): drawn over the pool, and walkable. */
+  /** A walkable timber deck drawn over its water, chasm or lava gap. */
   BRIDGE: 6,
+  /** A deep, impassable rock cleft; Glimmerwood spans it without inventing a pond in the Hollow. */
+  CHASM: 7,
 } as const;
-
-/** Bram's Bridge: the creek tiles it spans (the Woods' west way up to the old camp), as offsets from the Woods' left edge. */
-const BRIDGE_TILES = [[6, 9], [7, 9], [6, 10], [7, 10]];
 
 /** Poppy's field: its first plot's tile, from the village's left edge (see placeField). */
 export const FIELD = { x: 23, y: 17 };
@@ -28,7 +29,7 @@ export const GATE_Y = 12;
 
 /** Route map characters → tiles (markers stand on open ground, or tall grass for trees out in the grass). */
 const ROUTE_TILE: Record<string, number> = {
-  '#': T.OBST, '.': T.GROUND, ',': T.GRASS, '=': T.PATH, '~': T.POOL, '*': T.DECOR,
+  '#': T.OBST, '.': T.GROUND, ',': T.GRASS, '=': T.PATH, '~': T.POOL, '^': T.CHASM, '*': T.DECOR,
   E: T.PATH, S: T.GROUND, C: T.GROUND, L: T.GROUND, k: T.GROUND, p: T.GROUND, K: T.GRASS, P: T.GRASS,
   r: T.GROUND, u: T.GROUND, i: T.GROUND, y: T.GROUND, R: T.GRASS, U: T.GRASS, I: T.GRASS, Y: T.GRASS,
   g: T.GROUND, f: T.GROUND, o: T.GROUND, G: T.GRASS, F: T.GRASS, O: T.GRASS,
@@ -131,7 +132,7 @@ export class TileMap {
 
   solidAt(x: number, y: number): boolean {
     const t = this.tile(Math.floor(x), Math.floor(y));
-    if (t === T.OBST || t === T.POOL) return true;
+    if (t === T.OBST || t === T.POOL || t === T.CHASM) return true;
     for (const o of this.objs) if (!o.hidden && !o.walkable && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
     return false;
   }
@@ -164,7 +165,7 @@ export class World extends TileMap {
   private marks = new Map<string, { x: number; y: number }[]>();
 
   constructor(seed = 7) {
-    super(WORLD_W, WORLD_H);
+    super(WORLD_W, Math.max(WORLD_H, ...Object.values(ROUTES).map((rows) => rows.length)));
     this.generate(seed);
   }
 
@@ -205,9 +206,9 @@ export class World extends TileMap {
       const route = ROUTES[zone.id];
       if (route) {
         for (let y = 0; y < h; y++) {
-          const c = route[y][x - zone.x0];
+          const c = route[y]?.[x - zone.x0] ?? '#';
           this.set(x, y, ROUTE_TILE[c] ?? T.OBST);
-          if (!'#.,=~*'.includes(c)) {
+          if (!'#.,=~^*'.includes(c)) {
             const key = `${zone.id}:${c}`;
             this.marks.set(key, [...(this.marks.get(key) ?? []), { x, y }]);
           }
@@ -216,6 +217,7 @@ export class World extends TileMap {
       }
       const py = pathY(x);
       for (let y = 0; y < h; y++) {
+        if (y >= WORLD_H) { this.set(x, y, T.OBST); continue; }
         let t: number = T.GROUND;
         const nearPath = y >= py - 1 && y <= py + 2;
         const gladeClearing = zone.id === 'glade' && x < GLADE_PATH_X;
@@ -287,8 +289,8 @@ export class World extends TileMap {
     add({ kind: 'prop', id: 'prop_campmill', zone: 'woods', x: W + 3.8, y: 3.2, w: 2.6, h: 1, label: '' }, false);
     add({ kind: 'prop', id: 'prop_campstump', zone: 'woods', x: W + 8.6, y: 5.1, w: 1.2, h: 0.7, label: '' }, false);
     add({ kind: 'prop', id: 'prop_logs', zone: 'woods', x: W + 11, y: 4.1, w: 1, h: 0.6, label: '' }, false);
-    // Where Bram's Bridge goes: a stake by the creek, on the south bank of the narrow way up to the camp.
-    add({ kind: 'bridge', zone: 'woods', x: W + 8.1, y: 11.1, w: 0.6, h: 0.5, label: 'Build', text: "Bram's Bridge" }, false);
+    // Local plans at physical crossing sites; the stake must not obstruct its bank approach.
+    for (const p of SHORTCUTS) add({ kind: 'bridge', id: p.id, flag: p.flag, zone: p.zone, x: zoneById(p.zone).x0 + p.marker.x, y: p.marker.y, w: .6, h: .5, label: 'Inspect crossing', text: p.name, walkable: true }, false);
     add({ kind: 'fountain', x: V + 12, y: 17, w: 2, h: 2, label: 'Rest', text: "Veyra's Spring" });
     // Veyra's shrine, where Elder Oswin prays: north of where he stands, between the forge and the blue house.
     add({
@@ -303,7 +305,7 @@ export class World extends TileMap {
       for (const p of this.mark(z.id, 'S')) {
         add({
           kind: 'sign', x: p.x + 0.1, y: p.y + 0.2, w: 0.8, h: 0.6, label: 'Read',
-          text: `${z.name} — recommended Lv ${z.rec}+. Monsters here are Lv ${z.lv[0]}–${z.lv[1]}.`,
+          text: ROUTE_GUIDES[z.id] ?? `${z.name} — recommended Lv ${z.rec}+. Monsters here are Lv ${z.lv[0]}–${z.lv[1]}.`,
         }, false);
       }
       // Guardians block the road into their zone; a campfire checkpoint waits just past each gate.
@@ -317,6 +319,7 @@ export class World extends TileMap {
         }));
       }
     }
+    for (const p of LANDMARK_SIGNS) add({ kind: 'sign', zone: p.zone, x: zoneById(p.zone).x0 + p.x, y: p.y, w: .6, h: .5, label: 'Read', text: p.text }, false);
   }
 
   /**
@@ -353,8 +356,8 @@ export class World extends TileMap {
         const nx = x + dx, ny = y + dy, j = ny * this.w + nx;
         if (nx < 0 || ny < 0 || nx >= this.w || ny >= this.h || seen[j]) continue;
         const t = this.tile(nx, ny);
-        if (t === T.OBST || t === T.POOL) continue;
-        if (this.objs.some((o) => o.kind !== 'gate' && o.kind !== 'node' && nx + 0.5 >= o.x && nx + 0.5 < o.x + o.w && ny + 0.5 >= o.y && ny + 0.5 < o.y + o.h)) continue;
+        if (t === T.OBST || t === T.POOL || t === T.CHASM) continue;
+        if (this.objs.some((o) => !o.hidden && !o.walkable && o.kind !== 'gate' && o.kind !== 'node' && nx + 0.5 >= o.x && nx + 0.5 < o.x + o.w && ny + 0.5 >= o.y && ny + 0.5 < o.y + o.h)) continue;
         seen[j] = 1;
         q.push(j);
       }
@@ -362,9 +365,19 @@ export class World extends TileMap {
     return seen;
   }
 
-  /** Lays Bram's Bridge over the creek (or takes it away). */
+  /** Apply every saved local crossing; unbuilt sites retain their original impassable gap. */
+  setShortcuts(save: SaveState) {
+    for (const p of SHORTCUTS) {
+      const x0 = zoneById(p.zone).x0;
+      for (let y = p.deck.y; y < p.deck.y + p.deck.h; y++) for (let x = p.deck.x; x < p.deck.x + p.deck.w; x++)
+        this.set(x0 + x, y, shortcutBuilt(save, p) ? T.BRIDGE : p.gap === 'chasm' ? T.CHASM : T.POOL);
+    }
+  }
+
+  /** Compatibility for the original creek crossing and old route tests. */
   setBridge(built: boolean) {
     const W = ZONES.find((z) => z.id === 'woods')!.x0;
-    for (const [dx, y] of BRIDGE_TILES) this.set(W + dx, y, built ? T.BRIDGE : T.POOL);
+    const d = SHORTCUTS.find((p) => p.id === 'woods-camp')!.deck;
+    for (let y = d.y; y < d.y + d.h; y++) for (let x = d.x; x < d.x + d.w; x++) this.set(W + x, y, built ? T.BRIDGE : T.POOL);
   }
 }
