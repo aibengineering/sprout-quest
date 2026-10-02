@@ -73,7 +73,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     if (o.project === 'cottage' && (G.save.stories.pip ?? 0) >= 1) return visitPip();
     // Poppy's Garden, once she tends it: her plots (not while she's off after the drums in Echo Cavern).
     if (o.project === 'garden' && gardenOpen(G.save) && poppyAway(G.save)) return G.ui.toast(POPPY_AWAY);
-    // Worked by hand: the bed you're nearest that needs something (Poppy still opens her menu when you talk to her).
+    // Worked by hand: the plot you're on (Poppy still opens her menu when you talk to her).
     if (o.project === 'garden' && gardenOpen(G.save)) return gardenAct();
     openMenu(menuCtx(), 'village', o.project);
   },
@@ -86,7 +86,8 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
   },
 
   /** Something to work at by hand in a room, or the way back out. */
-  station: (o) => (o.id?.startsWith('garden:') ? gardenStation(o) : roomAct(o)),
+  // The Garden's sign by the field's gate: its next level, in the village plans.
+  station: (o) => (o.id === 'garden:sign' ? openMenu(menuCtx(), 'village', 'garden') : o.id?.startsWith('garden:') ? gardenStation(o) : roomAct(o)),
   door: (o) => roomAct(o),
 
   async pickup() {

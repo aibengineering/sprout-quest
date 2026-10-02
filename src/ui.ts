@@ -15,7 +15,7 @@ import type { Unlock, UnlockId } from './unlocks';
 import { CLASS_NOTES, MOVESETS, SKILL_LEVELS, TRICKS, TRICK_LEVEL, comboTime, handlingStep, skillAt } from './weapons';
 import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
 import { PLANKS_PER_LOG, SAW, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate, type SawLog } from './sawmill';
-import { CROPS, CROP_ORDER, gardenUpdate, growthStage, isReady, plotCount, readyIn, type Plot } from './garden';
+import { CROPS, CROP_ORDER, gardenUpdate, growthStage, isReady, plotCount, PLOTS_BY_LEVEL, readyIn, type Plot } from './garden';
 import { usingKeyboard } from './input';
 import { heroView, mountItemView, stopItemView, view3d } from './itemview';
 import { canShareFiles } from './share';
@@ -1525,7 +1525,7 @@ export class UI {
        <div class="bubble">${esc(line)}</div>
        <div class="gplots">${Array.from({ length: n }, (_, i) => `<div class="gslot" data-plot="${i}"></div>`).join('')}</div>
        <div class="chips seeds">${seeds}</div>
-       <p class="small">Plants grow even while you're away, as long as they're not thirsty.${next ? ` The ${esc(next.name)} would have ${n + 2} plots.` : ''}</p>`,
+       <p class="small">Plants grow even while you're away, as long as they're not thirsty.${next ? ` The ${esc(next.name)} would have ${PLOTS_BY_LEVEL[lv + 1]} plots.` : ''}</p>`,
       [['close', 'Bye, Poppy'], ['pickall', 'Pick all']],
       'celebrate quest garden',
     );

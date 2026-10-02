@@ -78,6 +78,11 @@ export interface SaveState {
   spirit?: { x: number; y: number };
   /** A Battle Tower run (dev builds, in a slot of its own): the next floor to fight. */
   tower?: { floor: number };
+  /**
+   * Set once the save knows Sowerby is wider (it grew FIELD_SHIFT tiles east for Poppy's field, pushing every area
+   * past it along): older saves standing (or lying) east of the village move with their area.
+   */
+  field?: true;
   /** Recipes you've seen in the Forge; ones revealed since show as new (missing: everything revealed counts as seen). */
   forgeSeen?: string[];
 }
@@ -129,8 +134,13 @@ export function newState(): SaveState {
     forgeSeen: [],
     forgeLevels: 5,
     units: 2,
+    field: true,
   };
 }
+
+/** How far east Sowerby grew for Poppy's field, and where the areas past it used to begin. */
+export const FIELD_SHIFT = 9;
+const OLD_MEADOW_X0 = 38;
 
 /**
  * 0.4.0 counts materials in sensible amounts: a bunny drops a handful of fluff, a tree a few logs, a house takes dozens
@@ -217,6 +227,13 @@ export function loadState(): SaveState | null {
         if (!merged.camps.includes('hollow')) merged.camps.push('hollow');
       }
       merged.echoQueen = true;
+    }
+    // Sowerby grew east for Poppy's field: everything past it moved along with its area.
+    if (data.field === undefined) {
+      const along = (p: { x: number; y: number }) => (p.x >= OLD_MEADOW_X0 ? { x: p.x + FIELD_SHIFT, y: p.y } : p);
+      merged.pos = along(merged.pos);
+      if (merged.spirit) merged.spirit = along(merged.spirit);
+      merged.field = true;
     }
     // Saves from before patch notes existed were made on 0.1.0.
     if (data.seenVersion === undefined) merged.seenVersion = '0.1.0';

@@ -320,6 +320,18 @@ export function gardenMinutes(crop: Crop, need: number): number {
   return done / 60;
 }
 
+/**
+ * What a felled tree's seed grows into, on average: the crops you get for chopping. The field's size doesn't change it
+ * (more plots only let you plant more at once), so it's what keeps the Garden from flooding the crop recipes.
+ */
+export function cropsPerTree(crop: Crop): number {
+  const tree = Object.values(NODES).find((n) => n.seed?.mat === CROPS[crop].seed);
+  return tree ? tree.seed!.chance * CROPS[crop].yield : 0;
+}
+
+/** A whole field of one crop, picked at each Garden level: per planting, and per hour if you kept it full. */
+export const fieldHarvest = (crop: Crop) => PLOTS_BY_LEVEL.slice(1).map((n) => ({ plots: n, picked: n * CROPS[crop].yield, perHour: (n * CROPS[crop].yield * 3600) / tendedSeconds(crop) }));
+
 export function farmTable(): Farm[] {
   const guardians = ZONES.flatMap((z) => (z.guardian ? [MONSTERS[z.guardian.kind]] : []));
   return Object.entries(totalDemand()).map(([k, need]) => {
@@ -545,6 +557,8 @@ export function report(): string {
   }
   out.push(`  scale: ${totalDemand().scale ?? 0} needed, ${flag(dragonFights(), [0, MAX_DRAGON_FIGHTS])} Emberwyrm fights`);
   out.push(`Poppy's Garden (per planting, tended): ${(Object.keys(CROPS) as Crop[]).map((c) => `${c} ${CROPS[c].yield} in ~${(tendedSeconds(c) / 60).toFixed(1)} min`).join(', ')}`);
+  out.push(`  a full field (${PLOTS_BY_LEVEL.slice(1).join(' / ')} plots) picks ${(Object.keys(CROPS) as Crop[]).map((c) => `${c} ${fieldHarvest(c).map((f) => f.picked).join('/')}`).join(', ')}`);
+  out.push(`  seeds: ${(['berry', 'herb'] as Crop[]).map((c) => `${cropsPerTree(c).toFixed(1)} ${c} per tree felled`).join(', ')}; Poppy's ${FLOWER_GIFT} Flower Seeds every ${GIFT_SECONDS / 60} min (${FLOWER_GIFT * CROPS.flower.yield} flowers)`);
   for (const sk of Object.keys(SKILL_NAMES) as SkillId[]) {
     const tools = TOOLS.filter((t) => t.skill === sk && t.level > 1).map((t) => `Lv ${t.level} (${t.name}) in ~${minutesToSkillLevel(sk, t.level).toFixed(1)} min`);
     out.push(`${SKILL_NAMES[sk]}: ${tools.join(', ')}, Lv ${SKILL_MAX} in ~${minutesToSkillLevel(sk, SKILL_MAX).toFixed(1)} min`);

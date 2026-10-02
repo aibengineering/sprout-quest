@@ -11,14 +11,14 @@ export default {
       "id": "oak-fence"
     },
     {
-      "id": "oak-beds"
+      "id": "tilled-plots"
     },
     {
       "id": "clover-patch"
     }
   ],
   "roles": {
-    "bark": "The picket fence, the front edge and the first two beds",
+    "bark": "The picket fence round the field, and the edging of its first six plots",
     "clover": "Clover and wildflowers in the grass"
   },
   "targets": [
@@ -32,7 +32,7 @@ export default {
     },
     {
       "material": "bark",
-      "part": "oak-beds",
+      "part": "tilled-plots",
       "at": 880,
       "duration": 480,
       "contact": "solid",
@@ -51,27 +51,27 @@ export default {
     {
       "at": 0,
       "stage": "fence",
-      "text": "Oak Logs make a picket fence round a patch of grass."
+      "text": "Oak Logs make a picket fence round a field, with a gate."
     },
     {
       "at": 760,
       "stage": "beds",
-      "text": "Two wooden beds, ready for Poppy to plant."
+      "text": "Six plots tilled in two rows, edged in oak."
     },
     {
       "at": 1400,
       "stage": "luck",
-      "text": "A Lucky Clover, and wildflowers come up in the grass."
+      "text": "A Lucky Clover: wildflowers where the rest of the field will go."
     },
     {
       "at": 2360,
       "stage": "reveal",
-      "text": "A garden patch with two beds, ready to plant.",
+      "text": "A little field of six plots, ready to plant.",
       "sound": "ding"
     }
   ],
-  "sceneLabel": "Oak Logs make the picket fence, the front edge and two wooden beds. The Lucky Clover brings up clover and wildflowers in the grass.",
+  "sceneLabel": "Oak Logs make the picket fence round the field and edge its first six plots. The Lucky Clover brings up clover and wildflowers where the rest of the field will go.",
   "pattern": "something growing",
-  "intro": "Oak and a little luck, for a first garden.",
-  "finished": "A fence, two beds and a watering can."
+  "intro": "Oak and a little luck, for a first field.",
+  "finished": "A fence, six plots and a watering can."
 } satisfies CraftPresentation;

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { MASTERY_FOR_TIER, GEAR, ZONES, MONSTERS, SKILL_MAX, TOOLS, forgeLevelFor } from '../src/data';
 import { MOVESETS, SKILL_LEVELS, SKILL_RANKS, comboTime, handlingStep, skillShape, tierScale, type SkillKind } from '../src/weapons';
-import { ARENA_AREA } from '../src/balance';
+import { ARENA_AREA, cropsPerTree } from '../src/balance';
 import {
   CHECKPOINTS, HUNTER_DPS, RANGED_DPS, MAX_HUNTER_BURST, dpsBand, KILLS_PER_LEVEL, LEGENDARY_EDGE, MAX_HANDLING_MINUTES, TRACK_SPREAD, oneWeaponRun, HEAVY_RUN, LIGHT_RUN, atLevelKills, CLASS_STRIKES, MAX_KILL_SECONDS, dpsVsGatherers, minutesToHandle, MAX_DRAGON_FIGHTS, MAX_FARM_MINUTES, MAX_MASTERED_SKILL_AREA, MAX_SKILL_AREA, MAX_STRIKE_AREA, MAX_STRIKE_REACH, weaponStats, checkpointStats, dragonFights, farmTable, killsPerLevel, matchup, minutesToSkillLevel, gearTrack,
   zoneMatchups, type Range,
@@ -202,5 +202,11 @@ describe('balance', () => {
       ...(w.skillArea > MAX_SKILL_AREA ? [`${w.name} skill covers ${(w.skillArea * 100).toFixed(0)}%`] : []),
     ]);
     expect(off).toEqual([]);
+  });
+
+  test("Poppy's field: a bigger field lets you plant more at once, not get more crops for your chopping", () => {
+    // What each felled oak or pine's seed grows into, as in the old six-bed Garden (20% for a seed, 6 berries or 4 herbs).
+    expect(cropsPerTree('berry')).toBeCloseTo(0.2 * 6, 5);
+    expect(cropsPerTree('herb')).toBeCloseTo(0.2 * 4, 5);
   });
 });

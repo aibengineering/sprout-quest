@@ -452,19 +452,68 @@ def plot():
     return root
 
 
-# Poppy's Garden draws each plot's soil and crop on its beds (see art/buildings/_garden.py).
+# Poppy's field: its soil colours (damp, and pale when thirsty).
 SOIL, SOIL_DRY = '#6a4630', '#c8a476'
 
 
-def soil(dry=False):
-    """One plot's soil, heaped in its bed: dark and damp with furrows, or pale and cracked when it's thirsty."""
-    root = empty('soil')
-    sphere((0, 0, 0.02), (0.54, 0.46, 0.1), toon(SOIL_DRY if dry else SOIL), root, seg=24, line=0.012)
-    for k in (-1, 0, 1):
-        box((0, k * 0.22, 0.1), (0.8 - abs(k) * 0.2, 0.035, 0.03), toon('#b89060' if dry else '#50321f'), root, bevel=0.01, line=0)
+# Poppy's field on the map: a tile of tilled soil per plot, a picket fence round it and a sign at its gate. The map
+# shows depth at half scale, so a square tile on screen is twice as deep as it is wide on the ground: the soil patch is
+# laid out that way, from its front edge (the origin) back.
+def till(dry=False):
+    """One plot of the field: a tile of tilled earth in ridged rows, dark and damp, or pale and cracked when thirsty."""
+    root = empty('till')
+    w, d = TILE * 0.9, TILE * 2 * 0.9
+    earth, ridge = (SOIL_DRY, '#d8b888') if dry else (SOIL, '#7a5236')
+    box((0, d / 2 + 0.08, 0.04), (w, d, 0.08), toon(earth), root, bevel=0.12, line=0.012)
+    for k in range(4):
+        y = 0.08 + d * (k + 0.5) / 4
+        box((0, y, 0.1), (w * 0.86, 0.26, 0.07), toon(ridge), root, bevel=0.035, line=0)
+        box((0, y - 0.19, 0.085), (w * 0.84, 0.05, 0.02), toon('#b89060' if dry else '#4a2e1c'), root, bevel=0.01, line=0)
     if dry:
-        for x, y, a in ((-0.28, 0.08, 0.6), (0.22, -0.1, -0.5), (0.05, 0.2, 1.3), (-0.1, -0.2, -1.1)):
-            box((x, y, 0.1), (0.2, 0.02, 0.02), toon('#8a6440'), root, rot=(0, 0, a), bevel=0, line=0)
+        for x, y, a in ((-0.38, 0.6, 0.6), (0.3, 1.3, -0.5), (0.05, 2.1, 1.3), (-0.2, 2.6, -1.1)):
+            box((x, y, 0.14), (0.3, 0.025, 0.02), toon('#8a6440'), root, rot=(0, 0, a), bevel=0, line=0)
+    return root
+
+
+PICKET = '#fff4e2'
+
+
+def _picket(root, x, y, h=0.5):
+    box((x, y, h / 2), (0.1, 0.07, h), toon(PICKET), root, bevel=0.02, line=0.01)
+    cone((x, y, h + 0.04), 0.07, 0.08, toon(PICKET), root, seg=4, line=0.008, rot=(0, 0, math.pi / 4))
+
+
+def fence():
+    """A tile's run of the field's white picket fence, seen from the front: pickets on two rails."""
+    root = empty('fence')
+    for i in range(4):
+        _picket(root, -0.6 + i * 0.4, 0)
+    for z in (0.16, 0.36):
+        box((0, 0, z), (TILE + 0.04, 0.05, 0.06), toon(PICKET), root, bevel=0.01, line=0.01)
+    return root
+
+
+def fence_post():
+    """A post of the field's fence down its side, with its rails running back to the post behind (a tile up the map)."""
+    root = empty('fence_post')
+    box((0, 0, 0.3), (0.16, 0.12, 0.6), toon(PICKET), root, bevel=0.03, line=0.012)
+    cone((0, 0, 0.65), 0.11, 0.1, toon(PICKET), root, seg=4, line=0.01, rot=(0, 0, math.pi / 4))
+    for z in (0.18, 0.4):
+        box((0, TILE, z), (0.09, TILE * 2, 0.08), toon(PICKET), root, bevel=0.015, line=0.012)
+    return root
+
+
+def field_sign():
+    """The sign at the field's gate: a board with a sprout painted on it, and a little watering can hung on the post."""
+    root = sign()
+    stem = toon('#4a9a3a')
+    cylinder((0.22, -0.07, 0.75), 0.02, 0.2, stem, root, seg=6, line=0.006)
+    for sx in (-1, 1):
+        sphere((0.22 + 0.07 * sx, -0.07, 0.86), (0.08, 0.025, 0.045), toon('#6ac85a'), root, rot=(0, -0.4 * sx, 0), seg=10, line=0.006)
+    for x, col in ((-0.38, '#ff8ab0'), (0.4, '#ffd35a')):
+        for p in range(5):
+            a = p / 5 * math.tau
+            sphere((x + math.cos(a) * 0.05, -0.04, 0.04 + math.sin(a) * 0.05 + 0.08), 0.04, toon(col), root, seg=8, line=0.006)
     return root
 
 
@@ -934,13 +983,17 @@ SCENERY['prop_totem_new'] = (lambda: totem(0, fresh=True), 90, 170)
 SCENERY['prop_stonefigure'] = (stone_figure, 80, 90)
 SCENERY['prop_petals'] = (petals, 60, 40)
 SCENERY['prop_climb'] = (climb_slope, 110, 130)
-# Poppy's plots: soil (damp or thirsty), each crop at each stage, and weeds to lay over them.
-SCENERY['soil'] = (soil, 90, 60)
-SCENERY['soil_dry'] = (lambda: soil(True), 90, 60)
+# Poppy's plots: each crop at each stage, and weeds to lay over them.
 for kind in ('berry', 'herb', 'flower'):
     for st in (1, 2, 3):
         SCENERY[f'crop_{kind}_{st}'] = (lambda k=kind, s=st: crop(k, s), 90, 90)
 SCENERY['weeds'] = (weeds, 90, 70)
+# Poppy's field: its tilled plots (damp or thirsty), the fence round it and the sign at its gate.
+SCENERY['till'] = (till, 110, 120)
+SCENERY['till_dry'] = (lambda: till(True), 110, 120)
+SCENERY['fence'] = (fence, 120, 70)
+SCENERY['fence_post'] = (fence_post, 50, 130)
+SCENERY['field_sign'] = (field_sign, 90, 90)
 for zone, (c, t) in GRASS.items():
     SCENERY[f'grass_{zone}'] = (lambda c=c, t=t: grass(c, t, 3), 70, 50)
 for i, col in enumerate(('#ff8ab0', '#ffd35a', '#ffffff', '#b08aff')):

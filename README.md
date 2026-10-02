@@ -161,7 +161,7 @@ for the materials it needs.
   own attack patterns and summon helpers. Beating one opens the road, lights a 🔥 **campfire checkpoint** (heal, respawn,
   warp point) and drops a **trophy** needed for the next village upgrade.
 - **Village construction**: Home (Tent → Cottage → Manor, +max HP), Forge (Forge → Smithy → Iron Smithy → Crystal Kiln → Master
-  Forge, one level per star tier of gear), Garden (more free potions), Training Yard (+attack) and Waystone (fast travel). Buildings
+  Forge, one level per star tier of gear), Garden (Poppy's fenced field of plots, 6 → 12 → 20, and more free potions), Training Yard (+attack) and Waystone (fast travel). Buildings
   visibly change in the village.
 - **Levels you can feel**: a combat level-up pauses the game on its own screen with your stat changes and what you're
   now ready for (a guardian, a new area). Woodcutting, Mining and weapon handling levels get a screen too, listing what
@@ -186,7 +186,7 @@ grass, and that every tree, rock, sign and campfire can be reached. Each area is
 | Area | Lv | Monsters | Materials |
 | --- | --- | --- | --- |
 | 🌳 Quiet Glade | – | Prologue only | Where your story begins |
-| 🏡 Sowerby | – | – | Forge, Veyra's Spring and shrine, Elder Oswin, building plots |
+| 🏡 Sowerby | – | – | Forge, Veyra's Spring and shrine, Elder Oswin, building plots, Poppy's field at the east end |
 | 🌼 Sunny Meadow | 1–3 | Slime, Hopbun | Goo, Fluff, Clover · 🪵 oak, 🪨 stone |
 | 🌲 Whisper Woods | 4–7 | Sporecap, Woolf, Hopbun | Shroom Cap, Fang · 🌲 pine, 🟠 copper |
 | 🪨 Echo Cavern | 8–11 | Flapper, Pebblor, Sporecap | Bat Wing, Golem Core · ⚙️ iron |
