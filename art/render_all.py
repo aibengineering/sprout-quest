@@ -235,7 +235,8 @@ elif GROUP == 'icons2':
         lib.clear_objects()
         env.SCENERY[name][0]()
         path = os.path.join(OUT, 'icons2', f'{name}.png')
-        lib.render_fit(path, 128, math.radians(25))
+        # Poppy's field is wide and flat: seen from higher up, so its plots read at icon size.
+        lib.render_fit(path, 128, math.radians(50 if name.startswith('garden') else 25))
         frames.append({'name': f'icon/b_{name}', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
 
 elif GROUP == 'gather':

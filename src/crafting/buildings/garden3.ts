@@ -11,7 +11,7 @@ export default {
       "id": "base"
     },
     {
-      "id": "glim-beds"
+      "id": "glim-plots"
     },
     {
       "id": "ember-lanterns"
@@ -21,14 +21,14 @@ export default {
     }
   ],
   "roles": {
-    "glimplank": "The last two beds, softly glowing",
+    "glimplank": "Eight more plots, softly glowing",
     "ember": "Lanterns on the back fence",
     "flower": "Flowers climbing the back fence"
   },
   "targets": [
     {
       "material": "glimplank",
-      "part": "glim-beds",
+      "part": "glim-plots",
       "at": 240,
       "duration": 480,
       "contact": "solid",
@@ -55,7 +55,7 @@ export default {
     {
       "at": 0,
       "stage": "beds",
-      "text": "Glimmerwood makes the last two beds, softly glowing."
+      "text": "Glimmerwood edges eight more plots, softly glowing."
     },
     {
       "at": 760,
@@ -70,12 +70,12 @@ export default {
     {
       "at": 2360,
       "stage": "reveal",
-      "text": "The Bloom Garden, six beds in bloom.",
+      "text": "The Bloom Garden: a field of twenty plots.",
       "sound": "ding"
     }
   ],
-  "sceneLabel": "Glimmerwood Planks make the last two beds. Ember lights two lanterns on the back fence. Flowers climb the fence all along the back.",
+  "sceneLabel": "Glimmerwood Planks edge eight more plots, filling out the field. Ember lights two lanterns on the back fence. Flowers climb the fence all along the back.",
   "pattern": "blooms in the dark",
   "intro": "Glimmerwood, Ember and flowers for the garden.",
-  "finished": "Six beds, lanterns and flowers on the fence."
+  "finished": "Twenty plots, lanterns and flowers on the fence."
 } satisfies CraftPresentation;

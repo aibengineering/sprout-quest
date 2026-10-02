@@ -117,12 +117,17 @@ tests pick it up automatically from the zone list.
 
 ## Poppy's Garden
 
-Crops (Berries, Herbs, Flowers) aren't farmed: they grow in real time in Poppy's plots (`src/garden.ts`), like Bram's
-planks, so they come along while you're out doing other things. Only Flowers are in the building budget (4 for the
-Bloom Garden, 4 for the Manor); Berries (Berry Tart) and Herbs (Herb Tonic) are for meals and potions.
+Crops (Berries, Herbs, Flowers) aren't farmed: they grow in real time in Poppy's field (`src/garden.ts`), like Bram's
+planks, so they come along while you're out doing other things. Only Flowers are in the building budget (8 for the
+Bloom Garden, 8 for the Manor); Berries (Berry Tart) and Herbs (Herb Tonic) are for meals and potions.
 
+- The field has a plot per tile: 6, 12 and 20 plots at the Garden's three levels (`PLOTS_BY_LEVEL`). A plot gives half
+  what the old six-bed garden's beds did, and oaks and pines drop seeds twice as often, so **what a felled tree's seed
+  grows into is unchanged** (1.2 Berries per oak, 0.8 Herbs per pine; `cropsPerTree`, held by a test). A bigger field
+  lets you plant more at once, not get more crops for your chopping, so it can't flood the crop recipes; seeds stay
+  the limit. Poppy's handful of Flower Seeds doubled for the same reason (8 every 10 minutes).
 - The farm table gives crops a **garden** row: the real minutes to grow the demand on the plots you'd have when you
-  first need it (the Berry Garden's 4 for Flowers, since the Bloom Garden costs them), each seed going into the first
+  first need it (the Berry Garden's 12 for Flowers, since the Bloom Garden costs them), each seed going into the first
   free plot once you have it (Poppy's handful of Flower Seeds, or a tree seed every so often while chopping).
 - Each planting counts its tended time (`tendedSeconds` in `src/balance.ts`): weeds modelled as left in from halfway,
   and a thirsty plot waiting a minute (`THIRSTY_WAIT`) to be watered.
