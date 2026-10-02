@@ -2422,6 +2422,36 @@ scenario('Bram’s house plans: welcome Hazel and Moss, cook their recipes, upgr
   check(await game<boolean>(page, `g.save.meal?.id === 'trailbuns'`), 'Moss’s recipe did not replace the tea');
 }, { webgl: true });
 
+scenario('Sowerby voices: neighbour chats follow the cave reunion and dragon defeat without early revelations', (g) => {
+  const s=g.save;s.quest=g.quests.length;s.lv=8;
+  s.stories={...s.stories,poppy:6,bram:9,pip:1,drums:0,granny:99};
+  s.flags.push('bram:home','bram:hut','bram:stew','poppy:returned','pip:candy','hazel:recipe','moss:recipe');
+  s.build.sawmill=2;s.build.cottage=1;s.homes={pip:1,hazel:1,moss:1};
+  s.pos={x:20.2,y:9.2};
+}, async(page)=>{
+  const talk=async(id:string)=>{
+    await run(page,`const a=g.over.actors.get('${id}:${id}');g.over.teleport(a.x,a.y+.6);g.over.face=-Math.PI/2`);
+    await page.waitForTimeout(150);await page.keyboard.press('KeyE');
+    await page.waitForSelector('#modal:not([hidden]) [data-dialog]');
+    const text=await page.textContent('#modal .sheet')??'';
+    await closeDialogs(page);
+    await waitFor(page,'finished neighbour chat',()=>game<boolean>(page,`g.mode==='world'&&!g.ui.isOpen`));
+    return text;
+  };
+  const ordinaryHazel=await talk('hazel'),ordinaryMoss=await talk('moss');
+  check(ordinaryHazel.includes('fern')&&!ordinaryHazel.includes('Pebblors'),'Hazel revealed the cave before its reunion');
+  check(ordinaryMoss.includes('breakfast')&&!ordinaryMoss.includes('road’s open'),'Moss skipped his ordinary village life');
+  await run(page,`g.save.stories.drums=4`);
+  for(let i=0;i<2;i++){await talk('hazel');await talk('moss');}
+  check((await talk('hazel')).includes('Pebblors'),'Hazel did not acknowledge Poppy after the cave reunion');
+  check((await talk('moss')).includes('kept her company'),'Moss did not acknowledge Clover’s worry');
+  await run(page,`g.save.bosses.push('dragon')`);
+  for(let i=0;i<2;i++){await talk('hazel');await talk('moss');}
+  check((await talk('hazel')).includes('ash'),'Hazel did not notice the dragon aftermath');
+  check((await talk('moss')).includes('stay for breakfast'),'Moss did not choose to stay after the road opened');
+  check(await game<boolean>(page,`g.save.flags.filter(f=>f==='hazel:recipe').length===1&&g.save.flags.filter(f=>f==='moss:recipe').length===1`),'chats duplicated recipe rewards');
+});
+
 const shortcutSeed = (g: any) => {
   const s = g.save;
   s.quest = g.quests.length; s.lv = 12;

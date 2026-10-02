@@ -37,6 +37,10 @@ export const visitPip = () => {
   const turn = line++;
   const [text, mood] = homeLevel(G.save, 'pip') >= 2 && turn % 6 === 5
     ? ['My own study! Room for every pebble. I taught Clover the slower way to cool Rock Candy; it lasts a whole minute longer now.']
+    : G.save.flags.includes('moss:recipe') && turn % 5 === 3
+      ? ['Moss says it’s breakfast. Clover says I’ve already had breakfast. Bram says to stay out of the floor.']
+    : G.save.flags.includes('hazel:recipe') && turn % 5 === 0
+      ? ['Hazel’s growing a fern like the one I found in a stone. I’ll bring her the stone.']
     : LINES[turn % LINES.length];
   return chat([[PIP, text, mood]]);
 };

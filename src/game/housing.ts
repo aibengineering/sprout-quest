@@ -28,9 +28,21 @@ export async function bramHousePlans() {
         const choice = await G.ui.dialog(`<div class="house-plans-head"><h2>🧔 Bram’s House Plans</h2><p>You bring the planks; I’ll build a home. Better timber makes room for our neighbours’ recipes.</p></div><div class="house-plans-list">${cards}</div>`,
           [['chat', 'Chat', 'ghost'], ['mill', 'About the sawmill', 'ghost'], ['roads', 'Shortcuts', 'ghost'], ['close', 'Back']], 'house-plans');
         if (choice === 'close') return;
-        if (choice === 'chat') { await say(BRAM, homeLevel(s, 'moss') ? 'A miner, a herbalist, a baker… there’s a good smell coming from every chimney now. Go say hello. Good timber’s only the beginning of a home.' : 'A village grows one doorstep at a time. Pip needs a cottage first; then Hazel and Moss can join us. Don’t forget to drop by when the roof is on.', 'happy'); continue; }
-        if (choice === 'mill') { await say(BRAM, 'Inside the mill: pick up logs, put them on the bench, pull the lever, then take your planks. Bring them out here and we’ll put them to work.', 'happy'); continue; }
-        if (choice === 'roads') { await say(BRAM, 'Look for my stakes beside broken crossings. Oak joins Willow Pond and the old camp. Pine crosses Stillwater and the flooded Quarry. Glimmerwood spans Mirror Gorge; Emberwood stands the heat on the Peak. Build right there, and the way stays open.', 'happy'); continue; }
+        if (choice === 'chat') {
+          const lines = homeLevel(s, 'moss')
+            ? ['More mouths round the table. Clover’s pleased.', 'More roofs to keep dry. That’s my bit.']
+            : ['Pip needs a cottage. He knows someone with herbs to plant.', 'There’s a baker looking for an oven, too. Clover’ll know what to do.', 'You bring the planks. I’ll see about the roofs.'];
+          for (const text of lines) await say(BRAM, text, 'happy');
+          continue;
+        }
+        if (choice === 'mill') {
+          for (const text of ['Logs onto the bench. Then the lever.', 'Planks by the door. Bring them out here when you’re done.']) await say(BRAM, text, 'happy');
+          continue;
+        }
+        if (choice === 'roads') {
+          for (const text of ['Oak for the pond and my old camp.', 'Pine for Stillwater and the Quarry.', 'Glimmerwood for the Gorge. Emberwood for the lava.', 'Build at the stakes. Better timber, better ways home.']) await say(BRAM, text, 'happy');
+          continue;
+        }
         const [, name, rawLevel] = choice.split(':');
         if (!HOME_ORDER.includes(name as HomeId)) continue;
         const id = name as HomeId, level = Number(rawLevel), before = { ...s.mats };

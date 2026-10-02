@@ -16,6 +16,10 @@ Pip’s home opens Hazel’s plan; Hazel’s opens Moss’s. Plans require the m
 
 The residential lane sits south of the main road: player home, Bram’s cabin, Hazel and Moss, with footpaths between them. Veyra’s Spring remains a plaza between the homes. Pip stays northeast near his tunnel and Granny; the Waystone and Training Yard move onto clear northern approaches. Workshop doorways stay open. New home additions retain their original footprint and visibly extend the original house.
 
+## Story integration
+
+The sibling [Sprout Quest Bible](../../2609_sprout_quest_story/story/18-sowerby-neighbours.md) records Hazel and Moss's character direction. Hazel carried cuttings through the closed road and finds a place for them beside Poppy. Moss's passing trade vanished when the road closed; he borrows Clover's oven and finds neighbours to bake for. Their welcome dialogue, ordinary chats and reactions after the cave reunion and dragon defeat connect them to the existing cast. Granny, Pip and Bram acknowledge them too. See [the story review](story-review.md) for the implementation gap and continuity questions.
+
 ## Next story pass
 
 These are proposed beats, not active quests or promised unlocks:

@@ -222,7 +222,7 @@ export const BRAM_STORY: Story = {
           bubble(ID, '😊', 2.5);
           await say(BRAM, "Now that's a mill.", 'happy');
           await say(BRAM, "Bring Oak Logs inside: onto the bench, pull the lever, then take your planks. Two from every log.");
-          await say(BRAM, 'I’ll leave you plans by the broken crossings. Oak for the Meadow and my old camp; pine for Stillwater and the Quarry. Better blades, better timber, better ways home.', 'happy');
+          await say(BRAM, 'Plans by the broken crossings, partner. Better blades, better timber, better ways home.', 'happy');
           await say(BRAM, `First job, though: a roof over my head. ${BRAM_CABIN_PLANKS} planks will do it.`);
         });
       },

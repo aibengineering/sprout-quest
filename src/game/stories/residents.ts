@@ -1,4 +1,5 @@
-// Two neighbours arrive when their homes are built. Meeting each teaches Granny a recipe once.
+// New neighbours belong to the village track: closed roads brought them here; shared work gives them reasons to stay.
+// Story and voice notes: the sibling Sprout Quest Bible, "Sowerby's neighbours".
 import { homeLevel, type HomeId } from '../../housing';
 import { residentDoor } from '../../villageLayout';
 import { G, paused, persist } from '../context';
@@ -7,15 +8,37 @@ import type { Story } from '../stories';
 
 const PEOPLE = {
   hazel: { name: 'Hazel', emoji: '🌿', portrait: () => 'npc_hazel', meal: 'meadowtea', recipe: 'Meadow Tea',
-    hello: 'Bram said there was a garden that needed a friend. What a lovely little home! I’m Hazel. I know which leaves make a weary hand steady again.',
-    gift: 'I’ll teach Clover my Meadow Tea. Herbs and flowers from Poppy’s Garden; sip it before mining and those little seams will be easier to strike.',
-    lines: ['Poppy grows them; I learn their names; Clover puts the kettle on. That’s how a village works.', 'Pip brought me a stone with a tiny fern pressed into it. Some gardens are older than any of us.'],
-    upgraded: 'The glasshouse keeps my herbs dry through the rain. Clover’s Meadow Tea stays good for a whole minute longer now.' },
+    welcome: [
+      'I’m Hazel. Pip told me Poppy was growing a garden here.',
+      'I brought cuttings through the Woods. They need somewhere to take root.',
+      'Clover saved me a place by the kettle. I’ll show her my Meadow Tea.',
+      'Use Poppy’s herbs and flowers. A cup settles your hands before mining.',
+    ],
+    lines: [
+      'That fern survived the closed road in my coat pocket. Poppy’s found it a bed.',
+      'Pip found a leaf inside a stone. I’m growing the nearest match I can find.',
+      'Some of Poppy’s weeds are useful. I set those aside before she clears the beds.',
+      'Poppy wants to name every seedling. We’re starting with the ones she can reach.',
+    ],
+    afterCave: 'Poppy asked whether Pebblors like flowers. I said we could leave some and see.',
+    afterDragon: 'There’s less ash on the beds today. Poppy noticed before I did.',
+    upgraded: 'There’s room for Poppy’s cuttings in the glasshouse now. Clover’s tea keeps a minute longer, too.' },
   moss: { name: 'Moss', emoji: '🥖', portrait: () => 'npc_moss', meal: 'trailbuns', recipe: 'Trail Buns',
-    hello: 'A pine roof! Smells almost as good as fresh bread. Moss, at your service. I followed the smell of Clover’s cooking all the way here.',
-    gift: 'My Trail Buns use berries and a little Bunny Fluff for the dough. I’ll show Clover. Eat one before gathering; every good strike teaches your hands a little more.',
-    lines: ['Bram builds the shelves, Poppy brings the berries, and I try not to eat everything before Clover sees it.', 'Hazel says I knead too loudly. Pip says the floor sounds delicious. I’m still deciding what to do with that.'],
-    upgraded: 'The Glimmer Larder keeps the dough cool. Our Trail Buns keep you going a minute longer. That’s good timber doing good work.' },
+    welcome: [
+      'I’m Moss. I used to bake for people passing through.',
+      'When the road closed, nobody came. Bram said there might be work here.',
+      'Clover’s lending me her oven. I’ll teach her my Trail Buns.',
+      'Berries and Bunny Fluff. Take some before gathering; you’ll learn more from the work.',
+    ],
+    lines: [
+      'Clover makes me eat before we bake. Apparently counting the buns doesn’t count as breakfast.',
+      'I baked too many again. Bram offered a shelf. Clover said to fetch a plate.',
+      'I still wrap a bun for the road. Old habit. Now there’s someone here to give it to.',
+      'Pip comes up through the floor when he smells baking. Bram’s stopped fixing that board.',
+    ],
+    afterCave: 'Clover kept supper warm while Poppy was away. I kept her company.',
+    afterDragon: 'The road’s open. I could move on. Think I’ll stay for breakfast.',
+    upgraded: 'Room for an extra tray in the cool larder. Clover’s Trail Buns last a minute longer.' },
 } as const;
 type NewResident = keyof typeof PEOPLE;
 const chatter: Record<NewResident, number> = { hazel: 0, moss: 0 };
@@ -24,13 +47,14 @@ export function visitResident(id: HomeId) {
   const p = PEOPLE[id], speaker: Speaker = p;
   return paused(async () => {
     if (!G.save.flags.includes(`${id}:recipe`)) {
-      await say(speaker, p.hello);
-      await say(speaker, p.gift);
+      for (const text of p.welcome) await say(speaker, text);
       if (!G.save.flags.includes(`${id}:recipe`)) G.save.flags.push(`${id}:recipe`);
       persist();
     } else {
       const turn = chatter[id]++;
-      const text = homeLevel(G.save, id) >= 2 && turn % 2 === 0 ? p.upgraded : p.lines[turn % p.lines.length];
+      const milestone = G.save.bosses.includes('dragon') ? p.afterDragon : (G.save.stories.drums ?? 0) >= 4 ? p.afterCave : null;
+      const text = homeLevel(G.save, id) >= 2 && turn % 5 === 0 ? p.upgraded
+        : milestone && turn % 3 === 0 ? milestone : p.lines[turn % p.lines.length];
       await say(speaker, text);
     }
   });

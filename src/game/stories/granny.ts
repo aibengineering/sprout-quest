@@ -24,7 +24,11 @@ function lines(): [string, string?][] {
   if (step <= 1) return [["Poppy went to pick flowers this morning, down in the meadow's far south-east corner. She should have been home by now…", 'worried']];
   if (step <= 4) return [['Poor Poppy. That bunny is her best friend in the whole world.', 'worried']];
   if (step === 5) return [["You found him? Oh, go on, give him to her, dear!"]];
-  return [["Those boots holding up? Poppy hasn't stopped talking about you. And that grove of hers has lovely timber and stone, now the bullies are gone."], ["Come inside and have some food, dear. I'll join you by the recipe book, and we'll find something lovely to make."]];
+  const neighbours = G.save.flags.includes('moss:recipe')
+    ? 'Moss knows bread. Hazel knows leaves. I know how to squeeze another chair round this table.'
+    : G.save.flags.includes('hazel:recipe') ? 'Hazel brought cuttings. Poppy’s making labels for them. Mind you, some of the names are hers.'
+    : "Those boots holding up? Poppy hasn't stopped talking about you. And that grove of hers has lovely timber and stone, now the bullies are gone.";
+  return [[neighbours], ["Come inside and have some food, dear. I'll join you by the recipe book, and we'll find something lovely to make."]];
 }
 
 /** Bram's story starts with her: once the Woods are open and Poppy's safe home, she asks you to take him a pie. */
