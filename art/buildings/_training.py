@@ -2,9 +2,9 @@
 and a Royal Jelly target, then a Dojo deck and gate of pine planks with iron and Imp Horns."""
 import math
 
-from lib import box, cone, cylinder, empty, sphere, toon, torus
+from lib import box, cone, cylinder, empty, profile, sphere, toon, torus
 
-from buildings._common import COPPER, IRON, OAK_DARK, PINE, PINE_DARK, Parts
+from buildings._common import COPPER, IRON, OAK_DARK, PINE, PINE_DARK, Parts, flowers
 
 W, D = 3.4, 1.9
 
@@ -15,6 +15,12 @@ def build(root, level):
         P('base')
     part = lambda lv, name: P(name if lv == level else 'base')
 
+    # An open timber pavilion, with the practice floor visible beneath its roof.
+    shelter = part(1, 'oak-post')
+    for x in (-1.65, 1.65):
+        for y in (-.75, .85):
+            box((x, y, 1.05), (.13, .13, 2.1), toon(OAK_DARK), shelter, bevel=.025)
+    profile([(-1.95, 2.0), (0, 2.9), (1.95, 2.0)], 1.65, toon('#63836b'), shelter, loc=(0,.25,0), bevel=.035)
     # 1: the Straw Dummy.
     post = part(1, 'oak-post')
     box((0, 0, 0.04), (W, D, 0.08), toon('#d8b888'), post, bevel=0.04, line=0.012)
@@ -32,6 +38,8 @@ def build(root, level):
 
     # 2: the Training Yard.
     if level >= 2:
+        deck2 = part(2, 'copper-rack')
+        box((0, 0, .1), (W, D, .08), toon(PINE), deck2, bevel=.02)
         fangs = part(2, 'fang-post')
         cylinder((-1.0, -0.35, 0.55), 0.13, 1.1, toon('#7a5238'), fangs, seg=10)
         for z in (0.35, 0.65, 0.95):
@@ -78,4 +86,9 @@ def build(root, level):
         for s in (-1, 1):
             cone((0.17 * s, 0.84, 2.32), 0.1, 0.5, toon('#b04a5a'), horns, rot=(0, 0.5 * s, 0), seg=8, line=0.012)
         sphere((0, 0.84, 2.14), (0.14, 0.06, 0.1), toon('#6a2a3a'), horns, line=0.012)
+    if level >= 3:
+        flower = part(3, 'flower')
+        for x in (-1.55,1.55):
+            box((x,-.7,.24),(.5,.35,.28),toon('#9a6a44'),flower,bevel=.04)
+            flowers(flower,2,[(x/2,-.35,'#ff8ab0')],z=.39)
     return P.objects()

@@ -79,7 +79,7 @@ export const menuHooks: UIHooks = {
   },
 
   async build(id) {
-    if (id === 'cottage') return askBramForHome();
+    if (['cottage', 'garden', 'training'].includes(id)) return askBramForHome();
     if (craftingItem) return;
     const s = G.save, shown = revealed(s), before = { ...s.mats };
     if (build(s, id) !== 'ok') return;

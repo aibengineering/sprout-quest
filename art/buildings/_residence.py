@@ -41,6 +41,8 @@ def cottage(root, who):
             sphere((dx, front-.27, .96), (.06, .06, .12), toon('#58874f'), garden, line=.006)
             if who == 'moss':
                 sphere((dx+.02, front-.31, .98), .035, toon('#ce617b'), garden, line=.004)
+    flower = P('flower')
+    flowers(flower, .6, [(-.25, front-.30, '#ff8ab0'), (.25, front-.30, '#ffd35a')], z=.84)
     return P.objects()
 
 
@@ -72,4 +74,6 @@ def build(root, who, level):
         for x in (-.26, 0, .26):
             box((x, front-.14, 2.56), (.025, .02, .55), toon('#849d8d'), special, line=0)
         lantern(special, (.55, front-.18, 1.21), '#b5e8ee', '#8173a1')
+    flower = P('flower')
+    flowers(flower, .6, [(-.25, front-.30, '#ff8ab0'), (.25, front-.30, '#ffd35a')], z=.84)
     return P.objects()

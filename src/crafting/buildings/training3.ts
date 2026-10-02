@@ -5,7 +5,7 @@ export default {
   "duration": 3360,
   "scene": "building",
   "model": "assets/crafting3d/training3.glb",
-  "eyebrow": "SOWERBY · BUILT BY HAND",
+  "eyebrow": "SOWERBY · BUILT BY BRAM",
   "layers": [
     {
       "id": "base"
@@ -18,16 +18,20 @@ export default {
     },
     {
       "id": "imp-horns"
+    },
+    {
+      "id": "flower"
     }
   ],
   "roles": {
-    "pineplank": "The deck and the Dojo gate",
     "iron": "A gong and iron post caps",
-    "horn": "Horns crowning the gate"
+    "horn": "Horns crowning the gate",
+    "glimplank": "The deck and the Dojo gate",
+    "flower": "Flowers from Poppy’s garden by the doorway"
   },
   "targets": [
     {
-      "material": "pineplank",
+      "material": "glimplank",
       "part": "pine-deck",
       "at": 240,
       "duration": 480,
@@ -49,13 +53,21 @@ export default {
       "duration": 480,
       "contact": "solid",
       "sound": "clink"
+    },
+    {
+      "material": "flower",
+      "part": "flower",
+      "at": 1800,
+      "duration": 480,
+      "contact": "soft",
+      "sound": "craftFluff"
     }
   ],
   "phases": [
     {
       "at": 0,
       "stage": "deck",
-      "text": "Pine Planks lay a deck and raise a gate."
+      "text": "Glimmerwood Planks lay a deck and raise a gate."
     },
     {
       "at": 760,
@@ -74,8 +86,8 @@ export default {
       "sound": "ding"
     }
   ],
-  "sceneLabel": "Pine Planks make the deck and the Dojo gate. Iron Ore becomes a gong and caps on the posts. Imp Horns crown the gate.",
+  "sceneLabel": "Glimmerwood Planks make the deck and the Dojo gate. Iron Ore becomes a gong and caps on the posts. Imp Horns crown the gate.",
   "pattern": "the way of the blade",
-  "intro": "Pine planks, iron and Imp Horns.",
-  "finished": "A deck, a gong and a horned gate."
+  "intro": "Bram builds the dojo. Alder prepares the next lessons.",
+  "finished": "Alder’s dojo is ready for practice."
 } satisfies CraftPresentation;

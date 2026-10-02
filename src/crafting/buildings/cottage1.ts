@@ -5,7 +5,7 @@ export default {
   "duration": 4880,
   "scene": "building",
   "model": "assets/crafting3d/cottage1.glb",
-  "eyebrow": "SOWERBY · BUILT BY HAND",
+  "eyebrow": "SOWERBY · BUILT BY BRAM",
   "layers": [
     {
       "id": "site"
@@ -27,13 +27,17 @@ export default {
     },
     {
       "id": "copper-touches"
+    },
+    {
+      "id": "flower"
     }
   ],
   "roles": {
     "stone": "The footing, the doorstep and the chimney",
     "bark": "Oak beams: the corner posts and the roof frame",
     "plank": "Plank walls, the round door, the window box and the roof boards",
-    "copper": "The weathervane, the door knob and a lantern"
+    "copper": "The weathervane, the door knob and a lantern",
+    "flower": "Flowers from Poppy’s garden by the doorway"
   },
   "targets": [
     {
@@ -83,6 +87,14 @@ export default {
       "duration": 480,
       "contact": "solid",
       "sound": "clink"
+    },
+    {
+      "material": "flower",
+      "part": "flower",
+      "at": 2160,
+      "duration": 480,
+      "contact": "soft",
+      "sound": "craftFluff"
     }
   ],
   "phases": [

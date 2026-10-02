@@ -55,7 +55,7 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'plots', icon: '🌱', title: 'New Building Plots',
-    text: 'A Garden and a Training Yard can now be built in the village.',
+    text: 'There’s space for Poppy’s Garden and a dojo. Help Bram move home, then bring him materials for the next building job.',
     when: (s) => s.bosses.includes('kingslime'),
   },
   {
@@ -66,7 +66,7 @@ export const UNLOCKS: Unlock[] = [
   {
     id: 'kitchen', icon: '🍳', title: "Granny's Kitchen",
     text: 'Cook with Granny! Choose a recipe by her pantry and bring the ingredient plate to the pot: meals give you more XP, healing, or keep weak monsters away.',
-    when: (s) => (s.stories.poppy ?? 0) >= 6,
+    when: (s) => (s.stories.poppy ?? 0) >= 6 && (!s.villageJobs || s.flags.includes('granny:extension')),
   },
   {
     id: 'sawmill', icon: '🪚', title: "Bram's Sawmill",
@@ -75,7 +75,7 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'cottage', icon: '🏡', title: 'A Guest Cottage',
-    text: "Now Bram's mill is running, Sowerby can build a cottage for a newcomer. Find it in the village plans.",
+    text: "Bram has work for the village: a garden, Clover’s kitchen and a cottage for Pip. Talk to him outside the Sawmill.",
     when: (s) => s.flags.includes('bram:hut') && s.build.sawmill > 0,
   },
 ];

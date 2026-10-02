@@ -5,7 +5,7 @@ export default {
   "duration": 3360,
   "scene": "building",
   "model": "assets/crafting3d/training2.glb",
-  "eyebrow": "SOWERBY · BUILT BY HAND",
+  "eyebrow": "SOWERBY · BUILT BY BRAM",
   "layers": [
     {
       "id": "base"
@@ -23,7 +23,8 @@ export default {
   "roles": {
     "fang": "Studs on the sparring post",
     "copper": "Practice blades and their rack",
-    "royaljelly": "The golden bullseye"
+    "royaljelly": "The golden bullseye",
+    "pineplank": "A wider practice deck beneath the targets"
   },
   "targets": [
     {
@@ -49,6 +50,14 @@ export default {
       "duration": 480,
       "contact": "bind",
       "sound": "craftGoo"
+    },
+    {
+      "material": "pineplank",
+      "part": "copper-rack",
+      "at": 160,
+      "duration": 480,
+      "contact": "solid",
+      "sound": "craftStitch"
     }
   ],
   "phases": [
@@ -76,6 +85,6 @@ export default {
   ],
   "sceneLabel": "Wolf Fangs stud a sparring post. Copper Ore becomes practice blades and their rack. Royal Jelly makes the golden bullseye of a target.",
   "pattern": "train every day",
-  "intro": "Fangs, copper and royal jelly for the yard.",
-  "finished": "A sparring post, blades and a target."
+  "intro": "Bram builds the dojo. Alder prepares the next lessons.",
+  "finished": "Alder’s dojo is ready for practice."
 } satisfies CraftPresentation;

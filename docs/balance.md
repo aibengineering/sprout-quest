@@ -118,8 +118,8 @@ tests pick it up automatically from the zone list.
 ## Poppy's Garden
 
 Crops (Berries, Herbs, Flowers) aren't farmed: they grow in real time in Poppy's field (`src/garden.ts`), like Bram's
-planks, so they come along while you're out doing other things. Only Flowers are in the building budget (8 for the
-Bloom Garden, 8 for the Manor); Berries (Berry Tart) and Herbs (Herb Tonic) are for meals and potions.
+planks, so they come along while you're out doing other things. Flowers supply the Manor and optional village jobs,
+including Granny's kitchen, resident homes and additions. Moss's home also uses berries, and Hazel's uses herbs.
 
 - The field has a plot per tile: 6, 12 and 20 plots at the Garden's three levels (`PLOTS_BY_LEVEL`). A plot gives half
   what the old six-bed garden's beds did, and oaks and pines drop seeds twice as often, so **what a felled tree's seed
@@ -131,7 +131,9 @@ Bloom Garden, 8 for the Manor); Berries (Berry Tart) and Herbs (Herb Tonic) are 
   free plot once you have it (Poppy's handful of Flower Seeds, or a tree seed every so often while chopping).
 - Each planting counts its tended time (`tendedSeconds` in `src/balance.ts`): weeds modelled as left in from halfway,
   and a thirsty plot waiting a minute (`THIRSTY_WAIT`) to be watered.
-- It's held to the same ≤14 minute budget as farming, though it's waiting rather than playing.
+- The ≤14 minute guard covers main-track workshops, gear and tools (`farmTable(false)`). Optional village jobs have
+  higher material costs and are reported by `farmTable(true)`; that estimate includes resident homes and Granny's
+  extension. Growing flowers for the kitchen is a deliberate early garden goal, rather than an adventure gate.
 
 The knobs are `CROPS` (grow time, yield), `PLOTS_BY_LEVEL`, `FLOWER_GIFT` / `GIFT_SECONDS` and the thirst and weed
 chances in `src/garden.ts`, and each tree's `seed` chance in `NODES`.
@@ -169,3 +171,13 @@ impact/fan union, rather than counting overlapping rays as separate damage-beari
 Runtime regression tests check large targets, multiple enemies, near and distant hits, new casts, all hammer
 tiers and all four Fracture ranks, including 20, 30, 60 and 120 FPS. These confirm the hit rules and damage ordering;
 the next playtest still determines whether the hammer feels right.
+
+## Alder's dojo
+
+Six optional lessons pay 180, 240, 400, 500, 750 and 1,000 combat and weapon-handling XP on their first successful
+clear. Real dodges through attacks and specials that connect count toward the objectives; empty inputs do not.
+Repeats award no XP or materials. Practice uses a fresh health pool, no potions, and does not change outdoor health,
+meal time, monster-kill quests or ordinary battle rewards. Dojo additions retain the existing 5/10/15% attack bonus.
+
+Playtest the size and timing of these rewards alongside village material costs; passing the main-track economy guard
+does not establish the pace of the optional housing chain.

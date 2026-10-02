@@ -48,3 +48,12 @@ These are recommendations, not implemented quests.
 - **What names imply.** Hazel and Moss fit the proposed plant-name tradition. Names can suggest their culture without making them priests, secret gods or authorities on the Wild.
 
 The strongest tone is a plain sentence beside a meaningful action. Sowerby can stay funny and comfortable as its people become more specific. Reserve explanations of gods and war for moments when the player has seen enough to need them.
+
+
+## Clover's extension and Alder (0.3.7)
+
+Clover already lives in Sowerby. Poppy's rescue earns her gratitude and starts the pie favour for Bram; it no longer magically opens a fully equipped kitchen on new saves. Once Bram is home, he fences Poppy's garden, then extends Clover's house with timber, oven stone, copper and flowers grown with Poppy. The original house stays. Clover invites the hero to cook with her in the new room. She remains outdoors for ordinary conversation and quests, and joins the player inside. Existing open kitchens remain open on older saves.
+
+Alder is a former escort from the east road. Hearing about the Woolves gives him a reason to ask for a dojo. Bram builds it, Alder teaches: one place and one activity belongs to one character. His first lessons reward attention to attack tells; later additions let him teach rushes, specials and crowds. Practice should make returning to the road less frightening. He knows roadcraft, not the gods' secrets. A later beat where he learns to pause rather than assume every creature is an attacker remains a proposal, not implemented lore.
+
+Construction requests now connect trades: Poppy's flowers brighten Clover's kitchen and later doorsteps; Pip introduces Hazel; Hazel's cuttings justify more garden space; Clover's new oven lets Moss bake without another production system. Bram's pride appears as useful work, and village growth stays separate from workshop capability.

@@ -65,7 +65,7 @@ export function mealSeconds(s: SaveState, id: MealId) {
 export const mealDescription = (s: SaveState, id: MealId) => MEALS[id].desc.replace('4 minutes', `${mealSeconds(s, id) / 60} minutes`);
 
 /** The kitchen opens once Mr. Floppers is home (Poppy's story finished). */
-export const kitchenOpen = (s: SaveState) => (s.stories.poppy ?? 0) >= 6;
+export const kitchenOpen = (s: SaveState) => (s.stories.poppy ?? 0) >= 6 && (!s.villageJobs || s.flags.includes('granny:extension'));
 
 /** Recipes Granny can make: her own, plus whatever newcomers have taught her. */
 export const knownMeals = (s: SaveState) => MEAL_ORDER.filter((id) => !TAUGHT[id] || s.flags.includes(TAUGHT[id]!));

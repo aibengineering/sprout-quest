@@ -7,18 +7,21 @@ import { newState } from '../src/state';
 /** A save that's finished Poppy's story, with plenty of everything. */
 function fed() {
   const s = newState();
-  s.stories.poppy = 6;
+  s.stories.poppy = 6; s.flags.push('granny:extension');
   for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 50;
   return s;
 }
 
 describe("Granny's Kitchen", () => {
-  test('opens once Mr. Floppers is home, with her three light recipes', () => {
+  test('opens after Mr. Floppers is home and Bram builds Clover’s kitchen extension', () => {
     const s = newState();
     expect(kitchenOpen(s)).toBe(false);
     s.mats.goo = 150;
     expect(cook(s, 'goojelly')).toBe('unknown');
     s.stories.poppy = 6;
+    expect(kitchenOpen(s)).toBe(false);
+    expect(cook(s, 'goojelly')).toBe('unknown');
+    s.flags.push('granny:extension');
     expect(knownMeals(s)).toEqual(['pancakes', 'tea', 'goojelly']);
     expect(cook(s, 'goojelly')).toBe('ok');
     expect(s.mats.goo).toBe(126);

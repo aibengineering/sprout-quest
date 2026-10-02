@@ -97,6 +97,10 @@ export class Battle implements FoeWorld, HitWorld {
   hits = 0;
   /** Each class ability landing (for the play report and the tests). */
   ripostes = 0;
+  evades = 0;
+  skillHits = 0;
+  private lastEvade = 0;
+  private skillContacts = new Set<number>();
   staggers = 0;
   snares = 0;
   private onceKeys = new Set<number>();
@@ -730,6 +734,7 @@ export class Battle implements FoeWorld, HitWorld {
         this.shakeAtLeast(4);
         break;
     }
+    if (this.setup.dojo && this.moves.skill === 'scatter') for (const pr of this.projs.slice(-r.count)) pr.dojoCast = this.log.skills;
   }
 
   private updateWhirl(dt: number) {
@@ -749,6 +754,10 @@ export class Battle implements FoeWorld, HitWorld {
       }
       this.audio.play('swing');
     }
+  }
+
+  private recordSkillContact(cast: number) {
+    if (this.setup.dojo && !this.skillContacts.has(cast)) { this.skillContacts.add(cast); this.skillHits++; }
   }
 
   private shoot(ang: number, mult: number, r: number) {
@@ -790,7 +799,7 @@ export class Battle implements FoeWorld, HitWorld {
     }
     if (this.runCd > 0) return;
     // Out of a Battle Tower fight you always get back to the camp, guardians included.
-    if (this.setup.tower || Math.random() < 0.7) {
+    if (this.setup.dojo || this.setup.tower || Math.random() < 0.7) {
       this.fx.text(p.x, p.y - 40, 'Got away!', '#ffffff', 16);
       this.finish({ result: 'run', hp: p.hp, xp: 0, drops: {}, defeated: [], log: this.log }, 0.5);
     } else {
@@ -802,6 +811,9 @@ export class Battle implements FoeWorld, HitWorld {
   private hitEnemy(e: Enemy, mult: number, ang: number, kb: number, stun = 0, strikeId = 0, hitstop = 0.035) {
     if (e.dead) return;
     this.hits++;
+    if (this.setup.dojo && (this.p.swing?.skill || this.p.whirlT > 0 || this.waves.some((w) => w.id === strikeId))) {
+      this.recordSkillContact(this.log.skills);
+    }
     const st = this.stats;
     // Blades' Riposte always crits, and hits harder.
     const riposte = !!this.p.swing?.riposte && this.p.swing.id === strikeId;
@@ -920,6 +932,7 @@ export class Battle implements FoeWorld, HitWorld {
     this.fx.burst(e.x, e.y - e.r * 0.7, e.golden ? '#ffd84a' : MONSTER_AI[e.kind].color, 18, 180, { size: 5 });
     this.fx.burst(e.x, e.y - e.r * 0.7, '#fff6a0', 8, 120, { star: true, size: 5, grav: -30 });
     this.audio.play('kill');
+    if (this.setup.dojo) return; // Practice targets do not grant ordinary loot, kills or monster XP.
     this.xp += e.xp;
     this.defeated.push(e.def.name);
     const d = rollDrops(e.def, this.stats.luck, e.golden);
@@ -941,10 +954,18 @@ export class Battle implements FoeWorld, HitWorld {
 
   /** `by` says what hit you ("monster:contact|shot|hazard"), for the play report. */
   /** Returns whether it landed (not dodged, not during your moment of safety after a hit). */
+  private recordEvade() {
+    if (this.setup.dojo && this.p.dodging > 0 && this.log.dodges > this.lastEvade) {
+      this.lastEvade = this.log.dodges; this.evades++;
+      this.fx.text(this.p.x, this.p.y - 52, 'Clean dodge!', '#a8f2cc', 14);
+    }
+  }
+
   private hurtPlayer(atk: number, mult: number, fx: number, fy: number, by: string): boolean {
     const p = this.p;
     if (this.endT >= 0) return false;
     if (p.iframes > 0 || p.dodgeT > 0) {
+      this.recordEvade();
       // Blades: dodging through an attack readies a Riposte.
       if (p.dodging > 0 && this.trick === 'riposte' && p.riposte <= 0) {
         p.riposte = RIPOSTE.secs;
@@ -1111,6 +1132,7 @@ export class Battle implements FoeWorld, HitWorld {
       if (Math.random() < 0.4) this.fx.burst(pr.x, pr.y, pr.color, 1, 20, { size: pr.r * 0.4, grav: 0, life: 0.3 });
       if (pr.owner === 'e') {
         if (Math.hypot(pr.x - p.x, pr.y - (p.y - 10)) < pr.r + p.r) {
+          this.recordEvade();
           if (p.iframes <= 0 && p.dodgeT <= 0) {
             if (this.hurtPlayer(pr.atk, pr.mult, pr.x, pr.y, `${pr.from ?? '?'}:shot`) && pr.poison) this.poisonPlayer(pr.poison);
             pr.life = 0;
@@ -1120,6 +1142,7 @@ export class Battle implements FoeWorld, HitWorld {
         for (const e of this.enemies) {
           if (e.dead) continue;
           if (Math.hypot(pr.x - e.x, pr.y - (e.y - e.r * 0.7 - e.z)) < pr.r + e.r) {
+            if (pr.dojoCast !== undefined) this.recordSkillContact(pr.dojoCast);
             this.hitEnemy(e, pr.mult, Math.atan2(pr.vy, pr.vx), 70, 0, 0, 0.025);
             this.fx.burst(pr.x, pr.y, pr.color, 6, 100, { star: true, size: 3 });
             pr.life = 0;

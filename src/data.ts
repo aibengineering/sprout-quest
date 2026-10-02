@@ -497,17 +497,17 @@ export const PROJECTS: Record<ProjectId, Project> = {
     name: 'Garden', icon: '🌱',
     // Poppy's, once her story's done: each level adds plots to grow in (see garden.ts).
     levels: [
-      { name: 'Sprout Patch', cost: { bark: 12, clover: 1 }, perk: 'A field of six plots for Poppy to grow in, and the fountain refills potions to 3' },
-      { name: 'Berry Garden', cost: { cap: 12, plank: 24, stone: 12 }, perk: 'Twelve plots, and the fountain refills potions to 4' },
+      { name: 'Sprout Patch', cost: { plank: 32, stone: 12, clover: 1 }, perk: 'A field of six plots for Poppy to grow in, and the fountain refills potions to 3' },
+      { name: 'Berry Garden', cost: { cap: 18, plank: 48, stone: 18 }, perk: 'Twelve plots, and the fountain refills potions to 4' },
       { name: 'Bloom Garden', cost: { glimplank: 24, ember: 12, flower: 8 }, perk: 'Twenty plots, and the fountain refills potions to 5' },
     ],
   },
   training: {
-    name: 'Training Yard', icon: '🎯',
+    name: 'Alder’s Dojo', icon: '🥋',
     levels: [
-      { name: 'Straw Dummy', cost: { bark: 15, fluff: 9 }, perk: '+5% attack' },
-      { name: 'Training Yard', cost: { fang: 12, royaljelly: 1, copper: 9 }, perk: '+10% attack' },
-      { name: 'Dojo', cost: { pineplank: 32, horn: 8, iron: 6 }, perk: '+15% attack' },
+      { name: 'Oak Dojo', cost: { plank: 40, stone: 18, fluff: 18 }, perk: '+5% attack; Alder’s first two combat challenges' },
+      { name: 'Pine Dojo', cost: { pineplank: 48, fang: 18, royaljelly: 1, copper: 12 }, perk: '+10% attack; rush and special-attack challenges' },
+      { name: 'Glimmer Dojo', cost: { glimplank: 48, horn: 10, iron: 12, flower: 8 }, perk: '+15% attack; Alder’s advanced challenges' },
     ],
   },
   warp: {
@@ -528,7 +528,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
   // at the edge of the farming budget (see balance.ts), so it's just the one plank.
   cottage: {
     name: 'Guest Cottage', icon: '🏡',
-    levels: [{ name: 'Guest Cottage', cost: { bark: 12, plank: 32, stone: 12, copper: 6 }, perk: 'A home for a newcomer' }],
+    levels: [{ name: 'Guest Cottage', cost: { bark: 12, plank: 48, stone: 18, copper: 9, flower: 4 }, perk: 'A home for a newcomer' }],
   },
 };
 

@@ -20,7 +20,7 @@ const rolls = (...r: number[]) => () => r.shift() ?? 0.99;
 /** A save where Poppy tends a Garden of this level, with seeds to plant. */
 function tended(level = 1): SaveState {
   const s = newState();
-  s.stories.poppy = 6;
+  s.stories.poppy = 6; s.flags.push('granny:extension');
   s.build.garden = level;
   Object.assign(s.mats, { berryseed: 5, herbseed: 5, flowerseed: 5 });
   return s;
@@ -33,7 +33,7 @@ describe("Poppy's Garden", () => {
     expect(gardenOpen(s)).toBe(false);
     s.mats.berryseed = 1;
     expect(plant(s, 0, 'berry', T0)).toBe('closed');
-    s.stories.poppy = 6;
+    s.stories.poppy = 6; s.flags.push('granny:extension');
     expect(gardenOpen(s)).toBe(true);
     expect(plant(s, 0, 'berry', T0, calm)).toBe('ok');
   });
@@ -147,7 +147,7 @@ describe("Poppy's Garden", () => {
     const lucky = () => 0;
     const s = newState();
     expect(harvest(s, 'oak', 'a', false, false, lucky, T0).drops.berryseed).toBeUndefined();
-    s.stories.poppy = 6;
+    s.stories.poppy = 6; s.flags.push('granny:extension');
     s.build.garden = 1;
     expect(harvest(s, 'oak', 'b', false, false, lucky, T0).drops.berryseed).toBe(1);
     expect(harvest(s, 'pine', 'c', true, false, lucky, T0).drops.herbseed).toBe(1);

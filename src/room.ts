@@ -78,10 +78,10 @@ export class Room extends TileMap {
  * a phone's screen, so all of it fits on one at once. The door is at the front.
  */
 export const KITCHEN: RoomSpec = {
-  id: 'kitchen', name: "Granny's Kitchen", w: 8, h: 9, door: 4, bg: '#3a2630',
+  id: 'kitchen', name: "Granny's Kitchen", w: 9, h: 10, door: 4, bg: '#3a2630',
   stations: [
     { id: 'pantry', x: 0.75, y: 1.3, w: 2.75, h: 0.95, label: 'Pantry' },
-    { id: 'stove', x: 4.05, y: 1.3, w: 2.95, h: 0.95, label: 'Cooking bench' },
+    { id: 'stove', x: 4.05, y: 1.3, w: 3.7, h: 0.95, label: 'Cooking bench' },
     { id: 'book', x: 1.55, y: 2.65, w: 1.2, h: 0.75, label: 'Recipes' },
     { id: 'table', x: 1.0, y: 5.75, w: 1.95, h: 0.8, label: '' },
   ],

@@ -16,6 +16,7 @@ import { celebrate, handlingGain, leveledUp, lootLines, markLevels, type LevelMa
 import { progressQuests } from './story';
 import { storyFightExtras } from './stories';
 import { faint } from './death';
+import { dojoCoach, finishDojo } from './dojo';
 import { floorSupplies, towerEnd } from './tower';
 
 /** HP when the current fight began, for the play report. */
@@ -24,7 +25,7 @@ let fightHp = 0;
 let battleFlag: string | undefined;
 
 /** Regular fights let you run; guardians and scripted fights don't. Battle Tower fights always let you back to the camp. */
-export const canRun = (b: Battle) => !!b.setup.tower || (!b.setup.boss && !battleFlag && G.save.flags.includes('village'));
+export const canRun = (b: Battle) => !!b.setup.dojo || !!b.setup.tower || (!b.setup.boss && !battleFlag && G.save.flags.includes('village'));
 
 /** A random set of monsters from a zone: `n` of them, or 1–3 (for ambushes in the grass). */
 function rollFoes(z: Zone, n?: number): Foe[] {
@@ -37,10 +38,12 @@ function rollFoes(z: Zone, n?: number): Foe[] {
 }
 
 function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Partial<BattleSetup> = {}) {
-  G.battle = new Battle({ zone, foes, boss, ambush, ...extra }, G.save, G.input, G.audio, onBattleEnd);
+  const save = extra.dojo ? structuredClone(G.save) : G.save;
+  if (extra.dojo) { save.hp = playerStats(save).maxHp; save.potions = 0; }
+  G.battle = new Battle({ zone, foes, boss, ambush, ...extra }, save, G.input, G.audio, onBattleEnd);
   // Regular and story fights: loot, the XP fill and any level-ups come the moment the last foe falls, then the swoop
   // out. (Guardians keep their fanfare, and the Battle Tower's fights end on a result screen before the next floor.)
-  if (!boss && !extra.tower) G.battle.onWin = quickWin;
+  if (!boss && !extra.tower && !extra.dojo) G.battle.onWin = quickWin;
   G.mode = 'battle';
   G.ui.setMode('battle');
   G.input.reset();
@@ -143,6 +146,7 @@ async function quickWin(o: BattleOutcome) {
 
 async function onBattleEnd(o: BattleOutcome) {
   const b = G.battle!, s = G.save;
+  if (b.setup.dojo) { G.mode = 'dialog'; return finishDojo(o, b); }
   const boss = b.setup.boss;
   // Regular and story fights swoop straight back out to the map; guardians and the dragon keep their fanfare.
   const quick = !boss && !b.setup.tower;
@@ -225,6 +229,7 @@ const press = (key: string, emoji: string) => (usingKeyboard() ? `Press ${key}` 
 /** Gentle in-battle tutorial: attack first, then dodge, later skills and potions. */
 export function coachBattle(b: Battle) {
   const s = G.save, ui = G.ui;
+  if (b.setup.dojo) return ui.coach(dojoCoach(b));
   if (b.intro > 0) return ui.coach(null);
   if (s.wins === 0) {
     if (coachStep === 0) {

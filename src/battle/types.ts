@@ -86,6 +86,8 @@ export interface Proj {
   homing?: boolean;
   /** Sporecap spores: seconds of poison if it hits you. */
   poison?: number;
+  /** Practice special identity; used to count successful casts rather than individual bolts. */
+  dojoCast?: number;
 }
 
 /** Dragonfire left on the ground by the Wyrmbreaker's breath: burns foes that stand in it. */
@@ -150,6 +152,8 @@ export interface BattleSetup {
   bystander?: { look: string; mood: string };
   /** A Battle Tower floor (its number): the fight ends at the tower's camp, and never touches the story. */
   tower?: number;
+  /** A safe practice challenge: no monster loot, story kills or death penalties. */
+  dojo?: string;
 }
 
 export interface BattleOutcome {

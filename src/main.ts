@@ -108,7 +108,7 @@ function battleFrame(b: Battle, dt: number) {
   ui.battleButtons(!!b.skillNow, has(s, 'bag') && s.flags.includes('village'));
   if (G.mode === 'battle') {
     coachBattle(b);
-    ui.battleHud(s.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac, [b.dodgesReady, b.p.dodgeCds.length]);
+    ui.battleHud(b.save.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac, [b.dodgesReady, b.p.dodgeCds.length]);
   }
 }
 
@@ -252,7 +252,7 @@ function frame(now: number) {
   if (G.mode !== 'title') {
     G.save.playtime += dt;
     // Granny's meals count down while you play (on the map, fighting, chopping), not while you're in a menu.
-    if (G.mode === 'world' || G.mode === 'battle' || G.mode === 'gather') mealTick(G.save, dt);
+    if ((G.mode === 'world' || G.mode === 'battle' || G.mode === 'gather') && !G.battle?.setup.dojo) mealTick(G.save, dt);
     trackTime(G.battle?.setup.zone.id ?? G.over.currentZone.id, ACTIVITY[G.mode], dt);
     // Which menu screen (or other popup) the menu time went to.
     if (G.mode === 'dialog') trackTime(SCREENS, G.ui.openTab ? `menu:${G.ui.openTab}` : 'dialogs', dt);

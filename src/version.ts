@@ -41,11 +41,11 @@ export const PATCH_NOTES: PatchNote[] = [
     title: 'Rooms, Recipes and Echoes',
     notes: [
       "🌱 Tend Poppy's Garden by hand, planting, watering and picking",
-      "🏡 Enter Granny's Kitchen and Bram's Sawmill, with a book that fits any screen",
+      "🥋 Meet Alder at his dojo: combat challenges with first-clear XP rewards",
       "🪚 Carry logs to Bram's saw, pull its lever and collect the planks",
       "🍳 Pick Granny's recipes, carry one plate to the pot and watch it cook",
       "🪨 Follow Poppy underground, with eye beams and clearer Cavern rocks",
-      "🏘️ Bring Bram planks for resident homes, house additions and new recipes",
+      "🏘️ Help Bram build Poppy’s garden, Clover’s big kitchen and neighbours’ homes",
       "🔨 Softer hammer slams, with one stronger Fracture hit per enemy",
       "🌉 Help Bram, then build timber shortcuts from oak through Emberwood",
       "🗺️ Explore larger Quarry, crystal garden and lava basin route loops",

@@ -268,10 +268,10 @@ export class World extends TileMap {
     add({ kind: 'foe', flag: 'glade1', monster: 'slime', x: 10, y: gy, w: 1, h: 4, label: 'Fight', text: 'Slime' }, false);
     add({ kind: 'foe', flag: 'glade2', monster: 'bunny', x: 13, y: gy, w: 1, h: 4, label: 'Fight', text: 'Hopbun' }, false);
     add({ kind: 'forge', ...TOWN_FORGE, label: 'Forge', text: 'The Forge' });
-    add({ kind: 'house', x: V + 13, y: 6.5, w: 3, h: 3, label: '' });
+    add({ kind: 'house', x: V + 13, y: 4.3, w: 3, h: 5.2, label: '' });
     add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
     add({ kind: 'plot', project: 'home', ...TOWN_HOME, label: 'Build', text: 'Home' });
-    add({ kind: 'plot', project: 'training', ...TOWN_TRAINING, label: 'Build', text: 'Training Yard' });
+    add({ kind: 'plot', project: 'training', ...TOWN_TRAINING, label: 'Build', text: 'Alder’s Dojo' });
     add({ kind: 'plot', project: 'warp', ...TOWN_WAYSTONE, label: 'Build', text: 'Waystone' });
     // Bram lives beside his mill, across the work yard from the Forge. His cabin
     // stays behind the yard's path so it cannot block the mill's front door.

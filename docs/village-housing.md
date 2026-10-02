@@ -4,17 +4,22 @@ The housing loop is **cut logs in the Sawmill → carry the planks outside → a
 
 ## Implemented for 0.3.7
 
-Bram’s outdoor conversation opens his House Plans once his own cabin quest is finished. The generic Village menu remains for workshops and the player’s original home. Resident homes use a separate saved `homes` record. Existing Guest Cottages migrate to Pip’s first home without replaying his welcome or spending again.
+Bram's outdoor conversation offers **one next building job**, after his cabin quest. The generic Village menu keeps workshops and the player's original home. Resident homes, Poppy's garden, Alder's dojo and Clover's kitchen are handed in to Bram in conversation, with actual materials and a cancellable single-job card. The tracker points back to him. Material payment and completion are saved before the assembly animation.
 
-| Resident | First home | Addition | Contribution |
-| --- | --- | --- | --- |
-| Pip, miner | Guest Cottage: 32 oak planks, 12 bark, 12 stone, 6 copper | Stone Study: 32 pine planks, 6 iron | Teaches Rock Candy; the study increases its duration from four to five minutes |
-| Hazel, herbalist | Herb Cottage: 48 oak planks, 18 stone, 6 herbs | Glasshouse: 40 pine planks, 6 crystal | Teaches Meadow Tea, a wider mining sweet spot; the glasshouse increases its duration from four to five minutes |
-| Moss, baker | Pine Cottage: 40 pine planks, 18 stone, 8 berries | Glimmer Larder: 32 glimmer planks, 6 crystal | Teaches Trail Buns, +20% woodcutting/mining XP; the larder increases their duration from four to five minutes |
+The order is **Poppy's patch → Clover's kitchen extension → Pip's cottage → Alder's dojo → Hazel's home → larger garden → Pip's study → larger dojo → Moss's home → Hazel's glasshouse → full garden → Moss's larder → advanced dojo**. Mill upgrades gate the timber, and residents must be met before their additions. Older saves skip completed jobs and keep their open kitchen.
 
-Pip’s home opens Hazel’s plan; Hazel’s opens Moss’s. Plans require the mill that cuts their timber (oak level 1, pine level 2, glimmer level 3). Meeting Hazel or Moss unlocks their recipe once. Their dialogue acknowledges neighbours and their own addition. A home addition improves future meals, and meals still replace one another rather than stacking. It gives no permanent combat stats, gear recipes or workshop levels.
+| Place / owner | First construction | Additions / contribution |
+| --- | --- | --- |
+| Poppy's garden | 32 oak planks, 12 stone, 1 clover | Six, twelve, then twenty beds; food and flowers for later jobs |
+| Clover's kitchen extension | 64 oak planks, 24 stone, 9 copper, 6 flowers | Keeps her original home; opens a large room for one plate carried from book to pot |
+| Pip's cottage | 48 oak planks, 12 bark, 18 stone, 9 copper, 4 flowers | Study: 48 pine planks, 9 iron, 6 flowers; improves Rock Candy duration |
+| Alder's dojo | 40 oak planks, 18 stone, 18 fluff | Pine and glimmer additions open six combat lessons; first-clear XP from 180 to 1,000 |
+| Hazel's cottage | 64 oak planks, 24 stone, 8 herbs, 6 flowers | Glasshouse: 56 pine planks, 8 crystal, 8 flowers; improves Meadow Tea duration |
+| Moss's cottage | 64 pine planks, 24 stone, 12 berries, 8 flowers | Larder: 48 glimmer planks, 8 crystal, 10 flowers; improves Trail Buns duration |
 
-The player, Hazel and Moss face one shared lane south of the main road, with short paths from their aligned doorsteps. A single branch connects that lane and Veyra’s Spring to the main road, leaving an open green instead of four parallel roads through the plots. Bram’s cabin sits beside the Sawmill in the northwestern work yard; its approach joins the mill’s without blocking either door. Pip stays northeast near his tunnel and Granny, and the Training Yard sits east of the Waystone. The Garden keeps its own gate and approach. Lots leave room for the largest upgraded roofs as well as the collision boxes. New home additions retain their original footprint and visibly extend the original house.
+Each activity has its own character. Bram constructs; Poppy gardens; Clover cooks; Alder teaches combat. Alder is a former road escort who wants people to return safely, rather than another foreman. His dojo uses canvas targets with real enemy tells, a separate practice health pool and once-only combat/handling XP. It does not drop materials or advance monster-kill quests. A home addition improves future meals, without permanent combat stats or workshop levels.
+
+The player, Hazel and Moss face one shared lane south of the main road, with short paths from their aligned doorsteps. A single branch connects that lane and Veyra’s Spring to the main road, leaving an open green instead of four parallel roads through the plots. Bram’s cabin sits beside the Sawmill in the northwestern work yard; its approach joins the mill’s without blocking either door. Pip stays northeast near his tunnel and Granny, and the dojo sits east of the Waystone. The Garden keeps its own gate and approach. Lots leave room for the largest upgraded roofs as well as the collision boxes. New home additions retain their original footprint and visibly extend the original house.
 
 ## Story integration
 
@@ -24,7 +29,7 @@ The sibling [Sprout Quest Bible](../../2609_sprout_quest_story/story/18-sowerby-
 
 These are proposed beats, not active quests or promised unlocks:
 
-1. Before a newcomer arrives, let Bram share a short letter explaining who needs a place. Keep arrival optional beside the main story.
+1. Deepen the requests Bram already gives with a short resident visit or letter; keep village arrival optional beside the main story.
 2. Give each resident one favour using their trade: Pip brings Hazel a fern fossil, Hazel helps Poppy identify a new herb, Moss bakes for Bram’s first village supper. Tie house additions to these character moments as well as the timber cost.
 3. Add a shared supper or small village event after the favours. Let conversations change after the event, without creating another daily chore or mandatory production minigame.
 4. Explore neighbouring settlements after Sowerby has people worth leaving and returning to. Use introductions, trade requests and shared recipes before expanding housing to an entirely new map.
@@ -38,4 +43,4 @@ Workshop progression continues to determine tools, materials and construction ca
 - Is the duration bonus worth an optional house addition without becoming mandatory?
 - Do Hazel and Moss feel like neighbours rather than recipe dispensers?
 
-Validate old saves, cancelling a plan, skipping or reloading during assembly, both newcomers’ recipes, and the menu at phone and desktop sizes.
+Validate old saves, cancelling a plan, skipping or reloading during assembly, both newcomers’ recipes, and the job card and lessons at phone and desktop sizes.

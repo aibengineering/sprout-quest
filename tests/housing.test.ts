@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import type { MatId } from '../src/data';
 
 function ready() {
-  const s = newState(); s.flags.push('bram:hut'); s.stories.bram = 9; s.stories.poppy = 6; s.build.sawmill = 1;
+  const s = newState(); s.flags.push('bram:hut'); s.stories.bram = 9; s.stories.poppy = 6; s.flags.push('granny:extension'); s.build.sawmill = 1;
   for (const m of Object.keys(s.mats) as MatId[]) s.mats[m] = 500;
   return s;
 }
@@ -36,12 +36,12 @@ describe('Bram’s resident homes', () => {
   test('costs real planks once; stale clicks and insufficient materials cannot advance or charge a home', () => {
     const s = ready(); s.build.cottage = 1;
     const before = { ...s.mats }, workshops = { ...s.build }, stats = playerStats(s);
-    s.mats.plank = 47;
+    s.mats.plank = 63;
     expect(buildHome(s, 'hazel', 0)).toBe('missing');
     expect(homeLevel(s, 'hazel')).toBe(0); expect(s.mats.stone).toBe(before.stone);
-    s.mats.plank = 48;
+    s.mats.plank = 64;
     expect(buildHome(s, 'hazel', 0)).toBe('ok');
-    expect(s.mats.plank).toBe(0); expect(s.mats.stone).toBe(before.stone - 18); expect(s.mats.herb).toBe(before.herb - 6);
+    expect(s.mats.plank).toBe(0); expect(s.mats.stone).toBe(before.stone - 24); expect(s.mats.herb).toBe(before.herb - 8);
     const paid = { ...s.mats };
     expect(buildHome(s, 'hazel', 0)).toBe('stale'); expect(s.mats).toEqual(paid);
     expect(s.build).toEqual(workshops); expect(playerStats(s)).toEqual(stats);

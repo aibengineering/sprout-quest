@@ -1286,7 +1286,7 @@ export class Overworld {
     const lv = (id: keyof SaveState['build']) => this.save.build[id];
     switch (o.kind) {
       case 'forge': return { name: forgeArt(lv('forge')), back: 0.42 };
-      case 'house': return { name: 'house_blue', back: 0.42 };
+      case 'house': return { name: this.save.flags.includes('granny:extension') ? 'kitchen1' : 'house_blue', back: 0.42 };
       case 'fountain': return { name: 'fountain', back: 0.45 };
       case 'sign': return { name: 'sign', back: 0.05 };
       case 'lair': return { name: 'lair', back: 0.4 };
@@ -1373,8 +1373,8 @@ export class Overworld {
       case 'plot': {
         // Empty plots (and your home, always) say what goes there.
         const p = o.project!;
-        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Waystone', sawmill: '🪚 Sawmill', cottage: '🏡 Guest Cottage' } as Record<string, string>)[p] ?? '';
-        if (!this.save.build[p] || p === 'home' || p === 'sawmill') this.nameTag(ctx, name, ax, top, ts);
+        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🥋 Alder’s Dojo', warp: '🔮 Waystone', sawmill: '🪚 Sawmill', cottage: '🏡 Guest Cottage' } as Record<string, string>)[p] ?? '';
+        if (!this.save.build[p] || p === 'home' || p === 'sawmill' || p === 'training') this.nameTag(ctx, name, ax, top, ts);
         break;
       }
       case 'lair':

@@ -9,15 +9,15 @@ export const HOME_ORDER: HomeId[] = ['pip', 'hazel', 'moss'];
 export const HOMES: Record<HomeId, { name: string; trade: string; icon: string; plans: HousePlan[] }> = {
   pip: { name: 'Pip', trade: 'Miner', icon: '⛏️', plans: [
     { name: 'Guest Cottage', cost: PROJECTS.cottage.levels[0].cost, mill: 1, art: 'cottage1', perk: 'Pip moves in and teaches Granny Rock Candy.' },
-    { name: "Pip's Stone Study", cost: { pineplank: 32, iron: 6 }, mill: 2, art: 'res_pip2', perk: 'A place to sort his finds: Rock Candy lasts a minute longer.' },
+    { name: "Pip's Stone Study", cost: { pineplank: 48, iron: 9, flower: 6 }, mill: 2, art: 'res_pip2', perk: 'A place to sort his finds: Rock Candy lasts a minute longer.' },
   ] },
   hazel: { name: 'Hazel', trade: 'Herbalist', icon: '🌿', plans: [
-    { name: "Hazel's Herb Cottage", cost: { plank: 48, stone: 18, herb: 6 }, mill: 1, art: 'res_hazel1', perk: 'Hazel moves in and teaches Granny Meadow Tea for mining.' },
-    { name: "Hazel's Glasshouse", cost: { pineplank: 40, crystal: 6 }, mill: 2, art: 'res_hazel2', perk: 'Shelter for her herbs: Meadow Tea lasts a minute longer.' },
+    { name: "Hazel's Herb Cottage", cost: { plank: 64, stone: 24, herb: 8, flower: 6 }, mill: 1, art: 'res_hazel1', perk: 'Hazel moves in and teaches Granny Meadow Tea for mining.' },
+    { name: "Hazel's Glasshouse", cost: { pineplank: 56, crystal: 8, flower: 8 }, mill: 2, art: 'res_hazel2', perk: 'Shelter for her herbs: Meadow Tea lasts a minute longer.' },
   ] },
   moss: { name: 'Moss', trade: 'Baker', icon: '🥖', plans: [
-    { name: "Moss's Pine Cottage", cost: { pineplank: 40, stone: 18, berry: 8 }, mill: 2, art: 'res_moss1', perk: 'Moss moves in and teaches Granny Trail Buns for gathering.' },
-    { name: "Moss's Glimmer Larder", cost: { glimplank: 32, crystal: 6 }, mill: 3, art: 'res_moss2', perk: 'A cool pantry for his dough: Trail Buns last a minute longer.' },
+    { name: "Moss's Pine Cottage", cost: { pineplank: 64, stone: 24, berry: 12, flower: 8 }, mill: 2, art: 'res_moss1', perk: 'Moss moves in and teaches Granny Trail Buns for gathering.' },
+    { name: "Moss's Glimmer Larder", cost: { glimplank: 48, crystal: 8, flower: 10 }, mill: 3, art: 'res_moss2', perk: 'A cool pantry for his dough: Trail Buns last a minute longer.' },
   ] },
 };
 

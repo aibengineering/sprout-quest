@@ -18,6 +18,7 @@ import { enterEchoCave, leaveEchoCave } from './underground';
 import { gardenAct, gardenStation, POPPY_AWAY } from './gardenWork';
 import { askBramForHome } from './housing';
 import { visitResident } from './stories/residents';
+import { visitDojo } from './dojo';
 import { constructShortcut } from './shortcuts';
 
 /** Opens the menu with the world waiting behind it. */
@@ -76,6 +77,8 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     if (o.project === 'garden' && gardenOpen(G.save) && poppyAway(G.save)) return G.ui.toast(POPPY_AWAY);
     // Worked by hand: the plot you're on (Poppy offers advice when you talk to her).
     if (o.project === 'garden' && gardenOpen(G.save)) return gardenAct();
+    if (o.project === 'garden') return askBramForHome();
+    if (o.project === 'training') return G.save.build.training ? visitDojo() : askBramForHome();
     openMenu(menuCtx(), 'village', o.project);
   },
 
@@ -85,11 +88,12 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
   /** Granny's blue house: her Kitchen, once she cooks. */
   house() {
     if (kitchenOpen(G.save) && !poppyAway(G.save)) enterRoom('kitchen');
+    else if ((G.save.stories.poppy ?? 0) >= 6 && !poppyAway(G.save)) askBramForHome();
   },
 
   /** Something to work at by hand in a room, or the way back out. */
   // The Garden's sign by the field's gate: its next level, in the village plans.
-  station: (o) => (o.id === 'garden:sign' ? openMenu(menuCtx(), 'village', 'garden') : o.id?.startsWith('garden:') ? gardenStation(o) : roomAct(o)),
+  station: (o) => (o.id === 'garden:sign' ? askBramForHome() : o.id?.startsWith('garden:') ? gardenStation(o) : roomAct(o)),
   door: (o) => o.id === 'echo:exit' ? leaveEchoCave() : roomAct(o),
   prop: (o) => { if (o.id === 'prop_cavemouth') enterEchoCave(); },
 

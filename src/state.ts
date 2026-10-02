@@ -10,6 +10,8 @@ import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type
 
 export interface SaveState {
   version: 1;
+  /** New construction flow; absent in older saves whose open Kitchen is retained. */
+  villageJobs?: true;
   lv: number;
   xp: number;
   hp: number;
@@ -100,6 +102,7 @@ export function newState(): SaveState {
   const mats = Object.fromEntries(MAT_ORDER.map((m) => [m, 0])) as Record<MatId, number>;
   return {
     version: 1,
+    villageJobs: true,
     lv: 1,
     xp: 0,
     hp: 30,
@@ -255,6 +258,8 @@ export function loadState(): SaveState | null {
       merged.underground = { id: 'echo', ...merged.pos };
       merged.pos = { x: MOUTH.x, y: MOUTH.y + .8 };
     }
+    if (!data.villageJobs && (merged.stories.poppy ?? 0) >= 6 && !merged.flags.includes('granny:extension')) merged.flags.push('granny:extension');
+    merged.villageJobs = true;
     return merged;
   } catch {
     return null;

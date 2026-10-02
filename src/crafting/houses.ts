@@ -12,7 +12,7 @@ export const housePresentation = (id: HomeId, level: number): CraftPresentation 
     part, at: 240 + i * 560, duration: 480, contact: 'solid' as const, sound: 'craftStitch' as const }));
   const last = 240 + layers.length * 560;
   return {
-    id: plan.art, model: `assets/crafting3d/${plan.art}.glb`, scene: 'building', eyebrow: 'BRAM’S HOUSE PLANS',
+    id: plan.art, model: `assets/crafting3d/${plan.art}.glb`, scene: 'building', eyebrow: 'BRAM · BUILDING TOGETHER',
     duration: last + 1200, layers: [...(level > 1 ? [{ id: 'base', initial: true }] : []), ...layers.map((id) => ({ id }))],
     roles: Object.fromEntries(materials.map((m) => [m, m === timber ? 'Timber frame, boards and roof' : m === 'stone' ? 'Footing and chimney' : m === 'crystal' ? 'Bright glazing and a pantry lantern' : m === 'iron' ? 'Strong brackets for the study' : 'A window box from the Garden'])),
     targets, phases: [

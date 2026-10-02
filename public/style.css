@@ -1391,3 +1391,11 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 .sheet.preview .preview-how { margin: 0 0 6px; font-size: 14px; font-weight: 700; opacity: 0.8; text-align: center; }
 .sheet.preview kbd { display: inline-block; min-width: 1.4em; padding: 0 5px; border-radius: 6px; border: 2px solid var(--card-edge); background: #fff; font: inherit; font-weight: 900; text-align: center; }
 .hnode .hwatch { margin-top: 6px; padding: 4px 12px; font-size: 13px; }
+
+/* A construction conversation has one request; combat lessons may be browsed at Alder’s dojo. */
+.sheet.building-job, .sheet.dojo { width: min(620px, 100%); max-height: calc(100dvh - 24px - var(--safe-t) - var(--safe-b)); }
+.sheet.dojo .result { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.dojo-lessons { overflow-y: auto; min-height: 0; touch-action: pan-y; text-align: left; }
+.dojo-lessons .mcard { margin: 8px 0; }
+.dojo-lessons h3 { margin: 0; }
+.sheet.building-job .bp-costs { justify-content: center; }

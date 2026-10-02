@@ -81,7 +81,7 @@ describe('recipe-faithful potion and Kitchen timelines', () => {
     }
     for (const id of MEAL_ORDER) {
       const save = newState();
-      save.stories.poppy = 6;
+      save.stories.poppy = 6; save.flags.push('granny:extension');
       save.flags.push('bram:stew', 'pip:candy', 'garden:berries', 'hazel:recipe', 'moss:recipe');
       Object.assign(save.mats, { goo: 150, fluff: 150, clover: 50, pine: 150, cap: 150, stone: 150, copper: 150, berry: 100, herb: 50, flower: 50 });
       const before = { ...save.mats };

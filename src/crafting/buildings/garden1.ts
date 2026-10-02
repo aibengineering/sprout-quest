@@ -5,7 +5,7 @@ export default {
   "duration": 3360,
   "scene": "building",
   "model": "assets/crafting3d/garden1.glb",
-  "eyebrow": "SOWERBY · BUILT BY HAND",
+  "eyebrow": "SOWERBY · BUILT BY BRAM",
   "layers": [
     {
       "id": "oak-fence"
@@ -18,12 +18,13 @@ export default {
     }
   ],
   "roles": {
-    "bark": "The picket fence round the field, and the edging of its first six plots",
-    "clover": "Clover and wildflowers in the grass"
+    "clover": "Clover and wildflowers in the grass",
+    "plank": "The picket fence round the field, and the edging of its first six plots",
+    "stone": "A firm footing beneath the timber"
   },
   "targets": [
     {
-      "material": "bark",
+      "material": "plank",
       "part": "oak-fence",
       "at": 240,
       "duration": 480,
@@ -31,7 +32,7 @@ export default {
       "sound": "chop"
     },
     {
-      "material": "bark",
+      "material": "plank",
       "part": "tilled-plots",
       "at": 880,
       "duration": 480,
@@ -45,13 +46,21 @@ export default {
       "duration": 480,
       "contact": "energy",
       "sound": "ding"
+    },
+    {
+      "material": "stone",
+      "part": "tilled-plots",
+      "at": 160,
+      "duration": 480,
+      "contact": "solid",
+      "sound": "clink"
     }
   ],
   "phases": [
     {
       "at": 0,
       "stage": "fence",
-      "text": "Oak Logs make a picket fence round a field, with a gate."
+      "text": "Oak Planks make a picket fence round a field, with a gate."
     },
     {
       "at": 760,
@@ -70,8 +79,8 @@ export default {
       "sound": "ding"
     }
   ],
-  "sceneLabel": "Oak Logs make the picket fence round the field and edge its first six plots. The Lucky Clover brings up clover and wildflowers where the rest of the field will go.",
+  "sceneLabel": "Oak Planks make the picket fence round the field and edge its first six plots. The Lucky Clover brings up clover and wildflowers where the rest of the field will go.",
   "pattern": "something growing",
-  "intro": "Oak and a little luck, for a first field.",
+  "intro": "Oak Planks and a little luck, for a first field.",
   "finished": "A fence, six plots and a watering can."
 } satisfies CraftPresentation;

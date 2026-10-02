@@ -227,6 +227,7 @@ function drawField(b: Battle, ctx: Ctx) {
  * soft patches and a few flowers or pebbles, and grass tufts fringe the border. Guardian fights add an old stone ring.
  */
 function drawArena(b: Battle, ctx: Ctx, w: number, h: number) {
+  if (b.setup.dojo) { drawDojoArena(ctx); return; }
   const th = b.setup.zone.theme;
   const RX = ARENA_RX, RY = ARENA_RY;
   const SCENERY_UNIT = 29;
@@ -406,10 +407,41 @@ function drawAmbient(b: Battle, ctx: Ctx) {
   AMBIENT[id]?.(ctx, t);
 }
 
+/** A timber practice floor, ropes and a gong: the arena stays clear of scenery hitboxes. */
+function drawDojoArena(ctx: Ctx) {
+  const w = ARENA_RX * 2 + 36, h = ARENA_RY * 2 + 36;
+  ctx.fillStyle = '#76583f'; rrect(ctx, -w/2-8, -h/2-8, w+16, h+16, 14); ctx.fill();
+  ctx.fillStyle = '#d2ad79'; rrect(ctx, -w/2, -h/2, w, h, 8); ctx.fill();
+  ctx.strokeStyle = '#ad875e'; ctx.lineWidth = 2;
+  for (let y=-h/2+26; y<h/2; y+=26) { ctx.beginPath(); ctx.moveTo(-w/2,y); ctx.lineTo(w/2,y); ctx.stroke(); }
+  ctx.strokeStyle = '#f6e6b9'; ctx.lineWidth = 4;
+  ctx.strokeRect(-w/2+12, -h/2+12, w-24, h-24);
+  for (const x of [-w/2,w/2]) for (const y of [-h/2,h/2]) { ctx.fillStyle='#795239'; rrect(ctx,x-5,y-12,10,24,3);ctx.fill(); }
+  ctx.fillStyle='#d9b659';ctx.beginPath();ctx.arc(0,-h/2-18,15,0,TAU);ctx.fill();
+}
+
+/** Canvas and stuffing make the practice targets clearly separate from living monsters. */
+function drawPracticeTarget(b: Battle, ctx: Ctx, e: Enemy, alpha: number) {
+  const r=e.r, y=e.y-e.z, tilt=e.windup>0 ? Math.sin(b.t*24)*.08 : Math.sin(b.t*3+e.seed)*.025;
+  shadow(ctx,e.x,e.y,r*.85);
+  ctx.save();ctx.globalAlpha=alpha;ctx.translate(e.x,y);ctx.rotate(tilt);
+  ctx.fillStyle='#805534';rrect(ctx,-4,-r*.6,8,r*.65,3);ctx.fill();
+  ctx.strokeStyle='#997542';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-r*.85,-r);ctx.lineTo(r*.85,-r);ctx.stroke();
+  ctx.fillStyle=e.flash>0?'#fff6db':e.windup>.3?'#e9a05e':'#e5c896';
+  ctx.beginPath();ctx.ellipse(0,-r,r*.7,r*.85,0,0,TAU);ctx.fill();
+  ctx.fillStyle='#f5e5c2';ctx.beginPath();ctx.arc(0,-r*2,r*.45,0,TAU);ctx.fill();
+  ctx.strokeStyle='#805b42';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-r*.7,-r*.75);ctx.lineTo(r*.7,-r*.75);ctx.stroke();
+  ctx.fillStyle='#bd6456';ctx.beginPath();ctx.arc(0,-r*1.2,r*.20,0,TAU);ctx.fill();
+  ctx.strokeStyle='#774e37';ctx.lineWidth=2;
+  for (const dx of [-r*.16,r*.16]) { ctx.beginPath();ctx.moveTo(dx-2,-r*2-2);ctx.lineTo(dx+2,-r*2+2);ctx.moveTo(dx+2,-r*2-2);ctx.lineTo(dx-2,-r*2+2);ctx.stroke(); }
+  ctx.restore();
+}
+
 function drawEnemy(b: Battle, ctx: Ctx, e: Enemy) {
   const ai = MONSTER_AI[e.kind];
   const alpha = e.dead ? Math.max(0, e.deathT / 0.45) : 1;
-  if (monsterReady(e.kind)) {
+  if (b.setup.dojo) drawPracticeTarget(b, ctx, e, alpha);
+  else if (monsterReady(e.kind)) {
     shadow(ctx, e.x, e.y, e.r * (ai.flies ? 0.7 : 1.05) * (1 - Math.min(0.4, e.z / 60)));
     let sxk = 1, syk = 1;
     if (e.squash > 0) {
@@ -822,7 +854,7 @@ function drawOverlay(b: Battle, ctx: Ctx, vw: number, vh: number) {
   if (b.intro > 0 && b.dramatic) {
     text = b.intro > 0.55 ? (b.setup.boss ? 'Boss battle!' : 'Ready…') : 'Fight!';
   } else if (b.endT >= 0 && b.outcome) {
-    text = b.outcome.result === 'win' ? 'Victory!' : b.outcome.result === 'lose' ? 'Oh no…' : '';
+    text = b.outcome.result === 'win' ? (b.setup.dojo ? 'Targets cleared!' : 'Victory!') : b.outcome.result === 'lose' ? 'Oh no…' : '';
     size = 48;
   }
   if (!text) return;

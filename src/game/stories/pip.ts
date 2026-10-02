@@ -3,7 +3,6 @@
 // first to talk about the warm black stone on Ember Peak). He teaches Granny his Rock Candy. See the story bible
 // (Side quests).
 import { ZONES } from '../../data';
-import { cottageDue } from '../../rules';
 import { G, paused, persist, syncWorld } from '../context';
 import { bubble, narrate, pan, say, scene, wait, type Speaker } from '../scenes';
 import type { Story } from '../stories';
@@ -59,7 +58,7 @@ export const PIP_STORY: Story = {
   id: 'pip',
   title: 'Pip Moves In',
   icon: '⛏️',
-  available: () => cottageDue(G.save) || G.save.build.cottage > 0,
+  available: () => G.save.build.cottage > 0,
   objs: [],
 
   steps: [

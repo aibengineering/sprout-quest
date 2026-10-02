@@ -7,6 +7,8 @@ import { GENTLE_ATK, MONSTER_HP, calcDamage, CATCH_UP, MASTERY_MAX, levelEdge, m
 import { World, type WorldObj } from './world';
 import { newState } from './state';
 import { PLANKS_PER_LOG, SAW, type SawLog } from './sawmill';
+import { HOMES } from './housing';
+import { KITCHEN_EXTENSION } from './villageJobs';
 import { CROPS, FLOWER_GIFT, GIFT_SECONDS, PLOTS_BY_LEVEL, THIRST_CHANCE, WEED_CHANCE, WEED_SLOW, type Crop } from './garden';
 
 export type Range = [min: number, max: number];
@@ -181,7 +183,7 @@ export function killsPerLevel(c: Checkpoint): number | null {
 
 // ----------------------------------------------------------------------------- material economy
 
-/** Everything that needs it (every building level, gear and tool recipe), farmed in its best spot, in ≤ this many minutes. */
+/** Main-track workshops, gear and tools, farmed in their best spot within this budget. Optional village jobs are reported separately. */
 export const MAX_FARM_MINUTES = 14;
 /** Emberwyrm rematches (it levels up each time) to collect every Dragon Scale. */
 export const MAX_DRAGON_FIGHTS = 4;
@@ -212,7 +214,7 @@ export interface Farm {
   minutes: number;
 }
 
-export function totalDemand(): Partial<Record<MatId, number>> {
+export function totalDemand(includeVillage = true): Partial<Record<MatId, number>> {
   const out: Partial<Record<MatId, number>> = {};
   // Planks are sawn from logs at Bram's Sawmill (the sawing itself happens while you're away): a couple from each log of
   // their own wood.
@@ -224,7 +226,12 @@ export function totalDemand(): Partial<Record<MatId, number>> {
       else out[m] = (out[m] ?? 0) + n;
     }
   };
-  for (const p of Object.values(PROJECTS)) p.levels.forEach((l) => add(l.cost));
+  for (const [id, p] of Object.entries(PROJECTS)) if (includeVillage || !['garden', 'training', 'cottage'].includes(id)) p.levels.forEach((l) => add(l.cost));
+  if (includeVillage) {
+    // Pip's first cottage is already counted in PROJECTS; all other homes and the kitchen are independent jobs.
+    for (const [id, h] of Object.entries(HOMES)) h.plans.forEach((p, i) => { if (id !== 'pip' || i > 0) add(p.cost); });
+    add(KITCHEN_EXTENSION.cost);
+  }
   for (const g of Object.values(GEAR)) if (g.recipe) add(g.recipe);
   for (const t of TOOLS) add(t.recipe);
   add({ plank: BRAM_CABIN_PLANKS });
@@ -332,9 +339,9 @@ export function cropsPerTree(crop: Crop): number {
 /** A whole field of one crop, picked at each Garden level: per planting, and per hour if you kept it full. */
 export const fieldHarvest = (crop: Crop) => PLOTS_BY_LEVEL.slice(1).map((n) => ({ plots: n, picked: n * CROPS[crop].yield, perHour: (n * CROPS[crop].yield * 3600) / tendedSeconds(crop) }));
 
-export function farmTable(): Farm[] {
+export function farmTable(includeVillage = true): Farm[] {
   const guardians = ZONES.flatMap((z) => (z.guardian ? [MONSTERS[z.guardian.kind]] : []));
-  return Object.entries(totalDemand()).map(([k, need]) => {
+  return Object.entries(totalDemand(includeVillage)).map(([k, need]) => {
     const mat = k as MatId;
     // Crops grow in Poppy's Garden, in Sowerby.
     if (mat in CROPS) {
@@ -548,9 +555,9 @@ export function report(): string {
       out.push(`  ${(b.name + ' (boss)').padEnd(18)} ${String(b.lv).padStart(3)} ${String(b.hp).padStart(5)}  ${flag(b.hitsToKill, c.boss.hitsToKill).padStart(10)}  ${flag(b.hitsToDie, c.boss.hitsToDie).padStart(8)}   targets ${c.boss.hitsToKill.join('–')} / ${c.boss.hitsToDie.join('–')}`);
     }
   }
-  out.push(`\nMaterials for every building, gear piece and tool  (target: ≤${MAX_FARM_MINUTES} min in the best spot)`);
+  out.push(`\nMain-track workshops, gear and tools  (target: ≤${MAX_FARM_MINUTES} min in the best spot)`);
   out.push(`  ${'material'.padEnd(12)} ${'need'.padStart(4)} ${'boss'.padStart(5)}  ${'from'.padEnd(9)} ${'zone'.padEnd(7)} ${'/min'.padStart(5)}  minutes`);
-  for (const f of farmTable()) {
+  for (const f of farmTable(false)) {
     if (f.mat === 'scale') continue;
     const mins = f.minutes === Infinity ? 'none!' : flag(Math.round(f.minutes * 10) / 10, [0, MAX_FARM_MINUTES]);
     out.push(`  ${f.mat.padEnd(12)} ${String(f.need).padStart(4)} ${String(f.fromGuardians).padStart(5)}  ${f.source.padEnd(9)} ${(f.zone ?? '-').padEnd(7)} ${f.perMinute.toFixed(1).padStart(5)}  ${mins.padStart(7)}`);

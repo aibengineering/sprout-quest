@@ -56,8 +56,8 @@ describe('balance', () => {
     expect(bun.hitsToKill < king.hitsToKill && bun.hitsToDie > king.hitsToDie).toBe(true);
   });
 
-  test(`every material for every building, gear piece and tool farms in ≤${MAX_FARM_MINUTES} minutes`, () => {
-    const off = farmTable()
+  test(`main-track workshop, gear and tool materials farm in ≤${MAX_FARM_MINUTES} minutes`, () => {
+    const off = farmTable(false)
       .filter((f) => f.mat !== 'scale' && f.minutes > MAX_FARM_MINUTES)
       .map((f) => `${f.mat}: ${f.minutes.toFixed(1)} min from ${f.source} in ${f.zone ?? 'no zone'}`);
     expect(off).toEqual([]);

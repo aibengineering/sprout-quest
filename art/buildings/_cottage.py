@@ -5,7 +5,7 @@ import math
 
 from lib import box, cone, cylinder, empty, profile, sphere, toon, torus
 
-from buildings._common import TILE, Parts
+from buildings._common import TILE, Parts, flowers
 
 
 def build(root, level=1):
@@ -66,4 +66,6 @@ def build(root, level=1):
     box((0, 0, 0), (0.16, 0.16, 0.2), toon('#ffe9a0', rim=0.4, emit=0.5), lamp, bevel=0.03, line=0.01)
     cone((0, 0, 0.16), 0.13, 0.1, toon('#e8904a'), lamp, seg=4, rot=(0, 0, math.pi / 4), line=0.008)
     box((0, 0.1, 0.05), (0.04, 0.12, 0.04), toon('#c8743a'), lamp, bevel=0.01, line=0.006)
+    flower = P('flower')
+    flowers(flower, .6, [(-.65, front-.23, '#ff8ab0'), (-.45, front-.23, '#ffd35a')], z=.82)
     return P.objects()
