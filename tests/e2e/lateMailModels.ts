@@ -31,7 +31,7 @@ try {
       const g = (window as any).game;
       g.save.equip.armor = armor;
       g.save.equip.weapon = 'emberblade';
-      g.over.teleport(47, 13);
+      g.over.teleport(56, 13);
       g.zoom = 3;
     }, armor);
     await page.waitForTimeout(3500);

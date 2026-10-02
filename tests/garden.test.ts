@@ -2,9 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import { NODES, POTION_RECIPES, PROJECTS } from '../src/data';
 import {
   CROPS, FLOWER_GIFT, GIFT_SECONDS, PLOTS_BY_LEVEL, WEED_SLOW, WELCOME_SEEDS, garden, gardenOpen, gardenUpdate, giftDue, growthStage, isReady, pick,
-  plant, plotCount, pullWeeds, readyIn, takeGift, takeWelcome, water, bedJob, bedSpot, nextSeed, targetBed, GARDEN_BEDS, type BedJob,
+  plant, plotCount, pullWeeds, readyIn, takeGift, takeWelcome, water, plotJob, plotTile, plotAt, nextSeed, targetPlot, FIELD_PLOTS, FIELD_COLS, FIELD_ROWS,
 } from '../src/garden';
 import { World } from '../src/world';
+import { FIELD_SHIFT } from '../src/state';
 import { cook, hpBoost, knownMeals, mealTick } from '../src/kitchen';
 import { craftPotion, harvest, playerStats } from '../src/rules';
 import { loadState, newState, SAVE_KEY, type SaveState } from '../src/state';
@@ -37,11 +38,12 @@ describe("Poppy's Garden", () => {
     expect(plant(s, 0, 'berry', T0, calm)).toBe('ok');
   });
 
-  test('two plots at the Sprout Patch, four at the Berry Garden, six at the Bloom Garden', () => {
-    expect(PLOTS_BY_LEVEL.slice(1)).toEqual([2, 4, 6]);
-    expect(PROJECTS.garden.levels.map((_, i) => plotCount(tended(i + 1)))).toEqual([2, 4, 6]);
+  test('six plots at the Sprout Patch, twelve at the Berry Garden, twenty at the Bloom Garden', () => {
+    expect(PLOTS_BY_LEVEL.slice(1)).toEqual([6, 12, 20]);
+    expect(PROJECTS.garden.levels.map((_, i) => plotCount(tended(i + 1)))).toEqual([6, 12, 20]);
+    expect(PROJECTS.garden.levels.map((l) => l.perk.match(/six|Twelve|Twenty/i)?.[0].toLowerCase())).toEqual(['six', 'twelve', 'twenty']);
     const s = tended(1);
-    expect([plant(s, 0, 'berry', T0, calm), plant(s, 1, 'berry', T0, calm), plant(s, 2, 'berry', T0, calm)]).toEqual(['ok', 'ok', 'closed']);
+    expect([plant(s, 0, 'berry', T0, calm), plant(s, 5, 'berry', T0, calm), plant(s, 6, 'berry', T0, calm)]).toEqual(['ok', 'ok', 'closed']);
     expect(plant(s, 0, 'herb', T0, calm)).toBe('busy');
   });
 
@@ -169,8 +171,28 @@ describe("Poppy's Garden", () => {
     expect(s.mats.berryseed).toBe(0);
     expect(gardenUpdate(s, T0)).toEqual({ plots: [], gift: 0 });
     s.mats.berryseed = 1;
-    expect(plant(s, 3, 'berry', T0, calm)).toBe('ok');
-    expect(garden(s).plots).toHaveLength(4);
+    expect(plant(s, 11, 'berry', T0, calm)).toBe('ok');
+    expect(garden(s).plots).toHaveLength(12);
+  });
+});
+
+describe('Sowerby grew for the field', () => {
+  test("older saves out past the village move east with their area; ones in the village stay put", () => {
+    const store: Record<string, string> = {};
+    (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => (store[k] = v), removeItem: (k: string) => delete store[k] };
+    const load = (pos: { x: number; y: number }, spirit?: { x: number; y: number }) => {
+      const old = { ...newState(), pos, spirit } as Partial<SaveState>;
+      delete old.field;
+      store[SAVE_KEY] = JSON.stringify(old);
+      return loadState()!;
+    };
+    expect(load({ x: 50.5, y: 18 }).pos).toEqual({ x: 50.5 + FIELD_SHIFT, y: 18 });
+    expect(load({ x: 29.4, y: 12.6 }).pos).toEqual({ x: 29.4, y: 12.6 });
+    expect(load({ x: 30, y: 13 }, { x: 100, y: 12 }).spirit).toEqual({ x: 100 + FIELD_SHIFT, y: 12 });
+    // Once moved, never again.
+    const s = load({ x: 60, y: 10 });
+    store[SAVE_KEY] = JSON.stringify(s);
+    expect(loadState()!.pos.x).toBe(60 + FIELD_SHIFT);
   });
 });
 
@@ -218,27 +240,33 @@ describe('tending the Garden by hand', () => {
     const s = tended(2);
     plant(s, 0, 'berry', T0, calm);
     const p = gardenUpdate(s, T0).plots[0]!;
-    expect(bedJob(null, null, s)).toBe('empty');
-    expect(bedJob(null, { seed: 'herb' }, s)).toBe('plant');
+    expect(plotJob(null, null, s)).toBe('empty');
+    expect(plotJob(null, { seed: 'herb' }, s)).toBe('plant');
     s.mats.herbseed = 0;
-    expect(bedJob(null, { seed: 'herb' }, s)).toBe('empty');
-    expect(bedJob(p, null, s)).toBe('growing');
+    expect(plotJob(null, { seed: 'herb' }, s)).toBe('empty');
+    expect(plotJob(p, null, s)).toBe('growing');
     p.thirsty = true;
-    expect(bedJob(p, null, s)).toBe('thirsty');
-    expect(bedJob(p, { can: 0 }, s)).toBe('thirsty');
-    expect(bedJob(p, { can: 2 }, s)).toBe('water');
+    expect(plotJob(p, null, s)).toBe('thirsty');
+    expect(plotJob(p, { can: 0 }, s)).toBe('thirsty');
+    expect(plotJob(p, { can: 2 }, s)).toBe('water');
     p.weeds = true;
-    expect(bedJob(p, { can: 2 }, s)).toBe('weed');
+    expect(plotJob(p, { can: 2 }, s)).toBe('weed');
     p.grown = CROPS.berry.seconds;
-    expect(bedJob(p, null, s)).toBe('pick');
+    expect(plotJob(p, null, s)).toBe('pick');
   });
 
-  test('the action button goes to the nearest bed you can do something at, else the nearest', () => {
-    const spots = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 5, y: 0 }];
-    const jobs: BedJob[] = ['growing', 'weed', 'pick'];
-    expect(targetBed(spots, jobs, 0, 0.3, 2)).toBe(1);
-    expect(targetBed(spots, ['growing', 'growing', 'pick'], 0, 0.3, 2)).toBe(0);
-    expect(targetBed(spots, jobs, 20, 0, 2)).toBe(null);
+  test('the action button works the plot under your feet, else the one just in front of you', () => {
+    const o = { x: 10, y: 20 }, n = 6;
+    // Plot 0 is the Sprout Patch's top-left: column 1, row 0.
+    expect(plotTile(o, 0)).toEqual({ x: 11, y: 20 });
+    expect(targetPlot(o, n, 11.5, 20.8, Math.PI / 2)).toBe(0);
+    // Standing on the path above it, facing down: the plot in front.
+    expect(targetPlot(o, n, 11.5, 19.9, Math.PI / 2)).toBe(0);
+    // Facing away from it: nothing.
+    expect(targetPlot(o, n, 11.5, 19.9, -Math.PI / 2)).toBe(null);
+    // Untilled ground (a later level's plot) isn't a plot yet.
+    expect(plotAt(o, n, 10.5, 20.5)).toBe(null);
+    expect(plotAt(o, 12, 10.5, 20.5)).not.toBe(null);
   });
 
   test("the basket hands out the next seed you have, round and round", () => {
@@ -252,11 +280,33 @@ describe('tending the Garden by hand', () => {
     expect(nextSeed(s, null)).toBe(null);
   });
 
-  test("every bed sits inside the Garden's plot on the map", () => {
-    const o = new World().objs.find((o) => o.project === 'garden')!;
-    for (let i = 0; i < GARDEN_BEDS.length; i++) {
-      const b = bedSpot(o, i);
-      expect(b.x > o.x && b.x < o.x + o.w && b.y > o.y && b.y < o.y + o.h).toBe(true);
+  test("the field: each level's plots are the one before's plus a row and a column, numbered so nothing moves", () => {
+    expect(FIELD_PLOTS).toHaveLength(FIELD_COLS * FIELD_ROWS);
+    expect(new Set(FIELD_PLOTS.map(([c, r]) => `${c},${r}`)).size).toBe(FIELD_PLOTS.length);
+    const block = (n: number) => {
+      const cs = FIELD_PLOTS.slice(0, n).map(([c]) => c), rs = FIELD_PLOTS.slice(0, n).map(([, r]) => r);
+      return { cols: Math.max(...cs) - Math.min(...cs) + 1, rows: Math.max(...rs) - Math.min(...rs) + 1 };
+    };
+    expect([6, 12, 20].map(block)).toEqual([{ cols: 3, rows: 2 }, { cols: 4, rows: 3 }, { cols: 5, rows: 4 }]);
+    // Every plot is a tile of the Garden's field on the map, and the field's rows start just inside its gate.
+    const w = new World(), o = w.objs.find((o) => o.project === 'garden')!;
+    expect({ w: o.w, h: o.h, walkable: o.walkable }).toEqual({ w: FIELD_COLS, h: FIELD_ROWS, walkable: true });
+    for (let i = 0; i < FIELD_PLOTS.length; i++) {
+      const t = plotTile(o, i);
+      expect(t.x >= o.x && t.x < o.x + o.w && t.y >= o.y && t.y < o.y + o.h).toBe(true);
+      expect(w.blocked(t.x + 0.5, t.y + 0.7, 0.28)).toBe(false);
     }
+  });
+
+  test("an older save's beds carry over onto the field's first plots, as they were", () => {
+    const s = tended(3);
+    s.mats.berryseed = 6;
+    for (let i = 0; i < 6; i++) plant(s, i, 'berry', T0, calm);
+    const before = JSON.stringify(garden(s).plots);
+    // The old Bloom Garden had six beds: they're the field's first six plots, and the fourteen after them are new soil.
+    expect(plotCount(s)).toBe(20);
+    expect(JSON.stringify(garden(s).plots.slice(0, 6))).toBe(before);
+    expect(plant(s, 19, 'herb', T0, calm)).toBe('ok');
+    expect(garden(s).plots.filter(Boolean)).toHaveLength(7);
   });
 });

@@ -286,33 +286,33 @@ export const ZONES: Zone[] = [
     theme: { ground: '#8fd672', ground2: '#88cf6a', grass: '#5fbf4a', grassTip: '#86dc5e', path: '#e4d2a4', obstacle: 'tree', pool: 'water', decor: 'flower', outside: '#4f9a42' },
   },
   {
-    id: 'village', name: 'Sowerby', x0: 16, w: 22, rec: 1, lv: [1, 1], maxEnemies: 0, monsters: [],
+    id: 'village', name: 'Sowerby', x0: 16, w: 31, rec: 1, lv: [1, 1], maxEnemies: 0, monsters: [],
     theme: { ground: '#9be07a', ground2: '#93d872', grass: '#5fbf4a', grassTip: '#86dc5e', path: '#ecd9aa', obstacle: 'tree', pool: 'water', decor: 'flower', outside: '#5fae4c' },
   },
   {
-    id: 'meadow', name: 'Sunny Meadow', x0: 38, w: 40, rec: 1, lv: [1, 3], maxEnemies: 2,
+    id: 'meadow', name: 'Sunny Meadow', x0: 47, w: 40, rec: 1, lv: [1, 3], maxEnemies: 2,
     monsters: [{ kind: 'slime', w: 3 }, { kind: 'bunny', w: 2 }],
     theme: { ground: '#a8e27f', ground2: '#9fd975', grass: '#4fb043', grassTip: '#86dc5e', path: '#ecd9aa', obstacle: 'tree', pool: 'water', decor: 'flower', outside: '#62b451' },
   },
   {
-    id: 'woods', name: 'Whisper Woods', guardian: { kind: 'kingslime', lv: 5, gate: 'bramble' }, x0: 78, w: 40, rec: 4, lv: [4, 7], maxEnemies: 3,
+    id: 'woods', name: 'Whisper Woods', guardian: { kind: 'kingslime', lv: 5, gate: 'bramble' }, x0: 87, w: 40, rec: 4, lv: [4, 7], maxEnemies: 3,
     // You meet the Woods on first-tier gear: packs of three are rare here.
     trioChance: 0.05,
     monsters: [{ kind: 'shroom', w: 3 }, { kind: 'wolf', w: 2.5 }, { kind: 'bunny', w: 0.5 }],
     theme: { ground: '#72ad5e', ground2: '#6aa556', grass: '#3a8a3e', grassTip: '#5aa84a', path: '#cdb88c', obstacle: 'pine', pool: 'water', decor: 'mush', outside: '#3f7a3c' },
   },
   {
-    id: 'cave', name: 'Echo Cavern', guardian: { kind: 'alphawolf', lv: 9, gate: 'rock' }, x0: 118, w: 40, rec: 8, lv: [8, 11], maxEnemies: 3,
+    id: 'cave', name: 'Echo Cavern', guardian: { kind: 'alphawolf', lv: 9, gate: 'rock' }, x0: 127, w: 40, rec: 8, lv: [8, 11], maxEnemies: 3,
     monsters: [{ kind: 'bat', w: 3 }, { kind: 'golem', w: 2 }, { kind: 'shroom', w: 0.7 }],
     theme: { ground: '#8c90a0', ground2: '#858a9a', grass: '#4f8a6a', grassTip: '#7ac89a', path: '#b4b8c4', obstacle: 'boulder', pool: 'water', decor: 'pebble', outside: '#3e4250' },
   },
   {
-    id: 'hollow', name: 'Glimmer Hollow', guardian: { kind: 'echoqueen', lv: 12, gate: 'rock' }, x0: 158, w: 40, rec: 11, lv: [11, 13], maxEnemies: 3,
+    id: 'hollow', name: 'Glimmer Hollow', guardian: { kind: 'echoqueen', lv: 12, gate: 'rock' }, x0: 167, w: 40, rec: 11, lv: [11, 13], maxEnemies: 3,
     monsters: [{ kind: 'glimmer', w: 3 }, { kind: 'bat', w: 1.5 }, { kind: 'golem', w: 1 }],
     theme: { ground: '#8e89ad', ground2: '#8581a4', grass: '#6a5fb0', grassTip: '#a898f0', path: '#b8b2cc', obstacle: 'crystal', pool: null, decor: 'gem', outside: '#4a4566' },
   },
   {
-    id: 'peak', name: 'Ember Peak', guardian: { kind: 'crystalking', lv: 14, gate: 'crystal' }, x0: 198, w: 44, rec: 13, lv: [13, 17], maxEnemies: 3,
+    id: 'peak', name: 'Ember Peak', guardian: { kind: 'crystalking', lv: 14, gate: 'crystal' }, x0: 207, w: 44, rec: 13, lv: [13, 17], maxEnemies: 3,
     monsters: [{ kind: 'imp', w: 3 }, { kind: 'magma', w: 2 }, { kind: 'golem', w: 0.8 }],
     theme: { ground: '#b8806a', ground2: '#ae775f', grass: '#8a4a3a', grassTip: '#e0804a', path: '#dcbb96', obstacle: 'rock', pool: 'lava', decor: 'pebble', outside: '#6a3a30' },
   },
@@ -398,13 +398,13 @@ export const NODES: Record<NodeKind, NodeDef> = {
     name: 'Oak', skill: 'wood', tier: 1, mat: 'bark', hp: 4,
     safe: { yield: 3, xp: 10, regrow: 180 },
     grass: { yield: 6, xp: 15, regrow: 75, rare: { mat: 'clover', chance: 0.12, n: 1 } },
-    seed: { mat: 'berryseed', chance: 0.2 },
+    seed: { mat: 'berryseed', chance: 0.4 },
   },
   pine: {
     name: 'Pine', skill: 'wood', tier: 2, mat: 'pine', hp: 6,
     safe: { yield: 3, xp: 25, regrow: 180 },
     grass: { yield: 6, xp: 35, regrow: 75, rare: { mat: 'clover', chance: 0.1, n: 1 } },
-    seed: { mat: 'herbseed', chance: 0.2 },
+    seed: { mat: 'herbseed', chance: 0.4 },
   },
   glimwood: {
     name: 'Glimmerwood', skill: 'wood', tier: 3, mat: 'glimwood', hp: 8,
@@ -497,9 +497,9 @@ export const PROJECTS: Record<ProjectId, Project> = {
     name: 'Garden', icon: '🌱',
     // Poppy's, once her story's done: each level adds plots to grow in (see garden.ts).
     levels: [
-      { name: 'Sprout Patch', cost: { bark: 12, clover: 1 }, perk: 'Two plots for Poppy to grow in, and the fountain refills potions to 3' },
-      { name: 'Berry Garden', cost: { cap: 12, plank: 24, stone: 12 }, perk: 'Four plots, and the fountain refills potions to 4' },
-      { name: 'Bloom Garden', cost: { glimplank: 24, ember: 12, flower: 8 }, perk: 'Six plots, and the fountain refills potions to 5' },
+      { name: 'Sprout Patch', cost: { bark: 12, clover: 1 }, perk: 'A field of six plots for Poppy to grow in, and the fountain refills potions to 3' },
+      { name: 'Berry Garden', cost: { cap: 12, plank: 24, stone: 12 }, perk: 'Twelve plots, and the fountain refills potions to 4' },
+      { name: 'Bloom Garden', cost: { glimplank: 24, ember: 12, flower: 8 }, perk: 'Twenty plots, and the fountain refills potions to 5' },
     ],
   },
   training: {

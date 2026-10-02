@@ -1,8 +1,8 @@
 // Overworld: walking around, tall-grass encounters and drawing the tile map.
-import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
+import { GEAR, MATS, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { currentQuest } from './quests';
 import { repelBelow } from './kitchen';
-import { bedSpot, GARDEN_BEDS, gardenOpen, gardenUpdate, growthStage, plotCount } from './garden';
+import { gardenOpen, gardenUpdate, growthStage, plotCount, plotSpot, plotTile, PLOTS_BY_LEVEL } from './garden';
 import { drawCarried } from './roomArt';
 import { Actors, type Actor } from './actors';
 import { hasModel, loadModel } from './models';
@@ -74,8 +74,8 @@ export class Overworld {
   busyHands = false;
   /** Something you're carrying about on the map (seeds, the watering can), held up over your head. */
   carried: { icon: string; emoji: string; count?: number } | null = null;
-  /** The Garden bed the action button works on just now (ringed on the map). */
-  gardenBed: number | null = null;
+  /** The Garden plot the action button works on just now (ringed on the map). */
+  gardenPlot: number | null = null;
   /** The last frame's view (camera top in pixels, tile size, height), to tell where things are on screen. */
   private view = { left: 0, top: 0, ts: 1, vh: 1 };
   /** Story characters on the map. */
@@ -91,11 +91,6 @@ export class Overworld {
   room: Room | null = null;
   /** Where you'll be back outside when you leave the room. */
   private outside = { x: 0, y: 0 };
-  /** Where the camera leans while you work somewhere on the map (the Garden), and how far in it zooms. */
-  focus: { x: number; y: number; zoom: number } | null = null;
-  private focusZoom = 1;
-  /** Half the screen's width in tiles, as last drawn. */
-  private halfW = Infinity;
   /** Tree being chopped, and how long it keeps shaking from the last strike. */
   chopping: WorldObj | null = null;
   private shakeT = 0;
@@ -256,14 +251,8 @@ export class Overworld {
     this.fx.update(dt);
     this.cast.update(dt, this);
     this.headroom += ((this.layers?.headroom() ?? 0) - this.headroom) * (1 - Math.exp(-dt * 3));
-    let target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? this.focus ?? { x: this.x, y: this.y };
-    // Leaning in on the Garden, a narrow screen still keeps you in view at its edges (a tile clear of the side).
-    if (!this.camTarget && this.focus) {
-      const m = Math.max(0, this.halfW - 1);
-      target = { x: Math.max(this.x - m, Math.min(this.x + m, target.x)), y: target.y };
-    }
-    this.focusZoom += ((this.focus?.zoom ?? 1) - this.focusZoom) * (1 - Math.exp(-dt * 4));
-    const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : this.focus ? 4 : 12));
+    const target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? { x: this.x, y: this.y };
+    const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : 12));
     this.camX += (target.x - this.camX) * k;
     this.camY += (target.y - this.camY) * k;
     if (this.alert > 0) {
@@ -333,8 +322,8 @@ export class Overworld {
   }
 
   render(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
-    // Rooms are seen closer up than the map (the camera follows you across a wide one); the Garden draws you in a bit.
-    const ts = (this.ts = Math.round(Overworld.tileSize(vw, vh) * this.zoom * (this.room ? 1.25 : this.focusZoom)));
+    // Rooms are seen closer up than the map (the camera follows you across a wide one).
+    const ts = (this.ts = Math.round(Overworld.tileSize(vw, vh) * this.zoom * (this.room ? 1.25 : 1)));
     const W = this.map;
     const mapW = W.w * ts, mapH = W.h * ts;
     let camX = this.camX * ts - vw / 2;
@@ -350,7 +339,6 @@ export class Overworld {
     camX = Math.round(camX);
     camY = Math.round(camY);
     this.view = { left: camX, top: camY, ts, vh };
-    this.halfW = vw / 2 / ts;
     if (this.room) this.drawRoom(ctx, this.room, camX, camY, ts, vw, vh);
     else this.drawScene(ctx, camX / ts, camY / ts, ts, vw, vh);
 
@@ -362,8 +350,8 @@ export class Overworld {
     const near = this.quiet || this.chopping || this.busyHands ? null : this.nearbyObject();
     if (near && this.alert <= 0) {
       // A room's doormat says "Leave" under it, not over you standing on it.
-      // At the Garden it's over the bed you'd work on.
-      const bed = near.project === 'garden' && this.gardenBed !== null ? bedSpot(near, this.gardenBed) : null;
+      // In the Garden's field it's over the plot you'd work on.
+      const bed = near.project === 'garden' && this.gardenPlot !== null ? plotSpot(near, this.gardenPlot) : null;
       const bx = (bed ? bed.x : near.x + near.w / 2) * ts, by = (bed ? bed.y - 0.55 : near.kind === 'door' ? near.y + near.h + 0.75 : near.y) * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
       ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
       const label = this.keyHints ? `[E] ${near.label}` : near.label;
@@ -411,6 +399,7 @@ export class Overworld {
       }
     }
 
+    this.drawFieldGround(ctx, ts);
     this.layers?.ground(ctx, ts);
 
     // Y-sorted: obstacles, buildings and the hero
@@ -423,7 +412,9 @@ export class Overworld {
         }
     for (const o of W.objs) {
       if (o.x + o.w < x0 - 2 || o.x > x1 + 2) continue;
-      items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
+      if (o.kind === 'fence') this.fenceItems(ctx, o, ts, items);
+      else if (o.kind === 'plot' && o.project === 'garden') this.fieldItems(ctx, o, ts, items);
+      else items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
     }
     for (const r of this.roamers.list) {
       if (r.x < x0 - 2 || r.x > x1 + 2) continue;
@@ -1020,8 +1011,8 @@ export class Overworld {
       case 'foe':
         return this.drawFoe(ctx, o, ts);
       case 'station': {
-        // The Garden's water butt and seed basket (from the rooms' props).
-        const f = frame(o.id === 'garden:butt' ? 'room/g_butt' : 'room/g_basket');
+        // The Garden's water butt and seed basket (from the rooms' props), and the sign at its gate.
+        const f = frame(o.id === 'garden:butt' ? 'room/g_butt' : o.id === 'garden:sign' ? 'env/field_sign' : 'room/g_basket');
         const ax = (o.x + o.w / 2) * ts, ay = (o.y + o.h - 0.08) * ts;
         shadow(ctx, ax, ay, o.w * ts * 0.55, 0.2);
         if (f) drawFrame(ctx, f, ax, ay, (ts / TILE_BU) * 1.15);
@@ -1205,12 +1196,7 @@ export class Overworld {
         // Empty plots (and your home, always) say what goes there.
         const p = o.project!;
         const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Waystone', sawmill: '🪚 Sawmill', cottage: '🏡 Guest Cottage' } as Record<string, string>)[p] ?? '';
-        if (p === 'garden' && this.save.build.garden) this.drawGarden(ctx, ax, ay, ts);
-        if (p === 'garden' && gardenOpen(this.save)) {
-          // (Not while you're working in it: the beds need the room.)
-          if (!this.focus) this.nameTag(ctx, "🌷 Poppy's Garden", ax, top, ts);
-        }
-        else if (!this.save.build[p] || p === 'home' || p === 'sawmill') this.nameTag(ctx, name, ax, top, ts);
+        if (!this.save.build[p] || p === 'home' || p === 'sawmill') this.nameTag(ctx, name, ax, top, ts);
         break;
       }
       case 'lair':
@@ -1221,40 +1207,105 @@ export class Overworld {
   }
 
   /**
-   * Poppy's plots on the Garden's beds: damp soil (pale and cracked when thirsty), whatever's growing at its stage,
-   * weeds on top, and a drop or a sparkle to say it needs water or picking. The back row first, so the front covers it.
+   * Poppy's field, on the ground: tilled soil on each plot the Garden has (pale and cracked when thirsty), pegged-out
+   * string where the next level's plots will go, and a ring round the plot the action button works on.
    */
-  private drawGarden(ctx: CanvasRenderingContext2D, ax: number, ay: number, ts: number) {
-    const unit = ts / TILE_BU, plots = gardenUpdate(this.save).plots, n = plotCount(this.save);
-    const order = [...Array(n).keys()].sort((a, b) => GARDEN_BEDS[b][1] - GARDEN_BEDS[a][1]);
-    for (const i of order) {
-      const [bx, by] = GARDEN_BEDS[i], p = plots[i] ?? null, st = growthStage(p);
-      const x = ax + bx * unit, y = ay - by * DEPTH * unit;
-      // The bed you'd work on, ringed.
-      if (this.gardenBed === i) {
+  private drawFieldGround(ctx: CanvasRenderingContext2D, ts: number) {
+    const o = this.world.objs.find((f) => f.kind === 'plot' && f.project === 'garden');
+    if (!o || o.hidden) return;
+    const lv = this.save.build.garden, n = plotCount(this.save), next = PLOTS_BY_LEVEL[Math.min(lv + 1, PLOTS_BY_LEVEL.length - 1)];
+    const plots = n ? gardenUpdate(this.save).plots : [], unit = ts / TILE_BU;
+    for (let i = 0; i < next; i++) {
+      const t = plotTile(o, i), px = t.x * ts, py = t.y * ts;
+      if (i >= n) {
         ctx.save();
-        ctx.strokeStyle = `rgba(255,236,140,${0.75 + Math.sin(this.t * 6) * 0.2})`;
-        ctx.lineWidth = Math.max(2, ts * 0.05);
-        ctx.beginPath();
-        ctx.ellipse(x, y - ts * 0.04, 0.7 * unit, 0.36 * unit, 0, 0, TAU);
+        ctx.strokeStyle = 'rgba(120, 84, 50, 0.45)';
+        ctx.lineWidth = Math.max(1.5, ts * 0.035);
+        ctx.setLineDash([ts * 0.12, ts * 0.1]);
+        rrect(ctx, px + ts * 0.1, py + ts * 0.1, ts * 0.8, ts * 0.8, ts * 0.12);
         ctx.stroke();
         ctx.restore();
+        continue;
       }
-      const soil = frame(p?.thirsty ? 'env/soil_dry' : 'env/soil');
-      if (soil) drawFrame(ctx, soil, x, y, unit);
+      const soil = frame(plots[i]?.thirsty ? 'env/till_dry' : 'env/till');
+      if (soil) drawFrame(ctx, soil, px + ts / 2, py + ts * 0.96, unit);
+      else {
+        ctx.fillStyle = plots[i]?.thirsty ? '#c8a476' : '#7a5236';
+        rrect(ctx, px + ts * 0.06, py + ts * 0.06, ts * 0.88, ts * 0.88, ts * 0.14);
+        ctx.fill();
+      }
+    }
+    if (this.gardenPlot !== null) {
+      const t = plotTile(o, this.gardenPlot);
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,236,140,${0.75 + Math.sin(this.t * 6) * 0.2})`;
+      ctx.lineWidth = Math.max(2, ts * 0.06);
+      rrect(ctx, t.x * ts + ts * 0.05, t.y * ts + ts * 0.05, ts * 0.9, ts * 0.9, ts * 0.16);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /**
+   * Poppy's field, standing up: whatever's growing on each plot at its stage, weeds on top, and a drop or a sparkle to
+   * say it needs water or picking, each sorted with you (you walk in front of the row behind and behind the row in
+   * front). Its name over the gate.
+   */
+  private fieldItems(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number, items: { y: number; draw: () => void }[]) {
+    if (o.hidden) return;
+    const unit = ts / TILE_BU, n = plotCount(this.save), plots = n ? gardenUpdate(this.save).plots : [];
+    const tag = gardenOpen(this.save) ? "🌷 Poppy's Garden" : this.save.build.garden ? '' : '🌱 Garden';
+    if (tag) items.push({ y: o.y - 1, draw: () => this.nameTag(ctx, tag, (o.x + o.w / 2) * ts, (o.y - 1.6) * ts, ts) });
+    for (let i = 0; i < n; i++) {
+      const p = plots[i];
       if (!p) continue;
-      const crop = frame(`env/crop_${p.crop}_${st}`);
-      // Thirsty plants droop and fade a little; ripe ones sway.
-      if (crop) drawFrame(ctx, crop, x, y, unit, p.thirsty ? { tint: '#c8a868', tintAmount: 0.35, sy: 0.9 } : { rot: st === 3 ? Math.sin(this.t * 2 + i) * 0.03 : 0 });
-      const weeds = p.weeds && frame('env/weeds');
-      if (weeds) drawFrame(ctx, weeds, x, y, unit, { rot: Math.sin(this.t * 1.5 + i) * 0.02 });
-      if (p.thirsty) {
-        ctx.font = `${Math.round(ts * 0.4)}px system-ui, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.fillText('💧', x, y - ts * (0.7 + Math.sin(this.t * 3 + i) * 0.06));
-      } else if (st === 3 && Math.random() < 0.03) {
-        this.fx.burst(x + (Math.random() - 0.5) * ts * 0.5, y - ts * 0.45, '#fff6c8', 1, ts * 0.3, { size: ts * 0.05, star: true, grav: -ts * 0.3, life: 0.8 });
-      }
+      const at = plotSpot(o, i), st = growthStage(p);
+      items.push({
+        y: at.y, draw: () => {
+          const x = at.x * ts, y = at.y * ts, k = unit * 1.15;
+          const crop = frame(`env/crop_${p.crop}_${st}`);
+          // Thirsty plants droop and fade a little; ripe ones sway.
+          if (crop) drawFrame(ctx, crop, x, y, k, p.thirsty ? { tint: '#c8a868', tintAmount: 0.35, sy: 0.9 } : { rot: st === 3 ? Math.sin(this.t * 2 + i) * 0.03 : 0 });
+          else {
+            ctx.font = `${Math.round(ts * 0.5)}px system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText(st === 3 ? MATS[p.crop].icon : '🌱', x, y - ts * 0.1);
+          }
+          const weeds = p.weeds && frame('env/weeds');
+          if (weeds) drawFrame(ctx, weeds, x, y, k, { rot: Math.sin(this.t * 1.5 + i) * 0.02 });
+          if (p.thirsty) {
+            ctx.font = `${Math.round(ts * 0.36)}px system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText('💧', x, y - ts * (0.75 + Math.sin(this.t * 3 + i) * 0.06));
+          } else if (st === 3 && Math.random() < 0.02) {
+            this.fx.burst(x + (Math.random() - 0.5) * ts * 0.5, y - ts * 0.45, '#fff6c8', 1, ts * 0.3, { size: ts * 0.05, star: true, grav: -ts * 0.3, life: 0.8 });
+          }
+        },
+      });
+    }
+  }
+
+  /**
+   * A run of the field's fence (its `o` box straddles the line): a picket section per tile along the top and bottom, a
+   * post per tile down the sides, each sorted with you on its own row.
+   */
+  private fenceItems(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number, items: { y: number; draw: () => void }[]) {
+    if (o.hidden) return;
+    const unit = ts / TILE_BU, across = o.w > o.h, x = o.x + o.w / 2, y = o.y + o.h / 2;
+    const len = Math.round(across ? o.w : o.h);
+    for (let k = across ? 0 : 1; k < len; k++) {
+      const at = across ? { x: o.x + 0.12 + k + 0.5, y } : { x, y: o.y + 0.12 + k };
+      items.push({
+        y: at.y, draw: () => {
+          const f = frame(across ? 'env/fence' : 'env/fence_post');
+          if (f) drawFrame(ctx, f, at.x * ts, at.y * ts, unit);
+          else {
+            ctx.fillStyle = '#fff4e2';
+            if (across) ctx.fillRect((at.x - 0.5) * ts, (at.y - 0.4) * ts, ts, ts * 0.1);
+            ctx.fillRect(at.x * ts - ts * 0.05, (at.y - 0.5) * ts, ts * 0.1, ts * 0.5);
+          }
+        },
+      });
     }
   }
 

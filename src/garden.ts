@@ -9,16 +9,36 @@ import type { SaveState } from './state';
 export type Crop = 'berry' | 'herb' | 'flower';
 export type Seed = 'berryseed' | 'herbseed' | 'flowerseed';
 
-/** Each crop: the seed it grows from, seconds of real time to grow, and how many you pick. */
+/**
+ * Each crop: the seed it grows from, seconds of real time to grow, and how many you pick. A plot is one tile of the
+ * field, so it gives half what the old garden beds did, and trees drop seeds twice as often to fill the field: the crops
+ * you get for your chopping are the same, you just plant (and pick) more of them at once.
+ */
 export const CROPS: Record<Crop, { seed: Seed; seconds: number; yield: number }> = {
-  berry: { seed: 'berryseed', seconds: 240, yield: 6 },
-  herb: { seed: 'herbseed', seconds: 360, yield: 4 },
-  flower: { seed: 'flowerseed', seconds: 480, yield: 4 },
+  berry: { seed: 'berryseed', seconds: 240, yield: 3 },
+  herb: { seed: 'herbseed', seconds: 360, yield: 2 },
+  flower: { seed: 'flowerseed', seconds: 480, yield: 2 },
 };
 export const CROP_ORDER = Object.keys(CROPS) as Crop[];
 
-/** Plots by Garden level: none before it's built, then Sprout Patch, Berry Garden and Bloom Garden. */
-export const PLOTS_BY_LEVEL = [0, 2, 4, 6];
+/**
+ * Poppy's field: a rectangle of plots, FIELD_COLS by FIELD_ROWS tiles, that's tilled a block at a time as the Garden
+ * grows: the Sprout Patch's two rows of three, the Berry Garden's three of four, the Bloom Garden's four of five (each
+ * level's block is the one before plus a row and a column). Its plots by level: none before it's built, then 6, 12, 20.
+ */
+export const FIELD_COLS = 5, FIELD_ROWS = 4;
+/** Each level's block of the field: its columns [from, to) and rows [0, to). */
+const FIELD_BLOCKS = [{ c0: 1, c1: 4, r1: 2 }, { c0: 0, c1: 4, r1: 3 }, { c0: 0, c1: 5, r1: 4 }];
+/**
+ * Every plot's [column, row] in the field, in planting order: the Sprout Patch's first, then what each level adds. A
+ * plot keeps its number as the field grows, so what's growing stays put (and older saves' beds 0-5 are its first six).
+ */
+export const FIELD_PLOTS: [number, number][] = FIELD_BLOCKS.flatMap(({ c0, c1, r1 }, lv) => {
+  const out: [number, number][] = [], prev = FIELD_BLOCKS[lv - 1];
+  for (let r = 0; r < r1; r++) for (let c = c0; c < c1; c++) if (!prev || c < prev.c0 || c >= prev.c1 || r >= prev.r1) out.push([c, r]);
+  return out;
+});
+export const PLOTS_BY_LEVEL = [0, ...FIELD_BLOCKS.map(({ c0, c1, r1 }) => (c1 - c0) * r1)];
 export const plotCount = (s: SaveState) => PLOTS_BY_LEVEL[Math.min(s.build.garden, PLOTS_BY_LEVEL.length - 1)];
 
 /** Poppy tends the Garden once it's built and her story is done (Mr. Floppers is home). */
@@ -35,10 +55,10 @@ export const WEED_SLOW = 0.5;
 const TROUBLE_FROM = 0.25, TROUBLE_TO = 0.75;
 
 /** Poppy's Flower Seeds: a handful whenever you've none left, at most once per this many seconds of real time. */
-export const FLOWER_GIFT = 4;
+export const FLOWER_GIFT = 8;
 export const GIFT_SECONDS = 600;
-/** Berry Seeds she saved for the day the Garden opened: handed over once, the first time you visit. */
-export const WELCOME_SEEDS = 2;
+/** Berry Seeds she saved for the day the Garden opened (enough for the Sprout Patch): handed over once, the first time you visit. */
+export const WELCOME_SEEDS = 6;
 
 export interface Plot {
   crop: Crop;
@@ -170,58 +190,54 @@ export function takeGift(s: SaveState, now = Date.now()): number {
 }
 
 // ---------------------------------------------------------------- tending it by hand, on the map
-// Walk up to the Garden and work its beds yourself: seeds from Poppy's basket, water from the butt, weeds tugged out,
-// ripe crops picked. Each is exactly plant / water / pullWeeds / pick above.
+// Walk out into the field and work its plots yourself: seeds from Poppy's basket, water from the butt, weeds tugged
+// out, ripe crops picked. Each is exactly plant / water / pullWeeds / pick above.
 
-/**
- * Where each plot's bed sits in the Garden's model (art/buildings/_garden.py), in Blender units from its front middle,
- * in planting order: the middle column first, then the left, then the right (two more with each Garden level).
- */
-export const GARDEN_BEDS: [number, number][] = [[0, 2], [0, 0.7], [-1.45, 2], [-1.45, 0.7], [1.45, 2], [1.45, 0.7]];
-/** How far the Garden's model stands back from the front of its plot (tiles), as the map draws it. */
-export const GARDEN_BACK = 0.28;
-
-/** Where bed `i` is on the map (in tiles), for the Garden plot `o`: a tile is 1.6 Blender units, depth shows at half. */
-export function bedSpot(o: { x: number; y: number; w: number; h: number }, i: number) {
-  const [bx, by] = GARDEN_BEDS[i];
-  return { x: o.x + o.w / 2 + bx / 1.6, y: o.y + o.h - GARDEN_BACK - (by * 0.5) / 1.6 };
+/** The field's plots on the map: the Garden's plot `o` is the whole field, one tile per plot. */
+export function plotTile(o: { x: number; y: number }, i: number) {
+  const [c, r] = FIELD_PLOTS[i];
+  return { x: o.x + c, y: o.y + r };
 }
 
-/** Pours in a full watering can, and tugs it takes to get a bed's weeds out. */
-export const CAN_POURS = 3;
+/** The middle of plot `i` on the map (in tiles), where its crop stands. */
+export function plotSpot(o: { x: number; y: number }, i: number) {
+  const t = plotTile(o, i);
+  return { x: t.x + 0.5, y: t.y + 0.6 };
+}
+
+/** Which plot (of the first `n`) is on the tile at (x, y), if any. */
+export function plotAt(o: { x: number; y: number }, n: number, x: number, y: number): number | null {
+  const c = Math.floor(x - o.x), r = Math.floor(y - o.y);
+  const i = FIELD_PLOTS.findIndex(([pc, pr]) => pc === c && pr === r);
+  return i >= 0 && i < n ? i : null;
+}
+
+/**
+ * The plot the action button works on, for someone whose feet are at (x, y) facing `face`: the one they're standing
+ * on, or else the one just in front of them.
+ */
+export function targetPlot(o: { x: number; y: number }, n: number, x: number, y: number, face: number): number | null {
+  const fy = y - 0.15;
+  return plotAt(o, n, x, fy) ?? plotAt(o, n, x + Math.cos(face) * 0.75, fy + Math.sin(face) * 0.75);
+}
+
+/** Pours in a full watering can (a few plots of a big field), and tugs it takes to get a plot's weeds out. */
+export const CAN_POURS = 6;
 export const WEED_TUGS = 3;
 
 /** What you're holding: a handful of one seed, or the watering can and how many pours are left in it. */
 export type Hand = { seed: Crop } | { can: number } | null;
 
-/** What a bed wants, given what's in your hand (the first four you can do something about). */
-export type BedJob = 'pick' | 'weed' | 'water' | 'plant' | 'thirsty' | 'empty' | 'growing';
-export const DOABLE: BedJob[] = ['pick', 'weed', 'water', 'plant'];
+/** What a plot wants, given what's in your hand (the first four you can do something about). */
+export type PlotJob = 'pick' | 'weed' | 'water' | 'plant' | 'thirsty' | 'empty' | 'growing';
+export const DOABLE: PlotJob[] = ['pick', 'weed', 'water', 'plant'];
 
-export function bedJob(p: Plot | null, hand: Hand, s: SaveState): BedJob {
+export function plotJob(p: Plot | null, hand: Hand, s: SaveState): PlotJob {
   if (!p) return hand && 'seed' in hand && s.mats[CROPS[hand.seed].seed] > 0 ? 'plant' : 'empty';
   if (isReady(p)) return 'pick';
   if (p.weeds) return 'weed';
   if (p.thirsty) return hand && 'can' in hand && hand.can > 0 ? 'water' : 'thirsty';
   return 'growing';
-}
-
-/**
- * The bed the action button works on from (x, y): the nearest within `reach` you can do something at, or failing
- * that the nearest within reach (to say what it's waiting for). Null if none is in reach.
- */
-export function targetBed(spots: { x: number; y: number }[], jobs: BedJob[], x: number, y: number, reach: number): number | null {
-  let best: number | null = null, bestD = reach, doable = false;
-  spots.forEach((b, i) => {
-    const d = Math.hypot(b.x - x, (b.y - y) * 1.6), can = DOABLE.includes(jobs[i]);
-    if (d > reach || (doable && !can)) return;
-    if ((can && !doable) || d < bestD) {
-      best = i;
-      bestD = d;
-      doable ||= can;
-    }
-  });
-  return best;
 }
 
 /** The next seed in the basket after `current` (only ones you have), or null if you've none at all. */

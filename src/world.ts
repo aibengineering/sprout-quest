@@ -1,5 +1,6 @@
 // Overworld map generation and collision. Coordinates are in tiles.
 import { WORLD_H, WORLD_W, ZONES, zoneAtX, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
+import { FIELD_COLS, FIELD_ROWS } from './garden';
 import { ROUTES } from './routes';
 import type { SaveState } from './state';
 
@@ -16,6 +17,9 @@ export const T = {
 
 /** Bram's Bridge: the creek tiles it spans (the Woods' west way up to the old camp), as offsets from the Woods' left edge. */
 const BRIDGE_TILES = [[6, 9], [7, 9], [6, 10], [7, 10]];
+
+/** Poppy's field: its first plot's tile, from the village's left edge (see placeField). */
+export const FIELD = { x: 23, y: 17 };
 
 /** Routes connect through rows GATE_Y..GATE_Y+3 on their west and east edges. */
 export const GATE_Y = 12;
@@ -39,8 +43,9 @@ const NODE_MARKS: [string, NodeKind, boolean][] = [
 /**
  * 'prop': scenery drawn from its `id`'s sprite (Bram's camp, his hut). 'station': something you work at by hand (a
  * room's stove or saw bench, the Garden's water butt), told apart by its `id`. 'door': the way into a room, or out.
+ * 'fence': a run of the Garden field's fence (drawn with the field).
  */
-export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop' | 'bridge' | 'station' | 'door';
+export type ObjKind = 'fence' | 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop' | 'bridge' | 'station' | 'door';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -257,15 +262,12 @@ export class World extends TileMap {
     add({ kind: 'house', x: V + 13, y: 6.5, w: 3, h: 3, label: '' });
     add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
     add({ kind: 'plot', project: 'home', x: V + 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
-    add({ kind: 'plot', project: 'garden', x: V + 7.2, y: 18.4, w: 3, h: 1.6, label: 'Build', text: 'Garden' });
-    // Beside it, once Poppy tends it: the water butt you fill the watering can at, and her basket of seeds.
-    add({ kind: 'station', id: 'garden:butt', x: V + 6.3, y: 18.55, w: 0.6, h: 0.5, label: 'Watering can', hidden: true });
-    add({ kind: 'station', id: 'garden:seeds', x: V + 6.35, y: 19.5, w: 0.5, h: 0.4, label: 'Seed basket', hidden: true });
     add({ kind: 'plot', project: 'training', x: V + 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
     add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Waystone' });
     // Bram's corner, once he's moved in (his story): the Sawmill beside the Forge, and his cabin below it.
     add({ kind: 'plot', project: 'sawmill', x: V + 1.1, y: 5.5, w: 3.4, h: 2, label: 'Build', text: 'Sawmill' });
     add({ kind: 'prop', id: 'bramhut', x: V + 1.5, y: 9, w: 2, h: 1.3, label: '' });
+    this.placeField();
     // The Guest Cottage, up in the north-east corner behind the Waystone: once Bram's settled in, for whoever comes next.
     add({ kind: 'plot', project: 'cottage', x: V + 18.8, y: 4.5, w: 2.2, h: 1.4, label: 'Build', text: 'Guest Cottage' });
     // Bram's old logging camp, in the Woods' north-west corner: the stump with his axe in it, the caved-in mill, logs.
@@ -282,7 +284,7 @@ export class World extends TileMap {
       text: 'Veyra, the Sower. A veiled goddess with a golden seed in one hand and a sickle in the other. Fresh flowers lie at her feet. The words on the plinth read: "All that is planted, I tend."',
     });
     add({
-      kind: 'sign', x: V + 18.6, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
+      kind: 'sign', x: V + 29.4, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
       text: 'East: Sunny Meadow. Walk through tall grass to find monsters. Bring back materials to the Forge!',
     });
     for (const z of ZONES) {
@@ -303,6 +305,27 @@ export class World extends TileMap {
         }));
       }
     }
+  }
+
+  /**
+   * Poppy's Garden, out at the village's east end south of the road: a fenced field of plots, one tile each (the Garden
+   * plot is the whole field; garden.ts says which tiles are tilled at each level). A path leads down from the road to
+   * the gate; inside, the water butt and her seed basket stand along the west fence and Poppy works from the east side.
+   */
+  private placeField() {
+    const fx = V + FIELD.x, fy = FIELD.y, x0 = fx - 1, x1 = fx + FIELD_COLS + 1, y0 = fy - 1, y1 = fy + FIELD_ROWS + 1, gate = fx + 2;
+    for (let y = MID + 2; y <= y0; y++) this.set(gate, y, T.PATH);
+    this.objs.push({ kind: 'plot', project: 'garden', x: fx, y: fy, w: FIELD_COLS, h: FIELD_ROWS, label: 'Build', text: 'Garden', walkable: true });
+    // The fence, once it's built: along the top either side of the gate, the bottom and both sides.
+    const t = 0.12, built = (s: SaveState) => s.build.garden >= 1;
+    const fence = (x: number, y: number, w: number, h: number) => ({ kind: 'fence' as const, x: x - t, y: y - t, w: w + 2 * t, h: h + 2 * t, label: '', shown: built });
+    for (const o of [fence(x0, y0, gate - x0, 0), fence(gate + 1, y0, x1 - gate - 1, 0), fence(x0, y1, x1 - x0, 0), fence(x0, y0, 0, y1 - y0), fence(x1, y0, 0, y1 - y0)]) this.objs.push(o);
+    // Clear the trees round it (but not the path).
+    for (let y = y0 - 1; y <= y1; y++) for (let x = x0 - 1; x <= x1; x++) if (this.tile(x, y) !== T.PATH) this.set(x, y, T.GROUND);
+    // Once Poppy tends it: the water butt you fill the watering can at, and her basket of seeds. Outside the gate, the sign.
+    this.objs.push({ kind: 'station', id: 'garden:butt', x: x0 + 0.2, y: fy - 0.1, w: 0.6, h: 0.5, label: 'Watering can', hidden: true });
+    this.objs.push({ kind: 'station', id: 'garden:seeds', x: x0 + 0.25, y: fy + 1.3, w: 0.5, h: 0.4, label: 'Seed basket', hidden: true });
+    this.objs.push({ kind: 'station', id: 'garden:sign', x: gate + 2.3, y: y0 - 0.75, w: 0.6, h: 0.4, label: 'Upgrade', hidden: true });
   }
 
   /** Tiles you can walk to from the village (guardian gates count as open). */

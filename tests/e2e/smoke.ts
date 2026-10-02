@@ -61,7 +61,7 @@ const base = (g: any) => {
   const s = g.save;
   Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined'] });
   s.build.forge = 1;
-  s.pos = { x: 50.5, y: 18 };
+  s.pos = { x: 59.5, y: 18 };
   s.unlocked.push('forge', 'bag', 'journal');
 };
 
@@ -789,7 +789,7 @@ scenario('the play report records fights, waits between strikes, deaths and time
 
 scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   g.save.lv = 5;
-  g.save.pos = { x: 58, y: 15 };
+  g.save.pos = { x: 67, y: 15 };
 }, async (page) => {
   const step = () => game<number>(page, `g.save.stories.poppy ?? 0`);
   const mode = (m: string) => async () => (await game<string>(page, 'g.mode')) === m;
@@ -825,11 +825,11 @@ scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   };
 
   // Only the meadow's south-east pocket starts it: not the south edge of any other area.
-  await goTo(134.5, 24.5);
+  await goTo(143.5, 24.5);
   await page.waitForTimeout(600);
   check((await step()) === 0 && (await game<string>(page, 'g.mode')) === 'world', "Poppy's story started outside the meadow");
   // Coming down into the meadow's south-east pocket: she's cornered in the grove's mouth.
-  const M = 38;
+  const M = 47;
   await goTo(M + 31, 21.6);
   check(/Somebody, help/.test(await lines()), 'no cry for help');
   await waitFor(page, 'free to walk', mode('world'));
@@ -916,13 +916,13 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   await talk('granny:granny');
   await playUntil('the pie', async () => (await step()) === 1);
   // The grump at his camp: the pie gets him talking.
-  await run(page, 'g.over.teleport(86.9, 6.9)');
+  await run(page, 'g.over.teleport(95.9, 6.9)');
   await page.waitForTimeout(600);
   await waitFor(page, 'Bram at his camp', async () => game<boolean>(page, `!!g.over.actors.get('bram:bram')`));
   await talk('bram:bram');
   await playUntil('the contest', async () => (await step()) === 2 && (await game<string>(page, 'g.mode')) === 'world');
   // A loud chop brings Woolves early (and the tree waits).
-  check(await game<boolean>(page, `g.over.world.objs.some((o) => o.kind === 'node' && o.node === 'pine' && o.x < 91 && o.y < 8)`), 'no pines at the camp');
+  check(await game<boolean>(page, `g.over.world.objs.some((o) => o.kind === 'node' && o.node === 'pine' && o.x < 100 && o.y < 8)`), 'no pines at the camp');
   // Three pines felled (the chopping itself is covered by its own scenario), and the raid comes anyway.
   await run(page, `g.over.world.objs.filter((o) => o.kind === 'node' && o.node === 'pine' && o.x > 79 && o.x < 91 && o.y > 2.5 && o.y < 8).slice(0, 3).forEach((o) => g.save.flags.push('bram:pine:' + o.id))`);
   await playUntil('the raid and the scarred Woolf', async () => (await step()) === 6 && (await game<string>(page, 'g.mode')) === 'world', 90000);
@@ -989,7 +989,7 @@ scenario("The drums in the dark: tail the Pebblors unseen (once spotted and drop
   s.tools = { wood: 2, mine: 2 };
   s.pos = { x: 29.4, y: 12.6 };
 }, async (page) => {
-  const C = 118;
+  const C = 127;
   const step = () => game<number>(page, 'g.save.stories.drums ?? 0');
   const phase = () => game<string>(page, 'g.drums.proc?.phase ?? ""');
   const goTo = (x: number, y: number) => run(page, `g.over.teleport(${x}, ${y})`);
@@ -1188,6 +1188,43 @@ scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra han
   await closeDialogs(page);
 });
 
+// Poppy's field, in Sowerby's east end: its first plot's tile (World.placeField: the village's left edge + FIELD), the
+// gate's column, and where to stand to work plot (column, row) or to reach the water butt and seed basket.
+const FX = 16 + 23, FY = 17, GATE_X = FX + 2.5;
+const onPlot = (c: number, r: number): [number, number] => [FX + c + 0.5, FY + r + 0.75];
+const BASKET: [number, number, number] = [FX - 0.5, FY + 1.2, Math.PI / 2];
+const BUTT: [number, number, number] = [FX - 0.5, FY + 0.95, -Math.PI / 2];
+/** Helpers for the field scenarios: what you hold, the plots, standing somewhere facing somewhere, and the button. */
+function fieldKit(page: Page) {
+  const stand = async (x: number, y: number, face = Math.PI / 2) => {
+    await run(page, `g.over.teleport(${x}, ${y}); g.over.face = ${face}`);
+    await page.waitForTimeout(250);
+  };
+  return {
+    garden: () => game<any>(page, 'g.garden'),
+    plots: () => game<any[]>(page, 'g.save.garden?.plots ?? []'),
+    label: () => game<string>(page, `g.over.world.objs.find((o) => o.project === 'garden').label`),
+    stand,
+    press: async () => {
+      await page.keyboard.press('KeyE');
+      await page.waitForTimeout(200);
+    },
+    /** Holds the button and walks east along a row until past `x`. */
+    sweepEast: async (x: number) => {
+      await page.keyboard.down('KeyE');
+      await page.waitForTimeout(150);
+      await page.keyboard.down('KeyD');
+      await waitFor(page, 'along the row', async () => (await game<number>(page, 'g.over.x')) > x, 5000).finally(async () => {
+        await page.keyboard.up('KeyD');
+        await page.keyboard.up('KeyE');
+      });
+      await page.waitForTimeout(200);
+    },
+    /** Where plot (column, row)'s middle is on the screen. */
+    onScreen: (c: number, r: number) => game<{ x: number; y: number }>(page, `(() => { const ts = g.over.ts, z = g.over.toMap(0, 0); return { x: (${FX + c + 0.5} - z.x) * ts, y: (${FY + r + 0.5} - z.y) * ts }; })()`),
+  };
+}
+
 scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Granny bakes a Berry Tart", (g) => {
   const s = g.save;
   s.lv = 6;
@@ -1195,7 +1232,7 @@ scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Grann
   s.flags.push('poppy:returned');
   s.build.garden = 2;
   Object.assign(s.mats, { herbseed: 1, fluff: 6 });
-  s.pos = { x: 24.7, y: 20.8 };
+  s.pos = { x: 33, y: 13.5 };
 }, async (page) => {
   const panel = () => page.$('#modal:not([hidden]) .sheet.garden');
   const click = async (sel: string) => {
@@ -1203,23 +1240,24 @@ scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Grann
     await page.click(`#modal ${sel}`);
     await page.waitForTimeout(300);
   };
-  // Poppy tends it now: she's by the Garden, and her first visit comes with the Berry Seeds she saved.
-  await waitFor(page, 'Poppy at the Garden', async () => game<boolean>(page, `(() => { const p = g.over.actors.get('poppy:poppy'); return !!p && p.label === 'Garden' && p.x > 26; })()`));
+  // Poppy tends it now: she's by the field, and her first visit comes with the Berry Seeds she saved.
+  await waitFor(page, 'Poppy at the Garden', async () => game<boolean>(page, `(() => { const p = g.over.actors.get('poppy:poppy'); return !!p && p.label === 'Garden' && p.x > ${FX}; })()`));
   await run(page, `void g.over.actors.get('poppy:poppy').talk()`);
   await waitFor(page, 'the Garden', async () => !!(await panel()));
-  check((await page.$$('#modal .gslot')).length === 4, 'the Berry Garden should have four plots');
-  check(await game<number>(page, 'g.save.mats.berryseed') === 2, 'no welcome Berry Seeds');
+  check((await page.$$('#modal .gslot')).length === 12, 'the Berry Garden should have twelve plots');
+  check(await game<number>(page, 'g.save.mats.berryseed') === 6, 'no welcome Berry Seeds');
   await click('[data-dialog="plant:0:berry"]');
   await click('[data-dialog="plant:1:berry"]');
-  await click('[data-dialog="plant:2:herb"]');
-  check(await game<number>(page, 'g.save.garden.plots.filter(Boolean).length') === 3, 'three plots should be planted');
+  await click('[data-dialog="plant:2:berry"]');
+  await click('[data-dialog="plant:3:herb"]');
+  check(await game<number>(page, 'g.save.garden.plots.filter(Boolean).length') === 4, 'four plots should be planted');
   await click('.btns [data-dialog="close"]');
   // Time passes: the first plot gets thirsty and stops, the second grows weeds.
   await run(page, `const [a, b, c] = g.save.garden.plots; for (const p of [a, b, c]) { delete p.thirstAt; delete p.weedsAt; p.at -= 100000; }
     a.thirstAt = 60; b.weedsAt = 30; c.at += 100000`);
   await waitFor(page, 'a thirsty, weedy garden', async () => game<boolean>(page, `(() => { const [a, b] = g.save.garden.plots; return !!a.thirsty && !!b.weeds; })()`));
   check(await game<string>(page, `g.over.actors.get('poppy:poppy').mood`) === '💧', 'Poppy should show the garden is thirsty');
-  // Her menu again (the Garden itself is worked by hand: see the next scenario).
+  // Her menu again (the field itself is worked by hand: see the next scenario).
   await run(page, `void g.over.actors.get('poppy:poppy').talk()`);
   await waitFor(page, 'the Garden, again', async () => !!(await panel()));
   await click('[data-dialog="water:0"]');
@@ -1230,7 +1268,7 @@ scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Grann
   await click('.btns [data-dialog="pickall"]');
   await waitFor(page, 'the new recipe', async () => ((await page.textContent('#modal:not([hidden]) .sheet').catch(() => '')) ?? '').includes('Berry Tart'));
   await closeDialogs(page, 1);
-  check(await game<boolean>(page, `g.save.mats.berry === 12 && g.save.mats.herb === 4 && g.save.flags.includes('garden:berries')`), 'the harvest did not reach your bag');
+  check(await game<boolean>(page, `g.save.mats.berry === 9 && g.save.mats.herb === 2 && g.save.flags.includes('garden:berries')`), 'the harvest did not reach your bag');
   await waitFor(page, 'back at the Garden', async () => !!(await panel()));
   await click('.btns [data-dialog="close"]');
   // Granny bakes it: +10% max HP.
@@ -1239,97 +1277,143 @@ scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Grann
   await click('[data-dialog="cook:tart"]');
   await waitFor(page, 'the tart', async () => game<boolean>(page, `g.save.meal?.id === 'tart'`));
   await closeDialogs(page);
-  check(await game<boolean>(page, `g.save.mats.berry === 4 && g.save.mats.fluff === 0`), 'the tart did not cost 8 Berries and 6 Bunny Fluff');
+  check(await game<boolean>(page, `g.save.mats.berry === 1 && g.save.mats.fluff === 0`), 'the tart did not cost 8 Berries and 6 Bunny Fluff');
   check(await game<number>(page, 'g.save.hp') > before, 'the tart should raise your health');
 });
 
-scenario("Poppy's Garden by hand on the map: seeds from the basket, plant, tug weeds, fill the can and water, tap a ripe bed to pick, hold to pick the rest", (g) => {
+scenario("Poppy's field by hand: seeds from the basket, hold the button down a row to plant, tug weeds, fill the can and water, tap a ripe plot, sweep a row to pick", (g) => {
   const s = g.save;
   s.lv = 6;
   s.stories.poppy = 6;
   s.flags.push('poppy:returned');
   s.build.garden = 2;
   Object.assign(s.mats, { berryseed: 0, herbseed: 1, flowerseed: 0, berry: 0, herb: 0 });
-  s.pos = { x: 24.7, y: 15.5 };
+  s.pos = { x: 41.5, y: 14 }; // GATE_X (seeds are sent as source)
 }, async (page) => {
-  const garden = () => game<any>(page, 'g.garden');
-  const plots = () => game<any[]>(page, 'g.save.garden?.plots ?? []');
-  const stand = async (x: number, y: number, face = -Math.PI / 2) => {
-    await run(page, `g.over.teleport(${x}, ${y}); g.over.face = ${face}`);
-    await page.waitForTimeout(250);
-  };
-  const press = async () => {
-    await page.keyboard.press('KeyE');
-    await page.waitForTimeout(200);
-  };
-  // Walk up: the view leans in, and Poppy hands over the Berry Seeds she saved.
-  await stand(24.7, 20.45);
-  await waitFor(page, 'the Garden', async () => (await garden()).inside && (await game<number>(page, 'g.save.mats.berryseed')) === 2);
-  check(await game<boolean>(page, '!!g.over.focus'), 'the view did not lean in');
+  const { garden, plots, label, stand, press, sweepEast, onScreen } = fieldKit(page);
+  const poppy = () => game<{ x: number; y: number; speech: string }>(page, `(() => { const p = g.over.actors.get('poppy:poppy'); return { x: p.x, y: p.y, speech: p.speech?.text ?? '' }; })()`);
+  // Walk in at the gate: Poppy hands over the Berry Seeds she saved. The camera stays as it is (the plots are whole tiles).
+  const ts = await game<number>(page, 'g.over.ts');
+  await stand(GATE_X, FY - 0.4);
+  await waitFor(page, 'the field', async () => (await garden()).inside && (await game<number>(page, 'g.save.mats.berryseed')) === 6);
+  await page.waitForTimeout(500);
+  check(await game<number>(page, 'g.over.ts') === ts, 'the view leaned in');
   // Seeds from the basket.
-  await stand(22.6, 20.25);
+  await stand(...BASKET);
   await press();
   check(JSON.stringify((await garden()).hand) === '{"seed":"berry"}', `no Berry Seeds in hand (${JSON.stringify((await garden()).hand)})`);
-  // Plant: hold the button and they go in bed after bed until the seeds run out.
-  await stand(24.7, 20.45);
-  await page.keyboard.down('KeyE');
-  await waitFor(page, 'two berries planted', async () => (await plots()).filter((p) => p?.crop === 'berry').length === 2, 4000);
-  await page.keyboard.up('KeyE');
-  check((await garden()).hand === null && (await game<number>(page, 'g.save.mats.berryseed')) === 0, 'the empty seed bag was still in hand');
-  // The basket's next seed: Herb.
-  await stand(22.6, 20.25);
+  // Hold the button and walk along the top row: a seed in every plot you pass, and none on the untilled end.
+  await stand(...onPlot(1, 0), 0);
+  check(await label() === 'Plant Berry', `the plot underfoot was not the target (${await label()})`);
+  await sweepEast(FX + 4.3);
+  let p = await plots();
+  check([0, 1, 2].every((i) => p[i]?.crop === 'berry') && p.filter(Boolean).length === 3, `the row was not planted (${JSON.stringify(p.map((q) => q?.crop ?? null))})`);
+  check(await game<number>(page, 'g.save.mats.berryseed') === 3, 'planting did not take the seeds');
+  const pop = await poppy();
+  check(Math.hypot(pop.x - (FX + 5.5), pop.y - (FY + 1.9)) > 0.5, `Poppy did not come over to help (${JSON.stringify(pop)})`);
+  // The basket's next seed: Herb, into the second row.
+  await stand(...BASKET);
   await press();
   check(JSON.stringify((await garden()).hand) === '{"seed":"herb"}', 'no Herb Seeds in hand');
-  await stand(24.7, 20.45);
+  await stand(...onPlot(1, 1));
   await press();
-  check((await plots()).filter(Boolean).length === 3, 'the herb was not planted');
-  // Trouble: the first bed thirsty, the second weedy. Three tugs pull the weeds.
+  check((await plots())[3]?.crop === 'herb' && (await garden()).hand === null, 'the herb was not planted (or the empty seed bag stayed in hand)');
+  // Trouble: the first plot thirsty, the second weedy. Three tugs pull the weeds.
   await run(page, `const [a, b] = g.save.garden.plots; for (const p of g.save.garden.plots) if (p) { delete p.thirstAt; delete p.weedsAt; } a.thirsty = true; b.weeds = true`);
-  await page.waitForTimeout(200);
+  await stand(...onPlot(2, 0));
+  check(await label() === 'Pull weeds', 'the weedy plot was not the target');
   for (let i = 0; i < 3; i++) await press();
   check(!(await plots())[1].weeds, 'three tugs did not pull the weeds');
   // Thirsty without the can: nothing. Fill it at the butt and water.
+  await stand(...onPlot(1, 0));
   await press();
   check((await plots())[0].thirsty, 'watered without a can');
-  await stand(22.6, 19.4, Math.PI);
+  await stand(...BUTT);
   await press();
-  check(JSON.stringify((await garden()).hand) === '{"can":3}', `the can was not filled (${JSON.stringify((await garden()).hand)})`);
-  await stand(24.7, 20.45);
+  check(JSON.stringify((await garden()).hand) === '{"can":6}', `the can was not filled (${JSON.stringify((await garden()).hand)})`);
+  await stand(...onPlot(1, 0));
   await press();
-  check(!(await plots())[0].thirsty && (await garden()).hand.can === 2, 'watering did not take');
-  // Much later: all ripe. Tap the first bed to pick it (the first berries teach Granny her tart)…
+  check(!(await plots())[0].thirsty && (await garden()).hand.can === 5, 'watering did not take');
+  // Much later: all ripe. A thumb landing on a plot to walk away (the joystick) doesn't pick it…
   await run(page, `for (const p of g.save.garden.plots) if (p) p.at -= 1e7`);
-  await page.waitForTimeout(300);
-  const berryBed = (await plots()).findIndex((p) => p?.crop === 'berry');
-  const bedOnScreen = () => game<{ x: number; y: number }>(page, `(() => { const o = g.over.world.objs.find((o) => o.project === 'garden'), ts = g.over.ts, z = g.over.toMap(0, 0);
-    const [bx, by] = [[0, 2], [0, 0.7], [-1.45, 2], [-1.45, 0.7]][${berryBed}];
-    const b = { x: o.x + o.w / 2 + bx / 1.6, y: o.y + o.h - 0.28 - by * 0.5 / 1.6 }; return { x: (b.x - z.x) * ts, y: (b.y - 0.2 - z.y) * ts }; })()`);
-  // A thumb landing on the bed to walk away (the joystick) doesn't pick it.
-  let at = await bedOnScreen();
+  await stand(...onPlot(2, 1), -Math.PI / 2);
+  await page.waitForTimeout(400);
+  let at = await onScreen(2, 0);
   await touchDrag(page, at.x, at.y, -70, 0);
   await page.waitForTimeout(200);
-  check((await plots())[berryBed] !== null && !(await page.$('#modal:not([hidden])')), 'a drag starting on the ripe bed picked it');
-  await stand(24.7, 20.45);
+  check((await plots())[1] !== null && !(await page.$('#modal:not([hidden])')), 'a drag starting on the ripe plot picked it');
+  // …a tap on it does (the first berries teach Granny her tart).
+  await stand(...onPlot(2, 1), -Math.PI / 2);
   await page.waitForTimeout(600);
-  at = await bedOnScreen();
+  at = await onScreen(2, 0);
   await page.touchscreen.tap(at.x, at.y);
   await waitFor(page, 'the new recipe', async () => ((await page.textContent('#modal:not([hidden]) .sheet').catch(() => '')) ?? '').includes('Berry Tart'));
   await closeDialogs(page, 1);
-  check((await plots())[berryBed] === null && (await game<number>(page, 'g.save.mats.berry')) === 6, 'tapping the ripe bed did not pick it');
-  // …and hold the button for the rest.
+  check((await plots())[1] === null && (await game<number>(page, 'g.save.mats.berry')) === 3, 'tapping the ripe plot did not pick it');
+  // Hold the button down the row for the rest of it, then the herb.
   await waitFor(page, 'free to work', async () => (await game<string>(page, 'g.mode')) === 'world');
-  await page.keyboard.down('KeyE');
-  await waitFor(page, 'everything picked', async () => (await plots()).every((p) => !p), 4000);
-  await page.keyboard.up('KeyE');
-  check(await game<boolean>(page, 'g.save.mats.berry === 12 && g.save.mats.herb === 4'), 'holding the button did not pick the rest');
-  // Just past its top edge the Garden's still in reach, but the button works no bed there: it says just "Garden".
-  check(await game<string>(page, `g.over.world.objs.find((o) => o.project === 'garden').label`) === 'Empty bed', 'the beds were not labelled');
-  await run(page, `const o = g.over.world.objs.find((o) => o.project === 'garden'); g.over.teleport(o.x + o.w / 2, o.y - 0.9); g.over.face = Math.PI / 2`);
-  await page.waitForTimeout(250);
-  check(await game<string>(page, `(() => { const n = g.over.nearbyObject(); return n?.project === 'garden' && !g.garden.inside ? n.label : 'not there'; })()`) === 'Garden', 'the label went stale just north of the Garden');
-  // Walk off: the can goes back, the view settles.
-  await stand(24.7, 15.5);
-  await waitFor(page, 'away from the Garden', async () => (await garden()).hand === null && !(await game<boolean>(page, '!!g.over.focus')));
+  await stand(...onPlot(1, 0), 0);
+  await sweepEast(FX + 3.6);
+  p = await plots();
+  check(!p[0] && !p[2], `sweeping the row did not pick it (${JSON.stringify(p.map((q) => q?.crop ?? null))})`);
+  await stand(...onPlot(1, 1));
+  await press();
+  check(await game<boolean>(page, 'g.save.mats.berry === 9 && g.save.mats.herb === 2'), 'the harvest did not reach your bag');
+  // The Bloom Garden's plots aren't tilled yet: Poppy says so.
+  await stand(...onPlot(4, 0));
+  check(await label() === 'Untilled', `untilled ground was not labelled (${await label()})`);
+  await press();
+  check((await poppy()).speech.includes('upgraded'), 'Poppy did not say the field grows with the Garden');
+  // Walk off: the can goes back.
+  await stand(GATE_X, 13.5);
+  await waitFor(page, 'away from the field', async () => (await garden()).hand === null && !(await garden()).inside);
+});
+
+scenario("Poppy's field grows: an old save's beds and place carry over, and the sign at the gate upgrades it to twelve plots", (g) => {
+  const s = g.save;
+  s.lv = 6;
+  s.stories.poppy = 6;
+  s.flags.push('poppy:returned', 'garden:welcome');
+  s.build.garden = 1;
+  Object.assign(s.mats, { cap: 12, plank: 24, stone: 12 });
+  // A save from before the field: two beds growing, and standing in the meadow on the old, narrower map.
+  delete s.field;
+  s.pos = { x: 45, y: 13.5 };
+  const now = Date.now();
+  s.garden = { gift: now, plots: [{ crop: 'berry', grown: 100, at: now }, { crop: 'herb', grown: 50, at: now, thirsty: true }] };
+}, async (page) => {
+  const { plots, label, stand, press } = fieldKit(page);
+  check(await game<boolean>(page, `g.save.pos.x > 53.5 && g.over.zone.id === 'meadow' && g.save.field === true`), `the old save was not moved along with the meadow (${await game<number>(page, 'g.save.pos.x')})`);
+  // Its beds are the field's first plots.
+  let p = await plots();
+  check(p[0]?.crop === 'berry' && p[1]?.crop === 'herb' && p[1].thirsty, `the old beds did not carry over (${JSON.stringify(p)})`);
+  await stand(...onPlot(1, 0));
+  check(await label() === 'Growing', `the first plot is not the old berry bed (${await label()})`);
+  await stand(...onPlot(2, 0));
+  check(await label() === 'Thirsty', `the second plot is not the old thirsty herb bed (${await label()})`);
+  // The Sprout Patch has six; the Berry Garden's are pegged out but not tilled.
+  await stand(...onPlot(0, 0));
+  check(await label() === 'Untilled', `the next level's plots were already tilled (${await label()})`);
+  // The sign at the gate: the Garden's next level, from the village plans.
+  await stand(FX + 4.6, FY - 2.1);
+  await press();
+  await waitFor(page, 'the plans', async () => !!(await page.$('#modal:not([hidden]) [data-build="garden"]:not([disabled])')));
+  await page.click('#modal [data-build="garden"]');
+  await page.waitForSelector('.craft-building');
+  check((await page.locator('.craft-model').getAttribute('data-layers').catch(() => '')) !== null, 'no building scene');
+  await page.keyboard.press('Escape');
+  await page.click('#modal [data-dialog="ok"]');
+  await page.waitForTimeout(400);
+  if (await page.$('#modal:not([hidden]) .sheet.menu')) await page.keyboard.press('Escape');
+  await waitFor(page, 'back on the map', async () => (await game<string>(page, 'g.mode')) === 'world');
+  check(await game<number>(page, 'g.save.build.garden') === 2, 'the Berry Garden was not built');
+  // Twelve plots: the new column is tilled, and what was growing stayed put.
+  await stand(...onPlot(0, 0));
+  check(await label() === 'Empty plot', `the new plots were not tilled (${await label()})`);
+  await stand(...onPlot(1, 2));
+  check(await label() === 'Empty plot', `the new row was not tilled (${await label()})`);
+  p = await plots();
+  check(p[0]?.crop === 'berry' && p[1]?.crop === 'herb', 'upgrading moved what was growing');
 });
 
 scenario("Granny's Kitchen: walk in, pick a recipe, fetch, stir and serve by hand, ask Granny, and walk back out", (g) => {
@@ -1575,35 +1659,31 @@ scenario("Granny's Kitchen: asking Granny to cook mid-pot spends the clover, so 
   check((await game<string>(page, `g.over.room.actors.get('room:granny').speech?.text ?? ''`)).includes('short'), 'Granny did not say we were short');
 });
 
-scenario("Poppy's Garden by hand: while Poppy's away in Echo Cavern, the basket, the water butt and the beds say she's not here", (g) => {
+scenario("Poppy's field by hand: while Poppy's away in Echo Cavern, the basket, the water butt and the plots say she's not here", (g) => {
   const s = g.save;
   s.lv = 6;
   s.stories.poppy = 6;
   s.flags.push('poppy:returned', 'garden:welcome');
   s.build.garden = 2;
   Object.assign(s.mats, { berryseed: 2, herbseed: 0, flowerseed: 0 });
-  s.pos = { x: 24.7, y: 15.5 };
+  s.pos = { x: 41.5, y: 14 }; // GATE_X (seeds are sent as source)
 }, async (page) => {
-  const garden = () => game<any>(page, 'g.garden');
-  const stand = async (x: number, y: number, face = -Math.PI / 2) => {
-    await run(page, `g.over.teleport(${x}, ${y}); g.over.face = ${face}`);
-    await page.waitForTimeout(250);
-  };
+  const { garden, stand } = fieldKit(page);
   const press = async () => {
     await run(page, `document.getElementById('toast').textContent = ''`);
     await page.keyboard.press('KeyE');
     await page.waitForTimeout(200);
   };
-  await stand(24.7, 20.45);
-  await waitFor(page, 'the Garden', async () => (await garden()).inside);
-  await stand(22.6, 20.25);
+  await stand(GATE_X, FY - 0.4);
+  await waitFor(page, 'the field', async () => (await garden()).inside);
+  await stand(...BASKET);
   await press();
   check(JSON.stringify((await garden()).hand) === '{"seed":"berry"}', 'no Berry Seeds in hand');
-  // Off she goes after the drums: the seeds go back, the view settles, and nothing works the Garden till she's home.
+  // Off she goes after the drums: the seeds go back, and nothing works the field till she's home.
   await run(page, `g.save.bosses.push('alphawolf'); g.save.stories.drums = 1`);
-  await waitFor(page, 'the Garden closed', async () => (await garden()).hand === null && !(await garden()).inside && !(await game<boolean>(page, '!!g.over.focus')));
+  await waitFor(page, 'the field closed', async () => (await garden()).hand === null && !(await garden()).inside);
   await closeDialogs(page);
-  for (const [x, y, face, what] of [[22.6, 20.25, -Math.PI / 2, 'basket'], [22.6, 19.4, Math.PI, 'water butt'], [24.7, 20.45, -Math.PI / 2, 'beds']] as const) {
+  for (const [x, y, face, what] of [[...BASKET, 'basket'], [...BUTT, 'water butt'], [...onPlot(1, 0), Math.PI / 2, 'plots']] as const) {
     await stand(x, y, face);
     await press();
     check(((await page.textContent('#toast')) ?? '').includes("Poppy's not here"), `the ${what} did not say Poppy's not here`);
@@ -1652,7 +1732,7 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   s.stories.bram = 6;
   s.flags.push('poppy:returned', 'bram:pie', 'bram:met', 'bram:wave1', 'bram:wave2', 'bram:scar', 'bram:ambush1');
   s.respawn = 'village';
-  s.pos = { x: 78 + 16.5, y: 12 };
+  s.pos = { x: 87 + 16.5, y: 12 };
 }, async (page) => {
   const bram = () => game<{ follow: boolean; x: number; y: number }>(page, `(() => { const a = g.over.actors.get('bram:bram'); return a && { follow: a.follow, x: a.x, y: a.y }; })()`);
   await waitFor(page, 'Bram at your side', async () => !!(await bram())?.follow);
@@ -1664,7 +1744,7 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   // You come back as a spirit in Sowerby, your body left where you fell.
   await waitFor(page, 'a spirit in Sowerby', async () => game<boolean>(page, `g.mode === 'world' && !g.battle && g.over.currentZone.id === 'village' && !!g.save.spirit`), 20000);
   const b = await bram();
-  check(b && !b.follow && Math.hypot(b.x - (78 + 16.5), b.y - 11.6) < 1, `Bram should wait past the first ambush, not follow you home (${JSON.stringify(b)})`);
+  check(b && !b.follow && Math.hypot(b.x - (87 + 16.5), b.y - 11.6) < 1, `Bram should wait past the first ambush, not follow you home (${JSON.stringify(b)})`);
   check(await game<boolean>(page, `g.save.flags.includes('bram:waiting')`), 'Bram is not waiting');
   // Back to your body to wake up (at half health)…
   await run(page, `const b = g.save.spirit; g.over.teleport(b.x, b.y)`);
@@ -1674,7 +1754,7 @@ scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, 
   await page.waitForTimeout(1200);
   check(await game<number>(page, 'g.save.stories.bram') === 6, 'the escort finished without Bram');
   // Fetch him: he follows again, and the second ambush is still there.
-  await run(page, `g.over.teleport(78 + 16.5, 12.4)`);
+  await run(page, `g.over.teleport(87 + 16.5, 12.4)`);
   await page.waitForTimeout(500);
   await run(page, `void g.over.actors.get('bram:bram').talk()`);
   await closeDialogs(page);

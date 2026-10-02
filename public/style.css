@@ -1256,7 +1256,8 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 }
 .sheet.garden .speaker small { font-size: 12px; font-weight: 800; opacity: 0.6; }
 .sheet.garden .gplots {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0 8px; padding: 8px;
+  /* The field's plots, a few rows at a time: a bigger Garden scrolls. */
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0 8px; padding: 8px; max-height: min(430px, 46vh); overflow-y: auto;
   border-radius: 16px; background: linear-gradient(#8ac86a, #6aae4e); border: 3px solid #4e8a3a; box-shadow: inset 0 -5px 0 rgba(30, 60, 20, 0.25);
 }
 .sheet.garden .gplot {

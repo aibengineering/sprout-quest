@@ -5,7 +5,7 @@ import { CHECKPOINTS } from '../balance';
 import { GEAR, MAX_POTIONS, forgeLevelFor, MAT_ORDER, PROJECTS, QUESTS, TOOLS, ZONES, zoneById, zoneAtX, type MatId, type ZoneId } from '../data';
 import { playerStats } from '../rules';
 import { newState, type SaveState } from '../state';
-import { GATE_Y, World } from '../world';
+import { FIELD, GATE_Y, World } from '../world';
 
 export interface Preset {
   id: string;
@@ -256,17 +256,32 @@ export const PRESETS: Preset[] = [
     id: 'drums-done', name: 'Drums: the Echo Anklet', desc: "Poppy's home and the Pebblors gave you the Echo Anklet: two dodges in a row. In their chamber.",
     make: () => drums(4, C + 25.6, 3.4, (s) => s.perks.push('echoanklet')),
   },
-  {
-    id: 'garden', name: "Poppy's Garden", desc: 'Poppy tends the Berry Garden: four empty plots to work by hand, a handful of every seed, and Bunny Fluff for a Berry Tart.',
-    make: () => base('smithy', 'woods', zoneById('village').x0 + 8.7, 20.8, (s) => {
+  ...[1, 2, 3].map((lv) => ({
+    id: lv === 2 ? 'garden' : `garden${lv}`,
+    name: `Poppy's Garden: ${PROJECTS.garden.levels[lv - 1].name}`,
+    desc: [
+      "The Sprout Patch just built: walk in at the field's gate and Poppy hands over the Berry Seeds she saved for its six plots.",
+      "Poppy tends the Berry Garden's twelve plots: all empty to work by hand, a handful of every seed, and Bunny Fluff for a Berry Tart.",
+      "The Bloom Garden's twenty plots mid-season: sprouts, growing crops, a thirsty plot, a weedy one and a ripe row to pick.",
+    ][lv - 1],
+    make: () => base('smithy', 'woods', zoneById('village').x0 + FIELD.x + 2.5, FIELD.y - 0.3, (s) => {
       tools(s, 2, 1);
       s.stories.poppy = 6;
       s.perks.push('trailboots');
-      s.flags.push(...bossFlags, 'poppy:returned', 'garden:welcome');
-      s.build.garden = 2;
-      Object.assign(s.mats, { berryseed: 4, herbseed: 3, flowerseed: 2, fluff: 18 });
+      s.flags.push(...bossFlags, 'poppy:returned', ...(lv > 1 ? ['garden:welcome'] : []));
+      s.build.garden = lv;
+      if (lv > 1) Object.assign(s.mats, { berryseed: 8, herbseed: 6, flowerseed: 4, fluff: 18 });
+      // Mid-season: what's in each plot, as of when the save is made (grown seconds, at full speed).
+      if (lv === 3) {
+        const now = Date.now(), crops = ['berry', 'berry', 'berry', 'herb', 'herb', 'herb', 'flower', 'flower', 'flower', 'berry', 'herb', 'flower'] as const;
+        s.garden = {
+          gift: now,
+          plots: crops.map((crop, i) => ({ crop, at: now, grown: [9999, 9999, 9999, 30, 200, 90, 40, 300, 150, 10, 100, 250][i], ...(i === 4 ? { thirsty: true } : i === 7 ? { weeds: true } : {}) })),
+        };
+        s.flags.push('garden:berries');
+      }
     }),
-  },
+  })),
   {
     id: 'kingslime', name: 'Slime King', desc: 'Lv 4, Stone Sword and Fluff Vest, at the Whisper Woods gate.',
     make: () => base('kingslime', 'woods', gate('woods').x, gate('woods').y, (s) => tools(s, 1, 1)),
