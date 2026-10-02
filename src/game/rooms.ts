@@ -24,10 +24,12 @@ export interface RoomPlay {
   act(o: WorldObj, room: Room): void | Promise<void>;
   /** Holding the action button down at this station keeps doing it (carrying armful after armful). */
   repeats?(o: WorldObj): boolean;
-  /** Every frame while you're in it (labels, a stirring pot); true while it's using the action button itself. */
+  /** Every frame while you're in it (labels, guidance and work); true while it's using the action button itself. */
   tick(dt: number, room: Room): boolean;
   /** Drawn over the screen (what to do next). */
   hud?(ctx: CanvasRenderingContext2D, vw: number, vh: number, room: Room): void;
+  /** Screen-space effects, including pickups flying to the Bag, even while someone is speaking. */
+  effects?(ctx: CanvasRenderingContext2D, vw: number, vh: number): void;
 }
 
 /** Each room's play (looked up when needed: they import from here too). */
@@ -115,7 +117,7 @@ let repeatIn = 0;
 
 /**
  * Every frame you're free to act in a room: walking out of the door, the room's own goings-on, and holding the action
- * button to keep going. True while the room has the action button (a pot being stirred).
+ * button to keep going. True while a station is using the action button itself.
  */
 export function roomTick(dt: number): boolean {
   const r = G.over.room;
@@ -148,4 +150,6 @@ export function drawRoomHud(ctx: CanvasRenderingContext2D, vw: number, vh: numbe
   const box = a?.speech ? drawCaption(ctx, vw, HINT_Y, a.name ?? '', a.speech.text, a.bubble?.emoji ?? a.mood, a.speech.t, a.speech.hold) : null;
   G.over.roomRects.caption = box;
   if (!box) play(r.id).hud?.(ctx, vw, vh, r);
+  play(r.id).effects?.(ctx, vw, vh);
+  return box ? box.y + box.h : HINT_Y + 30;
 }

@@ -2,7 +2,7 @@
 
 /**
  * `touch` is the moment a finger or click lands on the play area (the chopping minigame strikes on it, for timing).
- * `tap` is a touch let go without dragging (tapping a Garden bed, stirring): a drag is the joystick, never a tap.
+ * `tap` is a touch let go without dragging (tapping a Garden plot): a drag is the joystick, never a tap.
  */
 export type Action = 'attack' | 'skill' | 'dodge' | 'potion' | 'act' | 'menu' | 'run' | 'bag' | 'journal' | 'touch' | 'tap';
 

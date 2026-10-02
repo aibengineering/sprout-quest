@@ -12,10 +12,13 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { startServer } from '../../server';
 import { GEAR, MONSTERS, NODES } from '../../src/data';
+import { MEALS, type MealId } from '../../src/kitchen';
 import { MOVESETS, comboTime } from '../../src/weapons';
 import { masteryXpToNext } from '../../src/rules';
+import { browserEnv } from './browser-env';
 
 const SHOTS = process.argv.includes('--shots');
+const env = browserEnv(SHOTS);
 const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].toLowerCase() : null;
 // Two cores left for the server and the timing-sensitive checks: 4 at a time on this 6-core box, 2 on CI's 4 cores.
 const JOBS = process.argv.includes('-j') ? Math.max(1, Number(process.argv[process.argv.indexOf('-j') + 1]) || 1) : Math.max(1, Math.min(6, availableParallelism() - 2));
@@ -28,7 +31,7 @@ const URL_ = `http://localhost:${server.port}/`;
 // Most scenarios run without WebGL (characters fall back to sprites): software 3D is far too slow for the timing they
 // rely on. One scenario at the end checks the 3D characters with WebGL on (see src/models.ts).
 const executablePath = process.env.CHROMIUM_PATH || undefined;
-const browser = await chromium.launch({ executablePath, args: ['--disable-webgl', '--disable-gpu'] });
+const browser = await chromium.launch({ executablePath, env, args: ['--disable-webgl', '--disable-gpu'] });
 const failures: string[] = [];
 
 /** Changes a scenario makes to the save, on top of `base`. Sent to the page as source, so it can't use closures. */
@@ -39,7 +42,7 @@ type Seed = (game: any) => void;
 let glBrowser = null as Promise<Browser> | null;
 
 async function boot(seed: Seed, webgl = false) {
-  const b = webgl ? await (glBrowser ??= chromium.launch({ executablePath, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })) : browser;
+  const b = webgl ? await (glBrowser ??= chromium.launch({ executablePath, env, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })) : browser;
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, isMobile: true, acceptDownloads: true });
   const page = await ctx.newPage();
   const errors: string[] = [];
@@ -91,6 +94,22 @@ async function useStation(page: Page, id: string) {
   await page.waitForTimeout(120);
   await page.keyboard.press('KeyE');
   await page.waitForTimeout(250);
+}
+
+/** A whole ingredient plate, carried once to the pot, followed by the shared creation animation. */
+async function cookByHand(page: Page, id: MealId) {
+  await run(page, `g.enterRoom('kitchen')`);
+  await waitFor(page, 'the Kitchen', () => settledIn(page, 'kitchen'));
+  await useStation(page, 'book');
+  await waitFor(page, `${id} in the recipe book`, async () => !!(await page.$(`#modal:not([hidden]) [data-dialog="dish:${id}"]:not([disabled])`)));
+  await page.click(`[data-dialog="dish:${id}"]`);
+  await waitFor(page, 'the ingredient plate', async () => game<boolean>(page, `g.kitchen.held?.dish === '${id}'`));
+  await useStation(page, 'stove');
+  await waitFor(page, 'the creation animation', async () => !!(await page.$('#modal:not([hidden]) .sheet.crafting')));
+  await page.keyboard.press('Escape');
+  await page.locator('.craft-ready').waitFor();
+  await page.click('#modal [data-dialog="ok"]');
+  await waitFor(page, 'back in the Kitchen', () => settledIn(page, 'kitchen'));
 }
 
 /** Clicks through popups (not the menu) until none are left; returns the text of each one. */
@@ -964,24 +983,21 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   await page.waitForTimeout(400);
   if (await page.$('#modal:not([hidden]) .sheet.menu')) await page.keyboard.press('Escape');
   await playUntil('the Sawmill', async () => (await step()) === 8 && (await game<string>(page, 'g.mode')) === 'world');
-  // Saw the cabin's planks (25 logs, the clock wound on rather than waiting), take them, and bring them to Bram.
+  // Bram explains the stations before the cabin hand-in; it cannot open the old workbench menu.
   await talk('bram:bram');
-  await waitFor(page, 'the bench', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:20:bark"]')));
-  await page.click('[data-dialog="saw:20:bark"]');
-  await waitFor(page, 'saw five more', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="saw:5:bark"]:not([disabled])')));
-  await page.click('[data-dialog="saw:5:bark"]');
-  await page.waitForTimeout(300);
-  await page.click('[data-dialog="close"]');
-  await page.waitForTimeout(300);
+  await playUntil('Bram to finish his advice', async () => game<boolean>(page, `g.mode === 'world' && !g.ui.isOpen`));
+  // Saw the cabin's planks by hand (25 logs, with the clock wound on rather than waiting).
+  await run(page, `g.enterRoom('sawmill')`);
+  await waitFor(page, 'inside the mill', () => settledIn(page, 'sawmill'));
+  for (let i = 0; i < 5; i++) await useStation(page, 'pile:bark');
+  await useStation(page, 'bench');
+  await useStation(page, 'lever');
   check(await game<number>(page, 'g.save.sawmill.queue.length') === 25 && await game<number>(page, 'g.save.mats.bark') === 35, 'the logs did not go to the saw');
   await run(page, 'g.save.sawmill.since -= 25 * 5000');
-  await talk('bram:bram');
-  await waitFor(page, 'planks ready', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="collect"]')));
-  await page.click('[data-dialog="collect"]');
-  await page.waitForTimeout(300);
-  await page.click('[data-dialog="close"]');
+  await useStation(page, 'planks');
   check(await game<number>(page, 'g.save.mats.plank') === 50, 'the planks did not reach your bag');
-  await page.waitForTimeout(400);
+  await run(page, `g.leaveRoom()`);
+  await waitFor(page, 'outside the mill', () => settledIn(page, null));
   await talk('bram:bram');
   await playUntil('the cabin', async () => (await step()) === 9 && (await game<string>(page, 'g.mode')) === 'world');
   check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'bramhut').hidden && g.save.flags.includes('bram:stew')`), 'no cabin, or no stew');
@@ -1000,11 +1016,13 @@ scenario("The drums in the dark: tail the Pebblors unseen (once spotted and drop
   s.perks.push('trailboots');
   s.tools = { wood: 2, mine: 2 };
   s.pos = { x: 29.4, y: 12.6 };
+  s.tips.push('drums:look');
+  s.unlocked.push('plots', 'warpplot', 'kitchen', 'village');
 }, async (page) => {
   const C = 127;
   const step = () => game<number>(page, 'g.save.stories.drums ?? 0');
   const phase = () => game<string>(page, 'g.drums.proc?.phase ?? ""');
-  const goTo = (x: number, y: number) => run(page, `g.over.teleport(${x}, ${y})`);
+  const goTo = (x: number, y: number) => run(page, `if (g.over.underground && ${x} >= ${C} && ${x} < ${C + 40}) g.over.relocate(${x}, ${y}); else g.over.teleport(${x}, ${y})`);
   const shot = (name: string) => (SHOTS ? page.screenshot({ path: `${OUT}drums-${name}.png` }) : Promise.resolve());
   /** Clicks through scenes and popups until `until` holds. */
   const playUntil = async (what: string, until: () => Promise<boolean>, ms = 40000) => {
@@ -1021,23 +1039,27 @@ scenario("The drums in the dark: tail the Pebblors unseen (once spotted and drop
   };
   const free = async () => (await game<string>(page, 'g.mode')) === 'world' && !(await game<boolean>(page, '!!document.querySelector("#modal:not([hidden])")'));
 
-  // Back in Sowerby, Granny's beside herself: Poppy's gone after the drums.
   check(!(await game<boolean>(page, `!!g.over.actors.get('poppy:poppy')`)), 'Poppy is still at home');
-  await goTo(31.6, 11.4);
-  await playUntil("Granny's worry", async () => (await step()) === 1 && (await free()));
-
-  // In the Cavern: up to the shaft, and the procession goes up into the side tunnels.
-  await goTo(C + 23.5, 12.6);
-  await page.waitForTimeout(500);
+  // Watch her run into the actual cave mouth, then follow and talk to her inside.
   await goTo(C + 25.4, 9.6);
-  await waitFor(page, 'the procession', async () => (await step()) === 2, 8000);
-  await waitFor(page, 'the procession shown', async () => (await game<number>(page, `['drums:g0','drums:g1','drums:g2','drums:g3'].filter((id) => g.over.actors.get(id)).length`)) === 4);
+  await playUntil('Poppy enters the cave', async () => (await step()) === 1 && (await free()));
+  check(await game<boolean>(page, `!g.over.actors.get('drums:poppy') && g.over.echo.actors.get('drums:poppy').y < 8`), 'Poppy never entered the separate cave');
+  await goTo(C + 26.5, 9.3);
+  await page.waitForTimeout(250);
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'the independent underground map', async () => game<boolean>(page, `!!g.over.underground && !g.trans && g.over.map !== g.over.world && g.over.cast === g.over.echo.actors`)).catch(async (e) => { throw new Error(`${e.message}: ${JSON.stringify(await game(page, `({mode:g.mode,x:g.over.x,y:g.over.y,near:g.over.nearbyObject(),prey:g.over.roamers.unaware(g.over.x,g.over.y)})`))}`); });
+  await goTo(C + 26.5, 7.7);
+  await run(page, 'g.over.face = -Math.PI / 2');
+  await page.waitForTimeout(150);
+  await page.keyboard.press('KeyE');
+  await playUntil('catch Poppy', async () => (await step()) === 2 && (await free()));
+  await waitFor(page, 'the procession shown', async () => (await game<number>(page, `['drums:g0','drums:g1','drums:g2','drums:g3'].filter((id) => g.over.cast.get(id)).length`)) === 4);
   await shot('intro');
   await playUntil('the way up', async () => free());
 
   // Tail them: three tiles behind the last one, ducking behind a pillar (or round a corner) whenever it looks back,
   // except the first time, out in the open: it stamps, and down you go.
-  const HIDE = [[C + 27.2, 5.6], [C + 27.5, 6.6], [C + 29.6, 2.5]];
+  const HIDE = [[C + 26.7, 5.6], [C + 27.5, 6.6], [C + 29.6, 2.5]];
   let spottedOnce = false;
   await waitFor(page, 'the procession reaches the chamber', async () => {
     const p = await phase();
@@ -1074,33 +1096,159 @@ scenario("The drums in the dark: tail the Pebblors unseen (once spotted and drop
   check(spottedOnce && (await game<number>(page, 'g.drums.falls')) === 1, `spotted ${await game<number>(page, 'g.drums.falls')} times`);
   check((await game<number>(page, 'g.drums.proc.looks')) === 3, 'not every look-back happened');
 
-  // In the chamber: Poppy behind her rock, the figure laid down, a new totem, and the Pebblors' gift.
+  // The chamber is barred. Reaching Poppy's ledge alone must not auto-start the exchange.
   await page.waitForTimeout(1500);
-  await goTo(C + 24.9, 3.1);
+  check(await game<boolean>(page, `g.over.map.solidAt(${C + 25.5}, 3.5) && g.over.map.solidAt(${C + 24.5}, 2.5)`), 'ritual gates do not block movement');
+  for (const [x, y] of [[30.6, 3.6], [30.6, 1.5], [24.5, 1.85]]) {
+    await goTo(C + x, y); await page.waitForTimeout(150);
+  }
+  check((await step()) === 2 && (await free()), 'ending started without talking to Poppy');
+  await page.keyboard.down('ArrowDown'); await page.waitForTimeout(350); await page.keyboard.up('ArrowDown');
+  check(await game<boolean>(page, 'g.over.y < 2.03'), 'walked through the lattice into the ritual');
+  await run(page, 'g.over.face = -Math.PI / 2');
+  check(await game<string>(page, 'g.over.nearbyObject()?.id') === 'drums:poppy', 'Poppy cannot be talked to from her ledge');
+  await page.keyboard.press('KeyE');
   await waitFor(page, 'the quiet scene', async () => (await game<string>(page, 'g.mode')) === 'dialog', 8000);
+  check(await game<boolean>(page, `JSON.parse(localStorage.getItem('sprout-quest-save')).perks.filter((p) => p === 'echoanklet').length === 1`), 'gift is not durably saved before the scene can be interrupted');
   await shot('chamber');
-  await playUntil('the Echo Anklet', async () => (await step()) === 3 && (await free()), 60000);
-  check(await game<boolean>(page, `g.save.perks.includes('echoanklet') && !g.over.actors.get('drums:poppy')`), 'no anklet, or Poppy never left');
-  check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'prop_totem_new').hidden`), 'no new totem in the chamber');
+  await playUntil('the Echo Anklet', async () => (await step()) === 3 && (await free()), 120000);
+  check(await game<boolean>(page, `g.save.perks.includes('echoanklet') && !g.over.cast.get('drums:poppy')`), 'no anklet, or Poppy never left');
+  check(await game<boolean>(page, `!g.over.map.objs.find((o) => o.id === 'prop_totem_new').hidden`), 'no new totem in the chamber');
   check(await game<boolean>(page, `!!g.over.actors.get('poppy:poppy')`), "Poppy isn't home");
 
+  // Walk back up to the same cave mouth before returning home.
+  await goTo(C + 26.5, 9.3);
+  await page.keyboard.down('KeyS');
+  await waitFor(page, 'outside the cave again', async () => game<boolean>(page, `!g.over.underground && !g.trans`)).finally(() => page.keyboard.up('KeyS'));
+  check(await game<boolean>(page, `Math.hypot(g.over.x - ${C + 26.5}, g.over.y - 9.7) < .15`), 'cave exit returned to the wrong place');
   // Home: Poppy's in trouble with Granny.
   await goTo(31.6, 11.4);
   await playUntil('home', async () => (await step()) === 4 && (await free()));
 
   // A fight: dodge, and dodge again straight away (two pips on the button, both spent).
   await run(page, `g.fight('slime', 9, 1)`);
-  await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 8000);
+  await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle && g.battle.intro <= 0`), 30000);
   await pinFoes(page);
   check(await game<number>(page, `document.querySelectorAll('#btn-dodge .dpips:not([hidden]) i.on').length`) === 2, 'no dodge charge pips');
   await page.keyboard.press('KeyK');
-  await page.waitForTimeout(120);
+  await waitFor(page, 'first dodge', async () => (await game<number>(page, 'g.battle.log.dodges')) === 1);
   await page.keyboard.press('KeyK');
-  await page.waitForTimeout(60);
+  await waitFor(page, 'second dodge', async () => (await game<number>(page, 'g.battle.log.dodges')) === 2);
   check(await game<number>(page, 'g.battle.log.dodges') === 2, `dodged ${await game<number>(page, 'g.battle.log.dodges')} times, not twice in a row`);
   check(await game<number>(page, 'g.battle.dodgesReady') === 0, 'both charges were not spent');
   await shot('dodges');
   await winFight(page);
+}, { webgl: true });
+
+scenario('Echo cave: completed quests can enter, save underground, return through the mouth and revisit', (g) => {
+  const s = g.save;
+  s.lv = 10; s.bosses.push('kingslime', 'alphawolf');
+  s.stories.poppy = 6; s.stories.bram = 9; s.stories.drums = 4;
+  s.flags.push('poppy:returned', 'bram:home', 'bram:hut', 'bram:stew');
+  s.perks.push('echoanklet'); s.mats.iron = 17;
+  s.pos = { x: 153.5, y: 9.7 };
+}, async (page) => {
+  const atEntrance = async () => {
+    await run(page, `g.over.teleport(153.5, 9.7); g.over.face = -Math.PI / 2`);
+    await page.waitForTimeout(150);
+    check(await game<string>(page, 'g.over.nearbyObject()?.label') === 'Enter cave', 'completed quest has no usable entrance');
+  };
+  await atEntrance();
+  // The displayed cave action wins over a nearby monster's surprise-attack shortcut.
+  await run(page, `const r = g.over.roamers.list.find((r) => r.zone === 'cave');
+    Object.assign(r, { x: g.over.x + 1, y: g.over.y, hx: g.over.x + 1, hy: g.over.y, state: 'idle', t: 60 });
+    g.over.roamers.calm = 10`);
+  await page.waitForTimeout(150);
+  check(await game<boolean>(page, `!!g.over.roamers.unaware(g.over.x, g.over.y) && document.querySelector('#btn-act').textContent.includes('Enter cave')`), 'nearby monster replaced the cave action');
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'underground', async () => game<boolean>(page, `!!g.over.underground && !g.trans && g.over.map !== g.over.world`));
+  check(await game<boolean>(page, `!g.battle && g.mode === 'world'`), 'cave entry started a surprise battle');
+  check(await game<boolean>(page, `g.over.cast === g.over.echo.actors && g.over.cast.list.filter((a) => a.id.startsWith('drums:g')).length === 4 && !g.over.cast.get('drums:poppy')`), 'completed cast did not stay underground');
+  await run(page, `g.over.relocate(157.6, 6.6)`);
+  await waitFor(page, 'the underground save', async () => game<boolean>(page, `JSON.parse(localStorage.getItem('sprout-quest-save')).underground?.x === 157.6`), 8000);
+  await page.reload(); await page.waitForSelector('.title-btns:not([hidden])'); await page.click('#btn-continue');
+  await waitFor(page, 'restored underground', async () => game<boolean>(page, `!!g.over.underground && g.mode === 'world' && !g.trans`));
+  check(await game<boolean>(page, `g.over.x === 157.6 && g.over.y === 6.6 && g.save.stories.drums === 4 && g.save.perks.filter((p) => p === 'echoanklet').length === 1 && g.save.mats.iron === 17`), 'reload moved the player or changed quest rewards');
+  await run(page, `g.over.relocate(153.5, 9.8); g.over.face = Math.PI / 2`);
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'back at the entrance', async () => game<boolean>(page, `!g.over.underground && !g.trans`));
+  check(await game<boolean>(page, `Math.hypot(g.over.x - 153.5, g.over.y - 9.7) < .01 && !g.save.underground && !g.over.actors.get('drums:g0')`), 'outside state or cast leaked from the instance');
+  // The same entrance also works by walking into it, without replaying Poppy's scene.
+  await page.keyboard.down('KeyW');
+  await waitFor(page, 'walk back into the cave', async () => game<boolean>(page, `!!g.over.underground && !g.trans`)).finally(() => page.keyboard.up('KeyW'));
+  check(await game<boolean>(page, `g.mode === 'world' && g.save.stories.drums === 4 && !g.ui.isOpen`), 're-entry replayed the completed story');
+  await run(page, `g.warp('village')`);
+  await waitFor(page, 'save the warp out', async () => game<boolean>(page, `!JSON.parse(localStorage.getItem('sprout-quest-save')).underground`), 8000);
+  await waitFor(page, 'warping leaves the instance', async () => game<boolean>(page, `!g.over.underground && !g.trans && g.over.currentZone.id === 'village' && !g.save.underground`));
+});
+
+const drumsReunionSeed = (g: any) => {
+  const s = g.save;
+  s.lv = 9; s.tools.mine = 2; s.skills.mine.lv = 2;
+  s.mats.stone = 12; s.mats.bark = 6;
+  s.bosses.push('kingslime', 'alphawolf');
+  s.stories.poppy = 6; s.stories.bram = 9; s.stories.drums = 3;
+  s.flags.push('poppy:returned', 'bram:home', 'bram:hut', 'bram:stew');
+  s.perks.push('echoanklet');
+  s.build.garden = 3; s.build.sawmill = 1;
+  s.unlocked.push('plots', 'warpplot', 'kitchen', 'sawmill', 'village');
+  s.pos = { x: 23.5, y: 11.4 };
+};
+
+scenario('Drums reunion: Poppy leaves the Garden for Granny after crafting and a sawmill visit', drumsReunionSeed, async (page) => {
+  // A pending reunion must wait behind a room transition, even if we stand by Granny.
+  await run(page, `g.over.teleport(31.6, 11.4); g.enterRoom('sawmill')`);
+  await waitFor(page, 'the sawmill visit', () => settledIn(page, 'sawmill'));
+  check(await game<number>(page, 'g.save.stories.drums') === 3, 'reunion started during a room transition');
+  await run(page, `g.leaveRoom()`);
+  await waitFor(page, 'outside the sawmill', () => settledIn(page, null));
+  await page.keyboard.press('KeyB');
+  await waitFor(page, 'the menu', async () => game<boolean>(page, `g.mode === 'dialog' && g.ui.isOpen`));
+  await run(page, `g.ui.openMenu({atForge: true, inVillage: true}, 'forge')`);
+  // Use the real crafting flow, including its saved materials and item reward.
+  await page.click('[data-sub="forge:weapon"]');
+  const recipe = page.locator('[data-pick="forge-weapon:stonesword"]');
+  if (!await recipe.evaluate((el) => el.classList.contains('sel'))) await recipe.click();
+  await page.click('[data-craft="stonesword"]');
+  await page.locator('.sheet.crafting').waitFor();
+  await page.locator('.craft-ready').waitFor();
+  await page.click('#modal [data-dialog="later"]');
+  await waitFor(page, 'back at the Forge', async () => !!(await page.$('#modal:not([hidden]) .sheet.menu')));
+  check(await game<boolean>(page, `g.save.owned.includes('stonesword') && g.save.mats.stone === 0 && g.save.mats.bark === 0`), 'crafting did not save its cost and reward');
+  // A pending scene must also wait behind an open menu at its trigger spot.
+  await run(page, `g.over.teleport(31.6, 11.4)`);
+  await page.waitForTimeout(300);
+  check(await game<number>(page, 'g.save.stories.drums') === 3, 'reunion started over the Forge');
+  await run(page, `g.ui.closeMenu()`);
+  await waitFor(page, 'Granny speaks after Poppy arrives', async () => !!(await page.textContent('#modal:not([hidden]) .caption-text'))?.includes('A whole night'), 12000);
+  const p = await game<{ x: number; y: number; path: number }>(page, `(() => {const p = g.over.actors.get('poppy:poppy'); return {x:p.x,y:p.y,path:p.path.length};})()`);
+  check(Math.hypot(p.x - 30.7, p.y - 10.45) < .15 && p.path === 0, 'Poppy did not stay beside Granny');
+  // Leave a line open long enough for the Garden's idle timer to fire.
+  await page.waitForTimeout(6500);
+  check(await game<boolean>(page, `g.over.actors.get('poppy:poppy').path.length === 0`), 'the Garden sent Poppy away during dialogue');
+  const said = await closeDialogs(page);
+  check(said.some((s) => s.includes('Thank you for bringing her home')), 'reunion dialogue did not finish');
+  await waitFor(page, 'back in control after the reunion', async () => game<boolean>(page, `g.mode === 'world' && !document.body.classList.contains('cinema') && g.save.stories.drums === 4`));
+  check(await game<boolean>(page, `g.over.actors.get('poppy:poppy').x > ${FX}`), 'Poppy did not return to tending the Garden');
+  await page.reload();
+  await page.waitForSelector('.title-btns:not([hidden])');
+  await page.click('#btn-continue');
+  await waitFor(page, 'the completed save resumes normally', async () => game<boolean>(page, `g.mode === 'world' && !g.trans && !g.ui.isOpen && !document.body.classList.contains('cinema')`));
+  check(await game<boolean>(page, `g.save.stories.drums === 4 && g.save.perks.includes('echoanklet') && g.save.owned.includes('stonesword') && g.save.mats.stone === 0 && g.save.mats.bark === 0`), 'reload lost or duplicated the rewards');
+});
+
+scenario('Drums reunion: walking into the Kitchen defers the outdoor scene until you leave', drumsReunionSeed, async (page) => {
+  // The Kitchen doorway overlaps Granny's scene trigger. Walking up must finish
+  // entering the room before the outdoor story checks later in that same frame.
+  await page.keyboard.down('KeyW');
+  await run(page, `g.over.teleport(30.5, 9.85)`);
+  await waitFor(page, 'the Kitchen doorway', () => settledIn(page, 'kitchen'));
+  await page.keyboard.up('KeyW');
+  check(await game<boolean>(page, `g.save.stories.drums === 3 && !document.body.classList.contains('cinema') && !g.ui.isOpen`), 'outdoor reunion interrupted entering the Kitchen');
+  await run(page, `g.leaveRoom()`);
+  await waitFor(page, 'the reunion after leaving', async () => !!(await page.textContent('#modal:not([hidden]) .caption-text'))?.includes('A whole night'), 12000);
+  await closeDialogs(page);
+  await waitFor(page, 'the reunion finishes outside', async () => game<boolean>(page, `!g.room && g.mode === 'world' && g.save.stories.drums === 4 && !document.body.classList.contains('cinema')`));
 });
 
 scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra handful of ore out of a rock", (g) => {
@@ -1158,16 +1306,14 @@ scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra han
     await playUntil('Pip to finish', async () => (await game<string>(page, 'g.mode')) === 'world' && !(await page.$('#modal:not([hidden])')), 8000);
   }
   check(said.some((t) => t.includes('Obsidian')), 'Pip never mentioned the Obsidian');
-  // Granny cooks it (and plays its presentation), and it's what you're eating.
-  await run(page, 'g.over.teleport(31.8, 11.4)');
-  await page.waitForTimeout(300);
+  // The recipe Pip taught Granny is in her book, made through the stations.
   const mats = () => game<number[]>(page, '[g.save.mats.stone, g.save.mats.copper]');
   const cost = await mats();
-  await run(page, `void g.grannyCooks()`);
-  await waitFor(page, 'Rock Candy on the menu', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="cook:rockcandy"]:not([disabled])')));
-  await page.click('[data-dialog="cook:rockcandy"]');
-  await playUntil('Rock Candy eaten', async () => (await game<boolean>(page, `g.save.meal?.id === 'rockcandy' && g.mode === 'world'`)) && !(await page.$('#modal:not([hidden])')));
+  await cookByHand(page, 'rockcandy');
+  check(await game<boolean>(page, `g.save.meal?.id === 'rockcandy'`), 'Rock Candy was not served');
   check(JSON.stringify(await mats()) === JSON.stringify([cost[0] - 12, cost[1] - 6]), 'Rock Candy did not cost 12 stone and 6 copper');
+  await run(page, `g.leaveRoom()`);
+  await waitFor(page, 'outside the Kitchen', () => settledIn(page, null));
   // Out to a meadow rock: one miss (so it isn't flawless), then clean strikes until it breaks.
   const placed = await game<boolean>(page, `(() => {
     const o = g.over, w = o.world;
@@ -1237,60 +1383,26 @@ function fieldKit(page: Page) {
   };
 }
 
-scenario("Poppy's Garden: plant, time passes, water, pull weeds, pick, and Granny bakes a Berry Tart", (g) => {
+scenario("Poppy's Garden: conversation offers advice without a production menu", (g) => {
   const s = g.save;
   s.lv = 6;
   s.stories.poppy = 6;
   s.flags.push('poppy:returned');
   s.build.garden = 2;
-  Object.assign(s.mats, { herbseed: 1, fluff: 6 });
+  Object.assign(s.mats, { berryseed: 0, herbseed: 1, flowerseed: 0 });
   s.pos = { x: 33, y: 13.5 };
 }, async (page) => {
-  const panel = () => page.$('#modal:not([hidden]) .sheet.garden');
-  const click = async (sel: string) => {
-    await waitFor(page, sel, async () => !!(await page.$(`#modal:not([hidden]) ${sel}:not([disabled])`)));
-    await page.click(`#modal ${sel}`);
-    await page.waitForTimeout(300);
-  };
-  // Poppy tends it now: she's by the field, and her first visit comes with the Berry Seeds she saved.
-  await waitFor(page, 'Poppy at the Garden', async () => game<boolean>(page, `(() => { const p = g.over.actors.get('poppy:poppy'); return !!p && p.label === 'Garden' && p.x > ${FX}; })()`));
+  await waitFor(page, 'Poppy at the Garden', async () => game<boolean>(page, `(() => { const p = g.over.actors.get('poppy:poppy'); return !!p && p.label === 'Talk' && p.x > ${FX}; })()`));
+  const before = await game<string>(page, 'JSON.stringify(g.save.mats)');
   await run(page, `void g.over.actors.get('poppy:poppy').talk()`);
-  await waitFor(page, 'the Garden', async () => !!(await panel()));
-  check((await page.$$('#modal .gslot')).length === 12, 'the Berry Garden should have twelve plots');
-  check(await game<number>(page, 'g.save.mats.berryseed') === 6, 'no welcome Berry Seeds');
-  await click('[data-dialog="plant:0:berry"]');
-  await click('[data-dialog="plant:1:berry"]');
-  await click('[data-dialog="plant:2:berry"]');
-  await click('[data-dialog="plant:3:herb"]');
-  check(await game<number>(page, 'g.save.garden.plots.filter(Boolean).length') === 4, 'four plots should be planted');
-  await click('.btns [data-dialog="close"]');
-  // Time passes: the first plot gets thirsty and stops, the second grows weeds.
-  await run(page, `const [a, b, c, d] = g.save.garden.plots; delete d.thirstAt; delete d.weedsAt; for (const p of [a, b, c]) { delete p.thirstAt; delete p.weedsAt; p.at -= 100000; }
-    a.thirstAt = 60; b.weedsAt = 30; c.at += 100000`);
-  await waitFor(page, 'a thirsty, weedy garden', async () => game<boolean>(page, `(() => { const [a, b] = g.save.garden.plots; return !!a.thirsty && !!b.weeds; })()`));
-  check(await game<string>(page, `g.over.actors.get('poppy:poppy').mood`) === '💧', 'Poppy should show the garden is thirsty');
-  // Her menu again (the field itself is worked by hand: see the next scenario).
-  await run(page, `void g.over.actors.get('poppy:poppy').talk()`);
-  await waitFor(page, 'the Garden, again', async () => !!(await panel()));
-  await click('[data-dialog="water:0"]');
-  await click('[data-dialog="weed:1"]');
-  check(await game<boolean>(page, `(() => { const [a, b] = g.save.garden.plots; return !a.thirsty && !b.weeds; })()`), 'watering or weeding did not stick');
-  // Much later: everything's ready. Pick it all; the first berries teach Granny her tart.
-  await run(page, `for (const p of g.save.garden.plots) if (p) p.at -= 1e7`);
-  await click('.btns [data-dialog="pickall"]');
-  await waitFor(page, 'the new recipe', async () => ((await page.textContent('#modal:not([hidden]) .sheet').catch(() => '')) ?? '').includes('Berry Tart'));
-  await closeDialogs(page, 1);
-  check(await game<boolean>(page, `g.save.mats.berry === 9 && g.save.mats.herb === 2 && g.save.flags.includes('garden:berries')`), 'the harvest did not reach your bag');
-  await waitFor(page, 'back at the Garden', async () => !!(await panel()));
-  await click('.btns [data-dialog="close"]');
-  // Granny bakes it: +10% max HP.
-  const before = await game<number>(page, 'g.save.hp');
-  await run(page, `void g.grannyCooks()`);
-  await click('[data-dialog="cook:tart"]');
-  await waitFor(page, 'the tart', async () => game<boolean>(page, `g.save.meal?.id === 'tart'`));
+  await waitFor(page, 'Poppy speaking', async () => !!(await page.$('#modal:not([hidden]) .talk')));
+  check(!(await page.$('#modal .sheet.garden')) && !(await page.$('#modal [data-dialog^="plant:"]')), 'Poppy still opens a production menu');
   await closeDialogs(page);
-  check(await game<boolean>(page, `g.save.mats.berry === 1 && g.save.mats.fluff === 0`), 'the tart did not cost 8 Berries and 6 Bunny Fluff');
-  check(await game<number>(page, 'g.save.hp') > before, 'the tart should raise your health');
+  await waitFor(page, 'free to work', async () => game<boolean>(page, `g.mode === 'world'`));
+  check(await game<string>(page, 'JSON.stringify(g.save.mats)') === before, 'conversation changed the materials');
+  await run(page, `g.over.teleport(${GATE_X}, ${FY - 0.4}); g.over.face = -Math.PI / 2`);
+  await waitFor(page, 'welcome seeds at the field', async () => game<boolean>(page, `g.garden.inside && g.save.mats.berryseed === 6`));
+  check(!(await page.$('#modal:not([hidden]) .sheet.garden')), 'walking to the field opened a production menu');
 });
 
 scenario("Poppy's field by hand: seeds from the basket, hold the button down a row to plant, tug weeds, fill the can and water, tap a ripe plot, sweep a row to pick", (g) => {
@@ -1299,7 +1411,7 @@ scenario("Poppy's field by hand: seeds from the basket, hold the button down a r
   s.stories.poppy = 6;
   s.flags.push('poppy:returned');
   s.build.garden = 2;
-  Object.assign(s.mats, { berryseed: 0, herbseed: 1, flowerseed: 0, berry: 0, herb: 0 });
+  Object.assign(s.mats, { berryseed: 0, herbseed: 1, flowerseed: 0, berry: 0, herb: 0, fluff: 6 });
   s.pos = { x: 41.5, y: 14 }; // GATE_X (seeds are sent as source)
 }, async (page) => {
   const { garden, plots, label, stand, press, sweepEast, onScreen } = fieldKit(page);
@@ -1379,6 +1491,11 @@ scenario("Poppy's field by hand: seeds from the basket, hold the button down a r
   // Walk off: the can goes back.
   await stand(GATE_X, 13.5);
   await waitFor(page, 'away from the field', async () => (await garden()).hand === null && !(await garden()).inside);
+  // The field's harvest unlocks the recipe book's tart, made from one ingredient plate at the pot.
+  const hp = await game<number>(page, 'g.save.hp');
+  await cookByHand(page, 'tart');
+  check(await game<boolean>(page, `g.save.meal?.id === 'tart' && g.save.mats.berry === 1 && g.save.mats.fluff === 0`), 'the tart did not charge the harvested berries and fluff');
+  check(await game<number>(page, 'g.save.hp') > hp, 'the tart should raise your health');
 });
 
 scenario("Poppy's field grows: an old save's beds and place carry over, and the sign at the gate upgrades it to twelve plots", (g) => {
@@ -1428,90 +1545,70 @@ scenario("Poppy's field grows: an old save's beds and place carry over, and the 
   check(p[0]?.crop === 'berry' && p[1]?.crop === 'herb', 'upgrading moved what was growing');
 });
 
-scenario("Granny's Kitchen: walk in, pick a recipe, fetch, stir and serve by hand, ask Granny, and walk back out", (g) => {
+scenario("Granny's Kitchen: one ingredient plate from the book, the creation animation at the pot, enjoy and walk out", (g) => {
   const s = g.save;
-  s.lv = 6;
-  s.stories.poppy = 6;
+  s.lv = 6; s.stories.poppy = 6;
   s.flags.push('poppy:returned');
   Object.assign(s.mats, { clover: 3, fluff: 20, goo: 12 });
   s.pos = { x: 31.4, y: 11.4 };
 }, async (page) => {
-  const use = (id: string) => useStation(page, id);
-  const kitchen = () => game<any>(page, 'g.kitchen');
-  // Granny's inside now, not at her door: walking up into the blue house's door takes you in.
-  await page.waitForTimeout(500);
-  check(!(await game<boolean>(page, `!!g.over.actors.get('granny:granny')`)), 'Granny is still outside her door');
+  check(await game<boolean>(page, `!!g.over.actors.get('granny:granny')`), 'Granny should be outside for conversation and quests');
   await run(page, `const h = g.over.world.obj('house'); g.over.teleport(h.x + h.w / 2, h.y + h.h + 0.9)`);
   await page.keyboard.down('KeyW');
   await waitFor(page, 'the Kitchen', () => settledIn(page, 'kitchen'));
   await page.keyboard.up('KeyW');
-  check(await game<boolean>(page, `!!g.over.room.actors.get('room:granny')`), 'Granny is not in her Kitchen');
-  // Her book: Clover Tea.
-  await use('book');
-  await waitFor(page, 'the recipe book', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="dish:tea"]:not([disabled])')));
-  await page.click('[data-dialog="dish:tea"]');
-  await waitFor(page, 'the tea on the go', async () => (await kitchen()).pot?.dish === 'tea');
-  // The serving table wants a meal, not an empty plate.
-  await use('table');
-  check((await kitchen()).held === null, 'picked something up at the table');
-  // Clover from the pantry, into the pot.
-  await use('pantry');
-  check((await kitchen()).held?.mat === 'clover', 'the pantry did not hand over the clover');
-  await use('stove');
-  check(JSON.stringify((await kitchen()).pot.added) === '["clover"]', 'the clover did not go in the pot');
-  check(await game<number>(page, 'g.save.mats.clover') === 3, 'cooking spent the clover before it was served');
-  // Esc puts the spoon down (it doesn't open the menu), and so does a thumb dragging off to walk away (not a slop).
+  check(await game<boolean>(page, `!!g.over.room.actors.get('room:granny')`), 'Granny is not in the Kitchen');
+  // Walk through the middle and across to the book; the side table must not block either leg.
+  await page.keyboard.down('KeyW');
+  await waitFor(page, 'the open middle of the Kitchen', async () => game<boolean>(page, 'g.over.y < 4.45'));
+  await page.keyboard.up('KeyW');
+  await page.keyboard.down('KeyA');
+  await waitFor(page, 'the recipe side of the Kitchen', async () => game<boolean>(page, 'g.over.x < 2.25'));
+  await page.keyboard.up('KeyA');
+  await run(page, `g.over.x = 3.25; g.over.y = 4.65; g.over.face = -Math.PI / 2`);
+  await waitFor(page, 'Talk beside Granny', async () => !!(await page.textContent('#btn-act'))?.startsWith('Talk'));
   await page.keyboard.press('KeyE');
-  await waitFor(page, 'stirring', async () => !!(await kitchen()).stirring);
+  await waitFor(page, 'Granny guiding you through the book', async () => !!(await page.textContent('.caption-text'))?.includes('flip through the recipe book'));
+  await closeDialogs(page);
+  const book = await game<any>(page, `g.over.room.station('book')`), pantry = await game<any>(page, `g.over.room.station('pantry')`);
+  check(book.x >= pantry.x && book.x + book.w <= pantry.x + pantry.w && book.y >= pantry.y + pantry.h, 'the recipe book should stand in front of the pantry');
+  check(await game<string>(page, `g.over.room.station('table').label`) === '', 'the table should be furniture, not another required station');
+  check(await game<boolean>(page, `g.over.cast.get('room:granny').x > g.over.room.station('book').x + g.over.room.station('book').w && g.over.cast.get('room:granny').y < 4`), 'Granny should wait beside the book');
+  await useStation(page, 'book');
+  await waitFor(page, 'the recipe book', async () => !!(await page.$('[data-dialog="dish:tea"]')));
+  await page.click('[data-dialog="dish:tea"]');
+  await waitFor(page, 'the whole ingredient plate', async () => game<boolean>(page, `g.kitchen.held?.dish === 'tea' && g.mode === 'world'`));
+  check(await game<string>(page, 'JSON.stringify(g.kitchen.held.ingredients)') === '{"clover":2}', 'the plate did not contain the whole recipe');
+  check(await game<boolean>(page, `g.save.mats.clover === 3 && g.save.meal === null && g.kitchen.guide.next === 'stove'`), 'preparation should guide to the pot without spending or eating');
+  await run(page, `g.over.x = 3.25; g.over.y = 4.65; g.over.face = -Math.PI / 2`);
+  await waitFor(page, 'Talk while carrying the plate', async () => !!(await page.textContent('#btn-act'))?.startsWith('Talk'));
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'Granny explaining the cooking bench', async () => !!(await page.textContent('.caption-text'))?.includes('Bring it to the cooking bench'));
+  check(await game<boolean>(page, `g.kitchen.held?.dish === 'tea'`), 'conversation should preserve the plate');
+  await closeDialogs(page);
+  await useStation(page, 'stove');
+  await waitFor(page, 'the creation animation', async () => !!(await page.$('.sheet.crafting')));
+  check(await game<boolean>(page, `g.save.meal?.id === 'tea' && g.save.mats.clover === 1 && g.kitchen.held === null`), 'the pot should commit the meal once before its animation');
+  check(await game<boolean>(page, `JSON.parse(localStorage.getItem('sprout-quest-save')).mats.clover === 1`), 'the meal was not saved before the animation');
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(150);
-  check(!(await kitchen()).stirring && await game<boolean>(page, `g.mode === 'world' && !g.ui.isOpen`), 'Esc while stirring did not just put the spoon down');
-  await use('stove');
-  await waitFor(page, 'stirring again', async () => !!(await kitchen()).stirring);
-  await run(page, `const k = g.kitchen.stirring; k.a = k.gold + Math.PI`);
-  await touchDrag(page, 200, 600, 0, 80);
-  check(!(await kitchen()).stirring && (await kitchen()).pot.stirs === 0, 'walking off by touch did not put the spoon down');
-  check(!(await game<string>(page, `g.over.room.actors.get('room:granny').speech?.text ?? ''`)).includes('Gently'), 'walking off by touch counted as a slop');
-  // Stir: a slop first (the spoon nowhere near the gold), then three good stirs.
-  await use('stove');
-  await waitFor(page, 'stirring', async () => !!(await kitchen()).stirring);
-  await run(page, `const k = g.kitchen.stirring; k.a = k.gold + Math.PI`);
-  await page.keyboard.press('Space');
-  await page.waitForTimeout(150);
-  check((await kitchen()).pot.stirs === 0, 'a slop counted as a stir');
-  for (let i = 0; i < 3; i++) {
-    await run(page, `const k = g.kitchen.stirring; k.a = k.gold`);
-    await page.keyboard.press('Space');
-    await page.waitForTimeout(150);
-  }
-  check((await kitchen()).pot.stirs === 3 && !(await kitchen()).stirring, 'three good stirs did not cook it');
-  // Spoon it out and serve it.
-  await use('stove');
-  check((await kitchen()).held?.dish === 'tea', 'nothing was spooned out');
-  await use('table');
-  check(await game<boolean>(page, `g.save.meal?.id === 'tea' && g.save.mats.clover === 1`), 'serving did not make (and charge for) Clover Tea');
-  check((await kitchen()).pot === null && (await kitchen()).held === null, 'the pot was not cleared after serving');
-  // Saved in here, you carry on in here.
+  await page.locator('.craft-ready').waitFor();
+  check((await page.textContent('[data-dialog="ok"]'))?.startsWith('Drink'), 'tea should offer Drink after it is made');
+  await page.click('[data-dialog="ok"]');
+  await waitFor(page, 'free to walk', () => settledIn(page, 'kitchen'));
+  check(await game<boolean>(page, `g.kitchen.held === null && !g.kitchen.cooking && g.kitchen.guide.next === 'book'`), 'cooking should finish without stirring or serving at the table');
+  await useStation(page, 'stove');
+  check(await game<number>(page, 'g.save.mats.clover') === 1, 'an empty plate charged for a second meal');
   await page.reload();
-  await page.waitForSelector('.title-btns:not([hidden])');
-  await page.click('#btn-continue');
-  await waitFor(page, 'back in the Kitchen', async () => (await game<string>(page, 'g.room')) === 'kitchen' && (await game<string>(page, 'g.mode')) === 'world', 8000);
+  await page.waitForSelector('.title-btns:not([hidden])'); await page.click('#btn-continue');
+  await waitFor(page, 'back in the Kitchen', () => settledIn(page, 'kitchen'), 8000);
   await closeDialogs(page);
-  // Asking Granny brings up her menu: she cooks it for you.
-  await run(page, `void g.over.cast.get('room:granny').talk()`);
-  await waitFor(page, "Granny's menu", async () => !!(await page.$('#modal:not([hidden]) [data-dialog="cook:pancakes"]:not([disabled])')));
-  await page.click('[data-dialog="cook:pancakes"]');
-  await waitFor(page, 'pancakes', async () => game<boolean>(page, `g.save.meal?.id === 'pancakes'`));
-  await closeDialogs(page);
-  await waitFor(page, 'free to walk', async () => (await game<string>(page, 'g.mode')) === 'world');
-  // Out of the door: walk down over the mat.
+  check(await game<boolean>(page, `g.save.meal?.id === 'tea' && g.save.mats.clover === 1 && g.kitchen.held === null`), 'reloading changed the finished meal');
   await run(page, `g.over.x = 4.5; g.over.y = 7.4`);
   await page.keyboard.down('KeyS');
-  await waitFor(page, 'outside again', async () => (await game<string>(page, 'g.room')) === null && (await game<string>(page, 'g.mode')) === 'world', 5000);
+  await waitFor(page, 'outside again', () => settledIn(page, null));
   await page.keyboard.up('KeyS');
-  const o = await game<{ x: number; y: number }>(page, `(() => { const h = g.over.world.obj('house'); return { x: g.over.x - (h.x + h.w / 2), y: g.over.y - (h.y + h.h) }; })()`);
-  check(Math.abs(o.x) < 1.2 && o.y > 0 && o.y < 2, `not back outside Granny's door (${JSON.stringify(o)})`);
-  check(!(await game<boolean>(page, `'room' in g.save`)), 'still saved as in the Kitchen');
+  check(!(await game<boolean>(page, `'room' in g.save`)), 'still saved in the Kitchen');
+  check(await game<boolean>(page, `!!g.over.cast.get('granny:granny')`), 'Granny should still be outside after leaving');
 });
 
 scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the lever, take the planks, ask Bram, and walk back out", (g) => {
@@ -1527,18 +1624,24 @@ scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the l
 }, async (page) => {
   const use = (id: string) => useStation(page, id);
   const mill = () => game<any>(page, 'g.sawmill');
-  // Bram's inside, not out front: in through the Sawmill's door, by the action button at it.
-  check(!(await game<boolean>(page, `!!g.over.actors.get('bram:bram')`)), 'Bram is still standing outside the Sawmill');
+  // Bram chats outside and joins you inside: in through the Sawmill's door, by the action button at it.
+  check(await game<boolean>(page, `!!g.over.actors.get('bram:bram')`), 'Bram should be outside after settling in');
+  await run(page, `void g.over.cast.get('bram:bram').talk()`);
+  await waitFor(page, 'Bram inviting you inside', async () => !!(await page.textContent('.caption-text'))?.includes('Come inside'));
+  await closeDialogs(page);
   await run(page, `const o = g.over.world.objs.find((o) => o.project === 'sawmill'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5); g.over.face = -Math.PI / 2`);
   await page.waitForTimeout(300);
   await page.keyboard.press('KeyE');
   await waitFor(page, 'the Sawmill', () => settledIn(page, 'sawmill'));
+  check(await game<boolean>(page, `!!g.over.cast.get('room:bram')`), 'Bram should join you inside');
+  check(JSON.stringify((await mill()).guide.stations) === '["pile:bark"]', 'the available oak pile should glow, not locked pine');
   // Pine needs a better blade: the pile won't give.
   await use('pile:pine');
   check((await mill()).carrying === null, 'picked up pine with a copper blade');
   // An armful of oak, then hold the button for more.
   await use('pile:bark');
   check(JSON.stringify((await mill()).carrying) === '{"log":"bark","n":5}', `no armful of oak (${JSON.stringify((await mill()).carrying)})`);
+  check(JSON.stringify((await mill()).guide.stations) === '["bench"]', 'carried logs should direct you to the bench');
   await page.keyboard.down('KeyE');
   await waitFor(page, 'the rest of the oak', async () => (await mill()).carrying?.n === 12, 4000);
   await page.keyboard.up('KeyE');
@@ -1546,24 +1649,70 @@ scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the l
   // Onto the bench, then the lever: they go to the saw.
   await use('bench');
   check((await mill()).bench.bark === 12 && (await mill()).carrying === null, 'the logs did not go on the bench');
+  check(JSON.stringify((await mill()).guide.stations) === '["lever"]', 'benched logs should direct you to the lever');
   await use('lever');
   check(await game<number>(page, 'g.save.sawmill.queue.length') === 12 && await game<number>(page, 'g.save.mats.bark') === 0, 'the lever did not send the logs to the saw');
   await waitFor(page, 'the blade spinning', async () => (await mill()).spin > 3);
   // Later: the planks are stacked by the door.
   await run(page, 'g.save.sawmill.since -= 12 * 5000');
+  check(JSON.stringify((await mill()).guide.stations) === '["planks"]', 'finished planks should glow');
+  await use('planks');
+  check((await mill()).loot > 0, 'collected planks did not animate toward the Bag');
+  const target = await page.locator('#btn-bag').boundingBox();
+  const to = (await mill()).lootTo;
+  check(target && Math.abs(to.x - (target.x + target.width / 2)) < 1 && Math.abs(to.y - (target.y + target.height / 2)) < 1, 'planks are not aimed at the actual Bag button');
+  await waitFor(page, 'plank pickup animation finished', async () => (await mill()).loot === 0);
   await use('planks');
   check(await game<number>(page, 'g.save.mats.plank') === 24, `the planks did not reach your bag (${await game<number>(page, 'g.save.mats.plank')})`);
-  // Asking Bram brings up his bench.
-  await run(page, `void g.over.cast.get('room:bram').talk()`);
-  await waitFor(page, "Bram's bench", async () => !!(await page.$('#modal:not([hidden]) [data-dialog="close"]')));
-  await page.click('#modal [data-dialog="close"]');
-  await waitFor(page, 'free to walk', async () => (await game<string>(page, 'g.mode')) === 'world');
+  // Bram offers advice without a menu or another production path.
+  await run(page, `const a = g.over.cast.get('room:bram'); g.over.x = a.x + 1; g.over.y = a.y; g.over.face = Math.PI`);
+  await waitFor(page, 'Talk beside Bram', async () => !!(await page.textContent('#btn-act'))?.startsWith('Talk'));
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'Bram explaining the saw', async () => game<boolean>(page, `!!g.over.cast.get('room:bram').speech?.text.includes('One log, two planks')`));
+  check(await game<boolean>(page, `g.mode === 'world' && !g.ui.isOpen && !!g.over.cast.get('room:bram').speech`), 'Bram still opens a production menu');
   // Out of the door.
   await run(page, `g.over.x = 4.5; g.over.y = 7.4`);
   await page.keyboard.down('KeyS');
   await waitFor(page, 'outside again', async () => (await game<string>(page, 'g.room')) === null, 5000);
   await page.keyboard.up('KeyS');
   check(await game<boolean>(page, `Math.hypot(g.over.x - 18.8, g.over.y - 8.2) < 1`), 'not back outside the Sawmill');
+  check(await game<boolean>(page, `!!g.over.cast.get('bram:bram')`), 'Bram should still be outside after leaving');
+});
+
+scenario("Bram's Sawmill: mixed plank pickups, secondary guidance, and reduced motion on a small phone", (g) => {
+  const s = g.save;
+  s.stories.poppy = 6;
+  s.stories.bram = 9;
+  s.flags.push('poppy:returned', 'bram:pie', 'bram:home', 'bram:hut');
+  s.build.sawmill = 4;
+  s.unlocked.push('sawmill');
+  Object.assign(s.mats, { bark: 5, pine: 5, glimwood: 5, emberwood: 5, plank: 0, pineplank: 0, glimplank: 0, emberplank: 0 });
+  s.sawmill = { queue: [], ready: { plank: 2, pineplank: 2, glimplank: 2, emberplank: 2 }, since: Date.now() };
+}, async (page) => {
+  const mill = () => game<any>(page, 'g.sawmill');
+  await page.setViewportSize({ width: 320, height: 640 });
+  await run(page, `g.enterRoom('sawmill')`);
+  await waitFor(page, 'the Sawmill', () => settledIn(page, 'sawmill'));
+  await useStation(page, 'pile:bark');
+  check(JSON.stringify((await mill()).guide.stations) === '["bench","planks"]', 'ready planks should remain highlighted while carrying logs');
+  await useStation(page, 'bench');
+  check(JSON.stringify((await mill()).guide.stations) === '["lever","planks"]', 'ready planks should remain highlighted while the lever is next');
+  await useStation(page, 'planks');
+  check(await game<boolean>(page, `['plank','pineplank','glimplank','emberplank'].every(p => g.save.mats[p] === 2)`), 'mixed planks did not all enter the bag');
+  check((await mill()).loot === 8, 'mixed planks should use their individual material icons');
+  const bag = await page.locator('#btn-bag').boundingBox(), to = (await mill()).lootTo;
+  check(bag && Math.abs(to.x - (bag.x + bag.width / 2)) < 1 && Math.abs(to.y - (bag.y + bag.height / 2)) < 1, 'the pickup target is wrong at 320px');
+  await waitFor(page, 'the pickup finished', async () => (await mill()).loot === 0);
+  await useStation(page, 'planks');
+  check(await game<number>(page, 'g.save.mats.plank') === 2 && (await mill()).loot === 0, 'an empty stack awarded or animated extra planks');
+  check(JSON.stringify((await mill()).guide.stations) === '["lever"]', 'collection should preserve the waiting bench');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await useStation(page, 'lever');
+  await run(page, 'g.save.sawmill.since -= 5 * 2000');
+  await useStation(page, 'planks');
+  check(await game<number>(page, 'g.save.mats.plank') === 12 && (await mill()).loot === 0, 'reduced motion should still collect once without travelling icons');
+  const saved = await game<any>(page, `JSON.parse(localStorage.getItem('sprout-quest-save'))`);
+  check(saved.mats.plank === 12 && Object.keys(saved.sawmill.ready).length === 0, 'pickup was not saved immediately');
 });
 
 scenario("Bram's Sawmill: leaving with logs in your arms or on the bench (by the door, by fast travel) costs nothing, and a reload carries on inside", (g) => {
@@ -1634,9 +1783,15 @@ scenario('The rooms fit a phone whole, and what Bram and Granny say never covers
     for (const [vw, vh] of [[390, 844], [320, 640]]) {
       await page.setViewportSize({ width: vw, height: vh });
       await run(page, `g.over.room.actors.say('${who}', ${JSON.stringify(line)}, 5); g.over.room.actors.bubble('${who}', '😅', 5)`);
+      await run(page, `g.ui.loot([{ icon: '🪵', text: '+2', name: 'Planks' }, { icon: '🌲', text: '+4', name: 'Pine Planks' }, { icon: '💎', text: '+6', name: 'Glimmerwood Planks' }, { icon: '🌋', text: '+8', name: 'Emberwood Planks' }])`);
       await page.waitForTimeout(400);
       const r = await game<{ stations: (R & { id: string })[]; hero: R; bubbles: R[]; caption: R | null; label: R | null }>(page, 'g.over.roomRects');
       check(r.caption, `${where} at ${vw}×${vh}: no line shown`);
+      for (const loot of await page.locator('#loot .lrow').all()) {
+        const b = await loot.boundingBox();
+        check(b && !meets(r.caption!, { x: b.x, y: b.y, w: b.width, h: b.height }), `${where} at ${vw}×${vh}: a pickup covers the speech caption`);
+        if (b) for (const st of r.stations) check(!meets(st, { x: b.x, y: b.y, w: b.width, h: b.height }), `${where} at ${vw}×${vh}: a pickup covers the ${st.id}`);
+      }
       for (const st of r.stations) {
         check(st.x >= 0 && st.x + st.w <= vw && st.y >= 0 && st.y + st.h <= vh - 120, `${where} at ${vw}×${vh}: the ${st.id} is cut off or under the buttons (${JSON.stringify(st)})`);
       }
@@ -1645,7 +1800,7 @@ scenario('The rooms fit a phone whole, and what Bram and Granny say never covers
         check(!meets(b, r.hero), `${where} at ${vw}×${vh}: a bubble covers you`);
         if (r.label) check(!meets(b, r.label), `${where} at ${vw}×${vh}: a bubble covers the action label`);
       }
-      check(r.label || where.includes('stirring'), `${where} at ${vw}×${vh}: no action label`);
+      check(r.label, `${where} at ${vw}×${vh}: no action label`);
       if (r.label) check(r.label.y + r.label.h <= r.hero.y + r.hero.h * 0.2, `${where} at ${vw}×${vh}: the action label sits on your head`);
     }
     await page.setViewportSize({ width: 390, height: 844 });
@@ -1664,62 +1819,56 @@ scenario('The rooms fit a phone whole, and what Bram and Granny say never covers
   await checkSizes('the Sawmill, at the lever', 'room:bram', "She's already running.");
   await run(page, `const o = g.over.room.station('bench'); g.over.x = o.x + o.w / 2; g.over.y = o.y + o.h + 0.45; g.over.face = -Math.PI / 2`);
   await checkSizes('the Sawmill, at the bench', 'room:bram', 'Logs on the bench, then the lever. I keep her running.');
-  // The Kitchen, stirring the pot while Granny talks.
-  await run(page, `g.leaveRoom()`);
-  await waitFor(page, 'outside', () => settledIn(page, null));
-  await run(page, `g.enterRoom('kitchen')`);
-  await waitFor(page, 'the Kitchen', () => settledIn(page, 'kitchen'));
+  // The Kitchen, book and pot clear of captions while carrying the entire plate.
+  await run(page, `g.leaveRoom()`); await waitFor(page, 'outside', () => settledIn(page, null));
+  check(await page.locator('#loot').evaluate((el) => (el as HTMLElement).style.top === ''), 'room loot position survived leaving the Sawmill');
+  check(!await page.locator('#loot').evaluate((el) => el.classList.contains('in-room')), 'room loot layout survived leaving the Sawmill');
+  await run(page, `g.enterRoom('kitchen')`); await waitFor(page, 'the Kitchen', () => settledIn(page, 'kitchen'));
   await use('book');
-  await waitFor(page, 'the recipe book', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="dish:tea"]:not([disabled])')));
-  await page.click('[data-dialog="dish:tea"]');
-  await use('pantry');
-  await checkSizes('the Kitchen, at the pantry', 'room:granny', 'Fetch the clover from the pantry, dear.');
-  await use('stove');
-  await page.keyboard.press('KeyE');
-  await waitFor(page, 'stirring', async () => !!(await game<any>(page, 'g.kitchen')).stirring);
-  await checkSizes('the Kitchen, stirring', 'room:granny', "Gently, dear! It's a pot, not a monster.");
+  await page.locator('[data-dialog="dish:tea"]').waitFor(); await page.click('[data-dialog="dish:tea"]');
+  await waitFor(page, 'carrying the plate', async () => game<boolean>(page, `g.kitchen.held?.dish === 'tea'`));
+  await checkSizes('the Kitchen, at the recipe book', 'room:granny', 'Everything on one plate. Bring it to the pot, dear.');
+  await run(page, `const o = g.over.room.station('stove'); g.over.x = o.x + o.w / 2; g.over.y = o.y + o.h + 0.45; g.over.face = -Math.PI / 2`);
+  await checkSizes('the Kitchen, at the pot', 'room:granny', 'All ready to cook, dear.');
 });
 
-scenario("Granny's Kitchen: asking Granny to cook mid-pot spends the clover, so serving the pot comes up short", (g) => {
+scenario("Granny's Kitchen: cancel, change recipe, leave with a plate, and reload during creation without duplicate spending", (g) => {
   const s = g.save;
-  s.lv = 6;
-  s.stories.poppy = 6;
-  s.flags.push('poppy:returned');
-  Object.assign(s.mats, { clover: 2, fluff: 0, goo: 0 });
-  s.pos = { x: 31.4, y: 11.4 };
+  s.stories.poppy = 6; s.flags.push('poppy:returned');
+  Object.assign(s.mats, { clover: 4, fluff: 15, goo: 9 });
 }, async (page) => {
-  const use = (id: string) => useStation(page, id);
-  const kitchen = () => game<any>(page, 'g.kitchen');
-  await run(page, `g.enterRoom('kitchen')`);
-  await waitFor(page, 'the Kitchen', () => settledIn(page, 'kitchen'));
-  // Clover Tea by hand, right up to spooning it out.
-  await use('book');
-  await waitFor(page, 'the recipe book', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="dish:tea"]:not([disabled])')));
-  await page.click('[data-dialog="dish:tea"]');
-  await waitFor(page, 'the tea on the go', async () => (await kitchen()).pot?.dish === 'tea');
-  await use('pantry');
-  await use('stove');
-  await page.keyboard.press('KeyE');
-  await waitFor(page, 'stirring', async () => !!(await kitchen()).stirring);
-  for (let i = 0; i < 3; i++) {
-    await run(page, `const k = g.kitchen.stirring; k.a = k.gold`);
-    await page.keyboard.press('Space');
-    await page.waitForTimeout(150);
-  }
-  await use('stove');
-  check((await kitchen()).held?.dish === 'tea', 'nothing was spooned out');
-  // Granny makes you one instead, from the same clover.
-  await run(page, `void g.over.cast.get('room:granny').talk()`);
-  await waitFor(page, "Granny's menu", async () => !!(await page.$('#modal:not([hidden]) [data-dialog="cook:tea"]:not([disabled])')));
-  await page.click('[data-dialog="cook:tea"]');
-  await waitFor(page, 'her tea', async () => game<boolean>(page, `g.save.meal?.id === 'tea' && g.save.mats.clover === 0`));
+  const choose = async (id: string) => {
+    await useStation(page, 'book');
+    await page.locator(`[data-dialog="dish:${id}"]`).waitFor();
+    await page.click(`[data-dialog="dish:${id}"]`);
+    await waitFor(page, 'the ingredient plate', async () => game<boolean>(page, `g.kitchen.held?.dish === '${id}' && g.mode === 'world'`));
+  };
+  await run(page, `g.enterRoom('kitchen')`); await waitFor(page, 'the Kitchen', () => settledIn(page, 'kitchen'));
+  await choose('pancakes');
+  check(await game<string>(page, 'JSON.stringify(g.kitchen.held.ingredients)') === '{"fluff":15,"goo":9}', 'multi-ingredient plate was incomplete');
+  await useStation(page, 'book'); await page.locator('[data-dialog="close"]').click();
+  await waitFor(page, 'the book closed', () => settledIn(page, 'kitchen'));
+  check(await game<string>(page, 'g.kitchen.held.dish') === 'pancakes', 'cancelling the book should keep the carried plate');
+  await choose('tea');
+  check(await game<boolean>(page, `g.save.mats.fluff === 15 && g.save.mats.goo === 9 && g.save.mats.clover === 4 && g.save.meal === null`), 'changing recipes charged for ingredients');
+  await run(page, `g.leaveRoom()`); await waitFor(page, 'outside', () => settledIn(page, null));
+  await run(page, `g.enterRoom('kitchen')`); await waitFor(page, 'back in the Kitchen', () => settledIn(page, 'kitchen'));
+  check(await game<boolean>(page, `g.kitchen.held === null && g.save.mats.clover === 4`), 'leaving with a plate spent ingredients or restored a stale plate');
+  await choose('tea');
+  await run(page, `g.save.mats.clover = 0`);
+  await useStation(page, 'stove');
+  check(await game<boolean>(page, `g.kitchen.held === null && g.save.meal === null && !g.ui.isOpen`), 'the pot should reject ingredients spent elsewhere');
+  await run(page, `g.save.mats.clover = 4`);
+  await choose('tea');
+  await useStation(page, 'stove');
+  await waitFor(page, 'the creation animation', async () => !!(await page.$('.sheet.crafting')));
+  await page.keyboard.press('KeyE'); await page.keyboard.press('KeyE');
+  check(await game<number>(page, 'g.save.mats.clover') === 2, 'repeated taps should not charge twice');
+  await page.reload();
+  await page.waitForSelector('.title-btns:not([hidden])'); await page.click('#btn-continue');
+  await waitFor(page, 'restored in the Kitchen', () => settledIn(page, 'kitchen'), 8000);
   await closeDialogs(page);
-  await waitFor(page, 'free to walk', async () => (await game<string>(page, 'g.mode')) === 'world');
-  // The pot's tea at the table: short of clover now, so nothing's served (or charged), and the pot's cleared.
-  await use('table');
-  check((await kitchen()).pot === null && (await kitchen()).held === null && (await kitchen()).served === null, 'serving without the clover still served');
-  check(await game<boolean>(page, `g.save.mats.clover === 0 && !g.save.flags.includes('kitchen:byhand')`), 'the short pot was charged or counted');
-  check((await game<string>(page, `g.over.room.actors.get('room:granny').speech?.text ?? ''`)).includes('short'), 'Granny did not say we were short');
+  check(await game<boolean>(page, `g.save.meal?.id === 'tea' && g.save.mats.clover === 2 && g.kitchen.held === null && !g.kitchen.cooking`), 'reloading during creation lost or duplicated the meal');
 });
 
 scenario("Poppy's field by hand: while Poppy's away in Echo Cavern, the basket, the water butt and the plots say she's not here", (g) => {
@@ -2207,7 +2356,7 @@ scenario('building skips safely, ignores a second build request, and respects re
 const GL_NAME = 'characters are drawn in 3D: every model loads and renders on the map and in a fight';
 if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, run: async () => {
   const name = GL_NAME;
-  const gl = await chromium.launch({ executablePath, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const gl = await chromium.launch({ executablePath, env, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await (await gl.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   const errors: string[] = [];
   const weaponRequests = new Set<string>();

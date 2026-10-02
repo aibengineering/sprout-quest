@@ -84,7 +84,7 @@ export function sawCollect(s: SaveState, now = Date.now()): Partial<Record<Plank
 
 // ---------------------------------------------------------------- working the mill by hand
 // Walk in, pick up an armful from a wood's pile, carry it to the bench, and pull the lever: whatever's on the bench
-// goes to the saw (exactly sawOrder, so the queue, the timing and the planks are the same as handing logs to Bram).
+// goes to the saw through sawOrder, keeping one shared queue and clock for every batch.
 
 /** Logs you pick up from a pile at a time (hold the button to keep picking up). */
 export const ARMFUL = 5;
@@ -92,6 +92,16 @@ export const ARMFUL = 5;
 /** Logs waiting on the bench for the lever, by wood (they're still in your bag until it's pulled). */
 export type Bench = Partial<Record<SawLog, number>>;
 export const benchTotal = (b: Bench) => Object.values(b).reduce((a, n) => a + (n ?? 0), 0);
+
+/** The next useful station, with finished planks always available as a second destination. */
+export function sawGuide(s: SaveState, carrying: { log: SawLog; n: number } | null, bench: Bench, now = Date.now()) {
+  const w = sawUpdate(s, now), ready = sawReady(s, now);
+  const piles = sawLogs(s).filter((log) => canCarry(s, log, 0, bench, now) > 0).map((log) => `pile:${log}`);
+  const next = carrying ? 'bench' : benchTotal(bench) ? 'lever' : ready ? 'collect' : piles.length ? 'logs' : w.queue.length ? 'sawing' : 'empty';
+  const stations = next === 'bench' || next === 'lever' ? [next] : next === 'logs' ? piles : [];
+  if (ready) stations.push('planks');
+  return { next, stations };
+}
 
 /**
  * How many more of these logs you can pick up now: an armful at most, only what's in your bag that isn't already in

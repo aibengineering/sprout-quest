@@ -551,6 +551,7 @@ img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
 .quest-pill .qbar i { display: block; height: 100%; background: #7aee8a; border-radius: 3px; transition: width 0.3s; }
 /* Loot feed: right side, under the HUD, stacking upward-in / fading out. */
 #loot { position: fixed; right: calc(8px + var(--safe-r)); top: calc(80px + var(--safe-t)); z-index: 12; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; pointer-events: none; }
+#loot.in-room { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 16px - var(--safe-l) - var(--safe-r)); }
 #loot .lrow { display: flex; align-items: center; gap: 4px; background: rgba(74, 42, 90, 0.88); color: #fff; font-weight: 900; font-size: 13px; padding: 3px 10px 3px 4px; border-radius: 12px; animation: lootin 0.25s ease-out both; transition: opacity 0.4s, transform 0.4s; }
 #loot .lrow img.icon.sm { width: 22px; height: 22px; }
 #loot .lrow .emo { font-size: 16px; padding: 0 3px; }
@@ -1201,90 +1202,28 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
   background: #fff4dc; border: 2px solid #e8c48a; font: 600 13px var(--display); color: var(--ink);
   box-shadow: 0 2px 0 rgba(74, 42, 90, 0.2); white-space: nowrap;
 }
+.sheet.kitchen { width: min(720px, 100%); max-height: calc(100dvh - 24px - var(--safe-t) - var(--safe-b)); }
 .sheet.kitchen .speaker { margin-top: 6px; }
-.sheet.kitchen .result { min-height: 0; overflow-y: auto; padding-top: 20px; }
-.sheet.kitchen .kitchen { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 14px; text-align: left; }
-.sheet.kitchen .mcard.row { align-items: center; }
+/* Keep the book's title and dismissal visible; only the recipes turn into a scroll area. */
+.sheet.kitchen .result { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 16px 12px 12px; }
+.sheet.kitchen .result > .big, .sheet.kitchen .result > p, .sheet.kitchen .btns { flex: none; }
+.sheet.kitchen .result > p { margin: 8px 0; font-size: 14px; }
+.sheet.kitchen .kitchen {
+  display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; gap: 12px;
+  margin: 8px 0 12px; padding: 0 4px 4px; text-align: left;
+  overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+}
+.sheet.kitchen .mcard.row { align-items: center; flex: none; margin-bottom: 0; }
+.sheet.kitchen .mcard .ico { width: 40px; }
+.sheet.kitchen .mcard .go { flex: none; min-height: 44px; padding: 10px 14px; font-size: 16px; }
+.sheet.kitchen .mcard .chips { justify-content: flex-start; margin: 6px 0 0; }
+@media (min-width: 700px) {
+  .sheet.kitchen .kitchen { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  .sheet.kitchen .mcard.row { display: grid; grid-template-columns: 40px minmax(0, 1fr); }
+  .sheet.kitchen .mcard .go { grid-column: 2; justify-self: start; }
+}
 .sheet.kitchen .mcard .emo { font-size: 34px; }
 .sheet.kitchen .note { margin: 8px 0 0; font-weight: 700; }
-
-/* ================= Bram's Sawmill ================= */
-/* A workbench: logs in, the saw, planks out; a slot per plank on the bench; a row per kind of log. */
-.sheet.sawmill .bench {
-  display: grid; grid-template-columns: 1fr 1.3fr 1fr; align-items: center; gap: 6px; margin: 12px 0 8px; padding: 12px 10px;
-  border-radius: 16px; background: linear-gradient(#c89a6a, #b0804e); border: 3px solid #7a5232; box-shadow: inset 0 -5px 0 rgba(58, 36, 20, 0.25);
-  color: #fff;
-}
-.sheet.sawmill .stock { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.sheet.sawmill .stock img.icon { width: 46px; height: 46px; filter: drop-shadow(0 3px 0 rgba(58, 36, 20, 0.35)); }
-.sheet.sawmill .stock b { font: 700 22px var(--display); line-height: 1; text-shadow: 0 2px 0 rgba(58, 36, 20, 0.5); }
-.sheet.sawmill .stock small { font-size: 11px; font-weight: 800; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; }
-.sheet.sawmill .tray b { color: #fff2a8; }
-.sheet.sawmill .saw { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.sheet.sawmill .blade { width: 64px; height: 64px; }
-.sheet.sawmill .blade svg { width: 100%; height: 100%; }
-.sheet.sawmill .blade path { stroke: #3a2448; stroke-width: 3; stroke-linejoin: round; }
-.sheet.sawmill .blade .hub { fill: #5a6070; stroke: #3a2448; stroke-width: 3; }
-.sheet.sawmill .blade.copper path { fill: #e8904a; }
-.sheet.sawmill .blade.iron path { fill: #c8d4e8; }
-.sheet.sawmill .blade.crystal path { fill: #bfeefc; }
-.sheet.sawmill .blade.obsidian path { fill: #2e2536; stroke: #ff8a3a; }
-.sheet.sawmill .bench.busy .blade { animation: sawspin 0.6s linear infinite; }
-@keyframes sawspin { to { transform: rotate(360deg); } }
-.sheet.sawmill .sawbar { width: 100%; height: 10px; border-radius: 99px; background: rgba(58, 36, 20, 0.35); overflow: hidden; }
-.sheet.sawmill .sawbar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(#fff2a8, #ffc23a); transition: width 0.25s linear; }
-.sheet.sawmill .next { font-size: 12px; font-weight: 800; text-shadow: 0 1px 0 rgba(58, 36, 20, 0.5); }
-.sheet.sawmill .slots { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; margin: 0 0 10px; }
-.sheet.sawmill .slots i { aspect-ratio: 1; border-radius: 6px; border: 2px dashed #d8c0a0; }
-.sheet.sawmill .slots i.wait { border: 2px solid #8a5a3a; background: #b98a5a; }
-.sheet.sawmill .slots i.now { border: 2px solid #8a5a3a; background: linear-gradient(90deg, #ffe07a, #b98a5a); animation: pulse 0.6s infinite alternate; }
-.sheet.sawmill .slots i.done { border: 2px solid #3a8a44; background: #fff2a8; box-shadow: inset 0 -3px 0 #e8c060; }
-.sheet.sawmill .sawrow { display: flex; align-items: center; gap: 8px; margin: 6px 0; padding: 6px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.7); text-align: left; }
-.sheet.sawmill .sawrow > span { flex: 1; font-weight: 800; display: flex; flex-direction: column; line-height: 1.15; }
-.sheet.sawmill .sawrow small { font-size: 12px; opacity: 0.65; }
-.sheet.sawmill .sawrow .go { padding: 6px 14px; font-size: 16px; min-width: 52px; }
-.sheet.sawmill .small { font-size: 13px; opacity: 0.75; margin: 6px 0 10px; }
-.sheet.sawmill .btns { flex-wrap: nowrap; }
-.sheet.sawmill .btns .go { padding: 12px 16px; font-size: 16px; flex: 1; }
-
-/* ================= Poppy's Garden ================= */
-/* A card per plot on a patch of grass: what's growing, a bar, and the one thing it needs from you. */
-.sheet.garden .result { position: relative; }
-.sheet.garden .gx {
-  position: absolute; top: 4px; right: 4px; width: 34px; height: 34px; border-radius: 99px; border: 0; cursor: pointer;
-  background: rgba(74, 42, 90, 0.1); color: var(--outline); font: 700 16px var(--display);
-}
-.sheet.garden .speaker small { font-size: 12px; font-weight: 800; opacity: 0.6; }
-.sheet.garden .gplots {
-  /* The field's plots, a few rows at a time: a bigger Garden scrolls. */
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0 8px; padding: 8px; max-height: min(430px, 46vh); overflow-y: auto;
-  border-radius: 16px; background: linear-gradient(#8ac86a, #6aae4e); border: 3px solid #4e8a3a; box-shadow: inset 0 -5px 0 rgba(30, 60, 20, 0.25);
-}
-.sheet.garden .gplot {
-  display: flex; flex-direction: column; align-items: center; gap: 2px; height: 100%; min-height: 128px; padding: 6px 4px; border-radius: 12px;
-  background: linear-gradient(#a8784e, #8a5e3a); border: 2px solid #6a442a; color: #fff; box-shadow: inset 0 -4px 0 rgba(58, 36, 20, 0.3);
-}
-.sheet.garden .gplot.thirsty { background: linear-gradient(#d8b888, #c09a68); border-color: #9a7448; }
-.sheet.garden .gplot.s3 { box-shadow: inset 0 -4px 0 rgba(58, 36, 20, 0.3), 0 0 0 3px #ffe07a; }
-.sheet.garden .gart { height: 40px; display: grid; place-items: center; }
-.sheet.garden .gart .emo { font-size: 30px; }
-.sheet.garden .gart img.icon { width: 40px; height: 40px; filter: drop-shadow(0 2px 0 rgba(58, 36, 20, 0.35)); }
-.sheet.garden .gplot.s3 .gart { animation: pulse 0.6s infinite alternate; }
-.sheet.garden .gname { font-size: 13px; font-weight: 800; text-shadow: 0 1px 0 rgba(58, 36, 20, 0.5); }
-.sheet.garden .gbar { width: 90%; height: 7px; border-radius: 99px; background: rgba(58, 36, 20, 0.35); overflow: hidden; }
-.sheet.garden .gbar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(#c8f89a, #6ad84a); transition: width 0.25s linear; }
-.sheet.garden .gplot.weedy .gbar i { background: linear-gradient(#e8e89a, #b8b84a); }
-.sheet.garden .gplot.thirsty .gbar i { background: #a8a8a8; }
-.sheet.garden .gnote { font-size: 11px; font-weight: 800; text-shadow: 0 1px 0 rgba(58, 36, 20, 0.5); white-space: nowrap; }
-.sheet.garden .gact { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; margin-top: auto; }
-.sheet.garden .gact .go { padding: 5px 8px; font-size: 13px; }
-.sheet.garden .gact .seed { display: inline-flex; align-items: center; gap: 1px; padding: 3px 5px; min-width: 0; font-size: 12px; }
-.sheet.garden .gact .seed img.icon.sm { width: 22px; height: 22px; vertical-align: 0; }
-.sheet.garden .gact small { font-size: 11px; font-weight: 800; opacity: 0.8; }
-.sheet.garden .seeds { justify-content: center; }
-.sheet.garden .small { font-size: 13px; opacity: 0.75; margin: 6px 0 10px; }
-.sheet.garden .btns { flex-wrap: nowrap; }
-.sheet.garden .btns .go { padding: 12px 16px; font-size: 16px; flex: 1; }
 
 /* Weapon handling's path: ✨ skill ranks and ⚡ speed steps, lit up to your level. */
 .hpath { display: flex; gap: 3px; margin: 6px 0 4px; }

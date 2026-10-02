@@ -1,24 +1,21 @@
-// The drums in the dark: once the Cavern's open and Poppy's home and braver, drums echo up out of Echo Cavern one night
-// and she goes to see. Granny's beside herself. In the Cavern you find a procession of Pebblors carrying a little stone
-// figure up into side tunnels, and you tail them by the echo of their footfalls, ducking out of sight whenever the last
-// one looks back (spotted, it stamps and the floor drops you into a tunnel below). In their chamber they lay the figure
-// down and raise a new bone totem, with Poppy hidden behind a rock, watching. They notice you, and that you didn't
-// fight, and give you the Echo Anklet (two dodges in a row). Poppy runs home along her trail of petals. The chamber
-// stays. The places and the procession itself are in procession.ts. See the story bible (Side quests).
+// Poppy runs into a dark cave. Follow a core-bearing procession, hiding from its eye beams,
+// then reach her by the passage above a barred ritual chamber. She makes the peaceful exchange
+// and brings the Pebblors' gift back to you. Saved story indices remain compatible with earlier saves.
 import type { ActorSpec } from '../../actors';
 import { drawFrame, frame } from '../../assets';
 import { zoneById } from '../../data';
 import type { MapLayers } from '../../overworld';
 import {
-  BENDS, CLIMB, FORMATION, LANDING, LAY_AT, MOUTH, NEW_TOTEM, POPPY_AT, PACE, Procession, REAR, RING, ROCK, SIGHT, TOTEMS,
-  along, drumsOpen, drumsStep, inChamber, inPocket, inSideArea, rejoinAt, type ProcessionEvent,
+  BARRIERS, BENDS, CATCH_AT, CLIMB, FORMATION, LANDING, LAY_AT, MOUTH, NEW_TOTEM, POPPY_AT, POPPY_PATH, POPPY_START, PACE, Procession, REAR, RING, SIGHT, TOTEMS,
+  along, beamEnd, clearLine, drumsOpen, drumsStep, inPocket, inSideArea, rejoinAt, sees, type ProcessionEvent,
 } from '../../procession';
-import { T, hash2, type WorldObj } from '../../world';
+import { hash2, type WorldObj } from '../../world';
 import { busy, G, persist, syncWorld, tip, transition } from '../context';
 import { bubble, lookAt, narrate, pan, say, scene, walk, wait } from '../scenes';
 import { syncStories, type Story } from '../stories';
 import { GRANNY, GRANNY_AT, GRANNY_ID } from './granny';
 import { POPPY_TALK } from './poppy';
+import { ECHO_EXIT } from '../../echoCave';
 
 const TAU = Math.PI * 2;
 const POPPY = 'drums:poppy';
@@ -28,7 +25,7 @@ const at = (x: number, y: number) => ({ x: C + x, y });
 
 /** Poppy's petals, from the chamber back down through the tunnels and the Cavern to its west gate: her way home. */
 const PETALS = [
-  POPPY_AT, at(25.2, 3.4), at(30.6, 3.4), at(30.6, 6.4), at(26.5, 6.4), at(26.5, 8.9), at(25, 9.6), at(24.6, 12.4), at(19.2, 12.5),
+  POPPY_AT, at(30.6, 1.5), at(30.6, 3.4), at(30.6, 6.4), at(26.5, 6.4), at(26.5, 8.9), at(25, 9.6), at(24.6, 12.4), at(19.2, 12.5),
   at(18.6, 13.6), at(13.6, 13.8), at(13.2, 15.6), at(11.5, 15.4), at(11.5, 11.6), at(7.6, 11.5), at(6, 12.6), at(5.6, 14.6), at(0.3, 14.6),
 ];
 
@@ -47,17 +44,14 @@ let falls = 0;
 let ripples: { x: number; y: number; t: number; k: number }[] = [];
 /** The floor cracking under you. */
 let crack: { x: number; y: number; t: number } | null = null;
-/** The little stone figure: carried by the lead pair, or laid in the ring. */
+/** The glowing core: carried by the lead pair, or laid in the ring. */
 let figure: 'carried' | 'laid' | null = null;
 /** The new totem going up, 0 to 1, during the scene. */
 let rise = -1;
 /** How dark it is round you (eased toward the place you're in), how hidden the side area is from outside, and the clock for both. */
-let dim = 0, cover = [0, 0], clock = 0, last = 0;
-/**
- * Seen from out on the Cavern's paths, the side area is in shadow: the chamber and the pocket below, and the tunnels
- * (except while you watch the procession go up into them).
- */
-const SHADOWED = [[{ x: C + 19, y: -0.5, w: 6, h: 7.7 }, { x: C + 1, y: 17.7, w: 10, h: 4.6 }], [{ x: C + 25, y: 1.2, w: 7, h: 5.8 }]];
+let dim = 0, clock = 0, last = 0;
+const darkCanvas = document.createElement('canvas');
+const darkCtx = darkCanvas.getContext('2d')!;
 
 /** For the e2e test and the console: what's going on, and the spot `d` tiles behind the procession's rear on its way. */
 export const drumsDebug = () => ({ proc, falls, figure, intro, moving, trail: (d: number) => along((proc?.s ?? 0) - FORMATION[REAR].back - d) });
@@ -87,6 +81,7 @@ function onEvents(ev: ProcessionEvent[]) {
     } else if (e === 'spotted') {
       void fall();
     } else if (e === 'arrived') {
+      tip('drums:chamber', '🌸 Poppy is above the gate. Take the narrow passage at the far end of the tunnel and talk to her.');
       // Into the chamber: the lead pair to the ring's middle with the figure, the others to their places.
       void walk(GOLEMS[0], [{ x: LAY_AT.x - 0.4, y: LAY_AT.y + 0.5 }]);
       void walk(GOLEMS[1], [{ x: LAY_AT.x + 0.4, y: LAY_AT.y + 0.5 }]);
@@ -108,7 +103,7 @@ async function fall() {
   crack = { x: G.over.x, y: G.over.y, t: clock };
   await wait(700);
   transition(() => {
-    G.over.teleport(LANDING.x, LANDING.y);
+    G.over.relocate(LANDING.x, LANDING.y);
     G.over.face = 0;
     crack = null;
     G.mode = 'world';
@@ -126,28 +121,29 @@ function climb() {
   G.audio.play('step');
   transition(() => {
     const p = proc && drumsStep(G.save) === 2 ? rejoinAt(proc.s - FORMATION[REAR].back) : along(BENDS[0]);
-    G.over.teleport(p.x, p.y + 0.1);
+    G.over.relocate(p.x, p.y + 0.1);
     G.mode = 'world';
     moving = false;
     persist();
   });
 }
 
-/** The side area's props: the totems, the new one (once it's up), the figure laid before it, Poppy's rock, the slope out of the pocket. */
+/** The side area's props: the totems, the new one (once it's up), the core laid before it, the cave mouth and lattices, the slope out of the pocket. */
 const prop = (id: string, p: { x: number; y: number }, w: number, h: number, shown?: WorldObj['shown']): WorldObj => ({
   kind: 'prop', id, zone: 'cave', x: p.x - w / 2, y: p.y - h, w, h, label: '', shown,
 });
 const raised = (s: { stories: Record<string, number> }) => (s.stories.drums ?? 0) >= 3;
 const NEW_PROP = prop('prop_totem_new', NEW_TOTEM, 0.6, 0.35, raised);
-const FIGURE_PROP = prop('prop_stonefigure', LAY_AT, 0.7, 0.25, raised);
+const FIGURE_PROP = prop('prop_echo_core', LAY_AT, 0.7, 0.25, raised);
 const OBJS: WorldObj[] = [
   ...TOTEMS.map((p, i) => prop(i === 1 ? 'prop_totem1' : 'prop_totem0', p, 0.6, 0.35)),
   NEW_PROP,
   FIGURE_PROP,
-  { kind: 'prop', id: 'boulder1', zone: 'cave', ...ROCK, label: '' },
+  ...BARRIERS,
   // Not solid: you walk onto the slope to climb it.
   prop('prop_climb', { x: CLIMB.x, y: CLIMB.y - 0.25 }, 0.01, 0.01),
 ];
+const ENTRANCE: WorldObj = { ...prop('prop_cavemouth', { x: MOUTH.x, y: 9 }, 2.4, .6), label: 'Enter cave', walkable: true };
 
 // ---------------------------------------------------------------- painting
 
@@ -184,27 +180,44 @@ function drawRipple(ctx: CanvasRenderingContext2D, ts: number, view: { x: number
   ctx.restore();
 }
 
-/** Where the rear one's looking, on the floor: a cone cut short by rocks and walls (where to hide). */
+/** Light originates at the eyes, and every edge stops at the same cover used by detection. */
 function drawGaze(ctx: CanvasRenderingContext2D, ts: number) {
   const p = proc!, r = p.rear, look = p.phase === 'look';
-  const eye = { x: r.x, y: r.y - 0.3 }, n = 28;
+  const eye = { x: r.x, y: r.y - 0.3 };
+  // Lift the sight plane to eye/chest height when projecting it onto the screen.
+  const lift = 0.38;
+  const x = eye.x * ts, y = (eye.y - lift) * ts;
   ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, SIGHT.range * ts);
+  glow.addColorStop(0, look ? 'rgba(180,248,255,.62)' : 'rgba(150,226,255,.28)');
+  glow.addColorStop(1, 'rgba(95,188,235,0)');
+  ctx.fillStyle = glow;
   ctx.beginPath();
-  ctx.moveTo(r.x * ts, r.y * ts);
-  for (let i = 0; i <= n; i++) {
-    const ang = p.gaze - SIGHT.half + (2 * SIGHT.half * i) / n;
-    let d = 0.3;
-    while (d < SIGHT.range && G.world.tile(Math.floor(eye.x + Math.cos(ang) * d), Math.floor(eye.y + Math.sin(ang) * d)) !== T.OBST) d += 0.08;
-    ctx.lineTo((r.x + Math.cos(ang) * d) * ts, (r.y + Math.sin(ang) * d) * ts);
+  ctx.moveTo(x, y);
+  for (let i = 0; i <= 64; i++) {
+    const end = beamEnd(G.over.map, eye, p.gaze - SIGHT.half + 2 * SIGHT.half * i / 64);
+    ctx.lineTo(end.x * ts, (end.y - lift) * ts);
   }
   ctx.closePath();
-  const pulse = 0.5 + 0.5 * Math.sin(clock * 12);
-  ctx.fillStyle = look ? 'rgba(255,214,90,0.3)' : `rgba(255,214,90,${0.08 + 0.08 * pulse})`;
   ctx.fill();
-  ctx.strokeStyle = look ? 'rgba(255,214,90,0.85)' : `rgba(255,214,90,${0.3 + 0.3 * pulse})`;
-  ctx.lineWidth = ts * 0.05;
-  ctx.setLineDash(look ? [] : [ts * 0.18, ts * 0.12]);
-  ctx.stroke();
+  // Two bright shafts inside the soft beam. No ground outline or dashed warning wedge.
+  for (const offset of [-0.045, 0.045]) {
+    const end = beamEnd(G.over.map, eye, p.gaze + offset);
+    const shaft = ctx.createLinearGradient(x, y, end.x * ts, (end.y - lift) * ts);
+    shaft.addColorStop(0, 'rgba(224,255,255,.95)');
+    shaft.addColorStop(1, 'rgba(125,220,255,0)');
+    ctx.strokeStyle = shaft;
+    ctx.lineWidth = ts * (look ? .045 : .025);
+    ctx.beginPath(); ctx.moveTo(x + offset * ts, y); ctx.lineTo(end.x * ts, (end.y - lift) * ts); ctx.stroke();
+    ctx.fillStyle = '#d9ffff';
+    ctx.beginPath(); ctx.arc(x + offset * ts, y, ts * .035, 0, TAU); ctx.fill();
+  }
+  if (look && sees(G.over.map, r, p.gaze, you())) {
+    ctx.strokeStyle = 'rgba(210,255,255,.9)';
+    ctx.lineWidth = ts * .04;
+    ctx.beginPath(); ctx.arc(G.over.x * ts, (G.over.y - .65) * ts, ts * .32, 0, TAU); ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -231,11 +244,11 @@ function drawCrack(ctx: CanvasRenderingContext2D, ts: number) {
 }
 
 /** Poppy's petals along her way home: a few pink and white flecks every so often. */
-function drawPetals(ctx: CanvasRenderingContext2D, ts: number) {
+function drawPetals(ctx: CanvasRenderingContext2D, ts: number, path = PETALS) {
   const sprite = frame('env/prop_petals');
   let carry = 0;
-  for (let i = 1; i < PETALS.length; i++) {
-    const a = PETALS[i - 1], b = PETALS[i], len = Math.hypot(b.x - a.x, b.y - a.y);
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i], len = Math.hypot(b.x - a.x, b.y - a.y);
     for (let d = carry; d < len; d += 1.3) {
       const x = a.x + ((b.x - a.x) * d) / len + (hash2(i, Math.round(d * 10), 4) - 0.5) * 0.3, y = a.y + ((b.y - a.y) * d) / len;
       if (sprite) drawFrame(ctx, sprite, x * ts, y * ts, ts / 1.6, { rot: hash2(i, Math.round(d * 10), 6) * TAU * 0.1 });
@@ -252,10 +265,10 @@ function drawPetals(ctx: CanvasRenderingContext2D, ts: number) {
   }
 }
 
-/** The figure in the lead pair's arms, or laid in the ring (before it's a prop), and the new totem going up. */
+/** The core in the lead pair's arms, or laid in the ring (before it's a prop), and the new totem going up. */
 function drawCeremony(ctx: CanvasRenderingContext2D, ts: number) {
-  const f = frame('env/prop_stonefigure'), unit = ts / 1.6;
-  const lead = [G.over.actors.get(GOLEMS[0]), G.over.actors.get(GOLEMS[1])];
+  const f = frame('env/prop_echo_core'), unit = ts / 1.6;
+  const lead = [G.over.cast.get(GOLEMS[0]), G.over.cast.get(GOLEMS[1])];
   if (figure === 'carried' && f && lead[0] && lead[1]) {
     const bob = Math.sin(clock * 5) * ts * 0.03;
     // Held up between them, at shoulder height.
@@ -266,62 +279,78 @@ function drawCeremony(ctx: CanvasRenderingContext2D, ts: number) {
   if (rise > 0 && t && NEW_PROP.hidden) drawFrame(ctx, t, NEW_TOTEM.x * ts, (NEW_TOTEM.y - 0.2) * ts, unit, { sy: rise, rot: (1 - rise) * 0.25 });
 }
 
-/** The tunnels are dim, closing in round you (the pocket below darker still); the chamber's softly lit. */
+/** Darkness is a mask with small, wall-clipped pools of light: mainly the carried core. */
 function drawDark(ctx: CanvasRenderingContext2D, ts: number, view: { x: number; y: number; w: number; h: number }) {
-  const me = you(), cave = G.over.currentZone.id === 'cave';
-  const want = !cave ? 0 : inPocket(me) ? 1 : inChamber(me) ? 0.42 : inSideArea(me) ? 0.9 : 0;
-  const dt = Math.min(0.1, clock - last);
-  dim += (want - dim) * Math.min(1, dt * 3);
-  SHADOWED.forEach((rects, i) => {
-    const out = cave && !inSideArea(me) && !(i === 1 && intro);
-    const k = (cover[i] += ((out ? 1 : 0) - cover[i]) * Math.min(1, dt * 3));
-    if (k < 0.01) return;
-    // Soft-edged: only the blurred shadow of each box lands on the map (the box itself is drawn well off to the side).
-    ctx.save();
-    ctx.shadowColor = `rgba(14,10,26,${0.86 * k})`;
-    ctx.shadowBlur = ts * 0.9;
-    ctx.shadowOffsetX = view.w * 4;
-    ctx.fillStyle = '#000';
-    for (const r of rects) ctx.fillRect(r.x * ts - view.w * 4, r.y * ts, r.w * ts, r.h * ts);
-    ctx.restore();
-  });
-  if (dim < 0.01) return;
-  const px = me.x * ts, py = (me.y - 0.4) * ts;
-  const g = ctx.createRadialGradient(px, py, ts * (1.9 + (1 - dim) * 3.4), px, py, ts * (4.8 + (1 - dim) * 4.4));
-  g.addColorStop(0, 'rgba(14,10,26,0)');
-  g.addColorStop(1, `rgba(14,10,26,${0.9 * dim})`);
-  ctx.fillStyle = g;
-  ctx.fillRect(view.x, view.y, view.w, view.h);
-  // The chamber's own soft light, warm round the totems.
-  if (inChamber(me)) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const cx = LAY_AT.x * ts, cy = (LAY_AT.y - 0.3) * ts;
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, ts * 3.2);
-    glow.addColorStop(0, `rgba(255,200,140,${0.16 + 0.02 * Math.sin(clock * 2)})`);
-    glow.addColorStop(1, 'rgba(255,200,140,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(cx - ts * 3.2, cy - ts * 3.2, ts * 6.4, ts * 6.4);
-    ctx.restore();
+  const cave = G.over.currentZone.id === 'cave', me = you();
+  const underground = !!G.over.underground;
+  // The main cavern stays readable everywhere; the secluded tunnels keep the deeper mood.
+  const want = cave ? (underground ? .78 : .28) : 0;
+  dim += (want - dim) * Math.min(1, Math.max(0, clock - last) * 5);
+  if (dim < .01) return;
+  const w = Math.ceil(view.w), h = Math.ceil(view.h);
+  if (darkCanvas.width !== w || darkCanvas.height !== h) { darkCanvas.width = w; darkCanvas.height = h; }
+  const m = darkCtx;
+  m.clearRect(0, 0, w, h);
+  m.fillStyle = `rgba(7,9,20,${dim})`; m.fillRect(0, 0, w, h);
+  const lights: { x: number; y: number; radius: number }[] = [];
+  const light = (p: { x: number; y: number }, radius: number, strength: number) => {
+    lights.push({ ...p, radius });
+    const eye = { x: p.x, y: p.y - .3 };
+    const x = eye.x * ts - view.x, y = eye.y * ts - view.y;
+    if (x < -radius * ts || x > w + radius * ts || y < -radius * ts || y > h + radius * ts) return;
+    m.save(); m.beginPath();
+    for (let i = 0; i <= 64; i++) {
+      const end = beamEnd(G.over.map, eye, i / 64 * TAU, radius);
+      const ex = end.x * ts - view.x, ey = end.y * ts - view.y;
+      if (!i) m.moveTo(ex, ey); else m.lineTo(ex, ey);
+    }
+    m.closePath(); m.clip();
+    m.globalCompositeOperation = 'destination-out';
+    const glow = m.createRadialGradient(x, y, ts * .25, x, y, radius * ts);
+    glow.addColorStop(0, `rgba(0,0,0,${strength})`);
+    glow.addColorStop(.55, `rgba(0,0,0,${strength * .75})`);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    m.fillStyle = glow; m.fillRect(0, 0, w, h); m.restore();
+  };
+  light(me, underground ? 3.3 : 4.8, .9);
+  if (!underground) light(MOUTH, 4, .8);
+  else light(ECHO_EXIT, 2.5, .8);
+  const lead = G.over.cast.get(GOLEMS[0]);
+  if (underground && figure === 'carried' && lead) light(lead, 3.0, 1);
+  if (underground && (figure === 'laid' || drumsStep(G.save) >= 3)) light(LAY_AT, 3.8, 1);
+  const poppy = G.over.cast.get(POPPY);
+  if (poppy) light(poppy, 1.45, .7);
+  // The map's walls live on the floor plane, while heads rise above it. Keep a lit
+  // character's upper body visible without opening another pool of light through a wall.
+  for (const a of [me, ...G.over.cast.list.filter((a) => a.id.startsWith('drums:'))]) {
+    if (a !== me && !lights.some((l) => Math.hypot(a.x - l.x, a.y - l.y) < l.radius * .85
+      && clearLine(G.over.map, { x: l.x, y: l.y - .3 }, { x: a.x, y: a.y - .3 }))) continue;
+    const x = a.x * ts - view.x, y = (a.y - .65) * ts - view.y;
+    m.save(); m.globalCompositeOperation = 'destination-out';
+    const body = m.createRadialGradient(x, y, ts * .14, x, y, ts * .65);
+    body.addColorStop(0, 'rgba(0,0,0,.85)'); body.addColorStop(1, 'rgba(0,0,0,0)');
+    m.fillStyle = body; m.fillRect(x - ts * .65, y - ts * .65, ts * 1.3, ts * 1.3); m.restore();
   }
+  ctx.drawImage(darkCanvas, view.x, view.y);
 }
 
 const layers: Partial<MapLayers> = {
   // The tunnels run along the top of the Cavern: let the camera look up past it, so they're clear of the HUD.
-  headroom: () => (G.over.currentZone.id === 'cave' && inSideArea(you()) ? 3 : 0),
+  headroom: () => G.over.underground ? 3 : 0,
   ground(ctx, ts) {
     if (G.over.currentZone.id !== 'cave') return;
-    if (drumsStep(G.save) === 3) drawPetals(ctx, ts);
+    if (drumsStep(G.save) === 3) drawPetals(ctx, ts, G.over.underground ? PETALS.slice(0, 6) : PETALS.slice(5));
+    if (drumsStep(G.save) === 2 && proc?.phase === 'arrived') drawPetals(ctx, ts, PETALS.slice(0, 3));
     if (crack) drawCrack(ctx, ts);
   },
   over(ctx, ts, view) {
     const now = performance.now() / 1000;
     last = clock;
     clock = now;
-    if (G.over.currentZone.id !== 'cave' && dim < 0.01 && Math.max(...cover) < 0.01) return;
-    drawCeremony(ctx, ts);
+    if (G.over.currentZone.id !== 'cave' && dim < 0.01) return;
+    if (G.over.underground) drawCeremony(ctx, ts);
     drawDark(ctx, ts, view);
-    if (proc && drumsStep(G.save) === 2 && (proc.phase === 'warn' || proc.phase === 'look')) drawGaze(ctx, ts);
+    if (G.over.underground && proc && drumsStep(G.save) === 2 && (proc.phase === 'warn' || proc.phase === 'look')) drawGaze(ctx, ts);
     ripples = ripples.filter((r) => clock - r.t < 1.1);
     for (const r of ripples) drawRipple(ctx, ts, view, r);
   },
@@ -332,41 +361,47 @@ export const DRUMS: Story = {
   title: 'The Drums in the Dark',
   icon: '🪘',
   available: () => drumsOpen(G.save),
-  objs: OBJS,
+  objs: [ENTRANCE],
+  undergroundObjs: OBJS,
+  castSpace: (step) => step === 0 ? 'world' : 'echo',
   layers,
 
   steps: [
     {
-      // Back in Sowerby, Granny comes running.
-      id: 'worry', label: 'Granny Clover is beside herself',
-      target: () => ({ x: GRANNY_AT.x, y: GRANNY_AT.y + 1 }),
-      done: () => inVillage() && near(GRANNY_AT, 2.8),
+      id: 'entrance', label: 'Follow Poppy into the cave',
+      target: () => POPPY_START,
+      done: () => !G.over.underground && G.over.currentZone.id === 'cave' && near(POPPY_START, 4.2),
       async then() {
         await scene(async () => {
-          await pan(GRANNY_AT.x - 0.6, GRANNY_AT.y + 0.2, 700);
-          bubble(GRANNY_ID, '😰', 4);
-          await say(GRANNY, "Oh, there you are! Poppy's gone, dear. Her bed hasn't been slept in.", 'worried');
-          await say(GRANNY, 'All night there were drums, echoing up out of Echo Cavern. She only wanted a look, she said.', 'worried');
-          await say(GRANNY, 'Please. Bring her home.', 'worried');
+          await pan(POPPY_START.x, POPPY_START.y - .7, 600);
+          bubble(POPPY, '👂', 2);
+          await say(POPPY_TALK, 'Listen… those drums. Someone is calling from inside.');
+          await walk(POPPY, [MOUTH], 4.5);
+          G.over.actors.remove(POPPY);
+          await wait(400);
         });
       },
     },
     {
-      id: 'cave', label: 'Find Poppy in Echo Cavern',
-      target: () => MOUTH,
-      done: () => G.over.currentZone.id === 'cave' && near(MOUTH, 4.2),
+      id: 'catch', label: 'Catch up with Poppy and talk to her',
+      target: () => G.over.underground ? CATCH_AT : MOUTH,
+      done: () => !!G.over.underground && G.save.flags.includes('drums:caught'),
       async then() {
-        // A procession, going up into the side tunnels. Poppy went this way.
+        // A procession, carrying a glowing core into the side tunnels.
         proc = new Procession(2.4);
         figure = 'carried';
         intro = true;
         syncStories();
+        const poppy = G.over.cast.get(POPPY);
+        if (poppy) Object.assign(poppy, CATCH_AT);
         try {
           await scene(async () => {
             await pan(MOUTH.x, MOUTH.y - 2, 900);
-            await narrate('Pebblors, in a slow, quiet line. The front two carry a little stone figure between them.');
-            await narrate('A petal on the ground, by the way up. Poppy came this way.');
+            await narrate('Pebblors, in a slow, quiet line. The front two cradle a glowing core between them.');
+            await say(POPPY_TALK, 'I can fit through the little passage above their gate. Follow their footsteps; I’ll meet you there.');
+            const ahead = walk(POPPY, [at(26.5, 6.6), at(30.6, 6.6), ...POPPY_PATH], 4.2);
             await narrate('Follow them, but keep back. Their footsteps echo. Don\'t let them see you.');
+            await ahead;
           });
         } finally {
           intro = false;
@@ -375,17 +410,21 @@ export const DRUMS: Story = {
       },
     },
     {
-      id: 'tail', label: 'Follow the Pebblors, unseen',
+      id: 'tail',
+      get label() { return proc?.phase === 'arrived' ? 'Talk to Poppy above the gate' : 'Follow the Pebblors, unseen'; },
       // In the Cavern you go by their echoes; anywhere else, the arrow takes you back to the tunnels.
-      noArrow: () => G.over.currentZone.id === 'cave' && (inSideArea(you()) || near(MOUTH, 5)),
-      target: () => MOUTH,
-      done: () => proc?.phase === 'arrived' && near(POPPY_AT, 2.4),
+      noArrow: () => proc?.phase !== 'arrived' && !!G.over.underground,
+      target: () => !G.over.underground ? MOUTH : proc?.phase === 'arrived' ? POPPY_AT : MOUTH,
+      done: () => !!G.over.underground && proc?.phase === 'arrived' && G.save.flags.includes('drums:listen') && near(POPPY_AT, 1.8),
       async then() {
+        // Commit the unique gift before the cinematic can be interrupted by a reload.
+        if (!G.save.perks.includes('echoanklet')) G.save.perks.push('echoanklet');
+        persist();
         await scene(async () => {
           await pan(LAY_AT.x + 1, LAY_AT.y - 0.6, 900);
           lookAt(POPPY);
           bubble(POPPY, '🤫', 2.4);
-          await say(POPPY_TALK, 'Shh! Get down. Look.', 'scared');
+          await say(POPPY_TALK, 'Shh… listen. This is a goodbye.', 'sad');
           lookAt(POPPY, GOLEMS[0]);
           // The figure laid down in the middle of the ring.
           await wait(600);
@@ -394,10 +433,10 @@ export const DRUMS: Story = {
           await Promise.all([walk(GOLEMS[0], [RING[1]]), walk(GOLEMS[1], [RING[2]])]);
           for (const id of GOLEMS) lookAt(id, POPPY);
           for (const [i, id] of GOLEMS.entries()) {
-            const a = G.over.actors.get(id);
+            const a = G.over.cast.get(id);
             if (a) a.face = Math.atan2(NEW_TOTEM.y - RING[i].y, NEW_TOTEM.x - RING[i].x);
           }
-          await narrate('They lay the little stone figure down. Then, all together, they raise a new totem.');
+          await narrate('They lay the fading core down. Then, all together, they raise a new totem.');
           // Up it goes, slowly.
           G.audio.play('stomp', 0.6);
           for (let k = 1; k <= 20; k++) {
@@ -409,46 +448,45 @@ export const DRUMS: Story = {
           bubble(POPPY, '🥺', 3);
           await say(POPPY_TALK, 'Are they… sad?', 'sad');
           await wait(1300);
-          // They know you're there. And that you didn't fight.
-          for (const id of GOLEMS) {
-            lookAt(id);
-            bubble(id, '❕', 1.4);
-            await wait(160);
-          }
-          await wait(1100);
-          const giver = GOLEMS[3], g = G.over.actors.get(giver);
-          if (g) {
-            const d = Math.hypot(G.over.x - g.x, G.over.y - g.y) || 1;
-            await walk(giver, [{ x: G.over.x + ((g.x - G.over.x) / d) * 0.9, y: G.over.y + ((g.y - G.over.y) / d) * 0.9 }], 1.4);
-          }
-          await narrate('One of them comes over, slow and quiet, and sets a string of tiny drum-stones at your feet.');
-          G.save.perks.push('echoanklet');
-          persist();
-          await G.ui.itemFound('echoanklet', 'Echo Anklet', 'Tiny drum-stones on a string, from the Pebblors. In a fight, you can dodge twice in a row.', '🪘', 'The Pebblors gave you', true);
+          // The Pebblor meets Poppy at the lattice; the hero stays on her side of it.
+          const giver = GOLEMS[3];
+          await walk(giver, [at(24.5, 3.25)], 1.4);
+          lookAt(giver, POPPY);
+          lookAt(POPPY);
+          await pan(POPPY_AT.x, POPPY_AT.y + .6, 600);
+          await say(POPPY_TALK, 'Easy. There is no anger in its song. It means us no harm.');
+          await walk(POPPY, [at(24.5, 1.85)], 1.5);
+          lookAt(POPPY, giver);
+          await narrate('Across the stone lattice, the Pebblor offers her a string of tiny drum-stones.');
+          await wait(600);
+          await walk(POPPY, [POPPY_AT], 1.8);
+          lookAt(POPPY);
+          await say(POPPY_TALK, 'For you. You listened instead of fighting. I think it knows.');
+          await G.ui.itemFound('echoanklet', 'Echo Anklet', 'Tiny drum-stones on a string, from the Pebblors. In a fight, you can dodge twice in a row.', '🪘', 'Poppy gives you', true);
           void walk(giver, [RING[3]], 1.4);
           await wait(500);
           lookAt(POPPY);
           bubble(POPPY, '🌸', 2.5);
           await say(POPPY_TALK, 'I left a trail of petals on the way in. I can find home all by myself!');
           // Off she goes, along her petals.
-          void walk(POPPY, PETALS.slice(1, 4), 4.2);
+          await walk(POPPY, PETALS.slice(1, 6), 4.8);
           await wait(1700);
         });
         rise = -1;
         figure = null;
         proc = null;
-        G.over.actors.remove(POPPY);
+        G.over.cast.remove(POPPY);
         syncWorld();
       },
     },
     {
       id: 'home', label: 'Go home to Sowerby',
-      target: () => ({ x: GRANNY_AT.x, y: GRANNY_AT.y + 1 }),
+      target: () => G.over.underground ? ECHO_EXIT : ({ x: GRANNY_AT.x, y: GRANNY_AT.y + 1 }),
       done: () => inVillage() && near(GRANNY_AT, 2.8),
       async then() {
         await scene(async () => {
           await pan(GRANNY_AT.x - 0.8, GRANNY_AT.y + 0.2, 700);
-          if (G.over.actors.get('poppy:poppy')) {
+          if (G.over.cast.get('poppy:poppy')) {
             await walk('poppy:poppy', [{ x: GRANNY_AT.x - 1.1, y: GRANNY_AT.y + 0.15 }], 3);
             lookAt('poppy:poppy', GRANNY_ID);
           }
@@ -466,9 +504,29 @@ export const DRUMS: Story = {
 
   cast(step) {
     const cast: ActorSpec[] = [];
+    if (step < 3) {
+      cast.push({
+        id: POPPY, look: { kind: 'walker', name: 'poppy' },
+        ...(step === 0 ? POPPY_START : step === 1 ? CATCH_AT : POPPY_AT), face: Math.PI * .85,
+        label: step > 0 ? 'Talk' : undefined,
+        talk: async () => {
+          if (step === 1) {
+            await scene(async () => {
+              lookAt(POPPY);
+              await say(POPPY_TALK, 'There you are! Stay behind them, and hide when their eyes turn towards you.');
+            });
+            if (!G.save.flags.includes('drums:caught')) G.save.flags.push('drums:caught');
+            persist();
+          } else if (step === 2 && proc?.phase === 'arrived' && near(POPPY_AT, 1.8)) {
+            if (!G.save.flags.includes('drums:listen')) G.save.flags.push('drums:listen');
+            persist();
+          } else if (step === 2) {
+            await scene(async () => { await say(POPPY_TALK, 'Wait here with me. Let them finish their journey first.'); });
+          }
+        },
+      });
+    }
     if (step === 2) {
-      // Hidden behind her rock, watching the ring.
-      cast.push({ id: POPPY, look: { kind: 'walker', name: 'poppy' }, ...POPPY_AT, face: Math.PI * 0.85 });
       const p = procession();
       figure ??= 'carried';
       p.members().forEach((m, i) => cast.push(golem(i, m, m.face)));
@@ -481,8 +539,9 @@ export const DRUMS: Story = {
 
   tick(step) {
     const me = you();
+    if (!G.over.underground) return;
     // Nothing jumps out at you in the tunnels, or by the way up while you're following the procession.
-    if (inSideArea(me) || (step === 2 && near(MOUTH, 5))) G.over.roamers.calm = Math.max(G.over.roamers.calm, 0.5);
+    if (inSideArea(me) || (step < 3 && near(MOUTH, 5))) G.over.roamers.calm = Math.max(G.over.roamers.calm, 0.5);
     // The rubble slope at the far end of the pocket climbs back up.
     if (!moving && G.mode === 'world' && !busy() && inPocket(me) && Math.hypot(me.x - CLIMB.x, me.y - CLIMB.y) < 0.75) climb();
     if (step !== 2 || !proc) return;
@@ -490,10 +549,10 @@ export const DRUMS: Story = {
     if (!(intro || (G.mode === 'world' && !busy())) || moving || dt <= 0) return;
     // The opening scene walks them into the tunnels, then they wait for you to follow.
     if (intro && proc.s >= 4.6) return;
-    const ev = proc.update(dt, me, G.world, intro);
+    const ev = proc.update(dt, me, G.over.map, intro);
     if (proc.phase !== 'arrived' || ev.includes('arrived')) {
       proc.members().forEach((m, i) => {
-        const a = G.over.actors.get(GOLEMS[i]);
+        const a = G.over.cast.get(GOLEMS[i]);
         if (!a || a.path.length) return;
         a.moving = Math.hypot(a.x - m.x, a.y - m.y) > 0.005;
         Object.assign(a, { x: m.x, y: m.y, face: m.face });

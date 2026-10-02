@@ -8,6 +8,7 @@
 #        bun run art buildings  (the village buildings' 3D models, for their scenes [id,id,...])
 #        bun run art icons3d    (inventory icons rendered from the items' 3D models [id,id,...]; no Blender needed)
 #        bun run art rooms      (the Kitchen's and Sawmill's props and the Garden's tools: their own atlas)
+#        bun run art echo       (the cave mouth, ritual lattices and carried core: their own atlas)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -84,10 +85,10 @@ fi
 
 # The rooms you walk into (Granny's Kitchen, Bram's Sawmill) and the Garden's hand tools: their own atlas, in
 # public/assets/rooms/ (the main one is left alone).
-if [ "${1:-}" = rooms ]; then
-  rm -rf out/rooms out/rooms.json
-  render rooms
-  "$BLENDER" -b --factory-startup --python-exit-code 1 -P pack.py -- --group rooms 2>&1 | grep -E "PACKED|Error|Traceback"
+if [ "${1:-}" = rooms ] || [ "${1:-}" = echo ]; then
+  rm -rf "out/$1" "out/$1.json"
+  render "$1"
+  "$BLENDER" -b --factory-startup --python-exit-code 1 -P pack.py -- --group "$1" 2>&1 | grep -E "PACKED|Error|Traceback"
   exit 0
 fi
 
@@ -109,6 +110,9 @@ PACK_ARGS=()
 if [ $# -gt 0 ]; then PACK_ARGS=(-- --incremental); fi
 "$BLENDER" -b --factory-startup --python-exit-code 1 -P pack.py "${PACK_ARGS[@]}" 2>&1 | grep -E "PACKED|Error|Traceback"
 
-if [ $# -eq 0 ]; then buildings all; fi
+if [ $# -eq 0 ]; then
+  buildings all
+  bash build.sh echo
+fi
 # Packing rewrites the icons from art/out; the model icons are always redrawn from their models after it.
 bun ../scripts/icons3d.ts

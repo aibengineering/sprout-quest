@@ -1,7 +1,7 @@
 """Renders one group of sprites to art/out/<group>/ plus art/out/<group>.json (frame anchors).
 
 Usage: blender -b --factory-startup -P art/render_all.py -- <group> [filter]
-Groups: hero, monsters, weapons, env, rooms, icons, icons2, npc, gather
+Groups: hero, monsters, weapons, env, rooms, echo, icons, icons2, npc, gather
 """
 import json
 import math
@@ -11,6 +11,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
 import env  # noqa: E402
+import echo  # noqa: E402
 import gather  # noqa: E402
 from gear_parts import item_module  # noqa: E402
 import hero  # noqa: E402
@@ -100,14 +101,14 @@ elif GROUP == 'env':
         fn()
         shot(f'env/{name}', int(w * 1.3), int(h * 1.25), 64, fit_origin=0.86)
 
-elif GROUP == 'rooms':
+elif GROUP in ('rooms', 'echo'):
     # The rooms you walk into, and the Garden's hand tools (art/rooms.py): packed into their own atlas.
-    for name, (fn, w, h, *origin) in rooms.PROPS.items():
+    for name, (fn, w, h, *origin) in (rooms.PROPS if GROUP == 'rooms' else echo.PROPS).items():
         if not wanted(name):
             continue
         lib.clear_objects()
         fn()
-        shot(f'room/{name}', int(w * 1.3), int(h * 1.25), 64, fit_origin=origin[0] if origin else 0.86)
+        shot(f"{'room' if GROUP == 'rooms' else 'env'}/{name}", int(w * 1.3), int(h * 1.25), 64, fit_origin=origin[0] if origin else 0.86)
 
 elif GROUP == 'icons':
     # Weapons tilted diagonally, centered.

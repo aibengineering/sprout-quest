@@ -221,7 +221,7 @@ export const PRESETS: Preset[] = [
     }),
   },
   {
-    id: 'kitchen', name: "Granny's Kitchen", desc: 'Inside Granny\'s Kitchen with Bram\'s and Pip\'s recipes known, and plenty to cook with: pick a recipe, fetch, stir and serve.',
+    id: 'kitchen', name: "Granny's Kitchen", desc: 'Inside Granny\'s Kitchen with Bram\'s and Pip\'s recipes known, and plenty to cook with: pick an ingredient plate by the pantry and bring it to the pot.',
     make: () => pip(1, (s) => {
       s.build.cottage = 1;
       s.flags.push('pip:candy');
@@ -245,16 +245,16 @@ export const PRESETS: Preset[] = [
     }),
   },
   {
-    id: 'drums', name: 'Drums: Granny is worried', desc: "The Alpha Woolf is beaten and Poppy's home: walk up to Granny, and Poppy's gone after the drums in Echo Cavern.",
-    make: () => drums(0, 29.4, 12.6),
+    id: 'drums', name: 'Drums: Poppy enters the cave', desc: 'See Poppy run into the cave, catch her, then follow the glowing core.',
+    make: () => drums(0, C + 23.5, 12.6),
   },
   {
-    id: 'drums-tail', name: 'Drums: the procession', desc: 'In Echo Cavern, just along from the side tunnels: walk up to the shaft and tail the Pebblors.',
+    id: 'drums-tail', name: 'Drums: catch Poppy', desc: 'Poppy is just inside the cave mouth: talk to her, then tail the Pebblors.',
     make: () => drums(1, C + 23.5, 12.6),
   },
   {
-    id: 'drums-done', name: 'Drums: the Echo Anklet', desc: "Poppy's home and the Pebblors gave you the Echo Anklet: two dodges in a row. In their chamber.",
-    make: () => drums(4, C + 25.6, 3.4, (s) => s.perks.push('echoanklet')),
+    id: 'drums-done', name: 'Drums: the Echo Anklet', desc: "Poppy's home; the Echo Anklet grants two dodges. Watch the chamber from her passage.",
+    make: () => drums(4, C + 26.5, 9.7, (s) => { s.perks.push('echoanklet'); s.underground = { id: 'echo', x: C + 24.5, y: 1.5 }; }),
   },
   ...[1, 2, 3].map((lv) => ({
     id: lv === 2 ? 'garden' : `garden${lv}`,

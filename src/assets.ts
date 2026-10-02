@@ -76,7 +76,7 @@ export async function loadAssets(onProgress?: (p: LoadProgress) => void): Promis
   };
   // The main atlas, and alongside it the rooms' props (Granny's Kitchen, Bram's Sawmill) and the Garden's tools: a
   // small atlas of their own, which can go missing without taking the rest down.
-  const [main] = await Promise.allSettled([load('assets/'), load('assets/rooms/')]);
+  const [main] = await Promise.allSettled([load('assets/'), load('assets/rooms/'), load('assets/echo/')]);
   ready = main.status === 'fulfilled';
   return ready;
 }
@@ -276,8 +276,8 @@ export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number
  * Draws a monster with its feet at (x, y): a 3D model once it's loaded, else its sprite. `phase` runs through its idle
  * loop (1 = once round), `left` turns it to face left. Returns false if neither is available.
  */
-export function drawMonsterAt(ctx: CanvasRenderingContext2D, slot: string, kind: string, golden: boolean, phase: number, left: boolean, x: number, y: number, unit: number, o: DrawOpts = {}): boolean {
-  const pose = { anim: 'idle', phase, yaw: left ? -MONSTER_YAW : MONSTER_YAW, gold: golden };
+export function drawMonsterAt(ctx: CanvasRenderingContext2D, slot: string, kind: string, golden: boolean, phase: number, left: boolean, x: number, y: number, unit: number, o: DrawOpts = {}, face?: number): boolean {
+  const pose = { anim: 'idle', phase, yaw: face === undefined ? (left ? -MONSTER_YAW : MONSTER_YAW) : Math.PI / 2 - face, gold: golden };
   if (drawModel(ctx, slot, `mon_${kind}`, pose, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, o))) return true;
   const f = frame(`mon/${kind}${golden ? '_gold' : ''}/${Math.floor((((phase % 1) + 1) % 1) * 6)}`) ?? frame(`mon/${kind}/0`);
   if (!f) return false;

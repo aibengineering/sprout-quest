@@ -13,9 +13,7 @@ import type { SaveState } from './state';
 import type { SoundSettings } from './sound';
 import type { Unlock, UnlockId } from './unlocks';
 import { CLASS_NOTES, MOVESETS, SKILL_LEVELS, TRICKS, TRICK_LEVEL, comboTime, handlingStep, skillAt } from './weapons';
-import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
-import { PLANKS_PER_LOG, SAW, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate, type SawLog } from './sawmill';
-import { CROPS, CROP_ORDER, gardenUpdate, growthStage, isReady, plotCount, PLOTS_BY_LEVEL, readyIn, type Plot } from './garden';
+import { MEALS, mealLeft } from './kitchen';
 import { usingKeyboard } from './input';
 import { heroView, mountItemView, stopItemView, view3d } from './itemview';
 import { canShareFiles } from './share';
@@ -291,47 +289,6 @@ function buildingIcon(id: ProjectId, level: number): string {
   // Before it's built: the old forge's ruins, the Waystone's broken stones, or an empty plot.
   if (level === 0) return icon(id === 'warp' ? 'b_warp0' : id === 'forge' ? 'b_forge0' : id === 'sawmill' ? 'b_sawmill0' : 'b_plot', PROJECTS[id].icon, 'icon lg');
   return icon(`b_${buildingArt(id, level)}`, PROJECTS[id].icon, 'icon lg');
-}
-
-/** A round saw blade, spun by CSS while the Sawmill is working (tinted copper or iron). */
-const SAW_BLADE = `<svg viewBox="-50 -50 100 100" aria-hidden="true"><path d="${Array.from({ length: 16 }, (_, i) => {
-  const a = (i / 16) * Math.PI * 2, b = a + Math.PI / 16, r = 46, t = 36;
-  return `${i ? 'L' : 'M'}${(Math.cos(a) * t).toFixed(1)},${(Math.sin(a) * t).toFixed(1)}L${(Math.cos(b) * r).toFixed(1)},${(Math.sin(b) * r).toFixed(1)}`;
-}).join('')}Z"/><circle r="11" class="hub"/></svg>`;
-
-/** A garden plot's look at each stage, before its crop is ready to pick (then it's the crop's own icon). */
-const SPROUT: Record<string, string> = { berry: '🌿', herb: '🌱', flower: '🌷' };
-const clock = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
-
-/**
- * One plot in Poppy's Garden: what's in it, how far along, and the one thing it needs from you (a seed, water, weeding
- * or picking). `key` changes whenever the card needs drawing again rather than just its bar moving along.
- */
-function plotCard(s: SaveState, i: number, p: Plot | null): { key: string; html: string } {
-  if (!p) {
-    const seeds = CROP_ORDER.filter((c) => s.mats[CROPS[c].seed] > 0);
-    const btns = seeds.map((c) => {
-      const seed = CROPS[c].seed;
-      return `<button class="go ghost seed" data-dialog="plant:${i}:${c}" aria-label="Plant ${esc(MATS[seed].name)}">${icon(seed, MATS[seed].icon, 'icon sm')}<b>${s.mats[seed]}</b></button>`;
-    }).join('');
-    return {
-      key: `empty:${seeds.map((c) => s.mats[CROPS[c].seed]).join(',')}`,
-      html: `<div class="gplot empty"><div class="gart">🟫</div><div class="gname">Empty soil</div>
-        <div class="gact">${btns || '<small>No seeds</small>'}</div></div>`,
-    };
-  }
-  const st = growthStage(p), crop = MATS[p.crop];
-  const art = st === 3 ? icon(p.crop, crop.icon) : `<span class="emo">${st === 1 ? '🌱' : SPROUT[p.crop]}</span>`;
-  const act = st === 3 ? `<button class="go" data-dialog="pick:${i}">🧺 Pick</button>`
-    : p.thirsty ? `<button class="go" data-dialog="water:${i}">💧 Water</button>`
-    : p.weeds ? `<button class="go" data-dialog="weed:${i}">🌿 Pull weeds</button>` : '';
-  const note = st === 3 ? `Ready! ×${CROPS[p.crop].yield}` : p.thirsty ? 'Thirsty!' : p.weeds ? 'Weedy: slow' : 'Growing';
-  return {
-    key: `${p.crop}:${st}:${!!p.thirsty}:${!!p.weeds}`,
-    html: `<div class="gplot s${st}${p.thirsty ? ' thirsty' : ''}${p.weeds ? ' weedy' : ''}"><div class="gart">${art}</div>
-      <div class="gname">${esc(crop.name)}</div><div class="gbar"><i></i></div><small class="gnote">${note}</small>
-      <div class="gact">${act}</div></div>`,
-  };
 }
 
 /** A volume as the sound card shows it. */
@@ -890,8 +847,16 @@ export class UI {
     }
   }
 
-  /** Loot and XP stacked on the right ("+2 Slime Goo", "+12 XP"), clear of the quest tracker on the left. */
-  /** `name` is dropped on narrow screens, where the icon alone says what it is. */
+  /** Room guidance spans the screen; keep pickups below its caption or hint. Null restores the map position. */
+  lootBelow(bottom: number | null) {
+    const top = bottom === null ? '' : `calc(${Math.ceil(bottom + 6)}px + var(--safe-t))`;
+    this.set('lootTop', top, () => {
+      $('loot').style.top = top;
+      $('loot').classList.toggle('in-room', bottom !== null);
+    });
+  }
+
+  /** Loot and XP stacked on the right, clear of guidance. `name` is dropped on narrow screens. */
   loot(entries: { icon: string; text: string; name?: string; suffix?: string }[]) {
     const feed = $('loot');
     entries.forEach((e, i) => {
@@ -1425,135 +1390,6 @@ export class UI {
 
   message(title: string, text: string) {
     return this.dialog(`<div class="big" style="font-size:24px">${esc(title)}</div><p>${esc(text)}</p>`, [['ok', 'OK']]);
-  }
-
-  /**
-   * Granny's Kitchen: every recipe she knows, what it does and costs, and an Eat button for the ones you can afford.
-   * Resolves 'cook:<meal>' or 'close'.
-   */
-  kitchen(s: SaveState, greeting: string): Promise<string> {
-    const now = mealLeft(s);
-    const rows = knownMeals(s).map((id: MealId) => {
-      const m = MEALS[id], can = hasMats(s, m.recipe);
-      return `<div class="mcard row"><div class="ico">${icon(`meal_${id}`, m.icon)}</div><div class="info">
-        <div class="name">${esc(m.name)}${m.from ? ` <span class="tag">from ${esc(m.from)}</span>` : ''}</div>
-        <div class="desc">${esc(m.desc)}</div><div class="chips">${costChips(s, m.recipe)}</div></div>
-        <button class="go" data-dialog="cook:${id}" ${can ? '' : 'disabled'}>Eat</button></div>`;
-    }).join('');
-    return this.dialog(
-      `${ribbon("Granny's Kitchen")}
-       <div class="speaker small">${icon('npc_granny', '👵', 'icon sm')}<b>Granny Clover</b></div>
-       <div class="bubble">${esc(greeting)}</div>
-       ${now ? `<p class="note">You're full of ${esc(now.name)} (${now.left} left). A new meal replaces it.</p>` : ''}
-       <div class="kitchen">${rows}</div>`,
-      [['close', 'Thanks, Granny']],
-      'celebrate quest kitchen',
-    );
-  }
-
-  /**
-   * Bram's Sawmill as a workbench: your logs, the saw (spinning while it works, with a bar filling for the plank on the
-   * blade), the planks on the tray, a slot per plank on the bench, and buttons to hand over logs or take the planks.
-   * It keeps itself up to date while open. Resolves 'saw:<n>:<log>', 'collect' or 'close'.
-   */
-  sawmill(s: SaveState, line: string): Promise<string> {
-    const logs = sawLogs(s), lv = s.build.sawmill, levels = PROJECTS.sawmill.levels;
-    // The blade gets a tint per upgrade; the note says what the next blade would add.
-    const blade = ['copper', 'copper', 'iron', 'crystal', 'obsidian'][Math.min(lv, 4)];
-    const next = levels[lv], nextLog = (Object.keys(SAW) as SawLog[])[logs.length];
-    const rows = logs.map((l) => `<div class="sawrow" data-log="${l}">${icon(l, MATS[l].icon, 'icon sm')}
-        <span><span><b class="n">${s.mats[l]}</b> ${esc(MATS[l].name)}s</span><small>a log makes ${PLANKS_PER_LOG} ${esc(MATS[SAW[l].plank].name)}s</small></span>
-        <button class="go ghost" data-dialog="saw:5:${l}">+5</button><button class="go ghost" data-dialog="saw:20:${l}">+20</button></div>`).join('');
-    const p = this.dialog(
-      `${ribbon(lv <= 1 ? "Bram's Sawmill" : levels[lv - 1].name)}
-       <div class="speaker small">${icon('npc_bram_happy', '🧔', 'icon sm')}<b>Bram</b></div>
-       <div class="bubble">${esc(line)}</div>
-       <div class="bench">
-         <div class="stock">${icon('bark', MATS.bark.icon)}<b class="logs">0</b><small>logs in</small></div>
-         <div class="saw"><div class="blade ${blade}">${SAW_BLADE}</div><div class="sawbar"><i></i></div><small class="next"></small></div>
-         <div class="stock tray">${icon('plank', MATS.plank.icon)}<b class="ready">0</b><small>ready</small></div>
-       </div>
-       <div class="slots">${Array.from({ length: SAW_MAX }, () => '<i></i>').join('')}</div>
-       <div class="sawrows">${rows}</div>
-       <p class="small">Bram saws even while you're away: a log every ${sawSeconds(s)} seconds.${next && nextLog ? ` The ${esc(next.name)} would saw ${esc(MATS[nextLog].name.replace(' Log', ''))} too, and faster.` : ''}</p>`,
-      [['close', 'Bye, Bram'], ['collect', 'Take planks']],
-      'celebrate quest sawmill',
-    );
-    // Live: the bar, the countdown, the slots, the counts and the Take button follow the saw while this is open.
-    const sheet = this.sheet;
-    const tick = () => {
-      if (!sheet.classList.contains('sawmill') || this.modal.hidden) return window.clearInterval(timer);
-      const w = sawUpdate(s), soon = nextPlankIn(s), each = sawSeconds(s);
-      const queued = w.queue.length, ready = Object.values(w.ready).reduce((a, n) => a + (n ?? 0), 0);
-      const q = (sel: string) => sheet.querySelector<HTMLElement>(sel);
-      q('.bench .logs')!.textContent = String(queued);
-      q('.bench .ready')!.textContent = String(ready);
-      q('.bench')!.classList.toggle('busy', queued > 0);
-      q('.sawbar i')!.style.width = `${queued ? (100 * (each - soon)) / each : 0}%`;
-      q('.next')!.textContent = queued ? `Next planks in ${soon}s` : 'Idle: hand Bram some logs';
-      // The bench's slots fill with the logs waiting (a slot for every few), the first one on the blade.
-      const perSlot = SAW_MAX / 12, filled = Math.ceil(queued / perSlot);
-      sheet.querySelectorAll<HTMLElement>('.slots i').forEach((el, k) => {
-        el.className = k === 0 && queued ? 'now' : k < filled ? 'wait' : '';
-      });
-      for (const r of sheet.querySelectorAll<HTMLElement>('.sawrow')) {
-        const l = r.dataset.log as SawLog, room = canOrder(s, l);
-        r.querySelector('.n')!.textContent = String(s.mats[l]);
-        r.querySelectorAll<HTMLButtonElement>('button').forEach((b) => (b.disabled = room < 1));
-      }
-      const take = sheet.querySelector<HTMLButtonElement>('[data-dialog="collect"]')!;
-      take.disabled = !ready;
-      take.firstChild!.textContent = ready ? `Take ${ready} plank${ready > 1 ? 's' : ''}` : 'Take planks';
-    };
-    const timer = window.setInterval(tick, 250);
-    tick();
-    return p;
-  }
-
-  /**
-   * Poppy's Garden: a card per plot (plant a seed, water it, pull its weeds, pick it), your seeds, and a button to pick
-   * everything that's ready. It keeps itself up to date while open, the way the Sawmill does. Resolves
-   * 'plant:<plot>:<crop>', 'water:<plot>', 'weed:<plot>', 'pick:<plot>', 'pickall' or 'close'.
-   */
-  garden(s: SaveState, line: string): Promise<string> {
-    const lv = s.build.garden, n = plotCount(s), next = PROJECTS.garden.levels[lv];
-    const seeds = CROP_ORDER.map((c) => CROPS[c].seed).map((m) => `<span class="chip">${icon(m, MATS[m].icon, 'icon sm')}<b>${s.mats[m]}</b> ${esc(MATS[m].name)}</span>`).join('');
-    const p = this.dialog(
-      `<button class="gx" data-dialog="close" aria-label="Close">✕</button>
-       ${ribbon("Poppy's Garden")}
-       <div class="speaker small">${icon('npc_poppy', '👧', 'icon sm')}<b>Poppy</b><small>${esc(PROJECTS.garden.levels[lv - 1].name)}</small></div>
-       <div class="bubble">${esc(line)}</div>
-       <div class="gplots">${Array.from({ length: n }, (_, i) => `<div class="gslot" data-plot="${i}"></div>`).join('')}</div>
-       <div class="chips seeds">${seeds}</div>
-       <p class="small">Plants grow even while you're away, as long as they're not thirsty.${next ? ` The ${esc(next.name)} would have ${PLOTS_BY_LEVEL[lv + 1]} plots.` : ''}</p>`,
-      [['close', 'Bye, Poppy'], ['pickall', 'Pick all']],
-      'celebrate quest garden',
-    );
-    // Live: bars and cards follow the plants while this is open.
-    const sheet = this.sheet, drawn: string[] = [];
-    const tick = () => {
-      if (!sheet.classList.contains('garden') || this.modal.hidden) return window.clearInterval(timer);
-      const plots = gardenUpdate(s).plots;
-      sheet.querySelectorAll<HTMLElement>('.gslot').forEach((el, i) => {
-        const pl = plots[i] ?? null, card = plotCard(s, i, pl);
-        if (drawn[i] !== card.key) {
-          el.innerHTML = card.html;
-          drawn[i] = card.key;
-        }
-        if (!pl) return;
-        const total = CROPS[pl.crop].seconds, bar = el.querySelector<HTMLElement>('.gbar i');
-        if (bar) bar.style.width = `${Math.min(100, (100 * pl.grown) / total)}%`;
-        const note = el.querySelector<HTMLElement>('.gnote');
-        if (note && !isReady(pl) && !pl.thirsty) note.textContent = `${pl.weeds ? 'Weedy: slow' : 'Growing'} · ${clock(readyIn(pl))}`;
-      });
-      const ready = plots.filter((pl) => pl && isReady(pl)).length;
-      const all = sheet.querySelector<HTMLButtonElement>('.btns [data-dialog="pickall"]')!;
-      all.disabled = !ready;
-      all.firstChild!.textContent = ready ? `Pick ${ready}` : 'Pick all';
-    };
-    const timer = window.setInterval(tick, 250);
-    tick();
-    return p;
   }
 
   elderSays(text: string, hint?: string) {

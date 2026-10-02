@@ -19,6 +19,7 @@ import { drawPlayer, rrect, shadow } from './sprites';
 import type { SaveState } from './state';
 import { hash2, T, type TileMap, type World, type WorldObj } from './world';
 import { WALL_RISE, type Room } from './room';
+import { EchoCave, ECHO_OUTSIDE } from './echoCave';
 import { drawBubble, drawSpeech } from './bubble';
 
 const TAU = Math.PI * 2;
@@ -79,7 +80,7 @@ export class Overworld {
   camTarget: { x: number; y: number } | (() => { x: number; y: number }) | null = null;
   /** During scenes: no action prompt or waypoint arrow. */
   quiet = false;
-  /** Your hands are busy (stirring a pot): no action prompt. */
+  /** A station is using your hands: no action prompt. */
   busyHands = false;
   /** Something you're carrying about on the map (seeds, the watering can), held up over your head. */
   carried: { icon: string; emoji: string; count?: number } | null = null;
@@ -93,6 +94,9 @@ export class Overworld {
   private stationTop = new Map<WorldObj, number>();
   /** Story characters on the map. */
   readonly actors = new Actors();
+  readonly echo = new EchoCave();
+  /** Separate underground map, with its own collision and cast. */
+  underground: EchoCave | null = null;
   /**
    * What the side stories paint onto the map: on the ground (under everyone), and over everything (light and dark,
    * ripples, a gaze on the floor), under the feelings over people's heads. `view` is the screen, in map pixels.
@@ -130,21 +134,22 @@ export class Overworld {
 
   /** What you're walking around: the room you're in, or the map. */
   get map(): TileMap {
-    return this.room ?? this.world;
+    return this.underground ?? this.room ?? this.world;
   }
 
   /** Who's around you: the room's people, or the map's. */
   get cast() {
-    return this.room?.actors ?? this.actors;
+    return this.underground?.actors ?? this.room?.actors ?? this.actors;
   }
 
   /** Where your save puts you: outside the door while you're in a room (rooms aren't saved positions). */
   get savedPos() {
-    return this.room ? { ...this.outside } : { x: this.x, y: this.y };
+    return this.underground ? { ...ECHO_OUTSIDE } : this.room ? { ...this.outside } : { x: this.x, y: this.y };
   }
 
   /** Steps into a room, from `outside` (where you'll come back out). */
   enterRoom(room: Room, outside: { x: number; y: number }) {
+    this.underground = null;
     this.outside = { ...outside };
     this.room = room;
     const p = room.spawn;
@@ -166,6 +171,7 @@ export class Overworld {
   teleport(x: number, y: number) {
     // Going anywhere else (a warp, a respawn) takes you out of a room first.
     this.room = null;
+    this.underground = null;
     this.x = x;
     this.y = y;
     this.camX = x;
@@ -173,6 +179,21 @@ export class Overworld {
     this.roamers.calm = 3;
     this.zone = this.world.zoneAt(x);
     this.actors.regroup(x, y);
+  }
+
+  enterCave(at = this.echo.spawn) {
+    this.teleport(ECHO_OUTSIDE.x, ECHO_OUTSIDE.y);
+    this.underground = this.echo;
+    this.relocate(at.x, at.y);
+    this.face = -Math.PI / 2;
+    this.chopping = null;
+  }
+
+  /** Move within the active map (a cave-in or climb), without leaving its instance. */
+  relocate(x: number, y: number) {
+    this.x = this.camX = x;
+    this.y = this.camY = y;
+    this.moving = false;
   }
 
   /** A few seconds where no monster notices you, so you aren't jumped the moment a fight ends. */
@@ -252,7 +273,7 @@ export class Overworld {
     this.t += dt;
     // A spirit walks unseen: nothing notices it, chases it or jumps out at it.
     if (this.save.spirit) this.roamers.calm = Math.max(this.roamers.calm, 0.5);
-    if (roam && this.alert <= 0 && !this.room) {
+    if (roam && this.alert <= 0 && !this.room && !this.underground) {
       const caught = this.roamers.update(dt, this.x, this.y, this.save.wins === 0, repelBelow(this.save));
       if (caught) {
         this.alert = 0.3;
@@ -290,7 +311,7 @@ export class Overworld {
     if (!this.map.blocked(this.x + dx, this.y, r)) this.x += dx;
     if (!this.map.blocked(this.x, this.y + dy, r)) this.y += dy;
     const moved = Math.hypot(this.x - ox, this.y - oy);
-    if (this.room) return null;
+    if (this.room || this.underground) return null;
 
     let ev: WorldEvent = null;
     const z = this.world.zoneAt(this.x);
@@ -329,6 +350,11 @@ export class Overworld {
     return { x: (px + this.view.left) / this.view.ts, y: (py + this.view.top) / this.view.ts };
   }
 
+  /** A map spot in screen pixels, for effects travelling from a station to the HUD. */
+  toScreen(x: number, y: number) {
+    return { x: x * this.view.ts - this.view.left, y: y * this.view.ts - this.view.top };
+  }
+
   /** Tile size in pixels for this screen (fights on the map zoom in from this). */
   static tileSize(vw: number, vh: number) {
     return Math.round(Math.max(32, Math.min(60, Math.min(vw, vh) / 9.5)));
@@ -346,14 +372,15 @@ export class Overworld {
     const mapW = W.w * ts, mapH = W.h * ts;
     let camX = this.camX * ts - vw / 2;
     let camY = (this.camY - 0.5) * ts - vh / 2;
-    camX = mapW <= vw ? (mapW - vw) / 2 : Math.max(0, Math.min(mapW - vw, camX));
+    const mapLeft = W.x0 * ts, mapTop = W.y0 * ts;
+    camX = mapW <= vw ? mapLeft + (mapW - vw) / 2 : Math.max(mapLeft, Math.min(mapLeft + mapW - vw, camX));
     // The camera can look a little past the top and bottom of the map (the forest carries on out there), so nothing
     // on the edge rows hides under the HUD or the buttons.
     const overTop = ts * (OVERSCROLL.top + this.headroom), overBottom = ts * OVERSCROLL.bottom;
     // A room sits in the middle of the band between the HUD and the buttons, its back wall rising above its top row.
     if (R) camY = (-WALL_RISE - 0.25 + roomRows / 2) * ts - (ROOM_BAND.top + (vh - ROOM_BAND.bottom)) / 2;
-    else if (mapH + overTop + overBottom <= vh) camY = (mapH - vh) / 2;
-    else camY = Math.max(-overTop, Math.min(mapH - vh + overBottom, camY));
+    else if (mapH + overTop + overBottom <= vh) camY = mapTop + (mapH - vh) / 2;
+    else camY = Math.max(mapTop - overTop, Math.min(mapTop + mapH - vh + overBottom, camY));
     camX = Math.round(camX);
     camY = Math.round(camY);
     this.view = { left: camX, top: camY, ts, vh };
@@ -392,16 +419,16 @@ export class Overworld {
 
   /** The map itself: ground, scenery, buildings, monsters and the hero. `left`/`top` are the camera's corner in tiles. */
   private drawScene(ctx: CanvasRenderingContext2D, left: number, top: number, ts: number, vw: number, vh: number) {
-    const W = this.world;
+    const W = this.map;
     const camX = Math.round(left * ts), camY = Math.round(top * ts);
     ctx.fillStyle = this.zone.theme.outside;
     ctx.fillRect(0, 0, vw, vh);
     ctx.save();
     ctx.translate(-camX, -camY);
 
-    const x0 = Math.max(0, Math.floor(camX / ts) - 1), x1 = Math.min(W.w - 1, Math.ceil((camX + vw) / ts) + 1);
+    const x0 = Math.max(W.x0, Math.floor(camX / ts) - 1), x1 = Math.min(W.x0 + W.w - 1, Math.ceil((camX + vw) / ts) + 1);
     // Rows past the map's edges are forest (World.tile calls them obstacles).
-    const y0 = Math.max(-Math.ceil(OVERSCROLL.top + this.headroom) - 1, Math.floor(camY / ts) - 1), y1 = Math.min(W.h + Math.ceil(OVERSCROLL.bottom), Math.ceil((camY + vh) / ts) + 2);
+    const y0 = Math.max(W.y0 - Math.ceil(OVERSCROLL.top + this.headroom) - 1, Math.floor(camY / ts) - 1), y1 = Math.min(W.y0 + W.h + Math.ceil(OVERSCROLL.bottom), Math.ceil((camY + vh) / ts) + 2);
 
     // Ground layer
     for (let y = y0; y <= y1; y++) {
@@ -422,7 +449,7 @@ export class Overworld {
       }
     }
 
-    this.drawFieldGround(ctx, ts);
+    if (!this.underground) this.drawFieldGround(ctx, ts);
     this.layers?.ground(ctx, ts);
 
     // Y-sorted: obstacles, buildings and the hero
@@ -439,11 +466,11 @@ export class Overworld {
       else if (o.kind === 'plot' && o.project === 'garden') this.fieldItems(ctx, o, ts, items);
       else items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
     }
-    for (const r of this.roamers.list) {
+    for (const r of this.underground ? [] : this.roamers.list) {
       if (r.x < x0 - 2 || r.x > x1 + 2) continue;
       items.push({ y: r.y, draw: () => this.drawRoamer(ctx, r, ts) });
     }
-    for (const a of this.actors.list) {
+    for (const a of this.cast.list) {
       if (a.x < x0 - 2 || a.x > x1 + 2) continue;
       items.push({ y: a.y, draw: () => this.drawActor(ctx, a, ts) });
     }
@@ -456,12 +483,12 @@ export class Overworld {
     this.fx.draw(ctx);
     this.layers?.over(ctx, ts, { x: camX, y: camY, w: vw, h: vh });
     // Feelings float above everything, so you can read them from across the screen.
-    for (const a of this.actors.list) {
+    for (const a of this.cast.list) {
       const emoji = a.bubble?.emoji ?? a.mood;
       if (!emoji || a.x < x0 - 2 || a.x > x1 + 2) continue;
       drawBubble(ctx, a.x * ts, (a.y - this.actorHeight(a)) * ts, emoji, ts * 0.62, a.bubble ? a.bubble.t : 1 + this.t, a.bubble?.hold ?? Infinity);
     }
-    this.drawSpeeches(ctx, this.actors.list, ts, camX, vw);
+    this.drawSpeeches(ctx, this.cast.list, ts, camX, vw);
     for (const o of W.objs) {
       if (o.hidden || !o.foes || o.x + o.w < x0 - 2 || o.x > x1 + 2) continue;
       drawBubble(ctx, (o.x + o.w / 2) * ts, (o.y + o.h / 2 - (o.boss ? 1.9 : 1.2)) * ts, o.boss ? '😠' : '❗', ts * 0.55, 1 + this.t);
@@ -767,7 +794,7 @@ export class Overworld {
 
   private drawPath(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
     ctx.fillStyle = th.path;
-    const up = this.world.tile(x, y - 1) === T.PATH, down = this.world.tile(x, y + 1) === T.PATH;
+    const up = this.map.tile(x, y - 1) === T.PATH, down = this.map.tile(x, y + 1) === T.PATH;
     const inset = ts * 0.12;
     ctx.fillRect(px, py + (up ? 0 : inset), ts + 1, ts - (up ? 0 : inset) - (down ? 0 : inset) + 1);
     if (hash2(x, y, 4) < 0.4) {
@@ -780,7 +807,7 @@ export class Overworld {
 
   /** Bram's Bridge: planks laid across the water, with a rail along whichever sides are open water. */
   private drawBridge(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number) {
-    const W = this.world, bridge = (dx: number) => W.tile(x + dx, y) === T.BRIDGE;
+    const W = this.map, bridge = (dx: number) => W.tile(x + dx, y) === T.BRIDGE;
     const boards = 4, bh = ts / boards;
     for (let i = 0; i < boards; i++) {
       ctx.fillStyle = (i + y) % 2 ? '#d8a868' : '#c8965a';
@@ -799,7 +826,7 @@ export class Overworld {
 
   private drawPool(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
     const lava = th.pool === 'lava';
-    const W = this.world;
+    const W = this.map;
     const inset = ts * 0.14;
     const pool = (dx: number, dy: number) => W.tile(x + dx, y + dy) === T.POOL || W.tile(x + dx, y + dy) === T.BRIDGE;
     const l = pool(-1, 0) ? 0 : inset, r = pool(1, 0) ? 0 : inset;
@@ -920,6 +947,25 @@ export class Overworld {
   }
 
   private drawObstacle(ctx: CanvasRenderingContext2D, x: number, y: number, ts: number, th: Theme) {
+    if (zoneAtX(x).id === 'cave') {
+      // Joined rock faces enclose the tunnels; individual boulders still mark mineable cover.
+      const px = x * ts, py = y * ts;
+      ctx.fillStyle = '#303247';
+      ctx.fillRect(px, py - ts * .28, ts + 1, ts * 1.28 + 1);
+      const open = (dx: number, dy: number) => this.map.tile(x + dx, y + dy) !== T.OBST;
+      ctx.strokeStyle = '#51536d'; ctx.lineWidth = ts * .065;
+      ctx.beginPath();
+      if (open(-1, 0)) { ctx.moveTo(px + ts * .04, py); ctx.lineTo(px + ts * .04, py + ts); }
+      if (open(1, 0)) { ctx.moveTo(px + ts * .96, py); ctx.lineTo(px + ts * .96, py + ts); }
+      if (open(0, 1)) { ctx.moveTo(px, py + ts * .92); ctx.lineTo(px + ts, py + ts * .92); }
+      ctx.stroke();
+      if (hash2(x, y, 12) > .6) {
+        ctx.strokeStyle = '#242639'; ctx.lineWidth = ts * .035;
+        ctx.beginPath(); ctx.moveTo(px + ts * .3, py + ts * .15);
+        ctx.lineTo(px + ts * .55, py + ts * .38); ctx.lineTo(px + ts * .47, py + ts * .7); ctx.stroke();
+      }
+      return;
+    }
     const cx = (x + 0.5) * ts + (hash2(x, y, 12) - 0.5) * ts * 0.15;
     const by = (y + 0.92) * ts;
     const v = hash2(x, y, 13);
@@ -1119,7 +1165,7 @@ export class Overworld {
       if (!monsterReady(L.name)) return;
       const hop = a.moving ? Math.abs(Math.sin(this.t * 12)) * ts * 0.16 : 0;
       shadow(ctx, px, py, ts * 0.28 * k);
-      drawMonsterAt(ctx, a.id, L.name, false, (this.t * 7) / 6, Math.cos(a.face) < 0, px, py - hop, ts * 0.74 * spriteScale(L.name) * k);
+      drawMonsterAt(ctx, a.id, L.name, false, (this.t * 7) / 6, Math.cos(a.face) < 0, px, py - hop, ts * 0.74 * spriteScale(L.name) * k, {}, a.id.startsWith('drums:') ? a.face : undefined);
       return;
     }
     shadow(ctx, px, py, ts * 0.24 * k);
@@ -1207,6 +1253,9 @@ export class Overworld {
         this.nameTag(ctx, lit ? '⚒ Forge' : '⚒ Old Forge', ax, top, ts);
         break;
       }
+      case 'prop':
+        if (o.id === 'prop_cavemouth') this.nameTag(ctx, 'Pebbler Hollow', ax, top, ts);
+        break;
       case 'fountain':
         for (let i = 0; i < 3; i++) {
           const q = (this.t * 1.5 + i / 3) % 1;
@@ -1450,4 +1499,3 @@ export class Overworld {
     }
   }
 }
-

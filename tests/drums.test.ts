@@ -5,14 +5,17 @@ import { DODGE_CD } from '../src/battle/types';
 import { zoneById } from '../src/data';
 import type { Input } from '../src/input';
 import {
-  CLIMB, FORMATION, LANDING, LOOKS, MOUTH, NEW_TOTEM, POPPY_AT, Procession, REAR, RING, ROUTE, ROUTE_LEN, TOTEMS,
-  along, drumsOpen, inChamber, inPocket, inSideArea, inTunnels, poppyAway, rejoinAt, sees,
+  BARRIERS, CATCH_AT, CLIMB, FORMATION, LANDING, LOOKS, MOUTH, NEW_TOTEM, POPPY_AT, Procession, REAR, RING, ROUTE, ROUTE_LEN, TOTEMS,
+  along, beamEnd, clearLine, drumsOpen, inChamber, inPocket, inSideArea, inTunnels, poppyAway, rejoinAt, sees,
 } from '../src/procession';
 import { dodgeCharges } from '../src/rules';
 import { newState } from '../src/state';
-import { T, World } from '../src/world';
+import { T, TileMap, World } from '../src/world';
+import { EchoCave } from '../src/echoCave';
 
-const world = new World();
+const overworld = new World();
+const world = new EchoCave();
+world.objs.push(...BARRIERS);
 const C = zoneById('cave').x0;
 const at = (x: number, y: number) => ({ x: C + x, y });
 const walkable = (p: { x: number; y: number }) => ![T.OBST, T.POOL].includes(world.tile(Math.floor(p.x), Math.floor(p.y)) as 2 | 3);
@@ -25,7 +28,7 @@ function flood(from: { x: number; y: number }) {
     const [x, y] = q.pop()!;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const k = `${x + dx},${y + dy}`;
-      if (seen.has(k) || !walkable({ x: x + dx, y: y + dy })) continue;
+      if (seen.has(k) || world.solidAt(x + dx + .5, y + dy + .5)) continue;
       seen.add(k);
       q.push([x + dx, y + dy]);
     }
@@ -57,7 +60,7 @@ describe('the drums in the dark: when it can start', () => {
 });
 
 describe('the side tunnels, the chamber and the pocket below', () => {
-  const fromEntry = flood(world.entryPoint('cave'));
+  const fromEntry = flood(MOUTH);
 
   test('the procession walks only open ground, the lead pair side by side', () => {
     const p = new Procession();
@@ -67,8 +70,9 @@ describe('the side tunnels, the chamber and the pocket below', () => {
     for (const q of [...ROUTE, ...RING, ...TOTEMS, NEW_TOTEM, POPPY_AT, LANDING, CLIMB, MOUTH]) expect({ q, ok: walkable(q) }).toEqual({ q, ok: true });
   });
 
-  test("you can walk from the Cavern's entrance up into the tunnels and the chamber, but never into the pocket", () => {
-    for (const q of [MOUTH, ...ROUTE, POPPY_AT, ...RING]) expect({ q, ok: fromEntry.has(tileOf(q)) }).toEqual({ q, ok: true });
+  test("you reach Poppy through her passage, while the lattices seal off the ritual chamber", () => {
+    for (const q of [MOUTH, CATCH_AT, ...ROUTE.slice(0, 4), POPPY_AT]) expect({ q, ok: fromEntry.has(tileOf(q)) }).toEqual({ q, ok: true });
+    for (const q of [...RING, ROUTE.at(-1)!]) expect(fromEntry.has(tileOf(q))).toBe(false);
     expect(fromEntry.has(tileOf(LANDING))).toBe(false);
     expect(fromEntry.has(tileOf(CLIMB))).toBe(false);
     // The pocket itself is one winding tunnel from where you land to the slope back up.
@@ -78,9 +82,9 @@ describe('the side tunnels, the chamber and the pocket below', () => {
 
   test('the areas are where they should be (and the main path is in none of them)', () => {
     expect(inTunnels(at(26.5, 7.5)) && inTunnels(at(28.5, 6.5)) && inTunnels(at(28.5, 3.5))).toBe(true);
-    expect(inChamber(POPPY_AT) && inChamber(RING[0])).toBe(true);
+    expect(inTunnels(POPPY_AT) && inChamber(RING[0])).toBe(true);
     expect(inPocket(LANDING) && inPocket(CLIMB)).toBe(true);
-    for (const q of [MOUTH, world.entryPoint('cave'), world.campPoint('cave'), at(14.5, 20), at(25, 12)]) expect({ q, side: inSideArea(q) }).toEqual({ q, side: false });
+    for (const q of [MOUTH, overworld.entryPoint('cave'), overworld.campPoint('cave'), at(14.5, 20), at(25, 12)]) expect({ q, side: inSideArea(q) }).toEqual({ q, side: false });
   });
 
   test('a fall puts you back at the last bend behind the procession', () => {
@@ -91,10 +95,27 @@ describe('the side tunnels, the chamber and the pocket below', () => {
   });
 });
 
+describe('eye beams and cover agree', () => {
+  const map = new TileMap(10, 10);
+  map.objs.push({ kind: 'prop', id: 'rock', zone: 'cave', x: 3, y: 2, w: .4, h: 2, label: '' });
+  test('solid props block both the beam and detection, even right up close', () => {
+    const eye = { x: 2.8, y: 3 }, behind = { x: 3.6, y: 3 };
+    expect(sees(map, eye, 0, behind)).toBe(false);
+    expect(clearLine(map, { x: 2.8, y: 2.7 }, { x: 3.6, y: 2.7 })).toBe(false);
+    const end = beamEnd(map, { x: 2.8, y: 2.7 }, 0);
+    expect(end.x).toBeLessThan(3);
+    expect(map.solidAt(end.x, end.y)).toBe(false);
+    map.objs[0].hidden = true;
+    expect(sees(map, eye, 0, behind)).toBe(true);
+    expect(beamEnd(map, { x: 2.8, y: 2.7 }, 0).x).toBeCloseTo(8.8);
+    map.objs[0].hidden = false;
+  });
+});
+
 describe('the rear Pebblor looking back', () => {
   /** At each look-back: where it can see you (the open way behind), and where you're hidden (behind a pillar, round a corner). */
   const LOOKOUT = [
-    { seen: [at(27.5, 6.6), at(29, 6.5)], hidden: [at(27.2, 5.6), at(26.5, 7.6)] },
+    { seen: [at(27.5, 6.6), at(29, 6.5)], hidden: [at(26.7, 5.6), at(26.5, 7.6)] },
     { seen: [at(30.6, 5.6), at(31.4, 6.4)], hidden: [at(27.5, 6.6), at(26.5, 7.6)] },
     { seen: [at(28.6, 3.6), at(30.4, 3.4)], hidden: [at(29.6, 2.5), at(30.6, 5.4)] },
   ];
@@ -106,14 +127,19 @@ describe('the rear Pebblor looking back', () => {
       expect(p.phase).toBe('warn');
       const r = p.rear;
       for (const q of LOOKOUT[i].seen) expect({ i, q, seen: sees(world, r, p.gaze, q) }).toEqual({ i, q, seen: true });
-      for (const q of LOOKOUT[i].hidden) expect({ i, q, seen: sees(world, r, p.gaze, q) }).toEqual({ i, q, seen: false });
-      // Right up close, it notices you whatever's in the way.
-      expect(sees(world, r, p.gaze, { x: r.x + 0.5, y: r.y + 0.4 })).toBe(true);
+      for (const q of LOOKOUT[i].hidden) {
+        expect(world.blocked(q.x, q.y, .28)).toBe(false);
+        expect({ i, q, seen: sees(world, r, p.gaze, q) }).toEqual({ i, q, seen: false });
+      }
+      // Getting close still requires actual contact with the eye beam.
+      const dx = Math.cos(p.gaze) * .3, dy = Math.sin(p.gaze) * .3;
+      expect(sees(world, r, p.gaze, { x: r.x + dx, y: r.y + dy })).toBe(true);
+      expect(sees(world, r, p.gaze, { x: r.x - dx, y: r.y - dy })).toBe(false);
     });
   });
 
   test('tailing them unseen gets you to the chamber; standing in the open during a look gets you spotted', () => {
-    const hideAt = (i: number) => [at(27.2, 5.6), at(27.5, 6.6), at(29.6, 2.5)][i];
+    const hideAt = (i: number) => [at(26.7, 5.6), at(27.5, 6.6), at(29.6, 2.5)][i];
     const p = new Procession();
     let you = MOUTH, spotted = 0;
     for (let t = 0; t < 120 && p.phase !== 'arrived'; t += 1 / 30) {
@@ -135,9 +161,9 @@ describe('the rear Pebblor looking back', () => {
 
   test("they wait for you if you fall behind (or wander off), and never wait for you when you're ahead", () => {
     const p = new Procession(5);
-    p.update(0.1, world.entryPoint('cave'), world);
+    p.update(0.1, overworld.entryPoint('cave'), world);
     const s = p.s;
-    for (let i = 0; i < 30; i++) p.update(0.1, world.entryPoint('cave'), world);
+    for (let i = 0; i < 30; i++) p.update(0.1, overworld.entryPoint('cave'), world);
     expect(p.phase).toBe('wait');
     expect(p.s).toBe(s);
     for (let i = 0; i < 10; i++) p.update(0.1, POPPY_AT, world);

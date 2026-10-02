@@ -5,6 +5,7 @@ import { canGather, hasMats, missingSkill } from '../rules';
 import { has } from '../unlocks';
 import type { WorldObj } from '../world';
 import { G } from './context';
+import { ECHO_EXIT } from '../echoCave';
 import { storyNoArrow, storyTarget } from './stories';
 
 /** The spot in front of an object, where you actually stand to use it. */
@@ -16,6 +17,7 @@ export function objective(): { x: number; y: number } | null {
   // A side story you're in the middle of leads the way (or has you find it yourself).
   if (storyNoArrow()) return null;
   const side = storyTarget();
+  if (G.over.underground && (!side || side.x < G.over.echo.x0 || side.x >= G.over.echo.x0 + G.over.echo.w)) return ECHO_EXIT;
   if (side) return side;
   const s = G.save, w = G.world;
   const q = currentQuest(s);

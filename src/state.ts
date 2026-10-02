@@ -4,6 +4,7 @@ import type { MealId } from './kitchen';
 import type { SawState } from './sawmill';
 import type { GardenState } from './garden';
 import type { RoomId } from './room';
+import { inSideArea, MOUTH } from './procession';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
 export interface SaveState {
@@ -65,6 +66,8 @@ export interface SaveState {
   garden?: GardenState;
   /** The room you're in (Granny's Kitchen, Bram's Sawmill): you carry on there. `pos` is then just outside its door. */
   room?: RoomId;
+  /** A separate underground instance; pos remains outside its entrance. */
+  underground?: { id: 'echo'; x: number; y: number };
   /** Set once the Forge has its five levels (older saves had three: Smithy was ★★★–★★★★, Master Forge the third). */
   forgeLevels?: 5;
   /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */
@@ -237,6 +240,11 @@ export function loadState(): SaveState | null {
     }
     // Saves from before patch notes existed were made on 0.1.0.
     if (data.seenVersion === undefined) merged.seenVersion = '0.1.0';
+    // Old saves in the former side tunnels resume in their new independent map.
+    if (!merged.room && !merged.underground && inSideArea(merged.pos)) {
+      merged.underground = { id: 'echo', ...merged.pos };
+      merged.pos = { x: MOUTH.x, y: MOUTH.y + .8 };
+    }
     return merged;
   } catch {
     return null;

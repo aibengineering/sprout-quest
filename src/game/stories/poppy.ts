@@ -1,9 +1,9 @@
 // Poppy and Mr. Floppers: a little girl cornered in a secret grove off the Sunny Meadow, a walk home, a stolen toy
 // bunny, and a chase down into the grove to get him back from the bunny bully. The grove stays afterwards: a quiet
-// spot with good trees and rocks. Once the Garden's built, she tends it (see garden.ts): her Garden panel is here too.
+// spot with good trees and rocks. Once the Garden's built, she tends it (see garden.ts): you work its field by hand.
 import type { ActorSpec } from '../../actors';
-import { MATS, zoneById, type MonsterKind } from '../../data';
-import { CROPS, CROP_ORDER, FIELD_COLS, gardenOpen, gardenUpdate, isReady, pick, plant, pullWeeds, takeGift, takeWelcome, water, type Crop } from '../../garden';
+import { zoneById, type MonsterKind } from '../../data';
+import { FIELD_COLS, gardenOpen, gardenUpdate, isReady } from '../../garden';
 import { drumsStep, poppyAway } from '../../procession';
 import { plotOpen } from '../../rules';
 import { FIELD, type WorldObj } from '../../world';
@@ -84,59 +84,6 @@ function gardenMood(): string | undefined {
   if (plots.some((p) => p?.weeds)) return '🌿';
   if (plots.some((p) => p && isReady(p))) return '🧺';
   return undefined;
-}
-
-/** Poppy's Garden: plant, water, weed and pick, with her chattering away. */
-export function openGarden() {
-  return paused(async () => {
-    const s = G.save;
-    let greeting = GARDEN_LINES[gardenLine++ % GARDEN_LINES.length];
-    // The Berry Seeds she's been saving for the Garden's first day, and Flower Seeds from her grove when you're out.
-    const welcome = takeWelcome(s), gift = takeGift(s);
-    if (welcome) greeting = `A real garden, and I get to look after it! Here, I saved ${welcome} Berry Seeds from the oak trees. Let's plant them!`;
-    else if (gift) greeting = `You're out of Flower Seeds? Here's ${gift} from my Secret Grove. Shh, it's our secret!`;
-    if (welcome || gift) {
-      G.audio.play('pickup');
-      G.ui.toast([welcome && `${MATS.berryseed.icon} +${welcome} Berry Seeds`, gift && `${MATS.flowerseed.icon} +${gift} Flower Seeds`].filter(Boolean).join(' · '));
-      persist();
-    }
-    for (;;) {
-      const r = await G.ui.garden(s, greeting);
-      const [what, at, crop] = r.split(':'), i = Number(at);
-      if (what === 'plant') {
-        const ok = CROP_ORDER.includes(crop as Crop) && plant(s, i, crop as Crop) === 'ok';
-        if (ok) G.audio.play('step');
-        greeting = ok ? `In you go, little ${MATS[CROPS[crop as Crop].seed].name.replace(' Seeds', '').toLowerCase()} seed! Grow big!` : 'Hmm, that one needs a seed first.';
-      } else if (what === 'water') {
-        if (water(s, i)) G.audio.play('heal');
-        greeting = 'Glug, glug, glug! There, all better.';
-      } else if (what === 'weed') {
-        if (pullWeeds(s, i)) G.audio.play('glance');
-        greeting = 'Out you come, weeds! Shoo!';
-      } else if (what === 'pick' || what === 'pickall') {
-        const plots = gardenUpdate(s).plots, firstBerries = !s.flags.includes('garden:berries');
-        const got: Partial<Record<Crop, number>> = {};
-        plots.forEach((p, k) => {
-          if (!p || !isReady(p) || (what === 'pick' && k !== i)) return;
-          const r = pick(s, k);
-          if (r) got[r.mat as Crop] = (got[r.mat as Crop] ?? 0) + r.n;
-        });
-        const lines = (Object.entries(got) as [Crop, number][]).map(([c, n]) => `${MATS[c].icon} +${n} ${MATS[c].name}`);
-        if (lines.length) {
-          G.audio.play('pickup');
-          G.ui.toast(lines.join(' · '));
-        }
-        greeting = lines.length ? 'Look how many! Mr. Floppers wants to count them.' : 'Nothing ready yet. Patience, Mr. Floppers!';
-        if (firstBerries && got.berry) {
-          persist();
-          await G.ui.itemFound('meal_tart', 'Berry Tart', 'Granny can bake it now: +10% max HP for 5 minutes. Berries and Bunny Fluff.', '🥧', 'New recipe');
-          greeting = "Our first berries! Granny's going to bake her berry tart, I just know it!";
-        }
-      } else break;
-      persist();
-    }
-    persist();
-  });
 }
 
 export const POPPY: Story = {
@@ -295,7 +242,7 @@ export const POPPY: Story = {
       }));
     } else if (step >= 6 && gardenOpen(G.save)) {
       // She tends the Garden now, and shows what it needs over her head.
-      cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...GARDEN_SPOT, face: Math.PI / 2, mood: gardenMood(), label: 'Garden', talk: () => openGarden() });
+      cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...GARDEN_SPOT, face: Math.PI / 2, mood: gardenMood(), label: 'Talk', talk: () => chat([[POPPY_TALK, GARDEN_LINES[gardenLine++ % GARDEN_LINES.length]]]) });
     } else if (step >= 6) {
       // Every other chat, once there's a plot for it, she asks for a garden.
       const home = () => {
@@ -318,7 +265,9 @@ export const POPPY: Story = {
     if (!p) return;
     // On the walk home she keeps an eye on the grass: nervous with monsters about, happy otherwise.
     if (step === 2 && p.follow) p.mood = G.over.roamers.list.some((r) => Math.hypot(r.x - p.x, r.y - p.y) < 3.5) ? '😰' : '🙂';
-    if (step < 6) return;
+    // Scenes can borrow Poppy from the Garden. Don't reset her position or mood
+    // while a scripted walk or conversation controls her, including after she arrives.
+    if (step < 6 || G.mode !== 'world' || G.over.quiet || p.path.length) return;
     // She moves to the Garden once there is one for her to tend (and it says what it needs over her head).
     // (She wanders over to help when you work the field: anywhere in it counts.)
     const atGarden = Math.hypot(p.x - GARDEN_SPOT.x, p.y - GARDEN_SPOT.y) < 8;

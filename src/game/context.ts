@@ -83,6 +83,8 @@ export function persist() {
   G.save.pos = G.over.savedPos;
   if (G.over.room) G.save.room = G.over.room.id;
   else delete G.save.room;
+  if (G.over.underground) G.save.underground = { id: 'echo', x: G.over.x, y: G.over.y };
+  else delete G.save.underground;
   saveState(G.save);
 }
 
@@ -122,7 +124,7 @@ export function showZoneBanner(z: Zone) {
 export function syncWorld() {
   const s = G.save;
   G.world.setBridge(s.flags.includes('bridge:woods'));
-  for (const o of G.world.objs) {
+  for (const o of [...G.world.objs, ...G.over.echo.objs]) {
     const z = o.zone ? zoneById(o.zone) : null;
     if (o.kind === 'gate' && z?.guardian) o.hidden = s.bosses.includes(z.guardian.kind);
     // A campfire is there once its road is open, cold until you light it.

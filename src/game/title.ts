@@ -13,6 +13,7 @@ import { G, applySound, persist, showZoneBanner } from './context';
 import { zoneTheme } from '../music/scores';
 import { setUpStories } from './stories';
 import { restoreRoom } from './rooms';
+import { restoreUnderground } from './underground';
 import { progressQuests, unlocks } from './story';
 
 /** Set once the sprites and icons are in; the title's buttons only exist from then on. */
@@ -112,6 +113,7 @@ function startGame(fresh: boolean) {
   }
   // Saved in Granny's Kitchen or Bram's Sawmill: carry on in there (before anything saves you back outside).
   restoreRoom();
+  restoreUnderground();
   // Old saves catch up on unlocks quietly; new players get them one at a time.
   const catchUp = s.unlocked.length === 0 && (s.lv > 1 || s.quest > 0);
   unlocks(catchUp);

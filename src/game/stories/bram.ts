@@ -3,8 +3,7 @@
 // that comes anyway, and after he's hurt charging in to help, you walk him home. He stays, builds the Sawmill, and
 // teaches Granny his stew. See the story bible (Side quests).
 import type { ActorSpec } from '../../actors';
-import { BRAM_CABIN_PLANKS, MATS, ZONES, zoneById, type MatId, type MonsterKind } from '../../data';
-import { PLANKS_PER_LOG, SAW_LOGS, sawCollect, sawOrder, type SawLog } from '../../sawmill';
+import { BRAM_CABIN_PLANKS, ZONES, zoneById, type MonsterKind } from '../../data';
 import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { challengeFoe, startBattle } from '../fights';
@@ -54,32 +53,7 @@ const chat = (lines: [Speaker, string, string?][]) => paused(async () => {
 });
 
 const ROAD = ["Easy. Easy on the leg.", "Clover's going to fuss. She always fussed.", "You're stronger than you look, kid.", "Mind the grass. Fangs in the grass."];
-const MILL_LINES = ["One log, two planks. I'll saw while you're out.", 'Good wood in the meadow. Oak, straight grain.', "Clover's stew's coming along. Don't tell her I said so.", "Sowerby could use a guest cottage. Build one, and folk'll come."];
 let line = 0;
-
-/** Bram's Sawmill: hand him logs, take your planks. */
-export function openSawmill(greeting = MILL_LINES[line++ % MILL_LINES.length]) {
-  return paused(async () => {
-    for (;;) {
-      const r = await G.ui.sawmill(G.save, greeting);
-      if (r.startsWith('saw:')) {
-        const [, count, log] = r.split(':');
-        const n = SAW_LOGS.includes(log as SawLog) ? sawOrder(G.save, Number(count), log as SawLog) : 0;
-        if (n) G.audio.play('chop');
-        greeting = n ? `Right. ${n * PLANKS_PER_LOG} planks coming up.` : "You'll need more logs than that.";
-      } else if (r === 'collect') {
-        const got = Object.entries(sawCollect(G.save)) as [MatId, number][];
-        if (got.length) {
-          G.audio.play('pickup');
-          G.ui.toast(got.map(([p, n]) => `${MATS[p].icon} +${n} ${MATS[p].name}${n > 1 ? 's' : ''}`).join(' · '));
-        }
-        greeting = 'There you go. Straight and true.';
-      } else break;
-      persist();
-    }
-    persist();
-  });
-}
 
 /** The pack comes early: a couple of Woolves, with Bram watching from his stump. */
 function tooLoud() {
@@ -257,7 +231,8 @@ export const BRAM_STORY: Story = {
       async then() {
         syncWorld();
         await scene(async () => {
-          await pan(MILL.x - 1.4, MILL.y, 700);
+          const cabin = G.world.objs.find((o) => o.id === 'bramhut')!;
+          await pan(cabin.x + cabin.w / 2, cabin.y + cabin.h - 0.6, 700);
           await narrate('Hammering, sawing, and a good deal of grumbling later, Bram has a cabin.');
           bubble(ID, '😊', 3);
           await say(BRAM, 'Home.', 'happy');
@@ -303,11 +278,11 @@ export const BRAM_STORY: Story = {
           persist();
           return;
         }
-        return openSawmill(`${BRAM_CABIN_PLANKS} planks for the cabin, when you have them. You've got ${G.save.mats.plank}.`);
+        return chat([[BRAM, `${BRAM_CABIN_PLANKS} planks for the cabin. You've got ${G.save.mats.plank}. Inside the mill: logs on the bench, pull the lever, then take the planks by the door.`]]);
       })];
     }
-    // Settled in: he's inside his Sawmill, through its door.
-    return [];
+    // Settled in: chat outside, and he joins you at the bench when you enter his Sawmill.
+    return [at(MILL, undefined, () => chat([[BRAM, "Good to see you, partner. Clover's stew keeps me going. Come inside when you've got logs to cut; I'll show you the bench.", 'happy']]))];
   },
 
   fainted() {

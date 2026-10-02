@@ -5,7 +5,7 @@ import type { ActorSpec } from '../actors';
 import type { BattleSetup } from '../battle/types';
 import type { MapLayers } from '../overworld';
 import type { WorldObj } from '../world';
-import { G, persist, syncWorld } from './context';
+import { busy as transitioning, G, persist, syncWorld } from './context';
 import { BRAM_STORY } from './stories/bram';
 import { GRANNY_STORY } from './stories/granny';
 import { PIP_STORY } from './stories/pip';
@@ -41,6 +41,10 @@ export interface Story {
   castEarly?: boolean;
   /** Monster groups this story places on the map; each shows only at its step (see WorldObj.story). */
   objs: WorldObj[];
+  /** Props belonging to the separate underground map, rather than the overworld. */
+  undergroundObjs?: WorldObj[];
+  /** Which map owns this step's cast (the entrance scene can still be outdoors). */
+  castSpace?: (step: number) => 'world' | 'echo';
   /** Extra setup for one of its fights (by flag), such as someone watching from the edge. */
   fight?: (flag: string) => Partial<BattleSetup> | undefined;
   /** Small touches every frame (moods that react to what's around). */
@@ -82,7 +86,10 @@ export function storyLog() {
 
 /** Puts every story's monster groups on the map (once), then syncs characters and visibility. */
 export function setUpStories() {
-  for (const st of STORIES) for (const o of st.objs) if (!G.world.objs.includes(o)) G.world.objs.push(o);
+  for (const st of STORIES) {
+    for (const o of st.objs) if (!G.world.objs.includes(o)) G.world.objs.push(o);
+    for (const o of st.undergroundObjs ?? []) if (!G.over.echo.objs.includes(o)) G.over.echo.objs.push(o);
+  }
   syncStories();
 }
 
@@ -93,18 +100,21 @@ let castKey = '';
 
 /** Places each story's cast for its current step: new characters appear, gone ones leave, the rest update. */
 export function syncStories() {
-  const actors = G.over.actors;
   castKey = STORIES.map((st) => (castOut(st) ? 1 : 0)).join('');
   for (const st of STORIES) {
     const cast = castOut(st) ? st.cast(stepOf(st.id)) : [];
-    for (const a of actors.list.filter((a) => a.id.startsWith(`${st.id}:`) && !cast.some((c) => c.id === a.id))) actors.remove(a.id);
-    for (const spec of cast) {
-      const a = actors.get(spec.id);
-      if (!a) actors.add(spec);
-      else {
-        // Keep where they are (a follower mid-walk), but take on the step's look, mood and lines.
-        const { x, y, ...rest } = spec;
-        Object.assign(a, rest, a.follow || spec.follow ? {} : { x, y }, { follow: !!spec.follow, mood: spec.mood, label: spec.label, talk: spec.talk });
+    const space = st.castSpace?.(stepOf(st.id)) ?? 'world';
+    for (const [key, actors] of [['world', G.over.actors], ['echo', G.over.echo.actors]] as const) {
+      const specs = key === space ? cast : [];
+      for (const a of actors.list.filter((a) => a.id.startsWith(`${st.id}:`) && !specs.some((c) => c.id === a.id))) actors.remove(a.id);
+      for (const spec of specs) {
+        const a = actors.get(spec.id);
+        if (!a) actors.add(spec);
+        else {
+          // Keep where they are (a follower mid-walk), but take on the step's look, mood and lines.
+          const { x, y, ...rest } = spec;
+          Object.assign(a, rest, a.follow || spec.follow ? {} : { x, y }, { follow: !!spec.follow, mood: spec.mood, label: spec.label, talk: spec.talk });
+        }
       }
     }
   }
@@ -115,7 +125,8 @@ let busy = false;
 
 /** Advances any story whose current step is done, playing its scene. Returns whether one moved on. */
 export async function checkStories(): Promise<boolean> {
-  if (busy) return false;
+  // Input earlier in the same frame may have opened a menu or started entering a room.
+  if (busy || G.mode !== 'world' || transitioning() || G.over.room || G.ui.isOpen) return false;
   // A story that's just become available brings its cast onto the map, even before its first step.
   if (STORIES.map((st) => (castOut(st) ? 1 : 0)).join('') !== castKey) syncStories();
   for (const st of STORIES) {

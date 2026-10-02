@@ -304,7 +304,7 @@ export const ZONES: Zone[] = [
   {
     id: 'cave', name: 'Echo Cavern', guardian: { kind: 'alphawolf', lv: 9, gate: 'rock' }, x0: 127, w: 40, rec: 8, lv: [8, 11], maxEnemies: 3,
     monsters: [{ kind: 'bat', w: 3 }, { kind: 'golem', w: 2 }, { kind: 'shroom', w: 0.7 }],
-    theme: { ground: '#8c90a0', ground2: '#858a9a', grass: '#4f8a6a', grassTip: '#7ac89a', path: '#b4b8c4', obstacle: 'boulder', pool: 'water', decor: 'pebble', outside: '#3e4250' },
+    theme: { ground: '#515264', ground2: '#494c5f', grass: '#4f8a6a', grassTip: '#7ac89a', path: '#696b7f', obstacle: 'boulder', pool: 'water', decor: 'pebble', outside: '#3e4250' },
   },
   {
     id: 'hollow', name: 'Glimmer Hollow', guardian: { kind: 'echoqueen', lv: 12, gate: 'rock' }, x0: 167, w: 40, rec: 11, lv: [11, 13], maxEnemies: 3,

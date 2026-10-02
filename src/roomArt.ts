@@ -5,6 +5,7 @@ import { drawFrame, frame, iconImage } from './assets';
 import { WALL_RISE, type Room } from './room';
 import { rrect, shadow } from './sprites';
 import type { WorldObj } from './world';
+import { MATS, type MatId, type Recipe } from './data';
 
 /** Map tiles are 1.6 Blender units wide, like the map's buildings; indoors, props are drawn a bit bigger than that
  * (cosier, and easier to tap). */
@@ -18,6 +19,24 @@ export const propRise = (z: number, ts: number) => z * 0.866 * propUnit(ts);
 export const WALL_FOOT = 1.95;
 
 const TAU = Math.PI * 2;
+
+/** A soft pool of light under the next useful station. */
+export function stationGlow(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number, strength: number) {
+  const x = (o.x + o.w / 2) * ts, y = (o.y + o.h - 0.12) * ts;
+  const rx = Math.max(0.65, o.w * 0.64) * ts, ry = ts * 0.36;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(rx, ry);
+  const glow = ctx.createRadialGradient(0, 0, 0.15, 0, 0, 1);
+  glow.addColorStop(0, `rgba(255,226,143,${0.36 * strength})`);
+  glow.addColorStop(0.65, `rgba(255,226,143,${0.2 * strength})`);
+  glow.addColorStop(1, 'rgba(255,226,143,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 1, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
 
 /**
  * A station's prop: its sprite (room/<name>) standing on the front of its box, pushed back `back` tiles, or the
@@ -48,6 +67,44 @@ export function crate(ctx: CanvasRenderingContext2D, x: number, y: number, w: nu
   ctx.lineWidth = 2;
   rrect(ctx, x, y - rise, w, h + rise, Math.min(w, h) * 0.12);
   ctx.stroke();
+}
+
+/** A whole recipe on a small plate held at waist height, rather than another overhead item bubble. */
+export function drawIngredientPlate(ctx: CanvasRenderingContext2D, x: number, y: number, ts: number, ingredients: Recipe, face: number, t = 0) {
+  const mats = Object.keys(ingredients) as MatId[];
+  const cx = x + Math.cos(face) * ts * 0.16, cy = y - ts * 0.23 + Math.sin(face) * ts * 0.05 + Math.sin(t * 6) * ts * 0.015;
+  const rx = ts * 0.425, ry = ts * 0.13;
+  ctx.save();
+  ctx.fillStyle = '#fff8e8';
+  ctx.strokeStyle = '#76506a';
+  ctx.lineWidth = Math.max(1.5, ts * 0.035);
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = '#dbc7ac';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - ts * 0.02, rx * 0.76, ry * 0.66, 0, 0, TAU);
+  ctx.stroke();
+  const size = ts * 0.32;
+  mats.forEach((mat, i) => {
+    const mx = cx + (i - (mats.length - 1) / 2) * size * 0.85, my = cy - size * 0.55;
+    const img = iconImage(mat);
+    if (img) ctx.drawImage(img, mx - size / 2, my - size / 2, size, size);
+    else {
+      ctx.font = `${Math.round(size * 0.9)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(MATS[mat].icon, mx, my);
+    }
+  });
+  ctx.fillStyle = '#f5c599';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(cx + side * rx * 0.92, cy, ts * 0.07, ts * 0.05, 0, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 /** Something you're carrying, held up over your head: its icon in a white disc (its emoji until icons load), and how many. */

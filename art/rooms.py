@@ -79,7 +79,7 @@ def pantry():
 
 
 def stove():
-    """A little cast-iron stove with a glowing oven door, its pipe up the wall, and the big copper pot on top."""
+    """A cast-iron stove and adjoining wooden prep bench: one cooking station with a clear worktop."""
     root = empty('k_stove')
     w, d, h = 2.0, 1.0, 0.95
     iron, dark = toon(IRON), toon('#2e2a34')
@@ -106,6 +106,20 @@ def stove():
     for s in (-1, 1):
         torus((-0.25 + s * 0.55, 0, h + 0.45), 0.08, 0.025, copper, root, rot=(math.pi / 2, 0, 0), line=0.006)
     cylinder((-0.25, 0, h + 0.42), 0.4, 0.04, toon('#5a3020'), root, seg=24, line=0)
+    # Keep the stove at the left of the combined station, with preparation space on its right.
+    for child in root.children:
+        child.location.x -= 0.65
+    wood, counter = toon(WOOD), toon('#f4dfb8')
+    box((1.0, 0, h / 2), (1.3, d, h), wood, root, bevel=0.04)
+    box((1.0, 0, h + 0.035), (1.4, d + 0.1, 0.08), counter, root, bevel=0.03, line=0.012)
+    box((1.0, -d / 2 - 0.025, 0.55), (1.1, 0.05, 0.3), toon(WOOD_LIGHT), root, bevel=0.02, line=0.01)
+    cylinder((1.0, -d / 2 - 0.08, 0.55), 0.035, 0.35, dark, root, rot=(0, math.pi / 2, 0), seg=8, line=0.006)
+    box((1.0, -0.06, h + 0.1), (0.82, 0.65, 0.06), toon('#c99763'), root, bevel=0.04, line=0.012)
+    # A mixing bowl and wooden spoon leave most of the board clear for the carried ingredient plate.
+    lathe([(0.0001, 0), (0.12, 0.01), (0.23, 0.22), (0.25, 0.25), (0.21, 0.26), (0.1, 0.06), (0.0001, 0.05)],
+          toon('#9ad8ff'), root, loc=(1.28, 0.22, h + 0.09), seg=16, line=0.01)
+    cylinder((0.68, -0.05, h + 0.16), 0.025, 0.5, toon(WOOD_DARK), root, rot=(0, math.pi / 2, 0), seg=8, line=0.006)
+    sphere((0.44, -0.05, h + 0.16), (0.1, 0.06, 0.025), toon(WOOD_DARK), root, line=0.006)
     return root
 
 
@@ -129,9 +143,9 @@ def recipe_stand():
 
 
 def table():
-    """The kitchen table: a checked cloth, a jug of flowers, and two stools tucked under."""
+    """A small side table: a checked cloth, a jug of flowers, and one stool tucked under."""
     root = empty('k_table')
-    w, d, h = 3.9, 1.35, 0.8
+    w, d, h = 2.0, 1.1, 0.8
     wood, dark = toon(WOOD), toon(WOOD_DARK)
     for x in (-w / 2 + 0.2, w / 2 - 0.2):
         for y in (-d / 2 + 0.18, d / 2 - 0.18):
@@ -141,18 +155,18 @@ def table():
     box((0, 0, h + 0.06), (w * 0.82, d + 0.08, 0.03), toon('#fff6ee'), root, bevel=0.01, line=0.01)
     box((0, -d / 2 - 0.05, h - 0.1), (w * 0.82, 0.03, 0.3), toon('#fff6ee'), root, bevel=0.01, line=0.01)
     red = toon('#f07a7a')
-    for i in range(7):
-        x = (i - 3) * w * 0.82 / 7
-        box((x, 0, h + 0.08), (w * 0.82 / 14, d + 0.08, 0.012), red, root, bevel=0, line=0)
-        box((x, -d / 2 - 0.07, h - 0.1), (w * 0.82 / 14, 0.012, 0.3), red, root, bevel=0, line=0)
+    for i in range(5):
+        x = (i - 2) * w * 0.82 / 5
+        box((x, 0, h + 0.08), (w * 0.82 / 10, d + 0.08, 0.012), red, root, bevel=0, line=0)
+        box((x, -d / 2 - 0.07, h - 0.1), (w * 0.82 / 10, 0.012, 0.3), red, root, bevel=0, line=0)
     # A jug of flowers.
-    lathe([(0.0001, 0), (0.14, 0.01), (0.18, 0.12), (0.12, 0.3), (0.15, 0.36), (0.0001, 0.34)], toon('#9ad8ff'), root, loc=(1.2, 0.25, h + 0.09), seg=14, line=0.01)
+    lathe([(0.0001, 0), (0.14, 0.01), (0.18, 0.12), (0.12, 0.3), (0.15, 0.36), (0.0001, 0.34)], toon('#9ad8ff'), root, loc=(0.5, 0.2, h + 0.09), seg=14, line=0.01)
     for i, c in enumerate(('#ff8ab0', '#ffd35a', '#ffffff', '#b08aff')):
         a = i / 4 * math.tau
-        cylinder((1.2 + math.cos(a) * 0.05, 0.25 + math.sin(a) * 0.05, h + 0.55), 0.015, 0.3, toon('#4fb043'), root, seg=6, line=0)
-        sphere((1.2 + math.cos(a) * 0.1, 0.25 + math.sin(a) * 0.08, h + 0.72), 0.08, toon(c), root, line=0.006)
+        cylinder((0.5 + math.cos(a) * 0.05, 0.2 + math.sin(a) * 0.05, h + 0.55), 0.015, 0.3, toon('#4fb043'), root, seg=6, line=0)
+        sphere((0.5 + math.cos(a) * 0.1, 0.2 + math.sin(a) * 0.08, h + 0.72), 0.08, toon(c), root, line=0.006)
     # Stools in front.
-    for x in (-0.9, 0.9):
+    for x in (-0.45,):
         cylinder((x, -d / 2 - 0.35, 0.42), 0.26, 0.08, wood, root, seg=16, line=0.012)
         for a in (0.5, 2.6, 4.7):
             cylinder((x + math.cos(a) * 0.15, -d / 2 - 0.35 + math.sin(a) * 0.15, 0.2), 0.035, 0.42, dark, root, seg=6, line=0.008)
@@ -319,9 +333,9 @@ def watering_can():
 # art/env.py's SCENERY. The blade's origin is its middle (the game spins it about that).
 PROPS = {
     'k_pantry': (pantry, 230, 230),
-    'k_stove': (stove, 150, 260),
+    'k_stove': (stove, 240, 260),
     'k_book': (recipe_stand, 90, 110),
-    'k_table': (table, 270, 140),
+    'k_table': (table, 160, 140),
     's_bench': (saw_bench, 290, 120),
     's_blade': (blade, 90, 90, 0.5),
     's_lever0': (lambda: lever(False), 80, 120),

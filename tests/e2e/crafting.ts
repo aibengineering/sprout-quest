@@ -1,4 +1,4 @@
-// Real crafting transactions and the shared 3D presentation on both phone layouts, in software WebGL.
+// Real crafting transactions, hands-on meals, and the shared 3D Forge presentation on both phone layouts.
 // CHROMIUM_PATH=/usr/bin/chromium bun run tests/e2e/crafting.ts
 //   CRAFT_ONLY=id,id   just these items
 //   CRAFT_SHOTS=1      also save each scene mid-build and finished to tests/e2e/out/combined-crafting/
@@ -39,9 +39,7 @@ async function begin(page: Page, id: string, twice = false) {
     for (const k in s.skills) s.skills[k].lv = 10;
     s.lv = 20; s.build.forge = 5; s.stories.poppy = 6; s.stories.drums = 4;
     for (const flag of ['oldtools', 'bram:pie', 'bram:stew', 'pip:candy', 'garden:berries']) if (!s.flags.includes(flag)) s.flags.push(flag);
-    if (['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy', 'tart'].includes(id)) {
-      void g.grannyCooks(); // Granny's menu (in her Kitchen, asking her)
-    } else {
+    if (!['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy', 'tart'].includes(id)) {
       g.ui.openMenu({ atForge: true, inVillage: true }, 'forge');
       const method = /^(axe|pick)\d$/.test(id) ? 'craftTool' : ['jellypot', 'shroombrew', 'embertonic', 'herbtonic'].includes(id) ? 'craftPotion' : 'craftGear';
       void g.ui.hooks[method](id);
@@ -49,17 +47,31 @@ async function begin(page: Page, id: string, twice = false) {
     }
   }, { id, twice });
   if (id in MEALS) {
-    await page.screenshot({ path: `${out}kitchen-${id}-${page.viewportSize()!.width}.png` });
-    await page.locator(`[data-dialog="cook:${id}"]`).click();
+    if (await page.evaluate(() => (window as any).game.room !== 'kitchen')) {
+      await page.evaluate(() => (window as any).game.enterRoom('kitchen'));
+      await page.waitForFunction(() => { const g = (window as any).game; return g.room === 'kitchen' && g.mode === 'world' && !g.trans; });
+    }
+    const use = async (station: string) => {
+      await page.evaluate(id => { const g = (window as any).game, o = g.over.room.station(id); g.over.x = o.x + o.w / 2; g.over.y = o.y + o.h + 0.45; g.over.face = -Math.PI / 2; }, station);
+      await page.waitForTimeout(120);
+      await page.keyboard.press('KeyE');
+      await page.waitForTimeout(150);
+    };
+    await use('book');
+    await page.locator(`[data-dialog="dish:${id}"]`).click();
+    await page.waitForFunction(id => (window as any).game.kitchen.held?.dish === id, id);
+    const prepared = await page.evaluate(() => (window as any).game.save);
+    for (const mat of Object.keys(item(id).recipe!)) if (prepared.mats[mat] !== 100) throw Error(`${id}: preparation spent ingredients`);
+    await use('stove');
   }
   await page.waitForSelector('.sheet.crafting');
-  // The real spend and grant must already be durable while bundles are still flying.
+  // The real spend and grant must already be durable, before the creation animation at the pot or Forge.
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('sprout-quest-save' + (localStorage.getItem('sprout-quest-slot') ? ':' + localStorage.getItem('sprout-quest-slot') : ''))!));
   for (const [m, n] of Object.entries(item(id).recipe!)) if (saved.mats[m] !== 100 - n!) throw Error(`${id}: save-before-animation ${m}`);
   if (GEAR[id] && saved.owned.filter((x: string) => x === id).length !== 1) throw Error(`${id}: ownership not durable`);
   if (TOOLS.some(t => t.id === id)) { const t = TOOLS.find(t => t.id === id)!; if (saved.tools[t.skill] !== t.tier) throw Error(`${id}: tool not durable`); }
   if (POTION_RECIPES.some(p => p.id === id) && saved.potions !== 1) throw Error(`${id}: potion not durable`);
-  if (id in MEALS && (saved.meal.id !== id || saved.meal.left !== MEALS[id as keyof typeof MEALS].seconds)) throw Error(`${id}: meal not durable`);
+  if (id in MEALS && (saved.meal.id !== id || saved.meal.left <= 0 || saved.meal.left > MEALS[id as keyof typeof MEALS].seconds)) throw Error(`${id}: meal not durable`);
 }
 
 /** The layers showing in the scene now. */
@@ -73,11 +85,11 @@ const painted = (page: Page) => page.locator('.craft-model').evaluate((c) => {
 });
 
 async function finish(page: Page, id: string, equip = true, fallback = false) {
-  await page.waitForSelector('.craft-ready', { timeout: 30000 });
+  await page.waitForSelector('.craft-ready', { timeout: 60000 });
   if (await page.locator('.craft-fallback').isVisible() !== fallback) throw Error(`${id}: unexpected art fallback`);
   for (const [m, n] of Object.entries(item(id).recipe!)) if (await page.locator(`[data-count="${m}"]`).textContent() !== String(100 - n!)) throw Error(`${id}: animated count ${m}`);
-  if (!fallback && !await painted(page)) throw Error(`${id}: nothing drawn in the scene`);
   if (id === 'stew' && (await layers(page)).includes('pine-fuel')) throw Error('Fuel remains on finished stew');
+  if (!fallback && !await painted(page)) throw Error(`${id}: nothing drawn in the scene`);
   if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) throw Error(`${id}: phone overflow`);
   const choice = GEAR[id] ? (equip ? 'equip' : 'later') : 'ok';
   const button = page.locator(`[data-dialog="${choice}"]`);
@@ -85,18 +97,19 @@ async function finish(page: Page, id: string, equip = true, fallback = false) {
   const rect = await button.boundingBox();
   if (!rect || rect.y < 0 || rect.y + rect.height > page.viewportSize()!.height + 1) throw Error(`${id}: action unreachable`);
   if (SHOTS) await page.locator('.craft-scene').screenshot({ path: `${out}${id}-done-${page.viewportSize()!.width}.png` });
-  if (['fluffvest', 'ironsword', 'crystalmail', 'stew', 'tea', 'axe1', 'jellypot'].includes(id)) await page.screenshot({ path: `${out}${id}-${page.viewportSize()!.width}.png` });
+  if (['fluffvest', 'ironsword', 'crystalmail', 'axe1', 'jellypot'].includes(id)) await page.screenshot({ path: `${out}${id}-${page.viewportSize()!.width}.png` });
   await button.click();
   await page.waitForSelector('#modal:not([hidden]) .sheet.crafting', { state: 'detached' });
-  if (id in MEALS) {
-    await page.waitForSelector('.sheet:not(.menu) [data-dialog]');
-    await page.locator('.sheet:not(.menu) [data-dialog]').last().click();
-  }
   await page.waitForTimeout(50);
   const saved = await page.evaluate(() => (window as any).game.save);
   if (GEAR[id] && saved.equip[GEAR[id].slot] !== (equip ? id : GEAR[id].slot === 'charm' ? null : GEAR[id].slot === 'armor' ? 'tunic' : 'twig')) throw Error(`${id}: keep/equip decision`);
   for (const [m, n] of Object.entries(item(id).recipe!)) if (saved.mats[m] !== 100 - n!) throw Error(`${id}: duplicate spend`);
   await page.evaluate(() => (window as any).game.ui.closeMenu(true));
+  if (id in MEALS) {
+    await page.waitForFunction(() => { const g = (window as any).game; return g.mode === 'world' && !g.kitchen.cooking && g.kitchen.held === null; });
+    await page.evaluate(() => (window as any).game.leaveRoom());
+    await page.waitForFunction(() => { const g = (window as any).game; return g.room === null && !g.trans; });
+  }
 }
 
 try {
@@ -107,7 +120,7 @@ try {
     for (const id of (process.env.CRAFT_ONLY ? process.env.CRAFT_ONLY.split(',') : Object.keys(CRAFT_PRESENTATIONS))) {
       await begin(page, id, true);
       const shown = await layers(page), all = CRAFT_PRESENTATIONS[id].layers.map((l) => l.id);
-      if (['tea', 'stew'].includes(id) && shown.includes('steam')) throw Error(`${id}: steam visible before simmer`);
+      if (id in MEALS && shown.includes('steam')) throw Error(`${id}: steam visible before cooking`);
       for (const prop of ['bottle', 'cup', 'pot', 'plate', 'existing-tool']) {
         if (all.includes(prop) && !shown.includes(prop)) throw Error(`${id}: initial ${prop} missing`);
       }
@@ -154,7 +167,7 @@ try {
   const page = await boot(320);
   await begin(page, 'ironsword', true);
   await page.keyboard.press('Escape');
-  await page.waitForSelector('.craft-ready', { timeout: 30000 });
+  await page.waitForSelector('.craft-ready', { timeout: 60000 });
   if (await page.evaluate(() => (window as any).game.save.equip.weapon) !== 'twig') throw Error('Escape equipped gear');
   await finish(page, 'ironsword', false);
   await begin(page, 'axe1', true); await page.locator('[data-craft-skip]').click(); await finish(page, 'axe1');

@@ -65,7 +65,7 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'kitchen', icon: '🍳', title: "Granny's Kitchen",
-    text: 'Granny will cook for you! Visit her at the blue house: meals give you more XP, healing, or keep weak monsters away.',
+    text: 'Cook with Granny! Choose a recipe by her pantry and bring the ingredient plate to the pot: meals give you more XP, healing, or keep weak monsters away.',
     when: (s) => (s.stories.poppy ?? 0) >= 6,
   },
   {

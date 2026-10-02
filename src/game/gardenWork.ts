@@ -2,8 +2,7 @@
 // basket and walk onto an empty plot to plant, fill the watering can at the water butt and water thirsty plots, tug the
 // weeds out and pick what's ripe. The action button works on the plot you're standing on (or the one just in front of
 // you); hold it and walk along a row to work every plot you pass, or tap a plot near you. Poppy potters over to help and
-// chatters about it. Underneath it's the same Garden (garden.ts): the same seeds, growth, troubles and harvest as her
-// menu, which talking to her still brings up.
+// chatters about it. Seeds, growth, troubles and harvest all happen at the plots (garden.ts).
 import { MATS } from '../data';
 import {
   CAN_POURS, CROPS, DOABLE, FIELD_PLOTS, gardenOpen, gardenUpdate, nextSeed, pick, plant, plotCount, plotJob, plotSpot, pullWeeds, readyIn, takeGift,
@@ -216,8 +215,9 @@ export function gardenTick(dt: number, canAct: boolean) {
     G.over.gardenPlot = null;
     G.over.carried = null;
     const p = poppy();
-    if (p && gardenOpen(G.save)) p.label = 'Garden';
-    homeTime(dt);
+    if (p && gardenOpen(G.save)) p.label = 'Talk';
+    // Keep the Garden tidy while away, but let scenes control Poppy until play resumes.
+    if (canAct) homeTime(dt);
     return;
   }
   const s = G.save, js = jobs(), n = js.length;
@@ -228,7 +228,7 @@ export function gardenTick(dt: number, canAct: boolean) {
   G.over.gardenPlot = target;
   // Out on a plot, the button's for the plot, even with Poppy right there helping (talk to her from the paths).
   const p = poppy();
-  if (p) p.label = target !== null ? '' : 'Garden';
+  if (p) p.label = target !== null ? '' : 'Talk';
   // (On the paths round the plots the field has nothing to say, so the butt, the basket and Poppy get the button.)
   o.label = target !== null ? (js[target] === 'plant' && hand && 'seed' in hand ? `Plant ${seedName(hand.seed)}` : LABEL[js[target]]) : untilled !== null ? 'Untilled' : '';
   for (const st of G.world.objs) {

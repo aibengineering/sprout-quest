@@ -74,16 +74,16 @@ export class Room extends TileMap {
 
 /**
  * Granny's Kitchen, inside the blue house: the pantry shelf and the stove along the back wall, her recipe book on its
- * stand by the window side, and the table on its rug in front, each with floor to walk round it. Narrow and tall like
+ * stand in front of the pantry, and a small table at the side. The middle stays open between the door and both benches. Narrow and tall like
  * a phone's screen, so all of it fits on one at once. The door is at the front.
  */
 export const KITCHEN: RoomSpec = {
   id: 'kitchen', name: "Granny's Kitchen", w: 8, h: 9, door: 4, bg: '#3a2630',
   stations: [
     { id: 'pantry', x: 0.75, y: 1.3, w: 2.75, h: 0.95, label: 'Pantry' },
-    { id: 'stove', x: 4.1, y: 1.3, w: 2.1, h: 0.95, label: 'Stove' },
-    { id: 'book', x: 5.9, y: 4.2, w: 1.2, h: 0.75, label: 'Recipes' },
-    { id: 'table', x: 1.2, y: 5.0, w: 3.4, h: 0.9, label: 'Table' },
+    { id: 'stove', x: 4.05, y: 1.3, w: 2.95, h: 0.95, label: 'Cooking bench' },
+    { id: 'book', x: 1.55, y: 2.65, w: 1.2, h: 0.75, label: 'Recipes' },
+    { id: 'table', x: 1.0, y: 5.75, w: 1.95, h: 0.8, label: '' },
   ],
 };
 

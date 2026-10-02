@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { PROJECTS } from '../src/data';
-import { ARMFUL, PLANKS_PER_LOG, SAW, SAW_LOGS, SAW_MAX, SAW_SECONDS, canCarry, canOrder, nextPlankIn, pullLever, sawCollect, sawLogs, sawOrder, sawReady, sawSeconds, sawUpdate, type Bench } from '../src/sawmill';
+import { ARMFUL, PLANKS_PER_LOG, SAW, SAW_LOGS, SAW_MAX, SAW_SECONDS, canCarry, canOrder, nextPlankIn, pullLever, sawCollect, sawGuide, sawLogs, sawOrder, sawReady, sawSeconds, sawUpdate, type Bench } from '../src/sawmill';
 import { MATERIAL_SCALE, SAVE_KEY, loadState, newState, type SaveState } from '../src/state';
 
 const T0 = 1_000_000;
@@ -114,6 +114,47 @@ describe('counting materials in handfuls (0.4.0)', () => {
 });
 
 describe('working the Sawmill by hand', () => {
+  test('guidance follows logs, bench, lever, sawing and collection', () => {
+    const s = mill();
+    s.mats.bark = 5;
+    const bench: Bench = {};
+    expect(sawGuide(s, null, bench, T0)).toEqual({ next: 'logs', stations: ['pile:bark'] });
+    expect(sawGuide(s, { log: 'bark', n: 5 }, bench, T0)).toEqual({ next: 'bench', stations: ['bench'] });
+    bench.bark = 5;
+    expect(sawGuide(s, null, bench, T0)).toEqual({ next: 'lever', stations: ['lever'] });
+    pullLever(s, bench, T0);
+    expect(sawGuide(s, null, bench, T0)).toEqual({ next: 'sawing', stations: [] });
+    expect(sawGuide(s, null, bench, later(25))).toEqual({ next: 'collect', stations: ['planks'] });
+    sawCollect(s, later(25));
+    expect(sawGuide(s, null, bench, later(25))).toEqual({ next: 'empty', stations: [] });
+  });
+
+  test('only available, unlocked piles glow, and a full queue directs you to wait', () => {
+    const s = mill();
+    Object.assign(s.mats, { bark: 100, pine: 10, glimwood: 10 });
+    expect(sawGuide(s, null, {}, T0).stations).toEqual(['pile:bark']);
+    s.build.sawmill = 2;
+    expect(sawGuide(s, null, {}, T0).stations).toEqual(['pile:bark', 'pile:pine']);
+    s.mats.bark = 0;
+    expect(sawGuide(s, null, {}, T0).stations).toEqual(['pile:pine']);
+    s.mats.pine = 100;
+    sawOrder(s, SAW_MAX, 'pine', T0);
+    expect(sawGuide(s, null, {}, T0)).toEqual({ next: 'sawing', stations: [] });
+  });
+
+  test('finished planks remain highlighted while carrying or loading another batch', () => {
+    const s = mill(2);
+    s.mats.bark = 10;
+    s.mats.pine = 5;
+    sawOrder(s, 1, 'pine', T0);
+    const now = later(sawSeconds(s));
+    expect(sawGuide(s, { log: 'bark', n: 5 }, {}, now)).toEqual({ next: 'bench', stations: ['bench', 'planks'] });
+    expect(sawGuide(s, null, { bark: 5 }, now)).toEqual({ next: 'lever', stations: ['lever', 'planks'] });
+    expect(sawGuide(s, null, {}, now)).toEqual({ next: 'collect', stations: ['planks'] });
+    sawCollect(s, now);
+    expect(sawGuide(s, null, {}, now).stations).toEqual(['pile:bark', 'pile:pine']);
+  });
+
   test('an armful at a time, only logs that are in the bag and not already carried or benched', () => {
     const s = mill();
     s.mats.bark = 12;

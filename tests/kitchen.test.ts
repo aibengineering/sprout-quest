@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { addToPot, afterWin, cook, cooked, kitchenOpen, knownMeals, mealLeft, mealTick, oreBoost, repelBelow, startDish, stillNeeded, stir, STIRS, sweetBoost, xpBoost, type Cooking } from '../src/kitchen';
+import { afterWin, cook, kitchenOpen, knownMeals, mealLeft, mealTick, oreBoost, prepareMeal, repelBelow, sweetBoost, xpBoost, type MealTray } from '../src/kitchen';
 import { NODES, type NodeKind } from '../src/data';
 import { harvest } from '../src/rules';
 import { newState } from '../src/state';
@@ -124,41 +124,35 @@ describe("Granny's Kitchen", () => {
   });
 });
 
-describe('cooking by hand in the Kitchen', () => {
-  test('the book only opens at recipes she knows and you can make', () => {
+describe('ingredient plates in the Kitchen', () => {
+  test('preparing only allows known, affordable recipes', () => {
     const s = fed();
-    expect(startDish(s, 'stew')).toBe('unknown');
+    expect(prepareMeal(s, 'stew')).toBe('unknown');
     s.mats.fluff = 0;
-    expect(startDish(s, 'pancakes')).toBe('missing');
-    expect(startDish(s, 'tea')).toEqual({ dish: 'tea', added: [], stirs: 0 });
-    expect(startDish(newState(), 'tea')).toBe('unknown');
+    expect(prepareMeal(s, 'pancakes')).toBe('missing');
+    expect(prepareMeal(s, 'tea')).toEqual({ dish: 'tea', ingredients: { clover: 2 } });
+    expect(prepareMeal(newState(), 'tea')).toBe('unknown');
   });
 
-  test('each ingredient goes in once, in any order, then it takes three good stirs', () => {
-    const c = startDish(fed(), 'pancakes') as Cooking;
-    expect(stillNeeded(c)).toEqual(['fluff', 'goo']);
-    expect(stir(c)).toBe(false);
-    expect(c.stirs).toBe(0);
-    expect(addToPot(c, 'clover')).toBe(false);
-    expect(addToPot(c, 'goo')).toBe(true);
-    expect(addToPot(c, 'goo')).toBe(false);
-    expect(stillNeeded(c)).toEqual(['fluff']);
-    expect(addToPot(c, 'fluff')).toBe(true);
-    for (let i = 1; i < STIRS; i++) expect(stir(c)).toBe(false);
-    expect(cooked(c)).toBe(false);
-    expect(stir(c)).toBe(true);
-    expect(cooked(c)).toBe(true);
+  test('preparing gathers the whole recipe without spending or granting a buff', () => {
+    const s = fed(), before = structuredClone(s);
+    const tray = prepareMeal(s, 'pancakes') as MealTray;
+    expect(tray).toEqual({ dish: 'pancakes', ingredients: { fluff: 15, goo: 9 } });
+    expect(s).toEqual(before);
+    tray.ingredients.fluff = 0;
+    expect(prepareMeal(s, 'pancakes')).toEqual({ dish: 'pancakes', ingredients: { fluff: 15, goo: 9 } });
   });
 
-  test('nothing is spent until it is served, and then it costs what her menu does', () => {
-    const s = fed(), byHand = fed();
-    const c = startDish(byHand, 'pancakes') as Cooking;
-    for (const m of stillNeeded(c)) addToPot(c, m);
-    while (!stir(c));
-    expect(byHand.mats).toEqual(s.mats);
-    expect(cook(byHand, c.dish)).toBe('ok');
+  test('the stove rechecks materials and uses the same meal costs and buffs', () => {
+    const s = fed(), carried = fed();
+    const tray = prepareMeal(carried, 'pancakes') as MealTray;
+    expect(cook(carried, tray.dish)).toBe('ok');
     expect(cook(s, 'pancakes')).toBe('ok');
-    expect(byHand.mats).toEqual(s.mats);
-    expect(byHand.meal).toEqual(s.meal);
+    expect(carried).toEqual(s);
+    const short = fed(), tea = prepareMeal(short, 'tea') as MealTray;
+    short.mats.clover = 0;
+    const before = structuredClone(short);
+    expect(cook(short, tea.dish)).toBe('missing');
+    expect(short).toEqual(before);
   });
 });

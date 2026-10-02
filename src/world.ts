@@ -108,16 +108,20 @@ export class TileMap {
   readonly tiles: Uint8Array;
   readonly objs: WorldObj[] = [];
 
-  constructor(readonly w: number, readonly h: number) {
+  constructor(readonly w: number, readonly h: number, readonly x0 = 0, readonly y0 = 0) {
     this.tiles = new Uint8Array(w * h);
   }
 
   tile(x: number, y: number): number {
+    x -= this.x0;
+    y -= this.y0;
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return T.OBST;
     return this.tiles[y * this.w + x];
   }
 
   protected set(x: number, y: number, t: number) {
+    x -= this.x0;
+    y -= this.y0;
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
     this.tiles[y * this.w + x] = t;
   }
@@ -264,9 +268,10 @@ export class World extends TileMap {
     add({ kind: 'plot', project: 'home', x: V + 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
     add({ kind: 'plot', project: 'training', x: V + 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
     add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Waystone' });
-    // Bram's corner, once he's moved in (his story): the Sawmill beside the Forge, and his cabin below it.
+    // The Sawmill beside the Forge; Bram's cabin sits south of the road with the homes,
+    // leaving the workshop approach and his outdoor conversation spot clear.
     add({ kind: 'plot', project: 'sawmill', x: V + 1.1, y: 5.5, w: 3.4, h: 2, label: 'Build', text: 'Sawmill' });
-    add({ kind: 'prop', id: 'bramhut', x: V + 1.5, y: 9, w: 2, h: 1.3, label: '' });
+    add({ kind: 'prop', id: 'bramhut', x: V + 8.2, y: 19, w: 2, h: 1.3, label: '' });
     this.placeField();
     // The Guest Cottage, up in the north-east corner behind the Waystone: once Bram's settled in, for whoever comes next.
     add({ kind: 'plot', project: 'cottage', x: V + 18.8, y: 4.5, w: 2.2, h: 1.4, label: 'Build', text: 'Guest Cottage' });

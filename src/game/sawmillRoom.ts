@@ -1,18 +1,17 @@
 // Bram's Sawmill, walked into: pick up an armful of logs from a wood's pile (hold the button to keep picking up),
 // carry them to the saw bench, and pull the lever. The blade spins while it works through what you gave it, the sawn
-// planks stack up by the door, and you take them from the stack. Underneath it's the same real-time saw as handing
-// Bram your logs (sawmill.ts): the same queue, timing and planks. Bram keeps the place running, grumbling about the
-// workload, and asking him still brings up his bench, for when you'd rather just hand them over.
+// planks stack up by the door, and you take them from the stack. Bram keeps the place running while you're away.
 import { MATS, PROJECTS } from '../data';
-import { ARMFUL, benchTotal, canCarry, nextPlankIn, pullLever, SAW, SAW_LOGS, SAW_MAX, sawCollect, sawLogs, sawReady, sawSeconds, sawUpdate, type Bench, type SawLog } from '../sawmill';
+import { benchTotal, canCarry, nextPlankIn, pullLever, SAW, SAW_LOGS, SAW_MAX, sawCollect, sawGuide, sawLogs, sawReady, sawSeconds, sawUpdate, type Bench, type SawLog } from '../sawmill';
 import { drawFrame, frame } from '../assets';
 import type { Room } from '../room';
-import { crate, drawCarried, drawProp, hintPill, paintShell, paintWindow, PROP_SCALE, propRise, propUnit } from '../roomArt';
+import { crate, drawCarried, drawProp, hintPill, paintShell, paintWindow, PROP_SCALE, propRise, propUnit, stationGlow } from '../roomArt';
+import { Particles } from '../particles';
 import { rrect } from '../sprites';
 import type { WorldObj } from '../world';
 import { G, persist } from './context';
 import type { RoomPlay } from './rooms';
-import { openSawmill } from './stories/bram';
+import { lootLines } from './rewards';
 
 const BRAM = 'room:bram';
 /** Where he stands, just in from the door with clear floor over his head, keeping an eye on the blade. */
@@ -30,6 +29,10 @@ let pulled = -9;
 let t = 0;
 /** What Bram's said about this load, so he doesn't repeat himself every armful. */
 let grumbled = false;
+const loot = new Particles();
+const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const reducedMotion = () => motion.matches;
+const guide = () => sawGuide(G.save, carrying, bench);
 
 const ENTER_LINES = ['Mind the sawdust.', 'Logs on the bench, then the lever. I keep her running.', 'More logs? This blade never gets a day off.', 'Sawdust in my beard again. Every day.'];
 let enterLine = 0;
@@ -42,6 +45,7 @@ function reset() {
   carrying = null;
   bench = {};
   grumbled = false;
+  loot.clear();
 }
 
 const running = () => sawUpdate(G.save).queue.length > 0;
@@ -90,11 +94,16 @@ function lever() {
 }
 
 function takePlanks(o: WorldObj) {
-  const got = Object.entries(sawCollect(G.save)) as [keyof typeof MATS, number][];
+  const drops = sawCollect(G.save);
+  const got = Object.entries(drops) as [keyof typeof MATS, number][];
   if (!got.length) return say(running() ? `Next one's ${nextPlankIn(G.save)}s off. Blade's doing what it can.` : 'Nothing sawn yet.');
   persist();
   G.audio.play('pickup');
-  G.ui.toast(got.map(([p, n]) => `${MATS[p].icon} +${n} ${MATS[p].name}${n > 1 ? 's' : ''}`).join(' · '));
+  G.ui.loot(lootLines(drops, []));
+  if (!reducedMotion()) {
+    const at = G.over.toScreen(o.x + o.w / 2, o.y + o.h - 0.35);
+    for (const [p, n] of got) loot.loot(at.x, at.y - G.over.ts * 0.3, p, Math.min(n, 4), at.y);
+  }
   const ts = G.over.ts;
   G.over.fx.burst((o.x + o.w / 2) * ts, (o.y - 0.3) * ts, '#fff6c8', 10, ts * 1.6, { star: true, size: ts * 0.07, life: 0.6 });
   if (!grumbled) {
@@ -105,6 +114,8 @@ function takePlanks(o: WorldObj) {
 
 function tick(dt: number, room: Room): boolean {
   t += dt;
+  if (reducedMotion()) loot.clear();
+  else loot.update(dt);
   const s = G.save, w = sawUpdate(s), ready = sawReady(s);
   const go = w.queue.length > 0;
   spin += ((go ? 14 : 0) - spin) * (1 - Math.exp(-dt * (go ? 2 : 0.8)));
@@ -179,9 +190,13 @@ const onPile = (log: SawLog) => Math.max(0, G.save.mats[log] - (bench[log] ?? 0)
 
 function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): number | void {
   const s = G.save;
+  const active = guide().stations.includes(o.id!);
+  const pulse = reducedMotion() ? 0.8 : 0.8 + Math.sin(t * 2.4) * 0.2;
+  if (active) stationGlow(ctx, o, ts, pulse);
+  const glow = active ? { tint: '#ffe5a3', tintAmount: 0.14 * pulse, outline: { color: '#ffe5a3', width: 0.04 } } : {};
   if (o.id!.startsWith('pile:')) {
     const log = o.id!.slice(5) as SawLog, n = onPile(log), open = sawLogs(s).includes(log);
-    const look = open ? {} : { tint: '#4a4058', tintAmount: 0.5 };
+    const look = open ? glow : { tint: '#4a4058', tintAmount: 0.5 };
     let top: number | undefined;
     if (n > 0) top = drawProp(ctx, n >= 10 ? `s_pile_${log}` : `s_pilelow_${log}`, o, ts, 0.17, (x, y, w, h) => crate(ctx, x, y, w, h, '#8a5a3a', '#e8c890', ts * 0.6), look);
     else {
@@ -195,7 +210,7 @@ function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): number | v
   }
   switch (o.id) {
     case 'bench': {
-      const top = drawProp(ctx, 's_bench', o, ts, BENCH_BACK, (x, y, w, h) => crate(ctx, x, y, w, h, '#d8a878', '#e8c098', ts * 0.4));
+      const top = drawProp(ctx, 's_bench', o, ts, BENCH_BACK, (x, y, w, h) => crate(ctx, x, y, w, h, '#d8a878', '#e8c098', ts * 0.4), glow);
       const at = bladeAt(o, ts), unit = propUnit(ts);
       // The next log being cut, or the ones waiting for the lever, lying along the bench.
       const w = sawUpdate(s), next = w.queue[0] ?? (SAW_LOGS.find((l) => bench[l]) as SawLog | undefined);
@@ -207,7 +222,9 @@ function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): number | v
       }
       // The blade the Sawmill's built with: copper, iron, crystal or obsidian, as on the map.
       const bf = frame(`room/s_blade${Math.max(1, Math.min(4, s.build.sawmill))}`) ?? frame('room/s_blade');
-      if (bf) drawFrame(ctx, bf, at.x, at.y, unit, { rot: blade });
+      // Undo the sprite camera's 30° foreshortening before rotating the face. Rotating the projected oval
+      // directly made the entire blade wobble, rather than just its teeth and hub spinning.
+      if (bf) drawFrame(ctx, bf, at.x, at.y, unit, { rot: blade, sy: 1 / Math.cos(Math.PI / 6) });
       else {
         ctx.fillStyle = '#c8d0dc';
         ctx.beginPath();
@@ -236,12 +253,12 @@ function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): number | v
         ctx.beginPath();
         ctx.arc(x + w * (down ? 0.85 : 0.2), y - ts * (down ? 0.25 : 0.75), ts * 0.12, 0, TAU);
         ctx.fill();
-      });
+      }, glow);
     }
     case 'planks': {
       const ready = sawReady(s);
       let top: number | undefined;
-      if (ready) top = drawProp(ctx, `s_planks${ready >= 30 ? 3 : ready >= 10 ? 2 : 1}`, o, ts, 0.15, (x, y, w, h) => crate(ctx, x, y, w, h, '#dcb880', '#e8c890', ts * Math.min(0.8, 0.1 + ready * 0.02)));
+      if (ready) top = drawProp(ctx, `s_planks${ready >= 30 ? 3 : ready >= 10 ? 2 : 1}`, o, ts, 0.15, (x, y, w, h) => crate(ctx, x, y, w, h, '#dcb880', '#e8c890', ts * Math.min(0.8, 0.1 + ready * 0.02)), glow);
       else {
         ctx.fillStyle = 'rgba(60,30,20,0.18)';
         rrect(ctx, (o.x + 0.1) * ts, (o.y + 0.2) * ts, (o.w - 0.2) * ts, (o.h - 0.25) * ts, ts * 0.1);
@@ -274,19 +291,20 @@ function over(ctx: CanvasRenderingContext2D, ts: number) {
 }
 
 function hud(ctx: CanvasRenderingContext2D, vw: number) {
-  const ready = sawReady(G.save);
-  const text = carrying ? `🪵 Carry them to the saw bench${carrying.n < ARMFUL * 2 ? ' (or grab more)' : ''}`
+  const next = guide().next;
+  const text = carrying ? '🪵 Carry the logs to the glowing saw bench'
     : benchTotal(bench) ? '⚙️ Pull the lever to start the blade'
-    : ready ? '🪵 Take the sawn planks by the door'
-    : running() ? `🪚 Sawing… next plank in ${nextPlankIn(G.save)}s`
-    : '🪵 Pick up logs from a pile (hold to grab more)';
+    : next === 'collect' ? '🪵 Take the sawn planks by the door'
+    : next === 'logs' ? '🪵 Pick up the glowing logs (hold to grab more)'
+    : next === 'sawing' ? `🪚 Sawing… next plank in ${nextPlankIn(G.save)}s`
+    : '🪵 Bring logs from the woods to saw into planks';
   hintPill(ctx, vw, text);
 }
 
 export const SAWMILL_PLAY: RoomPlay = {
   setup(room) {
     room.painter = { floor, obj, over };
-    room.actors.add({ id: BRAM, name: 'Bram', look: { kind: 'walker', name: 'bram' }, ...BRAM_AT, face: Math.PI / 2, label: 'Ask Bram', talk: () => openSawmill() });
+    room.actors.add({ id: BRAM, name: 'Bram', look: { kind: 'walker', name: 'bram' }, ...BRAM_AT, face: Math.PI / 2, label: 'Talk', talk: () => say('Logs from the piles, onto the bench, then pull the lever. Take the planks by the door. One log, two planks.') });
   },
   enter() {
     reset();
@@ -301,7 +319,14 @@ export const SAWMILL_PLAY: RoomPlay = {
   repeats: (o) => !!o.id?.startsWith('pile:'),
   tick,
   hud: (ctx, vw) => hud(ctx, vw),
+  effects(ctx, vw, vh) {
+    if (!loot.busy) return;
+    const bag = document.getElementById('btn-bag');
+    const rect = bag?.getBoundingClientRect();
+    loot.lootTo = rect && !bag?.hidden && rect.width ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } : { x: 42, y: vh - 52 };
+    loot.draw(ctx);
+  },
 };
 
 /** For tests and the console: what's going on in the mill. */
-export const sawmillDebug = () => ({ carrying, bench, spin });
+export const sawmillDebug = () => ({ carrying, bench, spin, guide: guide(), loot: loot.count, lootTo: loot.lootTo });

@@ -100,7 +100,7 @@ see a dot on the patch notes until they've read the new ones.
 ```sh
 bun run build          # static site in dist/: host anywhere (GitHub Pages, Netlify, itch.io…)
 bun run build --dev    # the same, with the dev tools (save slots and presets, see below) for a test server
-bun test               # rules, balance, story, routes and map tests
+bun run test           # rules, balance, story, routes and map tests (isolated mocks)
 bun run typecheck
 bun run balance        # prints the balance model: fights, pacing, the material economy, every weapon
 bun run sim            # a simulated playthrough (test tooling, see sim/README.md)
@@ -338,7 +338,8 @@ a model changes its icon. Without WebGL, items show their icons.
   grass encounters, rendering
 - `src/routes.ts`: the hand-drawn route maps, one character per tile (legend at the top)
 - `src/roamers.ts`: monsters wandering the grass: noticing, chasing, surprise attacks
-- `src/procession.ts`: Echo Cavern's side tunnels and the Pebblors' procession you tail through them (who sees what,
+- `src/echoCave.ts` and `src/game/underground.ts`: the separate cave map, entrance, exit and save restoration
+- `src/procession.ts`: the Pebblors' underground procession you tail (who sees what,
   where you fall to, the way back up), for the side story in `src/game/stories/drums.ts`
 - `src/actors.ts`, `src/bubble.ts`: story characters on the map (walking paths, following you, moods, talking) and
   their emoji speech bubbles
