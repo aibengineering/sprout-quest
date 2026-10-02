@@ -1,3 +1,4 @@
+import { offerVillageUpgrade } from './housing';
 import { DOJO_CHALLENGES, claimDojo, dojoChallenge, dojoCleared, dojoLock, dojoMisses, dojoSetup } from '../dojo';
 import { GEAR, zoneById } from '../data';
 import { playerStats } from '../rules';
@@ -17,7 +18,7 @@ export async function visitDojo() {
   try {
     chosen = await paused(async () => {
       if (!G.save.flags.includes('alder:met')) {
-        await say(ALDER, 'I’m Alder. I used to walk people safely through the east road. Heard you carried Bram home.');
+        await say(ALDER, G.save.flags.includes('alder:returned') || (G.save.stories['journey-alder']??0)>=2 ? 'Good to be off the road for a while. Bram’s made us room to practise.' : 'I’m Alder. I used to walk people safely through the east road. Heard you carried Bram home.');
         await say(ALDER, 'Strong arms, that man. We’ll work on your feet. Bram built this place; I set the lessons.');
         await say(ALDER, 'Canvas targets, ropes and soft practice blows. Same tells as out on the road. We stop before anyone gets hurt.');
         G.save.flags.push('alder:met'); persist();
@@ -26,7 +27,8 @@ export async function visitDojo() {
         const lock = dojoLock(G.save, c), done = dojoCleared(G.save, c.id);
         return `<article class="mcard"><h3>${c.name}</h3><p>${c.hint}</p><p>${done ? '✓ Cleared · free practice' : `⭐ First clear: ${c.reward} combat and handling XP`}</p>${lock ? `<p>${lock}</p>` : ''}<button class="go wide" data-dialog="dojo:${c.id}" ${lock ? 'disabled' : ''}>${done ? 'Practise again' : 'Try the challenge'}</button></article>`;
       }).join('');
-      const r = await G.ui.dialog(`<h2>🥋 Alder’s Dojo</h2><p>Fresh practice HP. Your health and potions stay safe. Each lesson’s XP reward is earned once.</p><div class="dojo-lessons">${cards}</div>`, [['close', 'Back']], 'dojo');
+      const r = await G.ui.dialog(`<h2>🥋 Alder’s Dojo</h2><p>Fresh practice HP. Your health and potions stay safe. Each lesson’s XP reward is earned once.</p><div class="dojo-lessons">${cards}</div>`, [...(G.save.build.training<3 ? [['upgrade','Discuss the next dojo'] as [string,string]] : []), ['close', 'Back']], 'dojo');
+      if(r==='upgrade') await offerVillageUpgrade('Alder');
       return r.startsWith('dojo:') ? r.slice(5) : null;
     });
   } finally { choosing = false; }

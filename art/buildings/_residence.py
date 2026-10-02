@@ -49,6 +49,8 @@ def cottage(root, who):
 def build(root, who, level):
     if level == 1:
         return cottage(root, who)
+    if level == 3:
+        return final_addition(root,who)
     P = Parts(root)
     base = P('base')
     guest_cottage(base) if who == 'pip' else cottage(base, who)
@@ -76,4 +78,30 @@ def build(root, who, level):
         lantern(special, (.55, front-.18, 1.21), '#b5e8ee', '#8173a1')
     flower = P('flower')
     flowers(flower, .6, [(-.25, front-.30, '#ff8ab0'), (.25, front-.30, '#ffd35a')], z=.84)
+    return P.objects()
+
+
+def final_addition(root, who):
+    P = Parts(root)
+    build(P('base'), who, 2)
+    frame,walls,roof=P('frame'),P('walls'),P('roof')
+    col='#9f83b9' if who!='moss' else '#8c5146'
+    for x in (-.73,.73):
+        box((x,-1.05,2.45),(.10,.10,.90),toon(col),frame,bevel=.02)
+    box((0,-1.10,2.48),(1.44,.13,.67),toon('#d8cee8' if who!='moss' else '#d39a72'),walls,bevel=.03)
+    profile([(-.85,2.82),(0,3.25),(.85,2.82)],.74,toon(col),roof,loc=(0,-.73,0),bevel=.03)
+    special=P('obsidian' if who=='moss' else 'crystal')
+    box((0,-1.18,2.52),(1.22,.03,.44),toon('#3b293d' if who=='moss' else '#bdf1df',emit=.12),special,bevel=.02)
+    if who=='moss':
+        sphere((0,-1.22,2.48),(.33,.035,.11),toon('#ffbc73',emit=.25),special,line=.005)
+    elif who=='pip':
+        metal=P('iron')
+        for x in (-.7,.7): box((x,-1.15,2.33),(.12,.05,.3),toon('#72818c'),metal,bevel=.02)
+    garden=P('berry' if who=='moss' else 'herb') if who!='pip' else None
+    if garden:
+        for x in (-.45,0,.45): sphere((x,-1.19,2.14),(.1,.06,.15),toon('#697b4e' if who=='hazel' else '#c36683'),garden,line=.005)
+    flower=P('flower')
+    for x in (-.65,.65):
+        box((x,-1.18,.9),(.4,.22,.14),toon('#9f83b9'),flower,bevel=.02)
+        flowers(flower,1,[(x,-1.20,'#ff8ab0'),(x+.1,-1.22,'#ffd35a')],z=1.01)
     return P.objects()

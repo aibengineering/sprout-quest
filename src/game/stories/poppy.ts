@@ -2,6 +2,7 @@
 // bunny, and a chase down into the grove to get him back from the bunny bully. The grove stays afterwards: a quiet
 // spot with good trees and rocks. Once the Garden's built, she tends it (see garden.ts): you work its field by hand.
 import type { ActorSpec } from '../../actors';
+import { offerVillageUpgrade } from '../housing';
 import { zoneById, type MonsterKind } from '../../data';
 import { FIELD_COLS, gardenOpen, gardenUpdate, isReady } from '../../garden';
 import { drumsStep, poppyAway } from '../../procession';
@@ -242,7 +243,7 @@ export const POPPY: Story = {
       }));
     } else if (step >= 6 && gardenOpen(G.save)) {
       // She tends the Garden now, and shows what it needs over her head.
-      cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...GARDEN_SPOT, face: Math.PI / 2, mood: gardenMood(), label: 'Talk', talk: () => chat([[POPPY_TALK, GARDEN_LINES[gardenLine++ % GARDEN_LINES.length]]]) });
+      cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...GARDEN_SPOT, face: Math.PI / 2, mood: gardenMood(), label: 'Talk', talk: () => paused(async()=>{await say(POPPY_TALK,GARDEN_LINES[gardenLine++ % GARDEN_LINES.length]);await offerVillageUpgrade('Poppy');}) });
     } else if (step >= 6) {
       // Every other chat, once there's a plot for it, she asks for a garden.
       const home = () => {

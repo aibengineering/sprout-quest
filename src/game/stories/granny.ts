@@ -3,6 +3,7 @@
 import { kitchenOpen } from '../../kitchen';
 import { poppyAway } from '../../procession';
 import { G, paused, persist } from '../context';
+import { offerVillageUpgrade } from '../housing';
 import { say, type Speaker } from '../scenes';
 import type { Story } from '../stories';
 
@@ -60,6 +61,7 @@ export const GRANNY_STORY: Story = {
     mood: poppyAway(G.save) ? '😰' : poppyStep() <= 4 ? '😟' : undefined,
     talk: () => (bramDue() ? askFavour() : paused(async () => {
       for (const [text, mood] of lines()) await say(GRANNY, text, mood);
+      if(kitchenOpen(G.save)) await offerVillageUpgrade('Granny Clover');
     })),
   }],
 };

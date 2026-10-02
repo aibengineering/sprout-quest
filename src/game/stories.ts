@@ -13,6 +13,7 @@ import { DRUMS } from './stories/drums';
 import { POPPY } from './stories/poppy';
 import { VILLAGE_STORY } from './stories/village';
 import { DOJO_STORY } from './stories/dojo';
+import { NEIGHBOUR_STORIES } from './stories/neighbours';
 import { RESIDENT_STORIES } from './stories/residents';
 
 export interface StoryStep {
@@ -37,6 +38,8 @@ export interface Story {
   icon: string;
   /** Can it start yet? */
   available: () => boolean;
+  /** A repeating request can be under way without advancing its one current step. */
+  started?: () => boolean;
   steps: StoryStep[];
   /** Who's on the map at a step (the step count once the story's finished). Ids start with the story's id. */
   cast: (step: number) => ActorSpec[];
@@ -64,7 +67,7 @@ export interface Story {
   layers?: Partial<MapLayers>;
 }
 
-export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY, DRUMS, VILLAGE_STORY, PIP_STORY, ...RESIDENT_STORIES, DOJO_STORY];
+export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY, DRUMS, ...NEIGHBOUR_STORIES, VILLAGE_STORY, PIP_STORY, ...RESIDENT_STORIES, DOJO_STORY];
 
 /** How far through a story you are (0 = not started; the step count = finished). */
 export const stepOf = (id: string) => G.save.stories[id] ?? 0;
@@ -76,13 +79,13 @@ export function activeStory(): { story: Story; step: StoryStep } | null {
     const step = st.steps[stepOf(st.id)];
     return step && !step.hidden && st.available();
   });
-  const story = open.find((st) => stepOf(st.id) > 0) ?? open[0];
+  const story = open.find((st) => stepOf(st.id) > 0 || st.started?.()) ?? open[0];
   return story ? { story, step: story.steps[stepOf(story.id)] } : null;
 }
 
 /** Every story you've started, for the Journal. */
 export function storyLog() {
-  return STORIES.filter((st) => stepOf(st.id) > 0).map((st) => ({
+  return STORIES.filter((st) => stepOf(st.id) > 0 || st.started?.()).map((st) => ({
     title: st.title, icon: st.icon, done: finished(st), label: finished(st) ? 'Complete!' : st.steps[stepOf(st.id)].label,
   }));
 }

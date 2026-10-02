@@ -12,6 +12,10 @@ export interface SaveState {
   version: 1;
   /** New construction flow; absent in older saves whose open Kitchen is retained. */
   villageJobs?: true;
+  /** Construction job requested in conversation with its resident. */
+  buildingJob?: string;
+  /** Kitchen additions, independent of Clover’s existing home. */
+  kitchenLevel?: number;
   lv: number;
   xp: number;
   hp: number;
@@ -197,9 +201,10 @@ export function loadState(): SaveState | null {
     } as SaveState;
     merged.homes.pip = Math.max(merged.homes.pip, merged.build.cottage);
     for (const id of ['pip', 'hazel', 'moss'] as const) {
-      merged.homes[id] = Math.max(0, Math.min(2, Math.floor(Number(merged.homes[id]) || 0)));
+      merged.homes[id] = Math.max(0, Math.min(3, Math.floor(Number(merged.homes[id]) || 0)));
     }
     if (merged.homes.pip) merged.build.cottage = 1;
+    if (merged.kitchenLevel !== undefined) merged.kitchenLevel = Math.max(0, Math.min(3, Math.floor(Number(merged.kitchenLevel) || 0)));
     if (data.mastery === undefined) migrateToTracks(merged);
     // Saves from before the story update: credit progress that already happened.
     if (data.flags === undefined) {

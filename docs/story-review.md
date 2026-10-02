@@ -57,3 +57,10 @@ Clover already lives in Sowerby. Poppy's rescue earns her gratitude and starts t
 Alder is a former escort from the east road. Hearing about the Woolves gives him a reason to ask for a dojo. Bram builds it, Alder teaches: one place and one activity belongs to one character. His first lessons reward attention to attack tells; later additions let him teach rushes, specials and crowds. Practice should make returning to the road less frightening. He knows roadcraft, not the gods' secrets. A later beat where he learns to pause rather than assume every creature is an attacker remains a proposal, not implemented lore.
 
 Construction requests now connect trades: Poppy's flowers brighten Clover's kitchen and later doorsteps; Pip introduces Hazel; Hazel's cuttings justify more garden space; Clover's new oven lets Moss bake without another production system. Bram's pride appears as useful work, and village growth stays separate from workshop capability.
+
+
+## Arriving before a roof
+
+Pip and Alder are now met beside the Woods road; Hazel and Moss beside the Meadow road. Each introduces their practical need and walks back with the hero. A saved return unlocks Bram's first building offer. They wait with Clover until it is built, so the friendship precedes the purchase. Existing residents remain settled. These are short arrival journeys, not the proposed fern or supper favours.
+
+Owners can request the next addition without delaying another person's arrival. Clover has pine and glimmer kitchen additions; Pip a study and archive; Hazel a glasshouse and conservatory; Moss a larder and baking annex. Garden and dojo retain their three tiers. The larger payoffs stay specific to that person's activity and are intended for playtest tuning.

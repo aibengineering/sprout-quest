@@ -5,7 +5,7 @@ import type { Sfx } from './audio';
 import { MATS, PROJECTS, type Gear, type MatId, type ProjectId, type Recipe } from './data';
 import { CRAFT_PRESENTATIONS } from './crafting/catalog';
 import { BUILD_PRESENTATIONS } from './crafting/building-catalog';
-import { KITCHEN_EXTENSION_PRESENTATION } from './crafting/kitchen-extension';
+import { KITCHEN_PRESENTATIONS } from './crafting/kitchen-extension';
 import { HOUSE_PRESENTATIONS } from './crafting/houses';
 import type { CraftFlight, CraftItem, CraftPresentation } from './crafting/types';
 import { craftView, loadCraftScenes } from './models';
@@ -53,7 +53,7 @@ export function buildPresentation(project: ProjectId, level: number): CraftPrese
 
 /** Every crafting and building scene's model, loaded on the title screen so no scene ever waits for one. */
 export const loadCraftArt = (onProgress?: (done: number, total: number) => void) =>
-  loadCraftScenes([...new Set([...Object.values(CRAFT_PRESENTATIONS), ...Object.values(BUILD_PRESENTATIONS), ...HOUSE_PRESENTATIONS, KITCHEN_EXTENSION_PRESENTATION].map((p) => p.model))], onProgress);
+  loadCraftScenes([...new Set([...Object.values(CRAFT_PRESENTATIONS), ...Object.values(BUILD_PRESENTATIONS), ...HOUSE_PRESENTATIONS, ...KITCHEN_PRESENTATIONS].map((p) => p.model))], onProgress);
 
 /** A layer that's there before any ingredient lands: untargeted supports (a bottle, the cookware), unless timed. */
 const initially = (item: CraftPresentation, p: CraftPresentation['layers'][number]) =>

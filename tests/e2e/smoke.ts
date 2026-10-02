@@ -65,7 +65,7 @@ const base = (g: any) => {
   const s = g.save;
   // Existing scenarios exercise established villages; new construction scenarios opt into the new-game gate.
   delete s.villageJobs;
-  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined'] });
+  Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village', 'pip:returned', 'alder:returned', 'hazel:returned', 'moss:returned'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined'] });
   s.build.forge = 1;
   s.pos = { x: 59.5, y: 18 };
   s.unlocked.push('forge', 'bag', 'journal');
@@ -1322,7 +1322,7 @@ scenario("Pip moves into the Guest Cottage, and his Rock Candy gets an extra han
   if (await page.$('#modal:not([hidden]) .sheet.house-plans')) await page.keyboard.press('Escape');
   // He pops up by the door, moves in and teaches Granny his Rock Candy.
   await playUntil('Pip moving in', async () => (await step()) === 1 && (await game<string>(page, 'g.mode')) === 'world' && !(await page.$('#modal:not([hidden])')));
-  check(said.some((t) => t.includes("I'm Pip")), 'Pip never introduced himself');
+  check(said.some((t) => t.includes('roof')), 'Pip never acknowledged his cottage');
   check(await game<boolean>(page, `g.save.build.cottage === 1 && g.save.flags.includes('pip:candy') && !!g.over.actors.get('pip:pip')`), 'Pip did not move in');
   // He has a few things to say, the Obsidian on Ember Peak among them.
   for (let i = 0; i < 5; i++) {
@@ -1540,6 +1540,7 @@ scenario("Poppy's field grows: an old save's beds carry over, and Bram extends i
   s.homes = { pip: 1, hazel: 1, moss: 0 };
   Object.assign(s.mats, { cap: 18, plank: 48, stone: 18 });
   // A save from before the field: two beds growing, and standing in the meadow on the old, narrower map.
+  s.buildingJob = 'garden2';
   delete s.field;
   s.pos = { x: 45, y: 13.5 };
   const now = Date.now();
@@ -2376,6 +2377,89 @@ scenario('building skips safely, ignores a second build request, and respects re
   if (SHOTS) await page.screenshot({ path: `${OUT}smithy-small-phone.png` });
   await page.click('[data-dialog="ok"]');
 });
+
+scenario("Pip's interrupted welcome: his doorstep conversation still teaches Rock Candy after a reload",(g)=>{
+  const s=g.save;s.lv=8;s.quest=g.quests.length;s.build.cottage=1;s.build.sawmill=2;
+  s.homes={pip:1,hazel:0,moss:0};s.stories={...s.stories,poppy:6,bram:9,pip:1,drums:4,granny:99};
+  s.flags.push('bram:hut','granny:extension');s.flags=s.flags.filter((f:string)=>f!=='pip:candy');
+  s.mats.stone=30;s.mats.copper=18;s.pos={x:36,y:6.6};
+},async(page)=>{
+  await run(page,`void g.over.actors.get('pip:pip').talk()`);
+  await waitFor(page,'Pip recovers his promised recipe',async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('pip:candy')`);});
+  await closeDialogs(page);
+  await cookByHand(page,'rockcandy');
+  check(await game<boolean>(page,`g.save.meal?.id==='rockcandy' && g.save.mats.stone===18 && g.save.mats.copper===12`),'recovered recipe cannot cook');
+},{webgl:true});
+
+scenario('New neighbours: meet on the road, resume the journey, return together, then build their places', (g) => {
+  const s=g.save;s.lv=12;s.quest=g.quests.length;s.villageJobs=true;
+  s.stories={...s.stories,poppy:6,bram:9,drums:4,granny:99};
+  s.flags=s.flags.filter((f:string)=>!f.endsWith(':returned'));
+  s.flags.push('bram:hut','granny:extension','poppy:returned');
+  s.build.garden=1;s.build.sawmill=4;s.unlocked.push('plots','sawmill');
+  for(const m in s.mats)s.mats[m]=1000;
+  s.pos={x:20.2,y:9.2};
+}, async(page)=>{
+  await bramJob(page,'garden2');
+  check(!await page.$('[data-dialog="job:pip1"]'),'Bram offers a home before meeting Pip');
+  await page.click('.building-job [data-dialog="close"]');
+  for(const [id,job] of [['pip','pip1'],['alder','training1'],['hazel','hazel1'],['moss','moss1']]){
+    const aid=`journey-${id}:${id}`;
+    await waitFor(page, `${id} on the road`,()=>game<boolean>(page,`!!g.over.actors.get('${aid}')`));
+    await run(page,`const a=g.over.actors.get('${aid}');g.over.teleport(a.x,a.y+.6);g.over.face=-Math.PI/2`);
+    await page.waitForTimeout(300);await page.keyboard.press('KeyE');
+    await waitFor(page, `${id} joins the walk`,async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('${id}:journey:met') && !!g.over.actors.get('${aid}')?.follow && g.mode==='world'`);});
+    check(!await game<boolean>(page,`g.save.flags.includes('${id}:returned')`),'meeting immediately credited the return');
+    if(id==='pip'){
+      await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(2200);await closeDialogs(page);
+      check(await game<boolean>(page,`!!g.over.actors.get('${aid}')?.follow && !g.save.flags.includes('pip:returned')`),'reload lost or completed the journey');
+    }
+    // Fast travel regroups followers; the last approach is walked with real input.
+    await run(page,`g.over.teleport(38,14.5);g.over.roamers.calm=999`);
+    await page.keyboard.down('KeyA');
+    try{await waitFor(page,'walking west along the village road',()=>game<boolean>(page,'g.over.x<=31.8'));}finally{await page.keyboard.up('KeyA');}
+    await page.keyboard.down('KeyW');
+    try{await waitFor(page, `${id} reaches Clover`,async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('${id}:returned') && g.mode==='world'`);},12000);}finally{await page.keyboard.up('KeyW');}
+    check(await game<boolean>(page,`!g.over.actors.get('${aid}')?.follow`),'returned neighbour still follows');
+    await bramJob(page,job);check(await page.locator('[data-dialog^="job:"]').count()===1,'multiple places offered at once');
+    await handInJob(page,job);
+    check(!await game<boolean>(page,`!!g.over.actors.get('${aid}')`),'temporary guest duplicated the settled resident');
+  }
+  check(await game<boolean>(page,`g.save.homes.pip===1 && g.save.homes.hazel===1 && g.save.homes.moss===1 && g.save.build.training===1 && g.save.build.garden===1`),'an optional upgrade blocked newcomer buildings');
+}, {webgl:true});
+
+scenario('Resident upgrades: ask Clover for a pantry, hand in to Bram, reload, then finish the final home additions', (g)=>{
+  const s=g.save;s.lv=12;s.quest=g.quests.length;
+  s.stories={...s.stories,poppy:6,bram:9,pip:1,drums:4,granny:99,alder:1};
+  s.flags.push('bram:hut','granny:extension','pip:candy','hazel:recipe','moss:recipe','alder:met');
+  s.build.sawmill=4;s.build.garden=3;s.build.training=3;s.build.cottage=1;
+  s.homes={pip:2,hazel:2,moss:2};s.unlocked.push('plots','sawmill');
+  for(const m in s.mats)s.mats[m]=1000;
+  s.pos={x:31.8,y:11.3};
+},async(page)=>{
+  const before=await game<number>(page,'g.save.mats.pineplank');
+  await run(page,`void g.over.actors.get('granny:granny').talk()`);
+  await waitFor(page,'Clover requests her pantry',async()=>{await closeDialogs(page,8,'.caption');return !!await page.$('.upgrade-request');});
+  await page.click('.upgrade-request [data-dialog="ask"]');
+  check(await game<boolean>(page,`g.save.buildingJob==='kitchen2' && g.save.mats.pineplank===${before}`),'request charged or lost its job');
+  await bramJob(page,'kitchen2');await page.click('[data-dialog="job:kitchen2"]');await page.waitForSelector('.craft-building');
+  await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(2200);await closeDialogs(page);
+  check(await game<boolean>(page,`g.save.kitchenLevel===2 && g.save.mats.pineplank===${before-56} && !g.save.buildingJob`),'reload lost or charged the pantry twice');
+  await run(page,`void g.over.actors.get('granny:granny').talk()`);
+  await waitFor(page,'Clover requests her final kitchen',async()=>{await closeDialogs(page,8,'.caption');return !!await page.$('.upgrade-request');});
+  await page.click('.upgrade-request [data-dialog="ask"]');await bramJob(page,'kitchen3');await handInJob(page,'kitchen3');
+  for(const id of ['pip','hazel','moss']){
+    await run(page,`void g.over.actors.get('${id}:${id}').talk()`);
+    await waitFor(page,`${id}'s final addition request`,async()=>{await closeDialogs(page,8,'.caption');return !!await page.$('.upgrade-request');});
+    await page.click('.upgrade-request [data-dialog="ask"]');await bramJob(page,`${id}3`);await handInJob(page,`${id}3`);
+  }
+  await cookByHand(page,'tea');check(await game<boolean>(page,`g.save.meal?.left>358`),'upgraded kitchen did not improve Clover’s tea');
+  if(SHOTS)await page.screenshot({path:`${OUT}granny-final-kitchen.png`});
+  await run(page,'g.leaveRoom()');await waitFor(page,'outside',()=>settledIn(page,null));
+  await run(page,'g.zoom=.65;g.over.teleport(31.5,13)');await page.setViewportSize({width:1350,height:1200});await page.waitForTimeout(500);
+  if(SHOTS)await page.screenshot({path:`${OUT}sowerby-final-additions.png`});
+  check(await game<boolean>(page,`g.save.homes.pip===3&&g.save.homes.hazel===3&&g.save.homes.moss===3&&g.save.kitchenLevel===3`),'final tiers missing');
+},{webgl:true});
 
 scenario('Bram’s new construction chain: garden flowers, Granny’s kitchen extension, cottage and Alder’s dojo', (g) => {
   const s = g.save; s.villageJobs = true;

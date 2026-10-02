@@ -1,5 +1,6 @@
 // New neighbours belong to the village track: closed roads brought them here; shared work gives them reasons to stay.
 // Story and voice notes: the sibling Sprout Quest Bible, "Sowerby's neighbours".
+import { offerVillageUpgrade } from '../housing';
 import { homeLevel, type HomeId } from '../../housing';
 import { residentDoor } from '../../villageLayout';
 import { G, paused, persist } from '../context';
@@ -47,15 +48,18 @@ export function visitResident(id: HomeId) {
   const p = PEOPLE[id], speaker: Speaker = p;
   return paused(async () => {
     if (!G.save.flags.includes(`${id}:recipe`)) {
-      for (const text of p.welcome) await say(speaker, text);
+      if(G.save.flags.includes(`${id}:returned`) || (G.save.stories[`journey-${id}`]??0)>=2) await say(speaker,id==='hazel'?'The cuttings made it home. And now a place of my own beside them. Thank you.':'Clover’s oven, and a roof of my own. Think I’ll stop packing those buns for the road.');
+      for (const text of p.welcome.slice(G.save.flags.includes(`${id}:returned`) || (G.save.stories[`journey-${id}`]??0)>=2 ? 1 : 0)) await say(speaker, text);
       if (!G.save.flags.includes(`${id}:recipe`)) G.save.flags.push(`${id}:recipe`);
       persist();
     } else {
       const turn = chatter[id]++;
       const milestone = G.save.bosses.includes('dragon') ? p.afterDragon : (G.save.stories.drums ?? 0) >= 4 ? p.afterCave : null;
-      const text = homeLevel(G.save, id) >= 2 && turn % 5 === 0 ? p.upgraded
+      const final = id==='hazel' ? 'The conservatory keeps the delicate cuttings warm. Clover’s tea keeps two extra minutes now.' : 'My own oven beside the larder! Clover’s buns keep two extra minutes now.';
+      const text = homeLevel(G.save, id) >= 2 && turn % 5 === 0 ? homeLevel(G.save,id)>=3 ? final : p.upgraded
         : milestone && turn % 3 === 0 ? milestone : p.lines[turn % p.lines.length];
       await say(speaker, text);
+      await offerVillageUpgrade(p.name);
     }
   });
 }

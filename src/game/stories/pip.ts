@@ -2,6 +2,7 @@
 // tunnels up beside it the day it's finished: tiny, chatty and cheerful, he knows every rock in the valley (and was the
 // first to talk about the warm black stone on Ember Peak). He teaches Granny his Rock Candy. See the story bible
 // (Side quests).
+import { offerVillageUpgrade } from '../housing';
 import { ZONES } from '../../data';
 import { G, paused, persist, syncWorld } from '../context';
 import { bubble, narrate, pan, say, scene, wait, type Speaker } from '../scenes';
@@ -33,15 +34,20 @@ let line = 0;
 
 /** A chat with Pip by his door (also what the Guest Cottage does once he lives there, see interact.ts). */
 export const visitPip = () => {
+  if (!G.save.flags.includes('pip:candy')) return paused(async()=>{
+    await say(PIP,"I promised Clover my Rock Candy recipe. Stone and copper. I’ll show her how to cool it slowly.");
+    G.save.flags.push('pip:candy');persist();
+    await G.ui.itemFound('meal_rockcandy','Rock Candy',`Granny can cook it now: ${mealDescription(G.save,'rockcandy')}`,'🍬','New recipe');
+  });
   const turn = line++;
   const [text, mood] = homeLevel(G.save, 'pip') >= 2 && turn % 6 === 5
-    ? ['My own study! Room for every pebble. I taught Clover the slower way to cool Rock Candy; it lasts a whole minute longer now.']
+    ? [homeLevel(G.save,'pip')>=3 ? 'An archive! I can keep every find, and still see the floor. Clover’s Rock Candy keeps two extra minutes now.' : 'My own study! Room for every pebble. I taught Clover the slower way to cool Rock Candy; it lasts a whole minute longer now.']
     : G.save.flags.includes('moss:recipe') && turn % 5 === 3
       ? ['Moss says it’s breakfast. Clover says I’ve already had breakfast. Bram says to stay out of the floor.']
     : G.save.flags.includes('hazel:recipe') && turn % 5 === 0
       ? ['Hazel’s growing a fern like the one I found in a stone. I’ll bring her the stone.']
     : LINES[turn % LINES.length];
-  return chat([[PIP, text, mood]]);
+  return paused(async()=>{await say(PIP,text,mood);await offerVillageUpgrade('Pip');});
 };
 
 /** Pops up out of the ground: small, then full size. */
@@ -73,7 +79,12 @@ export const PIP_STORY: Story = {
           await narrate('The last plank is barely nailed down when the ground by the door starts to wobble…');
           await popUp();
           bubble(ID, '😵', 1.4);
-          await say(PIP, "Oof! Wrong turn. I was aiming for the meadow!", 'wow');
+          await say(PIP, G.save.flags.includes('pip:returned') ? 'I followed my tunnel to the new doorstep. Nearly came up through the floor!' : "Oof! Wrong turn. I was aiming for the meadow!", 'wow');
+          if (G.save.flags.includes('pip:returned') || (G.save.stories['journey-pip'] ?? 0)>=2) {
+            bubble(ID,'💖',2.5);
+            await say(PIP,'A roof! And a door, and room to put my stones. I think I’ll try coming in through the door. Once.');
+            await say(PIP,'Clover saved me a place at the table before I had a doorstep. I’ll teach her my Rock Candy. Good for miners.');
+          } else {
           bubble(ID, '😮', 1.4);
           await say(PIP, "Oh! A cottage? A proper one, with a roof and a door and everything? Is anybody living in it?", 'wow');
           await narrate('You shake your head.');
@@ -81,6 +92,7 @@ export const PIP_STORY: Story = {
           await say(PIP, "Nobody? Can I? I'm Pip! I dig. Mostly rocks. I know every rock in this valley by name. Well, by taste.");
           await say(PIP, "Mind you, I've never had a house with an upstairs. I've only ever had downstairs!");
           await say(PIP, "Tell you what: I'll give the lady in the blue house my Rock Candy recipe. Crunchy! Good for miners.");
+          }
         });
         G.save.flags.push('pip:candy');
         persist();

@@ -1,4 +1,5 @@
 // Overworld map generation and collision. Coordinates are in tiles.
+import { NEIGHBOURS } from './neighbours';
 import { WORLD_H, WORLD_W, ZONES, zoneAtX, zoneById, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
 import { FIELD_COLS, FIELD_ROWS } from './garden';
 import { ROUTES } from './routes';
@@ -227,6 +228,10 @@ export class World extends TileMap {
         else t = this.villageTile(x, y, seed, nearPath);
         this.set(x, y, t);
       }
+    }
+    // Small roadside stops for newcomers; clear the approach before resource objects are generated.
+    for (const p of Object.values(NEIGHBOURS)) for (let y=Math.floor(p.at.y)-1;y<=Math.ceil(p.at.y)+1;y++) for (let x=Math.floor(p.at.x)-1;x<=Math.ceil(p.at.x)+1;x++) {
+      if (this.tile(x,y)!==T.PATH) this.set(x,y,T.GROUND);
     }
     this.placeObjects();
   }

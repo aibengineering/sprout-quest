@@ -1,5 +1,7 @@
 // Granny's Kitchen: pick up one plate with all the recipe's ingredients beside the pantry, carry it to the stove,
 // and watch the shared creation animation. The recipe is committed and saved once, before its presentation.
+import { offerVillageUpgrade } from './housing';
+import { kitchenLevel } from '../kitchenUpgrades';
 import { MEALS, cook, kitchenOpen, knownMeals, prepareMeal, mealDescription, type MealTray } from '../kitchen';
 import { craftPresentation } from '../crafting';
 import { hasMats } from '../rules';
@@ -98,6 +100,12 @@ function tick(dt: number, room: Room): boolean {
 function floor(ctx: CanvasRenderingContext2D, ts: number) {
   const room = G.over.room!;
   paintShell(ctx, room, ts, { boards: ['#c98d5a', '#bf8350', 'rgba(90,50,30,0.35)'], board: 0.5, wall: '#f6e3c8', stripe: 'rgba(232,170,150,0.35)', wainscot: '#a8714a', wood: '#7a4a30' });
+  const tier=kitchenLevel(G.save);
+  if(tier>=2){
+    ctx.fillStyle='#796046';ctx.fillRect(3.7*ts,-.4*ts,1.8*ts,.1*ts);
+    for(let i=0;i<5;i++){ctx.fillStyle=tier>=3?'#b8e8df':'#688654';ctx.beginPath();ctx.ellipse((3.85+i*.32)*ts,-.15*ts,.1*ts,.19*ts,.2,0,TAU);ctx.fill();}
+  }
+  if(tier>=3) paintWindow(ctx,7.4,-.95,.6,.9,ts,'#8b77a3','#c9f3eb');
   // A window by the stove, a little shelf of plates, and a framed drawing of Poppy and Mr. Floppers.
   paintWindow(ctx, 6.3, -0.95, 0.85, 1.05, ts, '#7a4a30', '#e86a8a');
   ctx.fillStyle = '#7a4a30';
@@ -185,6 +193,7 @@ function talk() {
     await dialogue(GRANNY_SPEAKER, held
       ? "Everything is on your plate, dear. Bring it to the cooking bench, and we can make it together. I'll be right here."
       : "Have a flip through the recipe book and see what you fancy, dear. I'll be right here beside you, guiding you along the way.");
+    await offerVillageUpgrade('Granny Clover');
   });
 }
 

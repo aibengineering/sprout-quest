@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import type { MatId } from '../src/data';
 
 function ready() {
-  const s = newState(); s.flags.push('bram:hut'); s.stories.bram = 9; s.stories.poppy = 6; s.flags.push('granny:extension'); s.build.sawmill = 1;
+  const s = newState(); s.flags.push('bram:hut','pip:returned','hazel:returned','moss:returned'); s.stories.bram = 9; s.stories.poppy = 6; s.flags.push('granny:extension'); s.build.sawmill = 1;
   for (const m of Object.keys(s.mats) as MatId[]) s.mats[m] = 500;
   return s;
 }
@@ -31,6 +31,9 @@ describe('Bram’s resident homes', () => {
     s.build.sawmill = 3;
     expect(buildHome(s, 'moss', 1)).toBe('ok');
     expect(buildHome(s, 'pip', 1)).toBe('ok');
+    for (const id of ['pip','hazel'] as const) expect(buildHome(s,id,2)).toBe('ok');
+    expect(canBuildHome(s,'moss')).toBe('locked'); s.build.sawmill=4;
+    expect(buildHome(s,'moss',2)).toBe('ok');
     for (const id of HOME_ORDER) expect(canBuildHome(s, id)).toBe('maxed');
   });
   test('costs real planks once; stale clicks and insufficient materials cannot advance or charge a home', () => {
@@ -96,7 +99,7 @@ describe('Bram’s resident homes', () => {
       expect(q.some((p) => Math.hypot(p.x-door.x,p.y-door.y) < .3), `${id} cannot be reached from the road`).toBe(true);
     }
   });
-  for (const id of HOME_ORDER) for (let level = 1; level <= 2; level++) test(`${id} level ${level}: native layers and ingredient flights match the paid plan`, () => {
+  for (const id of HOME_ORDER) for (let level = 1; level <= HOMES[id].plans.length; level++) test(`${id} level ${level}: native layers and ingredient flights match the paid plan`, () => {
     const plan = HOMES[id].plans[level-1], p = housePresentation(id, level), model = sceneModel(p.model);
     expect(model.toon && model.compressed).toBe(true); expect(model.bytes).toBeLessThan(120*1024);
     expect(Object.keys(model.layers).sort()).toEqual(p.layers.map((l) => l.id).sort());

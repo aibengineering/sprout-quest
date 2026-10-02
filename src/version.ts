@@ -45,7 +45,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "🪚 Carry logs to Bram's saw, pull its lever and collect the planks",
       "🍳 Pick Granny's recipes, carry one plate to the pot and watch it cook",
       "🪨 Follow Poppy underground, with eye beams and clearer Cavern rocks",
-      "🏘️ Help Bram build Poppy’s garden, Clover’s big kitchen and neighbours’ homes",
+      "🏘️ Walk new neighbours home, then ask Bram to build and improve their places",
       "🔨 Softer hammer slams, with one stronger Fracture hit per enemy",
       "🌉 Help Bram, then build timber shortcuts from oak through Emberwood",
       "🗺️ Explore larger Quarry, crystal garden and lava basin route loops",

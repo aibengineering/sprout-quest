@@ -1,4 +1,4 @@
-import { KITCHEN_EXTENSION } from './villageJobs';
+import { KITCHEN_PLANS } from './kitchenUpgrades';
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
 import { xpBloops, type Sfx } from './audio';
@@ -177,7 +177,7 @@ export function allIconIds(): string[] {
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
     ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
-    ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_hazel', 'npc_moss', 'npc_alder', 'b_kitchen1',
+    ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_hazel', 'npc_moss', 'npc_alder', ...KITCHEN_PLANS.map((p)=>`b_${p.art}`),
     // Story portraits and keepsakes.
     'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots', 'echoanklet',
     'npc_bram', 'npc_bram_happy', 'npc_bram_hurt', 'pie', 'npc_pip', 'npc_pip_wow', ...Object.keys(MEALS).map((m) => `meal_${m}`),
@@ -1579,9 +1579,10 @@ export class UI {
       `<p class="craft-perk">${esc(plan.perk)}</p>`, [['ok', 'Wonderful!']]);
   }
 
-  builtKitchen(before: Recipe, presentation: CraftPresentation) {
-    return this.showCraft({ id: 'kitchen1', name: KITCHEN_EXTENSION.name, recipe: KITCHEN_EXTENSION.cost, iconId: 'b_kitchen1' }, presentation, before,
-      `<p>${esc(KITCHEN_EXTENSION.perk)}</p>`, [['ok', 'Wonderful!']]);
+  builtKitchen(before: Recipe, presentation: CraftPresentation, level = 1) {
+    const plan=KITCHEN_PLANS[level-1];
+    return this.showCraft({ id: plan.art, name: plan.name, recipe: plan.cost, iconId: `b_${plan.art}` }, presentation, before,
+      `<p>${esc(plan.perk)}</p>`, [['ok', 'Wonderful!']]);
   }
 
   challenge(kind: MonsterKind, name: string, title: string, lv: number, playerLv: number, zoneName: string) {

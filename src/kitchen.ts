@@ -2,6 +2,7 @@
 // fights, chopping; not in menus). They're a quick, repeatable way to spend the materials you pile up, not something
 // to make last (see the story bible, Side quests).
 import type { Recipe } from './data';
+import { kitchenLevel } from './kitchenUpgrades';
 import { hasMats, playerStats, spend } from './rules';
 import type { SaveState } from './state';
 import { homeLevel } from './housing';
@@ -60,9 +61,9 @@ const TAUGHT: Partial<Record<MealId, string>> = { stew: 'bram:stew', rockcandy: 
 /** A better home gives the resident room to improve their own recipe, without adding a permanent combat bonus. */
 export function mealSeconds(s: SaveState, id: MealId) {
   const resident = id === 'rockcandy' ? 'pip' : id === 'meadowtea' ? 'hazel' : id === 'trailbuns' ? 'moss' : null;
-  return MEALS[id].seconds + (resident && homeLevel(s, resident) >= 2 ? 60 : 0);
+  return MEALS[id].seconds + (resident ? Math.max(0, homeLevel(s, resident) - 1) * 60 : Math.max(0, kitchenLevel(s) - 1) * 30);
 }
-export const mealDescription = (s: SaveState, id: MealId) => MEALS[id].desc.replace('4 minutes', `${mealSeconds(s, id) / 60} minutes`);
+export const mealDescription = (s: SaveState, id: MealId) => MEALS[id].desc.replace(`${MEALS[id].seconds / 60} minutes`, `${mealSeconds(s, id) / 60} minutes`);
 
 /** The kitchen opens once Mr. Floppers is home (Poppy's story finished). */
 export const kitchenOpen = (s: SaveState) => (s.stories.poppy ?? 0) >= 6 && (!s.villageJobs || s.flags.includes('granny:extension'));

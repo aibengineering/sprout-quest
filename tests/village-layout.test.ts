@@ -25,12 +25,12 @@ describe('Sowerby’s lots and paths', () => {
   test('the largest upgraded artwork leaves space between neighbours and keeps roofs off paths', () => {
     const world = new World();
     const art: [Rect, string, number][] = [
-      [world.obj('forge')!, 'forge5', .42], [world.obj('house')!, 'kitchen1', .42],
+      [world.obj('forge')!, 'forge5', .42], [world.obj('house')!, 'kitchen3', .42],
       [world.obj('plot', 'home')!, 'home3', .42], [world.obj('plot', 'sawmill')!, 'sawmill4', .3],
       [TOWN_CABIN, 'bramhut', .2], [world.obj('fountain')!, 'fountain', .45],
       [world.obj('plot', 'training')!, 'training3', .28], [world.obj('plot', 'warp')!, 'warp1', .1],
-      [RESIDENT_PLOTS.pip, 'res_pip2', .28], [RESIDENT_PLOTS.hazel, 'res_hazel2', .28],
-      [RESIDENT_PLOTS.moss, 'res_moss2', .28],
+      [RESIDENT_PLOTS.pip, 'res_pip3', .28], [RESIDENT_PLOTS.hazel, 'res_hazel3', .28],
+      [RESIDENT_PLOTS.moss, 'res_moss3', .28],
     ];
     // Match drawBuilding/drawFrame: native Blender units are 1.6 per map tile.
     const bounds = art.map(([o, name, back]) => {

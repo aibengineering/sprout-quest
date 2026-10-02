@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { KITCHEN_EXTENSION, VILLAGE_JOBS, completeVillageJob, jobDone, nextVillageJob } from '../src/villageJobs';
+import { KITCHEN_EXTENSION, VILLAGE_JOBS, completeVillageJob, jobDone, nextVillageJob, jobLock, requestVillageUpgrade } from '../src/villageJobs';
 import { newState, saveState, loadState } from '../src/state';
 import { kitchenOpen } from '../src/kitchen';
 import { craftFlights, buildPresentation } from '../src/crafting';
 import { housePresentation } from '../src/crafting/houses';
-import { KITCHEN_EXTENSION_PRESENTATION } from '../src/crafting/kitchen-extension';
+import { kitchenPresentation, KITCHEN_EXTENSION_PRESENTATION } from '../src/crafting/kitchen-extension';
 import { sceneModel } from './sceneModel';
 
 function settled() {
-  const s = newState(); s.stories.poppy = 6; s.stories.bram = 9; s.flags.push('bram:hut'); s.unlocked.push('plots'); s.build.sawmill = 4;
+  const s = newState(); s.stories.poppy = 6; s.stories.bram = 9; s.flags.push('bram:hut','pip:returned','alder:returned','hazel:returned','moss:returned'); s.unlocked.push('plots'); s.build.sawmill = 4;
   for (const m in s.mats) s.mats[m as keyof typeof s.mats] = 500;
   return s;
 }
@@ -34,15 +34,17 @@ describe('Bram’s incremental building quests', () => {
   test('mill capability and meeting a resident gate their additions; the complete chain has real costs and no circular crop dependency', () => {
     const s = settled();
     for (const job of VILLAGE_JOBS) {
+      s.buildingJob=job.id;
       if (job.mill > 1) {
         s.build.sawmill = job.mill - 1;
         expect(completeVillageJob(s, job.id)).toBe('locked');
         s.build.sawmill = 4;
       }
-      if (job.home && job.level > 1) {
+      if (job.home && job.level > 1 && !s.flags.includes(job.home === 'pip' ? 'pip:candy' : `${job.home}:recipe`)) {
         expect(completeVillageJob(s, job.id)).toBe('locked');
         s.flags.push(job.home === 'pip' ? 'pip:candy' : `${job.home}:recipe`);
       }
+      if(job.project==='training' && job.level>1) s.flags.push('alder:met');
       if (job.cost.flower) expect(s.build.garden).toBeGreaterThan(0);
       const before = { ...s.mats };
       expect(completeVillageJob(s, job.id)).toBe('ok');
@@ -63,7 +65,7 @@ describe('Bram’s incremental building quests', () => {
   });
   test('every hand-in material flies to visible native geometry, including Poppy’s flowers and Clover’s extension', () => {
     for (const job of VILLAGE_JOBS) {
-      const p = job.home ? housePresentation(job.home, job.level) : job.project ? buildPresentation(job.project, job.level)! : KITCHEN_EXTENSION_PRESENTATION;
+      const p = job.home ? housePresentation(job.home, job.level) : job.project ? buildPresentation(job.project, job.level)! : kitchenPresentation(job.level);
       const model = sceneModel(p.model);
       expect(Object.keys(model.layers).sort()).toEqual(p.layers.map((l) => l.id).sort());
       expect(model.compressed && model.toon).toBe(true);

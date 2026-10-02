@@ -8,7 +8,7 @@ import { World, type WorldObj } from './world';
 import { newState } from './state';
 import { PLANKS_PER_LOG, SAW, type SawLog } from './sawmill';
 import { HOMES } from './housing';
-import { KITCHEN_EXTENSION } from './villageJobs';
+import { KITCHEN_PLANS } from './kitchenUpgrades';
 import { CROPS, FLOWER_GIFT, GIFT_SECONDS, PLOTS_BY_LEVEL, THIRST_CHANCE, WEED_CHANCE, WEED_SLOW, type Crop } from './garden';
 
 export type Range = [min: number, max: number];
@@ -230,7 +230,7 @@ export function totalDemand(includeVillage = true): Partial<Record<MatId, number
   if (includeVillage) {
     // Pip's first cottage is already counted in PROJECTS; all other homes and the kitchen are independent jobs.
     for (const [id, h] of Object.entries(HOMES)) h.plans.forEach((p, i) => { if (id !== 'pip' || i > 0) add(p.cost); });
-    add(KITCHEN_EXTENSION.cost);
+    KITCHEN_PLANS.forEach((p)=>add(p.cost));
   }
   for (const g of Object.values(GEAR)) if (g.recipe) add(g.recipe);
   for (const t of TOOLS) add(t.recipe);

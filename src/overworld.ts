@@ -1,4 +1,5 @@
 // Overworld: walking around, tall-grass encounters and drawing the tile map.
+import { kitchenLevel } from './kitchenUpgrades';
 import { GEAR, MATS, MONSTERS, NODES, WORLD_H, ZONES, zoneAtX, type Theme, type Zone } from './data';
 import { ROUTES } from './routes';
 import { currentQuest } from './quests';
@@ -1286,7 +1287,7 @@ export class Overworld {
     const lv = (id: keyof SaveState['build']) => this.save.build[id];
     switch (o.kind) {
       case 'forge': return { name: forgeArt(lv('forge')), back: 0.42 };
-      case 'house': return { name: this.save.flags.includes('granny:extension') ? 'kitchen1' : 'house_blue', back: 0.42 };
+      case 'house': return { name: kitchenLevel(this.save) ? `kitchen${kitchenLevel(this.save)}` : 'house_blue', back: 0.42 };
       case 'fountain': return { name: 'fountain', back: 0.45 };
       case 'sign': return { name: 'sign', back: 0.05 };
       case 'lair': return { name: 'lair', back: 0.4 };
@@ -1303,7 +1304,7 @@ export class Overworld {
         if (p === 'home') return { name: `home${l}`, back: 0.42 };
         if (p === 'warp') return { name: `warp${l}`, back: 0.1 };
         if (p === 'sawmill') return { name: `sawmill${l}`, back: 0.3 };
-        if (p === 'cottage') return { name: homeLevel(this.save, 'pip') >= 2 ? 'res_pip2' : l ? 'cottage1' : 'plot', back: .28 };
+        if (p === 'cottage') return { name: homeLevel(this.save, 'pip') >= 2 ? `res_pip${homeLevel(this.save,'pip')}` : l ? 'cottage1' : 'plot', back: .28 };
         return { name: l ? `${p}${l}` : 'plot', back: 0.28 };
       }
       default: return null;

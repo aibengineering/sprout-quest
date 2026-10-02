@@ -1,21 +1,23 @@
 # Sowerby’s neighbours
 
-The housing loop is **cut logs in the Sawmill → carry the planks outside → ask Bram to build → meet the resident → try their recipe in Granny’s Kitchen**. The physical work gives the planks a purpose, and each doorstep gives the village another person to visit.
+The housing loop is **meet someone on the road → return to Sowerby together → bring Bram materials → build their place → use it → ask its owner about an addition**. The physical work gives the planks a purpose, and each doorstep gives the village another person to visit.
 
 ## Implemented for 0.3.7
 
 Bram's outdoor conversation offers **one next building job**, after his cabin quest. The generic Village menu keeps workshops and the player's original home. Resident homes, Poppy's garden, Alder's dojo and Clover's kitchen are handed in to Bram in conversation, with actual materials and a cancellable single-job card. The tracker points back to him. Material payment and completion are saved before the assembly animation.
 
-The order is **Poppy's patch → Clover's kitchen extension → Pip's cottage → Alder's dojo → Hazel's home → larger garden → Pip's study → larger dojo → Moss's home → Hazel's glasshouse → full garden → Moss's larder → advanced dojo**. Mill upgrades gate the timber, and residents must be met before their additions. Older saves skip completed jobs and keep their open kitchen.
+First places follow **Poppy's patch → Clover's kitchen → Pip's cottage**, then Alder's dojo, Hazel's home and Moss's home as those people return. Pip and Alder are met by the Woods road, Hazel and Moss by the Meadow road. Their quests ask you to walk back with them; they stay with Clover while waiting for construction. Talking or having materials alone cannot unlock a home. Existing buildings count as settled, so older saves do not repeat arrivals.
+
+Upgrades are independent of that arrival order. Each owner can request their next addition in conversation, which makes it Bram's current job without spending anything. If a newcomer is still away, Bram can offer an available improvement. The tracker and Journal follow the chosen request; completion is derived from saved building levels, so a changed job order does not skip construction. Mill tiers continue to gate the timber. Workshops and the player's original home retain their existing upgrades.
 
 | Place / owner | First construction | Additions / contribution |
 | --- | --- | --- |
 | Poppy's garden | 32 oak planks, 12 stone, 1 clover | Six, twelve, then twenty beds; food and flowers for later jobs |
-| Clover's kitchen extension | 64 oak planks, 24 stone, 9 copper, 6 flowers | Keeps her original home; opens a large room for one plate carried from book to pot |
-| Pip's cottage | 48 oak planks, 12 bark, 18 stone, 9 copper, 4 flowers | Study: 48 pine planks, 9 iron, 6 flowers; improves Rock Candy duration |
+| Clover's kitchen extension | 64 oak planks, 24 stone, 9 copper, 6 flowers | Three tiers: kitchen extension, Pine Pantry, Glimmer Kitchen; her own meals gain 30/60 seconds |
+| Pip's cottage | 48 oak planks, 12 bark, 18 stone, 9 copper, 4 flowers | Study: 48 pine planks, 9 iron, 6 flowers; then a Glimmer Archive; Rock Candy gains one/two minutes |
 | Alder's dojo | 40 oak planks, 18 stone, 18 fluff | Pine and glimmer additions open six combat lessons; first-clear XP from 180 to 1,000 |
-| Hazel's cottage | 64 oak planks, 24 stone, 8 herbs, 6 flowers | Glasshouse: 56 pine planks, 8 crystal, 8 flowers; improves Meadow Tea duration |
-| Moss's cottage | 64 pine planks, 24 stone, 12 berries, 8 flowers | Larder: 48 glimmer planks, 8 crystal, 10 flowers; improves Trail Buns duration |
+| Hazel's cottage | 64 oak planks, 24 stone, 8 herbs, 6 flowers | Glasshouse: 56 pine planks, 8 crystal, 8 flowers; then a Glimmer Conservatory; Meadow Tea gains one/two minutes |
+| Moss's cottage | 64 pine planks, 24 stone, 12 berries, 8 flowers | Larder: 48 glimmer planks, 8 crystal, 10 flowers; then an Ember Bakehouse; Trail Buns gain one/two minutes |
 
 Each activity has its own character. Bram constructs; Poppy gardens; Clover cooks; Alder teaches combat. Alder is a former road escort who wants people to return safely, rather than another foreman. His dojo uses canvas targets with real enemy tells, a separate practice health pool and once-only combat/handling XP. It does not drop materials or advance monster-kill quests. A home addition improves future meals, without permanent combat stats or workshop levels.
 
@@ -34,7 +36,7 @@ These are proposed beats, not active quests or promised unlocks:
 3. Add a shared supper or small village event after the favours. Let conversations change after the event, without creating another daily chore or mandatory production minigame.
 4. Explore neighbouring settlements after Sowerby has people worth leaving and returning to. Use introductions, trade requests and shared recipes before expanding housing to an entirely new map.
 
-Workshop progression continues to determine tools, materials and construction capability. Housing progression determines residents, relationships and their recipe contributions. The player’s existing tent/cottage/manor stays on its current main-quest path for compatibility; a later design pass can revisit it independently. Further housing tiers need a distinct character or recipe payoff before more expensive planks are added.
+Workshop progression continues to determine tools, materials and construction capability. Housing progression determines residents, relationships and their recipe contributions. The player’s existing tent/cottage/manor stays on its current main-quest path for compatibility; a later design pass can revisit it independently. The new final tiers improve the resident’s own recipe and retain the previous building as their assembly base. Costs, bonuses and tier gates are tuning values in `src/housing.ts`, `src/kitchenUpgrades.ts` and `src/villageJobs.ts`.
 
 ## Playtest questions
 
@@ -43,4 +45,4 @@ Workshop progression continues to determine tools, materials and construction ca
 - Is the duration bonus worth an optional house addition without becoming mandatory?
 - Do Hazel and Moss feel like neighbours rather than recipe dispensers?
 
-Validate old saves, cancelling a plan, skipping or reloading during assembly, both newcomers’ recipes, and the job card and lessons at phone and desktop sizes.
+Validate old saves, reloading an escort, returning before construction, cancelling a request, skipping or reloading during assembly, both newcomers’ recipes, and the job card and lessons at phone and desktop sizes.

@@ -181,3 +181,9 @@ meal time, monster-kill quests or ordinary battle rewards. Dojo additions retain
 
 Playtest the size and timing of these rewards alongside village material costs; passing the main-track economy guard
 does not establish the pace of the optional housing chain.
+
+
+Village additions retain the garden/dojo's three ranks. Resident homes now have three tiers (+0/60/120 seconds for
+their own recipe), while Clover's kitchen has three (+0/30/60 seconds for her own dishes). These bonuses do not stack
+onto other residents' recipes. `farmTable(true)` includes every home and kitchen tier; the main-track budget remains
+separate. Arrival journeys cost no extra materials and optional upgrades do not gate meeting the next neighbour.
