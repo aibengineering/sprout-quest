@@ -12,11 +12,11 @@ import { costChips, esc, icon } from '../ui';
 import type { WorldObj } from '../world';
 import { G, paused, persist } from './context';
 import type { RoomPlay } from './rooms';
-import { grannyCooks } from './stories/granny';
+import { askFavour, bramDue, grannyCooks } from './stories/granny';
 
 const GRANNY = 'room:granny';
-/** Where she potters, by the stove and her book. */
-const GRANNY_AT = { x: 6.55, y: 3.25 };
+/** Where she potters, by her book and just in from the door, with clear floor over her head. */
+const GRANNY_AT = { x: 6.5, y: 7.1 };
 
 const TAU = Math.PI * 2;
 
@@ -167,6 +167,12 @@ function tick(dt: number, room: Room): boolean {
     if (o.id === 'stove') o.label = held && 'mat' in held ? `Add ${name(held.mat)}` : pot && !held && !stillNeeded(pot).length ? (cooked(pot) ? 'Spoon it out' : 'Stir') : 'Stove';
     if (o.id === 'table') o.label = held && 'dish' in held ? 'Serve' : 'Table';
   }
+  // When she's a favour to ask (Bram's pie), she says so.
+  const g = room.actors.get(GRANNY);
+  if (g) {
+    g.label = bramDue() ? 'Talk' : 'Ask Granny';
+    g.mood = bramDue() ? '💭' : undefined;
+  }
   if (!stirring) return false;
   stirring.a = (stirring.a + dt * SPOON) % TAU;
   // Walking off (or Esc) puts the spoon down; the pot waits.
@@ -185,7 +191,7 @@ function floor(ctx: CanvasRenderingContext2D, ts: number) {
   const room = G.over.room!;
   paintShell(ctx, room, ts, { boards: ['#c98d5a', '#bf8350', 'rgba(90,50,30,0.35)'], board: 0.5, wall: '#f6e3c8', stripe: 'rgba(232,170,150,0.35)', wainscot: '#a8714a', wood: '#7a4a30' });
   // A window over her book, a little shelf of plates, and a framed drawing of Poppy and Mr. Floppers.
-  paintWindow(ctx, 6.2, -0.95, 1.4, 1.05, ts, '#7a4a30', '#e86a8a');
+  paintWindow(ctx, 6.3, -0.95, 0.85, 1.05, ts, '#7a4a30', '#e86a8a');
   ctx.fillStyle = '#7a4a30';
   ctx.fillRect(1.0 * ts, -0.35 * ts, 2.0 * ts, 0.1 * ts);
   for (let i = 0; i < 4; i++) {
@@ -195,25 +201,26 @@ function floor(ctx: CanvasRenderingContext2D, ts: number) {
     ctx.fill();
   }
   ctx.fillStyle = '#c8a070';
-  rrect(ctx, 3.95 * ts, -1.2 * ts, 0.9 * ts, 0.75 * ts, ts * 0.05);
+  rrect(ctx, 3.85 * ts, -1.2 * ts, 0.9 * ts, 0.75 * ts, ts * 0.05);
   ctx.fill();
   ctx.fillStyle = '#fff8e8';
-  ctx.fillRect(4.05 * ts, -1.1 * ts, 0.7 * ts, 0.55 * ts);
+  ctx.fillRect(3.95 * ts, -1.1 * ts, 0.7 * ts, 0.55 * ts);
   ctx.fillStyle = '#ff8ab0';
   ctx.beginPath();
-  ctx.arc(4.3 * ts, -0.8 * ts, 0.12 * ts, 0, TAU);
+  ctx.arc(4.2 * ts, -0.8 * ts, 0.12 * ts, 0, TAU);
   ctx.fill();
   ctx.fillStyle = '#f0e0d0';
   ctx.beginPath();
-  ctx.ellipse(4.55 * ts, -0.78 * ts, 0.1 * ts, 0.08 * ts, 0, 0, TAU);
+  ctx.ellipse(4.45 * ts, -0.78 * ts, 0.1 * ts, 0.08 * ts, 0, 0, TAU);
   ctx.fill();
   // The rug under the table.
+  const tb = room.station('table')!;
   ctx.fillStyle = '#d8606a';
-  rrect(ctx, 2.5 * ts, 3.85 * ts, 4.0 * ts, 1.85 * ts, ts * 0.5);
+  rrect(ctx, (tb.x - 0.3) * ts, (tb.y - 0.5) * ts, (tb.w + 0.6) * ts, 1.85 * ts, ts * 0.5);
   ctx.fill();
   ctx.strokeStyle = '#ffd38a';
   ctx.lineWidth = Math.max(2, ts * 0.06);
-  rrect(ctx, 2.65 * ts, 3.97 * ts, 3.7 * ts, 1.61 * ts, ts * 0.4);
+  rrect(ctx, (tb.x - 0.15) * ts, (tb.y - 0.38) * ts, (tb.w + 0.3) * ts, 1.61 * ts, ts * 0.4);
   ctx.stroke();
 }
 
@@ -222,19 +229,18 @@ const STOVE_BACK = 0.16;
 /** The pot sits left of the stove's middle, its stew about 1.37 Blender units up (seen at 30°: × 0.87). */
 const potAt = (o: WorldObj, ts: number) => ({ x: (o.x + o.w / 2) * ts - 0.25 * propUnit(ts), y: (o.y + o.h - STOVE_BACK * PROP_SCALE) * ts - propRise(1.37, ts) });
 
-function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): number | void {
   switch (o.id) {
     case 'pantry':
-      drawProp(ctx, 'k_pantry', o, ts, 0.12, (x, y, w, h) => {
+      return drawProp(ctx, 'k_pantry', o, ts, 0.12, (x, y, w, h) => {
         crate(ctx, x, y, w, h, '#8a5a3a', '#a8714a', ts * 1.6);
         for (let i = 0; i < 6; i++) {
           ctx.fillStyle = ['#ffd35a', '#9ad85a', '#ff8a5a', '#ffffff', '#c8a0ff', '#8ad8ff'][i];
           ctx.fillRect(x + (0.15 + (i % 3) * 0.32) * w, y - ts * (1.3 - Math.floor(i / 3) * 0.7), w * 0.2, ts * 0.4);
         }
       });
-      break;
     case 'stove': {
-      drawProp(ctx, 'k_stove', o, ts, STOVE_BACK, (x, y, w, h) => {
+      const top = drawProp(ctx, 'k_stove', o, ts, STOVE_BACK, (x, y, w, h) => {
         crate(ctx, x, y, w, h, '#3a3440', '#5a5260', ts * 0.6);
         ctx.fillStyle = '#5a5a6a';
         ctx.beginPath();
@@ -257,19 +263,18 @@ function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
         }
         steam(ctx, cx, cy - ts * 0.1, ts, t, pot && cooked(pot) ? 1 : 0.5);
       }
-      break;
+      return top;
     }
     case 'book':
-      drawProp(ctx, 'k_book', o, ts, 0.08, (x, y, w, h) => {
+      return drawProp(ctx, 'k_book', o, ts, 0.08, (x, y, w, h) => {
         crate(ctx, x + w * 0.2, y, w * 0.6, h, '#8a5a3a', '#a8714a', ts * 0.5);
         ctx.fillStyle = '#e8584a';
         ctx.fillRect(x + w * 0.1, y - ts * 0.75, w * 0.8, ts * 0.3);
         ctx.fillStyle = '#fff8e8';
         ctx.fillRect(x + w * 0.15, y - ts * 0.72, w * 0.7, ts * 0.22);
       });
-      break;
     case 'table': {
-      drawProp(ctx, 'k_table', o, ts, 0.4, (x, y, w, h) => crate(ctx, x, y, w, h, '#a8714a', '#f6e8d8', ts * 0.45));
+      const top = drawProp(ctx, 'k_table', o, ts, 0.4, (x, y, w, h) => crate(ctx, x, y, w, h, '#a8714a', '#f6e8d8', ts * 0.45));
       if (served) {
         const cx = (o.x + o.w / 2) * ts, cy = (o.y + 0.1) * ts;
         ctx.save();
@@ -277,7 +282,7 @@ function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
         drawCarried(ctx, cx, cy + ts * 1.55, ts * 0.9, `meal_${served.dish}`, MEALS[served.dish].icon);
         ctx.restore();
       }
-      break;
+      return top;
     }
   }
 }
@@ -339,11 +344,11 @@ function hud(ctx: CanvasRenderingContext2D, vw: number) {
 export const KITCHEN_PLAY: RoomPlay = {
   setup(room) {
     room.painter = { floor, obj, over };
-    room.actors.add({ id: GRANNY, look: { kind: 'idle', name: 'granny' }, ...GRANNY_AT, label: 'Ask Granny', talk: () => grannyCooks() });
+    room.actors.add({ id: GRANNY, name: 'Granny', look: { kind: 'idle', name: 'granny' }, ...GRANNY_AT, label: 'Ask Granny', talk: () => (bramDue() ? askFavour() : grannyCooks()) });
   },
   enter() {
     reset();
-    say(ENTER_LINES[enterLine++ % ENTER_LINES.length], 3.2);
+    say(bramDue() ? "Oh, there you are, dear. Come here a moment, I've a favour to ask." : ENTER_LINES[enterLine++ % ENTER_LINES.length], 3.2);
   },
   act(o) {
     if (!kitchenOpen(G.save)) return;

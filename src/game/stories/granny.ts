@@ -4,7 +4,6 @@ import { cook, kitchenOpen, MEALS, type MealId } from '../../kitchen';
 import { craftPresentation } from '../../crafting';
 import { poppyAway } from '../../procession';
 import { G, paused, persist } from '../context';
-import { enterRoom } from '../rooms';
 import { say, type Speaker } from '../scenes';
 import type { Story } from '../stories';
 
@@ -50,9 +49,9 @@ export function grannyCooks() {
 }
 
 /** Bram's story starts with her: once the Woods are open and Poppy's safe home, she asks you to take him a pie. */
-const bramDue = () => G.save.bosses.includes('kingslime') && poppyStep() >= 6 && !G.save.flags.includes('bram:pie');
+export const bramDue = () => G.save.bosses.includes('kingslime') && poppyStep() >= 6 && !G.save.flags.includes('bram:pie');
 
-function askFavour() {
+export function askFavour() {
   return paused(async () => {
     await say(GRANNY, "Oh, dear, would you do an old woman a favour? My old friend Bram is a lumberjack, out in Whisper Woods.");
     await say(GRANNY, "He used to bring me firewood every week. I haven't seen him in years, and I do worry.", 'worried');
@@ -63,6 +62,12 @@ function askFavour() {
   });
 }
 
+/**
+ * Once she cooks, Granny's inside in her Kitchen (in through the blue house's door), except while the story needs her
+ * at the door: Poppy's away in Echo Cavern, or you're helping Bram home to her.
+ */
+const atDoor = () => !kitchenOpen(G.save) || poppyAway(G.save) || G.save.stories.bram === 6;
+
 export const GRANNY_STORY: Story = {
   id: 'granny',
   title: "Granny's Kitchen",
@@ -70,12 +75,11 @@ export const GRANNY_STORY: Story = {
   available: () => G.save.flags.includes('village'),
   steps: [],
   objs: [],
-  cast: () => [{
-    id: GRANNY_ID, look: { kind: 'idle', name: 'granny' }, ...GRANNY_AT,
-    label: kitchenOpen(G.save) && !poppyAway(G.save) ? 'Kitchen' : 'Talk',
+  cast: () => (atDoor() ? [{
+    id: GRANNY_ID, look: { kind: 'idle', name: 'granny' }, ...GRANNY_AT, label: 'Talk',
     mood: poppyAway(G.save) ? '😰' : poppyStep() <= 4 ? '😟' : undefined,
-    talk: () => (bramDue() ? askFavour() : kitchenOpen(G.save) && !poppyAway(G.save) ? enterRoom('kitchen') : paused(async () => {
+    talk: () => (bramDue() ? askFavour() : paused(async () => {
       for (const [text, mood] of lines()) await say(GRANNY, text, mood);
     })),
-  }],
+  }] : []),
 };

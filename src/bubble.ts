@@ -91,3 +91,62 @@ export function drawSpeech(ctx: CanvasRenderingContext2D, x: number, y: number, 
   lines.forEach((l, i) => ctx.fillText(l, bx + pad, top + pad * 0.65 + lh * (i + 0.5)));
   ctx.restore();
 }
+
+/**
+ * What someone in a room is saying, in one place at the top of the screen (under the HUD, where the hint usually is)
+ * instead of over the room, so it never covers what you're working at: their feeling, their name and the line,
+ * wrapped to fit. Fades in and out like a speech bubble. Returns the box drawn (screen pixels), or null once faded.
+ */
+export function drawCaption(ctx: CanvasRenderingContext2D, vw: number, y: number, name: string, text: string, emoji: string | undefined, age: number, hold: number) {
+  const fade = Math.max(0, Math.min(1, age / 0.15, (hold - age) / 0.3));
+  if (fade <= 0) return null;
+  ctx.save();
+  const w = Math.min(vw - 24, 440), pad = 10, face = emoji ? 30 : 0;
+  // Two lines at most: a long line drops the type a size rather than reaching down into the room.
+  let size = 15, lines: string[] = [];
+  for (; size >= 12; size--) {
+    ctx.font = `800 ${size}px ui-rounded, "Nunito", system-ui, sans-serif`;
+    lines = [];
+    for (const word of `${name}: ${text}`.split(' ')) {
+      const last = lines[lines.length - 1];
+      if (last !== undefined && ctx.measureText(`${last} ${word}`).width <= w - pad * 2 - face) lines[lines.length - 1] = `${last} ${word}`;
+      else lines.push(word);
+    }
+    if (lines.length <= 2) break;
+  }
+  const lh = size + 4, h = Math.max(30, lines.length * lh + 10), x = (vw - w) / 2;
+  ctx.globalAlpha *= fade;
+  ctx.fillStyle = '#fffdf6';
+  ctx.strokeStyle = '#4a2a5a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 14);
+  ctx.fill();
+  ctx.stroke();
+  if (emoji) {
+    ctx.font = `20px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, x + pad + 12, y + h / 2 + 1);
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  lines.forEach((l, i) => {
+    const ly = y + 5 + lh * (i + 0.5) + 1;
+    let lx = x + pad + face;
+    // The speaker's name, in their own colour.
+    if (i === 0) {
+      ctx.font = `900 ${size}px ui-rounded, "Nunito", system-ui, sans-serif`;
+      ctx.fillStyle = '#c0567a';
+      const head = `${name}:`;
+      ctx.fillText(head, lx, ly);
+      lx += ctx.measureText(`${head} `).width;
+      l = l.slice(head.length + 1);
+    }
+    ctx.font = `800 ${size}px ui-rounded, "Nunito", system-ui, sans-serif`;
+    ctx.fillStyle = '#4a2a5a';
+    ctx.fillText(l, lx, ly);
+  });
+  ctx.restore();
+  return { x, y, w, h };
+}

@@ -1,11 +1,16 @@
 // Walking into Granny's Kitchen and Bram's Sawmill: through the iris from their doors, around the room, working the
 // stations by hand, and back out. Each room's own play (what its stations do, who's in it, how it's painted) lives in
 // kitchenRoom.ts and sawmillRoom.ts; this is what they share.
+import { drawCaption } from '../bubble';
+import { HINT_Y } from '../roomArt';
+import { kitchenOpen } from '../kitchen';
+import { poppyAway } from '../procession';
 import { Room, ROOMS, type RoomId } from '../room';
 import type { WorldObj } from '../world';
 import { G, persist, transition } from './context';
 import { KITCHEN_PLAY } from './kitchenRoom';
 import { SAWMILL_PLAY } from './sawmillRoom';
+import { sawmillBuilt } from './stories/bram';
 
 export interface RoomPlay {
   /** Builds the room's cast and its painter, once. */
@@ -38,10 +43,28 @@ function room(id: RoomId): Room {
   return r;
 }
 
+/** Each room's doorway on the map: the foot of its building's front door, in the middle of its front. */
+function doorway(id: RoomId): { x: number; y: number } | null {
+  const o = id === 'kitchen' ? G.world.obj('house') : G.world.objs.find((o) => o.project === 'sawmill');
+  return o ? { x: o.x + o.w / 2, y: o.y + o.h } : null;
+}
+
 /** Where you come back out of each room: just in front of its door on the map. */
 export function doorstep(id: RoomId): { x: number; y: number } {
-  const o = id === 'kitchen' ? G.world.obj('house') : G.world.objs.find((o) => o.project === 'sawmill');
-  return o ? { x: o.x + o.w / 2 + (id === 'kitchen' ? -0.4 : 0), y: o.y + o.h + 0.7 } : { x: G.over.x, y: G.over.y };
+  const d = doorway(id);
+  return d ? { x: d.x, y: d.y + 0.7 } : { x: G.over.x, y: G.over.y };
+}
+
+/** The rooms whose doors are open just now: Granny's once she cooks (not while Poppy's away), Bram's once he's in. */
+const open = (id: RoomId) => (id === 'kitchen' ? kitchenOpen(G.save) && !poppyAway(G.save) : sawmillBuilt());
+
+/** Walking up into an open door on the map takes you in, like the action button at it. */
+export function doorwayTick() {
+  if (G.trans || G.over.room || G.input.axis().y > -0.5) return;
+  for (const id of ['kitchen', 'sawmill'] as RoomId[]) {
+    const d = doorway(id);
+    if (d && open(id) && Math.abs(G.over.x - d.x) < 0.5 && G.over.y > d.y && G.over.y < d.y + 0.6) return enterRoom(id);
+  }
 }
 
 function go(id: RoomId) {
@@ -117,7 +140,12 @@ export function roomTick(dt: number): boolean {
   return false;
 }
 
+/** Over the room: what someone's saying (where the hint goes, so it never covers the room), or else the hint. */
 export function drawRoomHud(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
   const r = G.over.room;
-  if (r) play(r.id).hud?.(ctx, vw, vh, r);
+  if (!r) return;
+  const a = r.actors.list.find((a) => a.speech);
+  const box = a?.speech ? drawCaption(ctx, vw, HINT_Y, a.name ?? '', a.speech.text, a.bubble?.emoji ?? a.mood, a.speech.t, a.speech.hold) : null;
+  G.over.roomRects.caption = box;
+  if (!box) play(r.id).hud?.(ctx, vw, vh, r);
 }

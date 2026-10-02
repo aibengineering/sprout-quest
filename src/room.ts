@@ -10,7 +10,8 @@ export type RoomId = 'kitchen' | 'sawmill';
 /** Paints a room: its floor and walls, each station (in depth order with everyone), and what floats over it. */
 export interface RoomPainter {
   floor(ctx: CanvasRenderingContext2D, ts: number): void;
-  obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): void;
+  /** Returns the top of what it drew (pixels), for its label to sit above it. */
+  obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): number | void;
   over(ctx: CanvasRenderingContext2D, ts: number): void;
 }
 
@@ -73,32 +74,33 @@ export class Room extends TileMap {
 
 /**
  * Granny's Kitchen, inside the blue house: the pantry shelf and the stove along the back wall, her recipe book on its
- * stand, and the table in the middle where meals are served. The door is at the front.
+ * stand by the window side, and the table on its rug in front, each with floor to walk round it. Narrow and tall like
+ * a phone's screen, so all of it fits on one at once. The door is at the front.
  */
 export const KITCHEN: RoomSpec = {
-  id: 'kitchen', name: "Granny's Kitchen", w: 9, h: 8, door: 4, bg: '#3a2630',
+  id: 'kitchen', name: "Granny's Kitchen", w: 8, h: 9, door: 4, bg: '#3a2630',
   stations: [
-    { id: 'pantry', x: 0.8, y: 1.3, w: 2.75, h: 0.95, label: 'Pantry' },
-    { id: 'stove', x: 3.95, y: 1.3, w: 2.1, h: 0.95, label: 'Stove' },
-    { id: 'book', x: 6.6, y: 1.45, w: 1.2, h: 0.75, label: 'Recipes' },
-    { id: 'table', x: 2.8, y: 4.35, w: 3.4, h: 0.9, label: 'Table' },
+    { id: 'pantry', x: 0.75, y: 1.3, w: 2.75, h: 0.95, label: 'Pantry' },
+    { id: 'stove', x: 4.1, y: 1.3, w: 2.1, h: 0.95, label: 'Stove' },
+    { id: 'book', x: 5.9, y: 4.2, w: 1.2, h: 0.75, label: 'Recipes' },
+    { id: 'table', x: 1.2, y: 5.0, w: 3.4, h: 0.9, label: 'Table' },
   ],
 };
 
 /**
- * Bram's Sawmill, inside: a log pile for each wood along the back wall, the saw bench with its lever, and the stack
- * of sawn planks by the door.
+ * Bram's Sawmill, inside: oak and pine piles along the back wall and the rarer woods down the left, the saw bench in
+ * the middle with its lever on the wall behind it, and the stack of sawn planks by the door.
  */
 export const SAWMILL: RoomSpec = {
-  id: 'sawmill', name: "Bram's Sawmill", w: 10, h: 8, door: 4, bg: '#2e2228',
+  id: 'sawmill', name: "Bram's Sawmill", w: 8, h: 9, door: 4, bg: '#2e2228',
   stations: [
-    { id: 'pile:bark', x: 0.95, y: 1.4, w: 1.3, h: 0.8, label: 'Oak logs' },
-    { id: 'pile:pine', x: 2.45, y: 1.4, w: 1.3, h: 0.8, label: 'Pine logs' },
-    { id: 'pile:glimwood', x: 0.95, y: 3.2, w: 1.1, h: 0.75, label: 'Glimwood logs' },
-    { id: 'pile:emberwood', x: 0.95, y: 4.75, w: 1.1, h: 0.75, label: 'Emberwood logs' },
-    { id: 'bench', x: 4.4, y: 2.75, w: 3.3, h: 0.95, label: 'Saw bench' },
-    { id: 'lever', x: 8.05, y: 1.5, w: 0.7, h: 0.65, label: 'Lever' },
-    { id: 'planks', x: 6.6, y: 5.25, w: 1.6, h: 0.75, label: 'Planks' },
+    { id: 'pile:bark', x: 0.85, y: 1.4, w: 1.3, h: 0.8, label: 'Oak logs' },
+    { id: 'pile:pine', x: 2.55, y: 1.4, w: 1.3, h: 0.8, label: 'Pine logs' },
+    { id: 'pile:glimwood', x: 0.85, y: 3.7, w: 1.1, h: 0.75, label: 'Glimwood logs' },
+    { id: 'pile:emberwood', x: 0.85, y: 5.6, w: 1.1, h: 0.75, label: 'Emberwood logs' },
+    { id: 'bench', x: 3.55, y: 4.2, w: 3.3, h: 0.95, label: 'Saw bench' },
+    { id: 'lever', x: 6.2, y: 1.5, w: 0.7, h: 0.65, label: 'Lever' },
+    { id: 'planks', x: 5.4, y: 6.4, w: 1.6, h: 0.75, label: 'Planks' },
   ],
 };
 

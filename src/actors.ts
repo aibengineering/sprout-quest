@@ -28,6 +28,8 @@ export interface Actor {
   speech?: Bubble & { text: string };
   /** How they feel the rest of the time, shown whenever no passing bubble is up. */
   mood?: string;
+  /** What they're called, for what they say to show who's saying it. */
+  name?: string;
   /** Up close: the action button's label, and what talking to them does. */
   label?: string;
   talk?: () => Promise<void> | void;

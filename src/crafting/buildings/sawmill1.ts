@@ -25,7 +25,7 @@ export default {
   ],
   "roles": {
     "stone": "The floor and the post footings",
-    "pine": "The shed, its bench and its roof",
+    "pine": "The mill house and its roof",
     "copper": "The round blade"
   },
   "targets": [
@@ -71,17 +71,17 @@ export default {
     {
       "at": 760,
       "stage": "shed",
-      "text": "Pine posts, a back wall and a sawing bench."
+      "text": "Pine walls go up, with a wide front door."
     },
     {
       "at": 1400,
       "stage": "roof",
-      "text": "A pine roof leans over the bench."
+      "text": "A pine roof goes on over the mill."
     },
     {
       "at": 2040,
       "stage": "blade",
-      "text": "Copper is cut into a big round blade."
+      "text": "Copper is cut into a big round blade, hung over the door."
     },
     {
       "at": 3000,
@@ -93,5 +93,5 @@ export default {
   "sceneLabel": "Stone makes the floor and post footings. Pine Logs make the shed, its bench and its roof. Copper Ore becomes the round saw blade.",
   "pattern": "logs in, planks out",
   "intro": "Stone, pine and copper for Bram.",
-  "finished": "A shed, a bench and a copper blade."
+  "finished": "A mill house with a door to walk in, and a copper blade."
 } satisfies CraftPresentation;

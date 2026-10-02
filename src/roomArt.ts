@@ -86,8 +86,11 @@ export function drawCarried(ctx: CanvasRenderingContext2D, x: number, y: number,
   ctx.restore();
 }
 
+/** How far down the screen the rooms' hints (and what people in them say) go: just under the HUD. */
+export const HINT_Y = 84;
+
 /** A hint pill near the top of the screen, under the HUD: what to do next. */
-export function hintPill(ctx: CanvasRenderingContext2D, vw: number, text: string, y = 84) {
+export function hintPill(ctx: CanvasRenderingContext2D, vw: number, text: string, y = HINT_Y) {
   ctx.save();
   ctx.font = '800 15px ui-rounded, "Nunito", system-ui, sans-serif';
   const w = Math.min(vw - 24, ctx.measureText(text).width + 28), h = 30;

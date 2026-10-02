@@ -15,8 +15,8 @@ import type { RoomPlay } from './rooms';
 import { openSawmill } from './stories/bram';
 
 const BRAM = 'room:bram';
-/** Where he stands, by the bench, keeping an eye on the blade. */
-const BRAM_AT = { x: 3.3, y: 4.7 };
+/** Where he stands, just in from the door with clear floor over his head, keeping an eye on the blade. */
+const BRAM_AT = { x: 2.7, y: 7.25 };
 const TAU = Math.PI * 2;
 
 /** An armful of one wood, carried to the bench. */
@@ -141,7 +141,7 @@ const benchBase = (o: WorldObj, ts: number) => (o.y + o.h - BENCH_BACK * PROP_SC
 function floor(ctx: CanvasRenderingContext2D, ts: number) {
   const room = G.over.room!;
   paintShell(ctx, room, ts, { boards: ['#b8946a', '#ad8960', 'rgba(70,40,20,0.35)'], board: 0.6, wall: '#9a6a44', stripe: null, wainscot: '#7a4a30', wood: '#5a3424', logs: true });
-  paintWindow(ctx, 5.3, -0.95, 1.3, 1.0, ts, '#5a3424');
+  paintWindow(ctx, 4.3, -0.95, 1.3, 1.0, ts, '#5a3424');
   // A bow saw and an axe hung on the wall, and sawdust swept into the corners.
   ctx.save();
   ctx.strokeStyle = '#5a3424';
@@ -157,16 +157,16 @@ function floor(ctx: CanvasRenderingContext2D, ts: number) {
   ctx.lineTo(3.0 * ts, -0.3 * ts);
   ctx.stroke();
   ctx.fillStyle = '#8a5a3a';
-  ctx.fillRect(7.6 * ts, -1.2 * ts, 0.1 * ts, 1.1 * ts);
+  ctx.fillRect(6.4 * ts, -1.2 * ts, 0.1 * ts, 1.1 * ts);
   ctx.fillStyle = '#c8d0dc';
   ctx.beginPath();
-  ctx.moveTo(7.7 * ts, -1.15 * ts);
-  ctx.lineTo(8.05 * ts, -1.25 * ts);
-  ctx.lineTo(8.05 * ts, -0.85 * ts);
-  ctx.lineTo(7.7 * ts, -0.9 * ts);
+  ctx.moveTo(6.5 * ts, -1.15 * ts);
+  ctx.lineTo(6.85 * ts, -1.25 * ts);
+  ctx.lineTo(6.85 * ts, -0.85 * ts);
+  ctx.lineTo(6.5 * ts, -0.9 * ts);
   ctx.fill();
   ctx.fillStyle = 'rgba(240,216,160,0.55)';
-  for (const [x, y, r] of [[1.3, 6.6, 0.5], [8.4, 2.6, 0.45], [6.3, 4.2, 0.6], [2.9, 4.6, 0.35]]) {
+  for (const [x, y, r] of [[1.4, 7.4, 0.5], [6.6, 3.0, 0.4], [5.2, 5.8, 0.6], [2.6, 4.9, 0.35]]) {
     ctx.beginPath();
     ctx.ellipse(x * ts, y * ts, r * ts, r * 0.4 * ts, 0, 0, TAU);
     ctx.fill();
@@ -177,12 +177,13 @@ function floor(ctx: CanvasRenderingContext2D, ts: number) {
 /** How many of a wood are still on its pile: in your bag, less what you're carrying and what's on the bench. */
 const onPile = (log: SawLog) => Math.max(0, G.save.mats[log] - (bench[log] ?? 0) - (carrying?.log === log ? carrying.n : 0));
 
-function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number): number | void {
   const s = G.save;
   if (o.id!.startsWith('pile:')) {
     const log = o.id!.slice(5) as SawLog, n = onPile(log), open = sawLogs(s).includes(log);
     const look = open ? {} : { tint: '#4a4058', tintAmount: 0.5 };
-    if (n > 0) drawProp(ctx, n >= 10 ? `s_pile_${log}` : `s_pilelow_${log}`, o, ts, 0.17, (x, y, w, h) => crate(ctx, x, y, w, h, '#8a5a3a', '#e8c890', ts * 0.6), look);
+    let top: number | undefined;
+    if (n > 0) top = drawProp(ctx, n >= 10 ? `s_pile_${log}` : `s_pilelow_${log}`, o, ts, 0.17, (x, y, w, h) => crate(ctx, x, y, w, h, '#8a5a3a', '#e8c890', ts * 0.6), look);
     else {
       ctx.fillStyle = 'rgba(60,30,20,0.18)';
       ctx.beginPath();
@@ -190,11 +191,11 @@ function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
       ctx.fill();
     }
     tag(ctx, (o.x + o.w / 2) * ts, (o.y + o.h - 0.05) * ts, ts, open ? `${n}` : '🔒', open ? MATS[log].name : '');
-    return;
+    return top;
   }
   switch (o.id) {
     case 'bench': {
-      drawProp(ctx, 's_bench', o, ts, BENCH_BACK, (x, y, w, h) => crate(ctx, x, y, w, h, '#d8a878', '#e8c098', ts * 0.4));
+      const top = drawProp(ctx, 's_bench', o, ts, BENCH_BACK, (x, y, w, h) => crate(ctx, x, y, w, h, '#d8a878', '#e8c098', ts * 0.4));
       const at = bladeAt(o, ts), unit = propUnit(ts);
       // The next log being cut, or the ones waiting for the lever, lying along the bench.
       const w = sawUpdate(s), next = w.queue[0] ?? (SAW_LOGS.find((l) => bench[l]) as SawLog | undefined);
@@ -204,7 +205,8 @@ function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
         const q = w.queue.length ? Math.min(1, (Date.now() - w.since) / 1000 / sawSeconds(s)) : 0;
         drawFrame(ctx, lf, at.x - unit * (1.6 - Math.min(1, q) * 0.9), benchBase(o, ts) - propRise(0.95, ts), unit);
       }
-      const bf = frame('room/s_blade');
+      // The blade the Sawmill's built with: copper, iron, crystal or obsidian, as on the map.
+      const bf = frame(`room/s_blade${Math.max(1, Math.min(4, s.build.sawmill))}`) ?? frame('room/s_blade');
       if (bf) drawFrame(ctx, bf, at.x, at.y, unit, { rot: blade });
       else {
         ctx.fillStyle = '#c8d0dc';
@@ -224,29 +226,29 @@ function obj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
       const waiting = benchTotal(bench);
       if (waiting) tag(ctx, (o.x + 0.55) * ts, (o.y - 0.15) * ts, ts, `${waiting}`, 'on the bench');
       if (w.queue.length) tag(ctx, (o.x + o.w - 0.55) * ts, (o.y - 0.15) * ts, ts, `${w.queue.length}`, 'to saw');
-      break;
+      return Math.min(top, at.y - ts * 0.45);
     }
     case 'lever': {
       const down = running() || t - pulled < 0.8;
-      drawProp(ctx, down ? 's_lever1' : 's_lever0', o, ts, 0.1, (x, y, w, h) => {
+      return drawProp(ctx, down ? 's_lever1' : 's_lever0', o, ts, 0.1, (x, y, w, h) => {
         crate(ctx, x, y, w, h, '#4a4652', '#5a5662', ts * 0.3);
         ctx.fillStyle = '#e8584a';
         ctx.beginPath();
         ctx.arc(x + w * (down ? 0.85 : 0.2), y - ts * (down ? 0.25 : 0.75), ts * 0.12, 0, TAU);
         ctx.fill();
       });
-      break;
     }
     case 'planks': {
       const ready = sawReady(s);
-      if (ready) drawProp(ctx, `s_planks${ready >= 30 ? 3 : ready >= 10 ? 2 : 1}`, o, ts, 0.15, (x, y, w, h) => crate(ctx, x, y, w, h, '#dcb880', '#e8c890', ts * Math.min(0.8, 0.1 + ready * 0.02)));
+      let top: number | undefined;
+      if (ready) top = drawProp(ctx, `s_planks${ready >= 30 ? 3 : ready >= 10 ? 2 : 1}`, o, ts, 0.15, (x, y, w, h) => crate(ctx, x, y, w, h, '#dcb880', '#e8c890', ts * Math.min(0.8, 0.1 + ready * 0.02)));
       else {
         ctx.fillStyle = 'rgba(60,30,20,0.18)';
         rrect(ctx, (o.x + 0.1) * ts, (o.y + 0.2) * ts, (o.w - 0.2) * ts, (o.h - 0.25) * ts, ts * 0.1);
         ctx.fill();
       }
       tag(ctx, (o.x + o.w / 2) * ts, (o.y + o.h - 0.05) * ts, ts, `${ready}`, 'planks');
-      break;
+      return top;
     }
   }
 }
@@ -284,7 +286,7 @@ function hud(ctx: CanvasRenderingContext2D, vw: number) {
 export const SAWMILL_PLAY: RoomPlay = {
   setup(room) {
     room.painter = { floor, obj, over };
-    room.actors.add({ id: BRAM, look: { kind: 'walker', name: 'bram' }, ...BRAM_AT, face: Math.PI / 2, label: 'Ask Bram', talk: () => openSawmill() });
+    room.actors.add({ id: BRAM, name: 'Bram', look: { kind: 'walker', name: 'bram' }, ...BRAM_AT, face: Math.PI / 2, label: 'Ask Bram', talk: () => openSawmill() });
   },
   enter() {
     reset();

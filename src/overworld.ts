@@ -46,6 +46,15 @@ export type WorldEvent = { type: 'encounter'; roamer: Roamer | null } | { type: 
 /** How far (in tiles) the camera may look past the map's top and bottom: about the HUD's and the buttons' height. */
 const OVERSCROLL = { top: 1.5, bottom: 3 };
 
+/**
+ * A room fits on the screen whole, between the HUD (with the hint or what someone's saying under it) and the buttons
+ * at the bottom (pixels): nothing's ever cut off at the edges, and nothing needs the camera to follow you.
+ */
+export const ROOM_BAND = { top: 140, bottom: 136 };
+
+/** A rectangle on the screen, in pixels. */
+export interface Rect { x: number; y: number; w: number; h: number }
+
 export class Overworld {
   x: number;
   y: number;
@@ -78,6 +87,10 @@ export class Overworld {
   gardenBed: number | null = null;
   /** The last frame's view (camera top in pixels, tile size, height), to tell where things are on screen. */
   private view = { left: 0, top: 0, ts: 1, vh: 1 };
+  /** Inside a room, as last drawn (screen pixels): each station, you, and the feelings over people's heads. */
+  roomRects: { stations: (Rect & { id: string })[]; hero: Rect; bubbles: Rect[]; caption?: Rect | null; label?: Rect | null } = { stations: [], hero: { x: 0, y: 0, w: 0, h: 0 }, bubbles: [] };
+  /** Where each station's drawing tops out (map pixels), for its label to sit on it. */
+  private stationTop = new Map<WorldObj, number>();
   /** Story characters on the map. */
   readonly actors = new Actors();
   /**
@@ -333,19 +346,24 @@ export class Overworld {
   }
 
   render(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
-    // Rooms are seen closer up than the map (the camera follows you across a wide one); the Garden draws you in a bit.
-    const ts = (this.ts = Math.round(Overworld.tileSize(vw, vh) * this.zoom * (this.room ? 1.25 : this.focusZoom)));
     const W = this.map;
+    // Rooms are seen a little closer up than the map, but always whole: as big as fits between the HUD and the buttons,
+    // from the top of the back wall to the front wall. The Garden draws you in a bit.
+    const R = this.room?.spec;
+    const roomRows = R ? R.h + WALL_RISE - 0.1 : 0;
+    const ts = (this.ts = R
+      ? Math.round(Math.min(Overworld.tileSize(vw, vh) * 1.25, vw / (R.w - 0.3), (vh - ROOM_BAND.top - ROOM_BAND.bottom) / roomRows) * this.zoom)
+      : Math.round(Overworld.tileSize(vw, vh) * this.zoom * this.focusZoom));
     const mapW = W.w * ts, mapH = W.h * ts;
     let camX = this.camX * ts - vw / 2;
     let camY = (this.camY - 0.5) * ts - vh / 2;
     camX = mapW <= vw ? (mapW - vw) / 2 : Math.max(0, Math.min(mapW - vw, camX));
     // The camera can look a little past the top and bottom of the map (the forest carries on out there), so nothing
-    // on the edge rows hides under the HUD or the buttons. A room's back wall rises above its top row.
-    const overTop = ts * (this.room ? WALL_RISE + 0.6 : OVERSCROLL.top + this.headroom), overBottom = ts * OVERSCROLL.bottom;
-    const fits = mapH + overTop + overBottom <= vh;
-    // A room sits in the middle of the screen, back wall and all.
-    if (fits) camY = this.room ? ((mapH - WALL_RISE * ts) - vh) / 2 : (mapH - vh) / 2;
+    // on the edge rows hides under the HUD or the buttons.
+    const overTop = ts * (OVERSCROLL.top + this.headroom), overBottom = ts * OVERSCROLL.bottom;
+    // A room sits in the middle of the band between the HUD and the buttons, its back wall rising above its top row.
+    if (R) camY = (-WALL_RISE - 0.25 + roomRows / 2) * ts - (ROOM_BAND.top + (vh - ROOM_BAND.bottom)) / 2;
+    else if (mapH + overTop + overBottom <= vh) camY = (mapH - vh) / 2;
     else camY = Math.max(-overTop, Math.min(mapH - vh + overBottom, camY));
     camX = Math.round(camX);
     camY = Math.round(camY);
@@ -360,16 +378,21 @@ export class Overworld {
 
     // Interaction hint bubble (not while chopping or mining: the minigame's card is up)
     const near = this.quiet || this.chopping || this.busyHands ? null : this.nearbyObject();
+    this.roomRects.label = null;
     if (near && this.alert <= 0) {
-      // A room's doormat says "Leave" under it, not over you standing on it.
-      // At the Garden it's over the bed you'd work on.
+      // A room's doormat says "Leave" under it, not over you standing on it, and its stations wear theirs on top of
+      // what's drawn (not over your head as you stand in front). At the Garden it's over the bed you'd work on.
       const bed = near.project === 'garden' && this.gardenBed !== null ? bedSpot(near, this.gardenBed) : null;
-      const bx = (bed ? bed.x : near.x + near.w / 2) * ts, by = (bed ? bed.y - 0.55 : near.kind === 'door' ? near.y + near.h + 0.75 : near.y) * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
+      const top = this.room && near.kind === 'station' ? this.stationTop.get(near) : undefined;
+      let bx = (bed ? bed.x : near.x + near.w / 2) * ts;
+      const by = (top !== undefined ? top / ts + 0.15 : bed ? bed.y - 0.55 : near.kind === 'door' ? near.y + near.h + 0.75 : near.y) * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
       ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
       const label = this.keyHints ? `[E] ${near.label}` : near.label;
       const tw = ctx.measureText(label).width + ts * 0.4;
+      if (this.room) bx = Math.max(camX + tw / 2 + 4, Math.min(camX + vw - tw / 2 - 4, bx));
       ctx.fillStyle = 'rgba(255,255,255,0.95)';
       rrect(ctx, bx - tw / 2, by - ts * 0.5, tw, ts * 0.55, ts * 0.2);
+      if (this.room) this.roomRects.label = { x: bx - tw / 2 - camX, y: by - ts * 0.5 - camY, w: tw, h: ts * 0.55 };
       ctx.fill();
       ctx.fillStyle = '#5a3a6a';
       ctx.textAlign = 'center';
@@ -475,18 +498,29 @@ export class Overworld {
     ctx.translate(-camX, -camY);
     R.painter?.floor(ctx, ts);
     const items: { y: number; draw: () => void }[] = [];
-    for (const o of R.objs) if (!o.hidden && o.kind === 'station') items.push({ y: o.y + o.h, draw: () => R.painter?.obj(ctx, o, ts) });
+    const rects: Overworld['roomRects'] = (this.roomRects = { caption: this.roomRects.caption, stations: [], hero: { x: this.x * ts - ts * 0.4 - camX, y: (this.y - 1.4) * ts - camY, w: ts * 0.8, h: ts * 1.4 }, bubbles: [] });
+    for (const o of R.objs) {
+      if (o.hidden || o.kind !== 'station') continue;
+      items.push({ y: o.y + o.h, draw: () => {
+        const top = Math.min(o.y * ts, R.painter?.obj(ctx, o, ts) ?? Infinity);
+        this.stationTop.set(o, top);
+        rects.stations.push({ id: o.id!, x: o.x * ts - camX, y: top - camY, w: o.w * ts, h: (o.y + o.h) * ts - top });
+      } });
+    }
     for (const a of R.actors.list) items.push({ y: a.y, draw: () => this.drawActor(ctx, a, ts) });
     items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
     this.fx.draw(ctx);
     R.painter?.over(ctx, ts);
+    // How people feel, over their heads; what they say shows at the top of the screen, with their feeling beside it
+    // (see drawRoomHud), never over the room.
     for (const a of R.actors.list) {
-      const emoji = a.bubble?.emoji ?? a.mood;
-      if (emoji) drawBubble(ctx, a.x * ts, (a.y - this.actorHeight(a)) * ts, emoji, ts * 0.62, a.bubble ? a.bubble.t : 1 + this.t, a.bubble?.hold ?? Infinity);
+      const emoji = a.bubble?.emoji ?? a.mood, s = ts * 0.62, x = a.x * ts, y = (a.y - this.actorHeight(a)) * ts;
+      if (!emoji || a.speech) continue;
+      drawBubble(ctx, x, y, emoji, s, a.bubble ? a.bubble.t : 1 + this.t, a.bubble?.hold ?? Infinity);
+      rects.bubbles.push({ x: x - s * 0.58 - camX, y: y - s * 1.22 - camY, w: s * 1.16, h: s * 1.22 });
     }
-    this.drawSpeeches(ctx, R.actors.list, ts, camX, vw);
     ctx.restore();
   }
 

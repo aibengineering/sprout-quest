@@ -55,7 +55,7 @@ export default {
     {
       "at": 0,
       "stage": "ramp",
-      "text": "Stone steps up into a log ramp."
+      "text": "Stone steps up beside the mill for the logs."
     },
     {
       "at": 760,

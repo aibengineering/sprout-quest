@@ -10,7 +10,7 @@ import { canRun, challengeFoe, coachBattle, startBattle, startFieldBattle } from
 import { revive, spirit } from './game/death';
 import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/gathering';
 import { interact } from './game/interact';
-import { drawRoomHud, enterRoom, leaveRoom, roomTick } from './game/rooms';
+import { doorwayTick, drawRoomHud, enterRoom, leaveRoom, roomTick } from './game/rooms';
 import { kitchenDebug } from './game/kitchenRoom';
 import { drawGardenHud, gardenDebug, gardenTick, inGarden } from './game/gardenWork';
 import { sawmillDebug } from './game/sawmillRoom';
@@ -152,6 +152,7 @@ function worldFrame(dt: number) {
       if (movedDist > 2) s.tips.push('moved');
     }
     if (canAct && !ghost && !room) maybeAutoTalk();
+    if (canAct && !ghost && !room) doorwayTick();
     if (ev?.type === 'zone') {
       showZoneBanner(ev.zone);
       if (ev.zone.id === 'village' && !s.flags.includes('village')) void arriveAtVillage();

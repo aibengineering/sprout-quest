@@ -209,20 +209,30 @@ def saw_bench():
     return root
 
 
-def blade():
-    """The saw blade, face on (it stands in the bench's slot and the game spins it)."""
-    root = empty('s_blade')
-    steel = toon('#c8d0dc', rim=0.4)
+# Each Sawmill level's blade, as on the map (art/buildings/_sawmill.py): disc, teeth and hub.
+BLADES = {
+    1: lambda: (toon('#e8904a', rim=0.4), toon('#e8904a', rim=0.4), toon('#6a7080')),
+    2: lambda: (toon('#c8d4e8', rim=0.4), toon('#c8d4e8', rim=0.4), toon('#6a7080')),
+    3: lambda: (toon('#bfeefc', rim=0.7, emit=0.35), toon('#e8faff', rim=0.7, emit=0.5), toon('#8ab0d0')),
+    4: lambda: (toon('#2c2434', shade='#16121c', rim=0.9), toon('#ff8a3a', emit=0.8), toon('#1e1824')),
+}
+
+
+def blade(level=1):
+    """The saw blade of a Sawmill level (copper, iron, crystal, obsidian), face on (it stands in the bench's slot and
+    the game spins it)."""
+    root = empty(f's_blade{level}')
+    disc, teeth, hub = BLADES[level]()
     r = 0.55
-    cylinder((0, 0, 0), r, 0.04, steel, root, seg=32, rot=(math.pi / 2, 0, 0), line=0.012)
-    cylinder((0, -0.03, 0), r * 0.25, 0.06, toon('#6a7080'), root, seg=12, rot=(math.pi / 2, 0, 0), line=0.008)
+    cylinder((0, 0, 0), r, 0.04, disc, root, seg=32, rot=(math.pi / 2, 0, 0), line=0.012)
+    cylinder((0, -0.03, 0), r * 0.25, 0.06, hub, root, seg=12, rot=(math.pi / 2, 0, 0), line=0.008)
     for i in range(18):
         a = i / 18 * math.tau
         x, z = math.cos(a) * r, math.sin(a) * r
-        box((x, 0, z), (0.11, 0.035, 0.11), steel, root, rot=(0, -a + math.pi / 4, 0), bevel=0.0, line=0.006)
+        box((x, 0, z), (0.11, 0.035, 0.11), teeth, root, rot=(0, -a + math.pi / 4, 0), bevel=0.0, line=0.006)
     for i in range(3):
         a = i / 3 * math.tau
-        cylinder((math.cos(a) * r * 0.55, -0.025, math.sin(a) * r * 0.55), 0.07, 0.03, toon('#9aa4b4'), root, seg=10, rot=(math.pi / 2, 0, 0), line=0)
+        cylinder((math.cos(a) * r * 0.55, -0.025, math.sin(a) * r * 0.55), 0.07, 0.03, hub, root, seg=10, rot=(math.pi / 2, 0, 0), line=0)
     return root
 
 
@@ -324,5 +334,8 @@ for _w in WOODS:
     PROPS[f's_pile_{_w}'] = (lambda w=_w: log_pile(w, 3), 130, 120)
     PROPS[f's_pilelow_{_w}'] = (lambda w=_w: log_pile(w, 1), 100, 70)
     PROPS[f's_benchlog_{_w}'] = (lambda w=_w: bench_log(w), 140, 60)
+# The blade at each Sawmill level, s_blade1..4 (s_blade is the copper one).
+for _l in BLADES:
+    PROPS[f's_blade{_l}'] = (lambda l=_l: blade(l), 90, 90, 0.5)
 for _n in (1, 2, 3):
     PROPS[f's_planks{_n}'] = (lambda n=_n: plank_stack(n), 160, 110)

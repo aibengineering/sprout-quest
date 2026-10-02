@@ -85,6 +85,14 @@ async function touchDrag(page: Page, x: number, y: number, dx: number, dy: numbe
 /** In a room (or back out), with the iris finished opening. */
 const settledIn = (page: Page, room: string | null) => game<boolean>(page, `g.room === ${JSON.stringify(room)} && g.mode === 'world' && !g.trans`);
 
+/** In a room: stands you in front of one of its stations, looking at it, and presses the action key. */
+async function useStation(page: Page, id: string) {
+  await run(page, `const o = g.over.room.station('${id}'); g.over.x = o.x + o.w / 2; g.over.y = o.y + o.h + 0.45; g.over.face = -Math.PI / 2`);
+  await page.waitForTimeout(120);
+  await page.keyboard.press('KeyE');
+  await page.waitForTimeout(250);
+}
+
 /** Clicks through popups (not the menu) until none are left; returns the text of each one. */
 async function closeDialogs(page: Page, max = 8, sheet = '.sheet:not(.menu)') {
   const seen: string[] = [];
@@ -911,9 +919,13 @@ scenario("Bram's story plays from Granny's pie to his cabin, and Granny learns h
   };
   const talk = (id: string) => run(page, `void g.over.actors.get('${id}').talk()`);
 
-  // Granny asks the favour and hands over the pie.
-  await waitFor(page, 'Granny', async () => game<boolean>(page, `!!g.over.actors.get('granny:granny')`));
-  await talk('granny:granny');
+  // Granny's in her Kitchen: she has a favour to ask, and hands over the pie.
+  await run(page, `g.enterRoom('kitchen')`);
+  await waitFor(page, 'the Kitchen', () => settledIn(page, 'kitchen'));
+  check(await game<string>(page, `g.over.room.actors.get('room:granny').label`) === 'Talk', 'Granny has no favour to ask');
+  await run(page, `void g.over.room.actors.get('room:granny').talk()`);
+  await playUntil('the pie', async () => game<boolean>(page, `g.save.flags.includes('bram:pie') && g.mode === 'world'`));
+  await run(page, `g.leaveRoom()`);
   await playUntil('the pie', async () => (await step()) === 1);
   // The grump at his camp: the pie gets him talking.
   await run(page, 'g.over.teleport(86.9, 6.9)');
@@ -1340,30 +1352,28 @@ scenario("Granny's Kitchen: walk in, pick a recipe, fetch, stir and serve by han
   Object.assign(s.mats, { clover: 3, fluff: 20, goo: 12 });
   s.pos = { x: 31.4, y: 11.4 };
 }, async (page) => {
-  /** Stands you at a spot in the room, looking up at the wall (or `face`), and presses the action key. */
-  const use = async (x: number, y: number, face = -Math.PI / 2) => {
-    await run(page, `g.over.x = ${x}; g.over.y = ${y}; g.over.face = ${face}`);
-    await page.waitForTimeout(120);
-    await page.keyboard.press('KeyE');
-    await page.waitForTimeout(250);
-  };
+  const use = (id: string) => useStation(page, id);
   const kitchen = () => game<any>(page, 'g.kitchen');
-  // Granny's by her door: talking to her takes you in.
-  await waitFor(page, 'Granny at her door', async () => game<boolean>(page, `g.over.actors.get('granny:granny')?.label === 'Kitchen'`));
-  await run(page, `void g.over.actors.get('granny:granny').talk()`);
+  // Granny's inside now, not at her door: walking up into the blue house's door takes you in.
+  await page.waitForTimeout(500);
+  check(!(await game<boolean>(page, `!!g.over.actors.get('granny:granny')`)), 'Granny is still outside her door');
+  await run(page, `const h = g.over.world.obj('house'); g.over.teleport(h.x + h.w / 2, h.y + h.h + 0.9)`);
+  await page.keyboard.down('KeyW');
   await waitFor(page, 'the Kitchen', () => settledIn(page, 'kitchen'));
+  await page.keyboard.up('KeyW');
+  check(await game<boolean>(page, `!!g.over.room.actors.get('room:granny')`), 'Granny is not in her Kitchen');
   // Her book: Clover Tea.
-  await use(7.2, 2.7);
+  await use('book');
   await waitFor(page, 'the recipe book', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="dish:tea"]:not([disabled])')));
   await page.click('[data-dialog="dish:tea"]');
   await waitFor(page, 'the tea on the go', async () => (await kitchen()).pot?.dish === 'tea');
   // The serving table wants a meal, not an empty plate.
-  await use(4.5, 5.75);
+  await use('table');
   check((await kitchen()).held === null, 'picked something up at the table');
   // Clover from the pantry, into the pot.
-  await use(2.0, 2.7);
+  await use('pantry');
   check((await kitchen()).held?.mat === 'clover', 'the pantry did not hand over the clover');
-  await use(4.6, 2.7);
+  await use('stove');
   check(JSON.stringify((await kitchen()).pot.added) === '["clover"]', 'the clover did not go in the pot');
   check(await game<number>(page, 'g.save.mats.clover') === 3, 'cooking spent the clover before it was served');
   // Esc puts the spoon down (it doesn't open the menu), and so does a thumb dragging off to walk away (not a slop).
@@ -1372,14 +1382,14 @@ scenario("Granny's Kitchen: walk in, pick a recipe, fetch, stir and serve by han
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
   check(!(await kitchen()).stirring && await game<boolean>(page, `g.mode === 'world' && !g.ui.isOpen`), 'Esc while stirring did not just put the spoon down');
-  await use(4.6, 2.7);
+  await use('stove');
   await waitFor(page, 'stirring again', async () => !!(await kitchen()).stirring);
   await run(page, `const k = g.kitchen.stirring; k.a = k.gold + Math.PI`);
   await touchDrag(page, 200, 600, 0, 80);
   check(!(await kitchen()).stirring && (await kitchen()).pot.stirs === 0, 'walking off by touch did not put the spoon down');
   check(!(await game<string>(page, `g.over.room.actors.get('room:granny').speech?.text ?? ''`)).includes('Gently'), 'walking off by touch counted as a slop');
   // Stir: a slop first (the spoon nowhere near the gold), then three good stirs.
-  await use(4.6, 2.7);
+  await use('stove');
   await waitFor(page, 'stirring', async () => !!(await kitchen()).stirring);
   await run(page, `const k = g.kitchen.stirring; k.a = k.gold + Math.PI`);
   await page.keyboard.press('Space');
@@ -1392,9 +1402,9 @@ scenario("Granny's Kitchen: walk in, pick a recipe, fetch, stir and serve by han
   }
   check((await kitchen()).pot.stirs === 3 && !(await kitchen()).stirring, 'three good stirs did not cook it');
   // Spoon it out and serve it.
-  await use(4.6, 2.7);
+  await use('stove');
   check((await kitchen()).held?.dish === 'tea', 'nothing was spooned out');
-  await use(4.5, 5.75);
+  await use('table');
   check(await game<boolean>(page, `g.save.meal?.id === 'tea' && g.save.mats.clover === 1`), 'serving did not make (and charge for) Clover Tea');
   check((await kitchen()).pot === null && (await kitchen()).held === null, 'the pot was not cleared after serving');
   // Saved in here, you carry on in here.
@@ -1411,7 +1421,7 @@ scenario("Granny's Kitchen: walk in, pick a recipe, fetch, stir and serve by han
   await closeDialogs(page);
   await waitFor(page, 'free to walk', async () => (await game<string>(page, 'g.mode')) === 'world');
   // Out of the door: walk down over the mat.
-  await run(page, `g.over.x = 4.5; g.over.y = 6.4`);
+  await run(page, `g.over.x = 4.5; g.over.y = 7.4`);
   await page.keyboard.down('KeyS');
   await waitFor(page, 'outside again', async () => (await game<string>(page, 'g.room')) === null && (await game<string>(page, 'g.mode')) === 'world', 5000);
   await page.keyboard.up('KeyS');
@@ -1431,37 +1441,33 @@ scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the l
   Object.assign(s.mats, { bark: 12, pine: 6, plank: 0 });
   s.pos = { x: 18.8, y: 8.4 };
 }, async (page) => {
-  const use = async (x: number, y: number, face = -Math.PI / 2) => {
-    await run(page, `g.over.x = ${x}; g.over.y = ${y}; g.over.face = ${face}`);
-    await page.waitForTimeout(120);
-    await page.keyboard.press('KeyE');
-    await page.waitForTimeout(250);
-  };
+  const use = (id: string) => useStation(page, id);
   const mill = () => game<any>(page, 'g.sawmill');
-  // In through the Sawmill's door.
+  // Bram's inside, not out front: in through the Sawmill's door, by the action button at it.
+  check(!(await game<boolean>(page, `!!g.over.actors.get('bram:bram')`)), 'Bram is still standing outside the Sawmill');
   await run(page, `const o = g.over.world.objs.find((o) => o.project === 'sawmill'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5); g.over.face = -Math.PI / 2`);
   await page.waitForTimeout(300);
   await page.keyboard.press('KeyE');
   await waitFor(page, 'the Sawmill', () => settledIn(page, 'sawmill'));
   // Pine needs a better blade: the pile won't give.
-  await use(3.1, 2.75);
+  await use('pile:pine');
   check((await mill()).carrying === null, 'picked up pine with a copper blade');
   // An armful of oak, then hold the button for more.
-  await use(1.6, 2.75);
+  await use('pile:bark');
   check(JSON.stringify((await mill()).carrying) === '{"log":"bark","n":5}', `no armful of oak (${JSON.stringify((await mill()).carrying)})`);
   await page.keyboard.down('KeyE');
   await waitFor(page, 'the rest of the oak', async () => (await mill()).carrying?.n === 12, 4000);
   await page.keyboard.up('KeyE');
   check(await game<number>(page, 'g.save.mats.bark') === 12, 'carrying logs took them out of the bag');
   // Onto the bench, then the lever: they go to the saw.
-  await use(6.0, 4.3);
+  await use('bench');
   check((await mill()).bench.bark === 12 && (await mill()).carrying === null, 'the logs did not go on the bench');
-  await use(8.4, 2.65);
+  await use('lever');
   check(await game<number>(page, 'g.save.sawmill.queue.length') === 12 && await game<number>(page, 'g.save.mats.bark') === 0, 'the lever did not send the logs to the saw');
   await waitFor(page, 'the blade spinning', async () => (await mill()).spin > 3);
   // Later: the planks are stacked by the door.
   await run(page, 'g.save.sawmill.since -= 12 * 5000');
-  await use(7.4, 6.5);
+  await use('planks');
   check(await game<number>(page, 'g.save.mats.plank') === 24, `the planks did not reach your bag (${await game<number>(page, 'g.save.mats.plank')})`);
   // Asking Bram brings up his bench.
   await run(page, `void g.over.cast.get('room:bram').talk()`);
@@ -1469,7 +1475,7 @@ scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the l
   await page.click('#modal [data-dialog="close"]');
   await waitFor(page, 'free to walk', async () => (await game<string>(page, 'g.mode')) === 'world');
   // Out of the door.
-  await run(page, `g.over.x = 4.5; g.over.y = 6.4`);
+  await run(page, `g.over.x = 4.5; g.over.y = 7.4`);
   await page.keyboard.down('KeyS');
   await waitFor(page, 'outside again', async () => (await game<string>(page, 'g.room')) === null, 5000);
   await page.keyboard.up('KeyS');
@@ -1487,22 +1493,20 @@ scenario("Bram's Sawmill: leaving with logs in your arms or on the bench (by the
   Object.assign(s.mats, { bark: 12, pine: 6, plank: 0 });
   s.pos = { x: 18.8, y: 8.4 };
 }, async (page) => {
-  const use = async (x: number, y: number, face = -Math.PI / 2) => {
-    await run(page, `g.over.x = ${x}; g.over.y = ${y}; g.over.face = ${face}`);
-    await page.waitForTimeout(120);
-    await page.keyboard.press('KeyE');
-    await page.waitForTimeout(250);
-  };
+  const use = (id: string) => useStation(page, id);
   const mill = () => game<any>(page, 'g.sawmill');
+  // In by walking up into its doorway.
   const goIn = async () => {
-    await run(page, `g.enterRoom('sawmill')`);
+    await run(page, `const o = g.over.world.objs.find((o) => o.project === 'sawmill'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.9)`);
+    await page.keyboard.down('KeyW');
     await waitFor(page, 'the Sawmill', () => settledIn(page, 'sawmill'));
+    await page.keyboard.up('KeyW');
   };
   await goIn();
   // An armful of oak, out of the door with it: it goes back on its pile.
-  await use(1.6, 2.75);
+  await use('pile:bark');
   check((await mill()).carrying?.n === 5, 'no armful of oak');
-  await run(page, `g.over.x = 4.5; g.over.y = 6.4`);
+  await run(page, `g.over.x = 4.5; g.over.y = 7.4`);
   await page.keyboard.down('KeyS');
   await waitFor(page, 'outside again', () => settledIn(page, null), 5000);
   await page.keyboard.up('KeyS');
@@ -1510,8 +1514,8 @@ scenario("Bram's Sawmill: leaving with logs in your arms or on the bench (by the
   await goIn();
   check((await mill()).carrying === null, 'still carrying the armful after coming back in');
   // Logs on the bench, then fast travel away before the lever: they're still yours, and the bench is clear next time.
-  await use(1.6, 2.75);
-  await use(6.0, 4.3);
+  await use('pile:bark');
+  await use('bench');
   check((await mill()).bench.bark === 5, 'the logs did not go on the bench');
   await run(page, `g.warp('meadow')`);
   await waitFor(page, 'out in the meadow', async () => (await game<string>(page, 'g.room')) === null && (await game<string>(page, 'g.over.currentZone.id')) === 'meadow');
@@ -1528,6 +1532,70 @@ scenario("Bram's Sawmill: leaving with logs in your arms or on the bench (by the
   check(await game<number>(page, 'g.save.mats.bark') === 12 && (await mill()).carrying === null, 'reloading in the Sawmill changed the logs');
 });
 
+scenario('The rooms fit a phone whole, and what Bram and Granny say never covers the stations, you or the labels while you work', (g) => {
+  const s = g.save;
+  s.lv = 6;
+  s.stories.poppy = 6;
+  s.stories.bram = 9;
+  s.flags.push('poppy:returned', 'bram:pie', 'bram:met', 'bram:home', 'bram:hut', 'bram:stew');
+  s.build.sawmill = 1;
+  s.unlocked.push('sawmill');
+  Object.assign(s.mats, { bark: 30, clover: 3 });
+  s.pos = { x: 18.8, y: 8.4 };
+}, async (page) => {
+  type R = { x: number; y: number; w: number; h: number };
+  const meets = (a: R, b: R) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  /** At each phone size: every station on screen and clear of the buttons, and nothing anyone says over any of it. */
+  const checkSizes = async (where: string, who: string, line: string) => {
+    for (const [vw, vh] of [[390, 844], [320, 640]]) {
+      await page.setViewportSize({ width: vw, height: vh });
+      await run(page, `g.over.room.actors.say('${who}', ${JSON.stringify(line)}, 5); g.over.room.actors.bubble('${who}', '😅', 5)`);
+      await page.waitForTimeout(400);
+      const r = await game<{ stations: (R & { id: string })[]; hero: R; bubbles: R[]; caption: R | null; label: R | null }>(page, 'g.over.roomRects');
+      check(r.caption, `${where} at ${vw}×${vh}: no line shown`);
+      for (const st of r.stations) {
+        check(st.x >= 0 && st.x + st.w <= vw && st.y >= 0 && st.y + st.h <= vh - 120, `${where} at ${vw}×${vh}: the ${st.id} is cut off or under the buttons (${JSON.stringify(st)})`);
+      }
+      for (const b of [r.caption!, ...r.bubbles]) {
+        for (const st of r.stations) check(!meets(b, st), `${where} at ${vw}×${vh}: a bubble ${JSON.stringify(b)} covers the ${st.id} ${JSON.stringify(st)}`);
+        check(!meets(b, r.hero), `${where} at ${vw}×${vh}: a bubble covers you`);
+        if (r.label) check(!meets(b, r.label), `${where} at ${vw}×${vh}: a bubble covers the action label`);
+      }
+      check(r.label || where.includes('stirring'), `${where} at ${vw}×${vh}: no action label`);
+      if (r.label) check(r.label.y + r.label.h <= r.hero.y + r.hero.h * 0.2, `${where} at ${vw}×${vh}: the action label sits on your head`);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+  };
+  const use = (id: string) => useStation(page, id);
+  // The Sawmill, the blade running, standing at the lever (and then the bench) while Bram talks.
+  await run(page, `g.enterRoom('sawmill')`);
+  await waitFor(page, 'the Sawmill', () => settledIn(page, 'sawmill'));
+  await use('pile:bark');
+  await use('bench');
+  await use('lever');
+  await use('pile:bark');
+  await use('bench');
+  await waitFor(page, 'the blade spinning', async () => (await game<any>(page, 'g.sawmill')).spin > 3);
+  await run(page, `const o = g.over.room.station('lever'); g.over.x = o.x + o.w / 2; g.over.y = o.y + o.h + 0.45; g.over.face = -Math.PI / 2`);
+  await checkSizes('the Sawmill, at the lever', 'room:bram', "She's already running.");
+  await run(page, `const o = g.over.room.station('bench'); g.over.x = o.x + o.w / 2; g.over.y = o.y + o.h + 0.45; g.over.face = -Math.PI / 2`);
+  await checkSizes('the Sawmill, at the bench', 'room:bram', 'Logs on the bench, then the lever. I keep her running.');
+  // The Kitchen, stirring the pot while Granny talks.
+  await run(page, `g.leaveRoom()`);
+  await waitFor(page, 'outside', () => settledIn(page, null));
+  await run(page, `g.enterRoom('kitchen')`);
+  await waitFor(page, 'the Kitchen', () => settledIn(page, 'kitchen'));
+  await use('book');
+  await waitFor(page, 'the recipe book', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="dish:tea"]:not([disabled])')));
+  await page.click('[data-dialog="dish:tea"]');
+  await use('pantry');
+  await checkSizes('the Kitchen, at the pantry', 'room:granny', 'Fetch the clover from the pantry, dear.');
+  await use('stove');
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'stirring', async () => !!(await game<any>(page, 'g.kitchen')).stirring);
+  await checkSizes('the Kitchen, stirring', 'room:granny', "Gently, dear! It's a pot, not a monster.");
+});
+
 scenario("Granny's Kitchen: asking Granny to cook mid-pot spends the clover, so serving the pot comes up short", (g) => {
   const s = g.save;
   s.lv = 6;
@@ -1536,22 +1604,17 @@ scenario("Granny's Kitchen: asking Granny to cook mid-pot spends the clover, so 
   Object.assign(s.mats, { clover: 2, fluff: 0, goo: 0 });
   s.pos = { x: 31.4, y: 11.4 };
 }, async (page) => {
-  const use = async (x: number, y: number, face = -Math.PI / 2) => {
-    await run(page, `g.over.x = ${x}; g.over.y = ${y}; g.over.face = ${face}`);
-    await page.waitForTimeout(120);
-    await page.keyboard.press('KeyE');
-    await page.waitForTimeout(250);
-  };
+  const use = (id: string) => useStation(page, id);
   const kitchen = () => game<any>(page, 'g.kitchen');
   await run(page, `g.enterRoom('kitchen')`);
   await waitFor(page, 'the Kitchen', () => settledIn(page, 'kitchen'));
   // Clover Tea by hand, right up to spooning it out.
-  await use(7.2, 2.7);
+  await use('book');
   await waitFor(page, 'the recipe book', async () => !!(await page.$('#modal:not([hidden]) [data-dialog="dish:tea"]:not([disabled])')));
   await page.click('[data-dialog="dish:tea"]');
   await waitFor(page, 'the tea on the go', async () => (await kitchen()).pot?.dish === 'tea');
-  await use(2.0, 2.7);
-  await use(4.6, 2.7);
+  await use('pantry');
+  await use('stove');
   await page.keyboard.press('KeyE');
   await waitFor(page, 'stirring', async () => !!(await kitchen()).stirring);
   for (let i = 0; i < 3; i++) {
@@ -1559,7 +1622,7 @@ scenario("Granny's Kitchen: asking Granny to cook mid-pot spends the clover, so 
     await page.keyboard.press('Space');
     await page.waitForTimeout(150);
   }
-  await use(4.6, 2.7);
+  await use('stove');
   check((await kitchen()).held?.dish === 'tea', 'nothing was spooned out');
   // Granny makes you one instead, from the same clover.
   await run(page, `void g.over.cast.get('room:granny').talk()`);
@@ -1569,7 +1632,7 @@ scenario("Granny's Kitchen: asking Granny to cook mid-pot spends the clover, so 
   await closeDialogs(page);
   await waitFor(page, 'free to walk', async () => (await game<string>(page, 'g.mode')) === 'world');
   // The pot's tea at the table: short of clover now, so nothing's served (or charged), and the pot's cleared.
-  await use(4.5, 5.75);
+  await use('table');
   check((await kitchen()).pot === null && (await kitchen()).held === null && (await kitchen()).served === null, 'serving without the clover still served');
   check(await game<boolean>(page, `g.save.mats.clover === 0 && !g.save.flags.includes('kitchen:byhand')`), 'the short pot was charged or counted');
   check((await game<string>(page, `g.over.room.actors.get('room:granny').speech?.text ?? ''`)).includes('short'), 'Granny did not say we were short');
