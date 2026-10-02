@@ -403,7 +403,7 @@ export const MAX_STRIKE_AREA = 0.1;
 export const MAX_SKILL_AREA = 0.3;
 /** A mastered skill (handling Lv 10) can be much bigger, but still never fills the arena. */
 export const MAX_MASTERED_SKILL_AREA = 0.5;
-/** Hunter weapons hit for this share of their tier's gatherer damage: less raw power, but they carry monster effects. */
+/** Hunter weapons hit for this share of their tier's best gatherer damage; they also carry monster effects. */
 export const HUNTER_DPS: Range = [0.75, 0.95];
 /**
  * Magic aims lower still: it hits from across the arena, so it never pays the walk-in and the risk a melee weapon does.
@@ -413,7 +413,7 @@ export const RANGED_DPS: Range = [0.6, 0.8];
 /** No hunter weapon out-damages its tier's gatherer weapons in a fight's opening second. */
 export const MAX_HUNTER_BURST = 1;
 export const dpsBand = (w: { style: Style }): Range => (w.style === 'wand' ? RANGED_DPS : HUNTER_DPS);
-/** Weapons in the same track and tier stay within this much of each other. */
+/** Non-hammer weapons in the same track and tier stay within this much of each other. Hammers trade normal DPS for control. */
 export const TRACK_SPREAD = 0.15;
 /** The ★★★★★ legendaries beat the best ★★★★ weapon by at least this much. */
 export const LEGENDARY_EDGE = 1.25;
@@ -441,12 +441,12 @@ export function weaponStats(): WeaponStats[] {
   });
 }
 
-/** Each weapon's damage per second (or opening burst) relative to its tier's gatherer weapons. */
+/** Each weapon's damage per second (or opening burst) relative to its tier's strongest gatherer for that measure. */
 export function dpsVsGatherers(key: 'dps' | 'burst' = 'dps'): Record<string, number> {
   const ws = weaponStats(), out: Record<string, number> = {};
   for (const w of ws) {
     const base = ws.filter((o) => o.tier === w.tier && o.track === 'gatherer');
-    out[w.id] = base.length ? w[key] / (base.reduce((a, o) => a + o[key], 0) / base.length) : 1;
+    out[w.id] = base.length ? w[key] / Math.max(...base.map((o) => o[key])) : 1;
   }
   return out;
 }

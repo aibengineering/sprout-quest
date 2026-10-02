@@ -589,10 +589,14 @@ export class Battle implements FoeWorld, HitWorld {
     const head = battleWeapon(this.weapon, this.moves, this.reach, { ...p, swing: contact }, this.t).head;
     const ix = p.x + head.x, iy = p.y + head.y;
     const radius = s.size * this.reach;
+    // Fracture's impact and spreading rocks are one attack, including after a
+    // later normal swing overwrites an enemy's last hitId.
+    const fractureHit = new Set<object>();
     for (const e of this.enemies) {
       if (e.dead || e.hitId === sw.id) continue;
       if (Math.hypot(e.x - ix, e.y - iy) > radius + e.r) continue;
       e.hitId = sw.id;
+      fractureHit.add(e);
       this.hitEnemy(e, s.mult, Math.atan2(e.y - iy, e.x - ix), s.kb, s.stun ?? 0, sw.id, s.hitstop);
     }
     this.rings.push({ x: ix, y: iy, r0: 8, r1: radius * 1.2, t: 0, dur: 0.35, color: '255,245,220', width: 8 });
@@ -616,10 +620,10 @@ export class Battle implements FoeWorld, HitWorld {
     }
     if (sw.skill) {
       // Fracture: rock spikes burst out in a fan ahead of you, as wide as the rank allows.
-      const q = SKILL_DATA.quake.waves, n = this.skillNow?.count ?? q.count, fan = this.skillNow?.size ?? 0.8, hit = new Set<object>();
+      const q = SKILL_DATA.quake.waves, n = this.skillNow?.count ?? q.count, fan = this.skillNow?.size ?? 0.8;
       for (let i = 0; i < n; i++) {
         const dir = sw.aim + (n > 1 ? (i / (n - 1) - 0.5) * fan : 0);
-        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: this.skillNow?.sub ?? q.mult, id: ++this.hitCounter, spikeAt: 0, hit });
+        this.waves.push({ x: ix, y: iy, dir, dist: 0, range: q.range * this.reach, width: q.width, speed: q.speed, mult: s.mult, id: sw.id, spikeAt: 0, hit: fractureHit });
       }
     }
   }

@@ -149,3 +149,23 @@ chances in `src/garden.ts`, and each tree's `seed` chance in `NODES`.
   (half damage while it walks, 1.6× while it's open after a slam, about 12% slower on average if you hit whenever you
   can) and Impy dodging your attacks. They're meant to reward learning each monster, so real fights with a monster you
   haven't figured out yet will run longer than the model says.
+
+## Hammer playtest tuning (0.3.7)
+
+Normal hammer slams now use a **2.5× multiplier instead of 3.3×**, about 24% less attack power before defense and
+rounding. Reach, windup, recovery and Stagger stay the same. Normal DPS is intentionally below the equivalent
+Blade's (the formula guard is 70–90%); control and a committed special are the hammer's payoffs.
+
+**Fracture is one attack per enemy across the initial impact and every rock in the fan.** Its four ranks use
+3.1×, 3.5×, 4.0× and 4.6×: respectively 24%, 40%, 60% and 84% above a normal slam before defense. A target reached
+only by a rock takes the same full hit as one at the impact. Additional rocks widen coverage; they never add hits
+to the same target. A later cast gets a fresh hit record. The 4.5-second cooldown (3.5 at Mastery) is unchanged.
+
+This deliberately replaces the older equal-raw-multiplier target for Fracture. Spin, Whirl and Scatter retain
+their existing curves; their gameplay damage is unchanged. Hunter comparisons use the strongest gatherer at that
+tier rather than an average that changes when the hammer is reduced. The coverage estimate approximates the
+impact/fan union, rather than counting overlapping rays as separate damage-bearing areas.
+
+Runtime regression tests check large targets, multiple enemies, near and distant hits, new casts, all hammer
+tiers and all four Fracture ranks, including 20, 30, 60 and 120 FPS. These confirm the hit rules and damage ordering;
+the next playtest still determines whether the hammer feels right.

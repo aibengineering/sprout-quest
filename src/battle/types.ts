@@ -129,7 +129,7 @@ export interface Swing {
 
 /** A hammer's traveling shockwave (or the Wyrmbreaker's dragonfire). */
 /**
- * A wave of rock spikes (or dragonfire) rolling out from a slam. The waves of one slam share `hit`: each foe is hit
+ * A wave of rock spikes (or dragonfire) rolling out from a slam. Fracture's impact and all its waves share `hit`: each foe is hit
  * by at most one of them, however many overlap it (a foe only remembers its last hit, so a big one standing in the
  * fan used to be hit by the waves in turn, over and over).
  */

@@ -98,7 +98,7 @@ describe('balance', () => {
     expect(dragonFights()).toBeLessThanOrEqual(MAX_DRAGON_FIGHTS);
   });
 
-  test(`hunter weapons hit for ${HUNTER_DPS.join('–')} (wands ${RANGED_DPS.join('–')}) of their tier's gatherer weapons, never open harder, each track stays even, legendaries lead`, () => {
+  test(`hunter weapons stay below their tier's best gatherer damage, non-hammer tracks stay even, and legendaries lead`, () => {
     const ws = weaponStats().filter((w) => w.tier > 0), rel = dpsVsGatherers(), burst = dpsVsGatherers('burst');
     const off: string[] = [];
     for (const w of ws.filter((w) => w.track === 'hunter')) {
@@ -107,13 +107,23 @@ describe('balance', () => {
       if (burst[w.id] > MAX_HUNTER_BURST) off.push(`${w.id}: opens with ${burst[w.id].toFixed(2)}× gatherers' burst`);
     }
     for (const w of ws) {
-      const peers = ws.filter((o) => o.tier === w.tier && o.track === w.track);
+      if (w.style === 'hammer') continue; // Hammers deliberately trade normal DPS for Stagger and their heavy special.
+      const peers = ws.filter((o) => o.tier === w.tier && o.track === w.track && o.style !== 'hammer');
       const mean = peers.reduce((a, o) => a + o.dps, 0) / peers.length;
       if (Math.abs(w.dps / mean - 1) > TRACK_SPREAD) off.push(`${w.id}: ${(w.dps / mean).toFixed(2)}× its track`);
     }
     const best4 = Math.max(...ws.filter((w) => w.tier === 4).map((w) => w.dps));
     for (const w of ws.filter((w) => w.tier === 5)) if (w.dps < best4 * LEGENDARY_EDGE) off.push(`${w.id}: only ${(w.dps / best4).toFixed(2)}× the best ★4`);
     expect(off).toEqual([]);
+  });
+
+  test('hammers trade normal DPS for Stagger and Fracture, without making regular attacks irrelevant', () => {
+    const ws = weaponStats();
+    for (const hammer of ws.filter((w) => w.style === 'hammer')) {
+      const blade = ws.find((w) => w.style === 'sword' && w.tier === hammer.tier)!;
+      expect(hammer.dps / blade.dps).toBeGreaterThanOrEqual(.7);
+      expect(hammer.dps / blade.dps).toBeLessThanOrEqual(.9);
+    }
   });
 
   test("handling: the skill unlocks at Lv 2 and ranks up at 5, 8 and 10, the class's trick comes at 3, and the levels between speed up your attacks", () => {
@@ -129,8 +139,8 @@ describe('balance', () => {
     }
   });
 
-  test('skills: one target takes about the same from every class at each rank (±25%), rising rank by rank; a mastered skill never fills the arena', () => {
-    const kinds = Object.keys(SKILL_RANKS) as SkillKind[];
+  test('skills: non-hammer specials keep comparable damage; every special grows and stays smaller than the arena', () => {
+    const kinds: SkillKind[] = ['spin', 'whirl', 'scatter'];
     const off: string[] = [];
     for (let r = 1; r <= 4; r++) {
       const mults = kinds.map((k) => skillShape(k, 1, r).mult), mean = mults.reduce((a, b) => a + b, 0) / mults.length;
@@ -139,6 +149,12 @@ describe('balance', () => {
         if (r > 1 && mults[i] <= skillShape(k, 1, r - 1).mult) off.push(`${k} rank ${r} is no stronger than rank ${r - 1}`);
       });
     }
+    for (let r = 1; r <= 4; r++) {
+      const quake = skillShape('quake', 1, r);
+      expect(quake.mult).toBeGreaterThan(MOVESETS.hammer.combo[0].mult);
+      expect(quake.mult).toBeLessThanOrEqual(MOVESETS.hammer.combo[0].mult * 2);
+      if (r > 1) expect(quake.mult).toBeGreaterThan(skillShape('quake', 1, r - 1).mult);
+    }
     for (const g of Object.values(GEAR).filter((g) => g.slot === 'weapon')) {
       const a = skillShape(MOVESETS[g.style!].skill, tierScale(g.tier ?? 0), 4).area / ARENA_AREA;
       if (a > MAX_MASTERED_SKILL_AREA) off.push(`${g.name}: a mastered skill covers ${(a * 100).toFixed(0)}% of the arena`);
@@ -146,15 +162,15 @@ describe('balance', () => {
     expect(off).toEqual([]);
   });
 
-  test("skills: in a crowd, no close-in skill (Spin, Quake, Whirl) outdoes the others' average by more than 30% at any rank, and Rank I stays small", () => {
+  test('skills: Spin and Whirl retain comparable crowd damage and their steep rank curve', () => {
     // Crowd value: damage × the ground it lands on (the whirl counts every lash). Nova's bolts fly off one per enemy, so it's left out.
-    const kinds: SkillKind[] = ['spin', 'quake', 'whirl'];
+    const kinds: SkillKind[] = ['spin', 'whirl'];
     const off: string[] = [];
     for (let r = 1; r <= 4; r++) {
       const crowd = kinds.map((k) => skillShape(k, 1, r).crowd), mean = crowd.reduce((a, b) => a + b, 0) / crowd.length;
       kinds.forEach((k, i) => { if (crowd[i] > mean * 1.3) off.push(`${k} rank ${r}: ${(crowd[i] / mean).toFixed(2)}× the average crowd damage`); });
     }
-    for (const k of Object.keys(SKILL_RANKS) as SkillKind[]) {
+    for (const k of ['spin', 'whirl', 'scatter'] as SkillKind[]) {
       const one = skillShape(k, 1, 1).mult, four = skillShape(k, 1, 4).mult;
       if (one > 1.4) off.push(`${k} rank I hits ${one.toFixed(2)}×`);
       if (four < one * 2.2) off.push(`${k} Mastery is only ${(four / one).toFixed(2)}× rank I`);
