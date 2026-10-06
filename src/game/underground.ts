@@ -3,6 +3,7 @@ import { zoneById } from '../data';
 import { ECHO_OUTSIDE } from '../echoCave';
 import { MOUTH } from '../procession';
 import { seamById, seamOpen, SEAMS, TUNNEL_HOME } from '../seams';
+import { icon } from '../ui';
 import { syncStories } from './stories';
 import { CAVE_WEST_EDGE, CAVE_EAST_EDGE, CAVE_WEST_OUTSIDE, CAVE_EAST_OUTSIDE } from '../caveEntrance';
 import { G, busy, paused, persist, transition } from './context';
@@ -77,7 +78,18 @@ export async function useBurrow(id:string){
  if(busy()||G.save.spirit)return;
  if(id==='home'){
   const choices=SEAMS.filter(p=>seamOpen(G.save,p.id));
-  const result=await paused(()=>G.ui.dialog('<h2>⛏️ Pip’s tunnels</h2><p>Only passages you have opened lead out from here.</p>'+choices.map(p=>`<button class="go wide" data-dialog="tunnel:${p.id}">${p.name}</button>`).join(''),[['close','Stay']],'burrow-travel'));
+  const result=await paused(()=>G.ui.dialog(`
+    <div class="burrow-heading">
+      <span class="burrow-badge" aria-hidden="true">${icon('npc_pip','⛏️')}</span>
+      <div><span class="burrow-eyebrow">FROM SOWERBY</span><h2>Pip’s tunnels</h2></div>
+    </div>
+    <p class="burrow-intro">Where shall we go?</p>
+    <div class="burrow-routes">${choices.map(p=>`
+      <button class="burrow-route" data-dialog="tunnel:${p.id}">
+        <span class="burrow-ore" aria-hidden="true">${icon(p.rock,'🪨')}</span>
+        <span class="burrow-place"><b>${p.name}</b><small>${p.id==='quarry'?'Pip’s ore gallery':zoneById(p.zone).name}</small></span>
+        <span class="burrow-arrow" aria-hidden="true">→</span>
+      </button>`).join('')}</div>`,[['close','Stay in Sowerby','ghost']],'burrow-travel'));
   const p=choices.find(p=>result===`tunnel:${p.id}`);if(!p)return;
   transition(()=>{if(p.id==='quarry')G.over.enterOreGallery({x:G.over.oreGallery.x0+10.5,y:3.2});else G.over.teleport(p.at.x,p.at.y+1);syncStories();persist();});return;
  }

@@ -3080,6 +3080,36 @@ scenario('Quest boulders cannot be mined before Pip explains the seam', (g)=>{
  }
 });
 
+scenario('Pip’s travel menu: destination cards, safe dismissal and small-screen scrolling', (g)=>{
+ const s=g.save;s.quest=g.quests.length;s.flags.push('seam:stillwater','bram:hut','granny:extension','poppy:returned');
+ s.stories={...s.stories,poppy:6,bram:9,pip:1,drums:4,granny:99};s.build.cottage=1;s.bosses.push('kingslime');s.pos={x:34.8,y:22};
+},async(page)=>{
+ await run(page,`void g.useBurrow('home')`);await page.waitForSelector('.burrow-travel');
+ check(await page.locator('.burrow-route').count()===1,'undiscovered routes appeared');
+ check(await page.locator('.burrow-place small').textContent()==='Whisper Woods','destination region missing');
+ if(SHOTS){await page.waitForTimeout(250);await page.screenshot({path:`${OUT}pip-travel-single.png`});}
+ await page.click('.burrow-travel [data-dialog="close"]');
+ await waitFor(page,'stay in Sowerby',()=>game<boolean>(page,`g.mode==='world'&&!g.trans&&g.over.currentZone.id==='village'`));
+ await run(page,`void g.useBurrow('home')`);await page.waitForSelector('.burrow-travel');
+ await page.keyboard.press('Escape');
+ await waitFor(page,'Escape stays home rather than selecting the first tunnel',()=>game<boolean>(page,`g.mode==='world'&&!g.trans&&g.over.currentZone.id==='village'`));
+ await run(page,`g.save.flags.push('seam:quarry','seam:rootlight','seam:cinder');void g.useBurrow('home')`);
+ await page.waitForSelector('.burrow-travel');
+ check(await page.locator('.burrow-route').count()===4,'opened tunnels missing');
+ check((await page.locator('.burrow-place small').allTextContents()).join('|')==='Pip’s ore gallery|Whisper Woods|Glimmer Hollow|Ember Peak','regions do not match the travel destinations');
+ if(SHOTS){await page.waitForTimeout(250);await page.screenshot({path:`${OUT}pip-travel-all.png`});}
+ for(const size of [{width:320,height:568},{width:568,height:320}]){
+   await page.setViewportSize(size);await page.waitForTimeout(250);
+   check(await page.locator('.burrow-travel .result').evaluate(el=>el.scrollWidth<=el.clientWidth),'travel sheet overflows horizontally');
+   await page.locator('.burrow-travel [data-dialog="close"]').scrollIntoViewIfNeeded();
+   check(await page.locator('.burrow-travel [data-dialog="close"]').evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.height>=44;}),'stay button clipped or too small');
+   if(SHOTS)await page.screenshot({path:`${OUT}pip-travel-${size.width}.png`});
+ }
+ await page.setViewportSize({width:390,height:844});
+ await page.click('.burrow-travel [data-dialog="tunnel:stillwater"]');
+ await waitFor(page,'Stillwater destination',()=>game<boolean>(page,`g.mode==='world'&&!g.trans&&g.over.currentZone.id==='woods'&&Math.abs(g.over.x-122.5)<.1&&Math.abs(g.over.y-33.8)<.1`));
+});
+
 scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel and a walk home', (g)=>{
  const s=g.save;s.lv=14;s.quest=g.quests.length;s.villageJobs=true;
  s.flags=s.flags.filter((f:string)=>!f.endsWith(':returned'));s.flags.push('bram:hut','granny:extension','poppy:returned');

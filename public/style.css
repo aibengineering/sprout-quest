@@ -1302,6 +1302,28 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 .waystone { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; }
 .waystone .go small { opacity: 0.7; font-size: 12px; }
 
+/* Pip's travel sheet: destinations first, a quiet way to stay home below. */
+.sheet.burrow-travel { width: min(440px, 100%); border-radius: 24px; }
+.burrow-travel .result { padding: 20px 16px 16px; text-align: left; overflow-y: auto; touch-action: pan-y; }
+.burrow-heading { display: flex; align-items: center; gap: 12px; }
+.burrow-badge { display: grid; place-items: center; flex: none; width: 58px; height: 58px; background: #eadbc2; border: 2px solid #d4bc9b; border-radius: 18px; }
+.burrow-badge .icon { width: 52px; height: 52px; }
+.burrow-eyebrow { display: block; margin-bottom: 3px; color: #80654f; font-size: 10px; font-weight: 900; letter-spacing: 1.5px; }
+.burrow-heading h2 { font-size: 25px; color: var(--outline); }
+.burrow-travel .burrow-intro { margin: 16px 0 10px; font-size: 14px; color: #80654f; }
+.burrow-routes { display: flex; flex-direction: column; gap: 10px; }
+.burrow-route { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 76px; padding: 12px; text-align: left; background: var(--card); border: 2px solid var(--card-edge); border-radius: 16px; box-shadow: 0 3px 0 #dfc7a6; }
+.burrow-ore { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 12px; background: #f1e4d1; }
+.burrow-ore .icon { width: 36px; height: 36px; }
+.burrow-place { flex: 1; min-width: 0; }
+.burrow-place b { display: block; font-size: 17px; font-weight: 500; line-height: 1.2; }
+.burrow-place small { display: block; margin-top: 4px; font: 700 12px 'Nunito', sans-serif; color: #80654f; }
+.burrow-arrow { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #e4efd9; color: #3c7045; font-size: 20px; }
+.burrow-route:active { transform: translateY(2px); box-shadow: none; background: #f5ecd9; }
+.burrow-route:focus-visible, .burrow-travel .go:focus-visible { outline: 3px solid #3c7045; outline-offset: 3px; }
+.burrow-travel .btns { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--card-edge); }
+.burrow-travel .btns .go { width: 100%; min-height: 48px; padding: 10px 12px; background: transparent; color: #72583e; border: 2px solid var(--card-edge); box-shadow: none; text-shadow: none; font-size: 15px; }
+
 /* ================= Crafting: from bag to workbench ================= */
 .sheet.crafting { width: min(450px, 100%); background: radial-gradient(ellipse at 50% 22%, #fffef8 0, #fcf0da 65%); }
 .crafting .result { overflow-y: auto; overflow-x: hidden; padding: 22px 20px 20px; }
