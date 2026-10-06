@@ -399,7 +399,7 @@ scenario("a weapon class's handling path: every level, what it brings, and where
   if (SHOTS) await page.screenshot({ path: `${OUT}handling-path.png` });
   // Any class's path, trained or not.
   await page.click('#modal [data-pick="hpath:wand"]');
-  check(/Blink/.test((await page.locator('#modal .htree').textContent()) ?? ''), "Magic's path doesn't show Blink");
+  check(/Echo Cast/.test((await page.locator('#modal .htree').textContent()) ?? ''), "Magic's path doesn't show Echo Cast");
   await page.click('#modal [data-pick="hpath:"]');
   check(!(await page.$('#modal .htree')), "Back didn't return to the Skills page");
 });
@@ -510,7 +510,7 @@ scenario("a new move plays its preview when handling unlocks it, and watches aga
   check(!!(await page.$('#modal .htab.on[data-pick="hpath:sword"]')), 'did not come back to the sword path');
 });
 
-scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its special fires", (g) => {
+scenario("each class has its trick (Riposte, Stagger, Snare, Echo Cast) and its special fires", (g) => {
   g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellywand');
 }, async (page) => {
   const fight = async (w: string) => {
@@ -559,14 +559,18 @@ scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its spec
   await special('jellywhip');
   await winFight(page);
 
-  // Magic: the dodge is a teleport.
+  // Magic: the third normal cast echoes, and its special leaves the rhythm alone.
   await fight('jellywand');
-  const from = await game<[number, number]>(page, '[g.battle.p.x, g.battle.p.y]');
-  await page.keyboard.press('KeyK');
-  await page.waitForTimeout(30);
-  const to = await game<[number, number]>(page, '[g.battle.p.x, g.battle.p.y]');
-  check(Math.hypot(to[0] - from[0], to[1] - from[1]) > 80, 'jellywand: the dodge didn\'t blink');
+  for (let i = 1; i <= 3; i++) {
+    await waitFor(page, 'ready to cast', async () => game<boolean>(page, 'g.battle.canStrike'), 5000);
+    await page.keyboard.press('KeyJ');
+    await waitFor(page, 'the normal cast', async () => (await game<number>(page, 'g.battle.log.swings')) === i, 5000);
+    await page.waitForTimeout(350);
+    check(await game<number>(page, 'g.battle.p.echoCount') === i % 3, 'jellywand: incorrect echo rhythm');
+    check(await game<number>(page, 'g.battle.echoes') === Math.floor(i / 3), 'jellywand: incorrect echo count');
+  }
   await special('jellywand');
+  check(await game<number>(page, 'g.battle.p.echoCount') === 0, 'jellywand: Scatter advanced the echo rhythm');
   await winFight(page);
 });
 

@@ -26,7 +26,7 @@ function words(m: DemoMove): { name: string; note: string; how: string } {
     riposte: `${btn('K', '💨')} through its attack, then ${btn('J', '⚔️')} straight away.`,
     stagger: `${btn('J', '⚔️')} just as it winds up.`,
     snare: `${btn('J', '⚔️')} with it right at the tip of your whip.`,
-    blink: `${btn('K', '💨')} to blink out of the way.`,
+    echo: `${btn('J', '⚔️')} to cast. When the wand glows, your next normal cast echoes. Scatter doesn't count.`,
   }[m.trick];
   return { name: t.name, note: t.note, how };
 }

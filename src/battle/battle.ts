@@ -9,7 +9,7 @@ import { Fx } from '../fx';
 import type { Input } from '../input';
 import { GENTLE_ATK, MONSTER_HP, calcDamage, dodgeCharges, dodgeMotion, levelEdge, xpEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
-import { BLINK, MOVESETS, RIPOSTE, SKILL_DATA, STAGGER, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
+import { ECHO, MOVESETS, RIPOSTE, SKILL_DATA, STAGGER, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
 import { MONSTER_AI, blinkAway, type FoeWorld } from './monsters';
 import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
@@ -61,6 +61,8 @@ export class Battle implements FoeWorld, HitWorld {
     restT: 0, atkCd: 0, atkGap: 0,
     whirlT: 0, whirlTick: 0, whirlAng: 0,
     castT: 0, castAng: 0,
+    /** Normal casts toward the next echo: at two, the wand glows ready for the third. */
+    echoCount: 0,
     /** Seconds left poisoned (Sporecap spores), and until its next hurt; seconds left dizzy (a Flapper's screech). */
     poison: 0, poisonTick: 0, dizzy: 0,
     /** Seconds left of a dodge's dodging (for the Riposte), and of the Riposte it earned. */
@@ -104,6 +106,8 @@ export class Battle implements FoeWorld, HitWorld {
   private skillContacts = new Set<number>();
   staggers = 0;
   snares = 0;
+  echoes = 0;
+  private echoShot: { t: number; proj: Proj } | null = null;
   private onceKeys = new Set<number>();
   /** The strike whose "Riposte!" has been shown (a sweep can hit several foes). */
   private riposteShown = 0;
@@ -231,6 +235,17 @@ export class Battle implements FoeWorld, HitWorld {
     if (this.hitstop > 0) {
       this.hitstop -= dt;
       return;
+    }
+    if (this.echoShot) {
+      this.echoShot.t -= dt;
+      if (this.echoShot.t <= 0) {
+        const pr = this.echoShot.proj;
+        this.projs.push(pr);
+        this.echoShot = null;
+        this.echoes++;
+        this.audio.play('shoot');
+        this.fx.burst(pr.x, pr.y, pr.color, 6, 75, { size: 3, star: true, grav: 0, life: 0.25 });
+      }
     }
     this.updatePlayer(dt);
     for (const e of this.enemies) this.updateEnemy(e, dt);
@@ -380,8 +395,7 @@ export class Battle implements FoeWorld, HitWorld {
         p.dodgeCds[charge] = DODGE_CD;
         this.log.dodges++;
         this.audio.play('dodge');
-        if (this.trick === 'blink') this.blink(p.dodgeDir);
-        else p.dodgeT = 0.2;
+        p.dodgeT = 0.2;
       }
     }
     if (inp.consume('attack')) p.atkBuffer = 0.25;
@@ -418,18 +432,6 @@ export class Battle implements FoeWorld, HitWorld {
   private aim(): number {
     const e = this.aimTarget();
     return e ? Math.atan2(e.y - e.r * 0.6 - (this.p.y - 10), e.x - this.p.x) : this.p.face;
-  }
-
-  /** Magic's dodge: a short teleport, with a puff of sparkles where you were and where you land. */
-  private blink(dir: number) {
-    const p = this.p, col = this.el.colors;
-    if(this.save.perks.includes('shadowscarf'))this.afterimages.push({x:p.x,y:p.y,face:p.face,t:.24});
-    this.fx.burst(p.x, p.y - 12, col[0], 12, 110, { size: 4, star: true, grav: 0, life: 0.4 });
-    const mv = this.arena.move(p.x, p.y, Math.cos(dir) * BLINK * dodgeMotion(this.save), Math.sin(dir) * BLINK * dodgeMotion(this.save), p.r);
-    p.x = mv.x;
-    p.y = mv.y;
-    this.fx.burst(p.x, p.y - 12, col[1], 12, 110, { size: 4, star: true, grav: 0, life: 0.4 });
-    this.rings.push({ x: p.x, y: p.y - 10, r0: 6, r1: 30, t: 0, dur: 0.25, color: '220,200,255', width: 3 });
   }
 
   private startSwing(s: Strike, skill: boolean, finisher: boolean) {
@@ -497,7 +499,17 @@ export class Battle implements FoeWorld, HitWorld {
     const heavy = s.mult >= 1.5 || this.moves.combo[0].windup > 0.12;
     this.audio.play(s.shape === 'shot' ? 'shoot' : heavy ? 'heavy' : 'swing');
     if (s.shape === 'shot') {
-      for (const off of s.shots ?? [0]) this.shoot(sw.aim + off, s.mult, s.size * (1 + this.tier * 0.06), sw.id);
+      for (const off of s.shots ?? [0]) {
+        const pr = this.shoot(sw.aim + off, s.mult, s.size * (1 + this.tier * 0.06), sw.id);
+        if (!sw.skill && this.trick === 'echo') {
+          p.echoCount = (p.echoCount + 1) % 3;
+          if (p.echoCount === 0) {
+            // Snapshot the outlet and aim before the player moves or the original bolt homes. Both bolts belong
+            // to one cast, so chaining and dragon bursts still fire only once.
+            this.echoShot = { t: ECHO.delay, proj: { ...pr, mult: pr.mult * ECHO.mult, r: pr.r * ECHO.size, homing: false } };
+          }
+        }
+      }
     }
     if (s.lunge) this.fx.burst(p.x, p.y, '#e8dcc8', 5, 60, { size: 3, grav: 0, life: 0.3 });
   }
@@ -771,11 +783,13 @@ export class Battle implements FoeWorld, HitWorld {
   private shoot(ang: number, mult: number, r: number, strikeId = ++this.hitCounter) {
     const p = this.p;
     const outlet = battleWeapon(this.weapon, this.moves, this.reach, p, this.t).tip;
-    this.projs.push({
+    const pr: Proj = {
       x: p.x + outlet.x, y: p.y + outlet.y,
       vx: Math.cos(ang) * 400, vy: Math.sin(ang) * 400, r,
       atk: 0, mult, owner: 'p', life: 1.2, color: this.weapon.trail ?? this.weapon.color ?? '#ccc', homing: this.el.homing, strikeId,
-    });
+    };
+    this.projs.push(pr);
+    return pr;
   }
 
   private drinkPotion() {
