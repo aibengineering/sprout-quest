@@ -28,7 +28,7 @@ async function boot(width: number, b = browser) {
 }
 
 async function begin(page: Page, id: string, twice = false) {
-  await page.evaluate(({ id, twice }) => {
+  await page.evaluate(({ id, twice, meal }) => {
     const g = (window as any).game, s = g.save;
     g.ui.closeMenu(true);
     s.owned = s.owned.filter((x: string) => x !== id);
@@ -38,14 +38,14 @@ async function begin(page: Page, id: string, twice = false) {
     for (const k in s.mastery) s.mastery[k].lv = 10;
     for (const k in s.skills) s.skills[k].lv = 10;
     s.lv = 20; s.build.forge = 5; s.stories.poppy = 6; s.stories.drums = 4;
-    for (const flag of ['oldtools', 'bram:pie', 'bram:stew', 'pip:candy', 'garden:berries']) if (!s.flags.includes(flag)) s.flags.push(flag);
-    if (!['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy', 'tart'].includes(id)) {
+    for (const flag of ['oldtools', 'bram:pie', 'bram:stew', 'pip:candy', 'garden:berries', 'granny:extension', 'garden:herbs', 'moss:recipe']) if (!s.flags.includes(flag)) s.flags.push(flag);
+    if (!meal) {
       g.ui.openMenu({ atForge: true, inVillage: true }, 'forge');
       const method = /^(axe|pick)\d$/.test(id) ? 'craftTool' : ['jellypot', 'shroombrew', 'embertonic', 'herbtonic'].includes(id) ? 'craftPotion' : 'craftGear';
       void g.ui.hooks[method](id);
       if (twice) void g.ui.hooks[method](id);
     }
-  }, { id, twice });
+  }, { id, twice, meal: id in MEALS });
   if (id in MEALS) {
     if (await page.evaluate(() => (window as any).game.room !== 'kitchen')) {
       await page.evaluate(() => (window as any).game.enterRoom('kitchen'));
