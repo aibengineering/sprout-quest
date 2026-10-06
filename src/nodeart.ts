@@ -1,5 +1,5 @@
 // The close-up tree and rock in the chop and mine minigame (GatherView in gather.ts draws the card, bar and tool
-// around them). Both are the pre-rendered models from art/gather.py:
+// around them). Both use the cached vector paths in resourceVectors.ts:
 // - A tree takes a notch that deepens with every blow. When it's through, the top topples off the stump about the
 //   hinge, lands with a thump and a shower of leaves, and your logs pop out.
 // - A rock cracks from wherever the pick lands, as far as the blow was strong (perfect blows fork). When it gives way,
@@ -7,6 +7,7 @@
 // Coordinates: the base of the tree or rock at (0, 0), y down, in "illustration" pixels.
 import { drawFrame, frame, type Frame } from './assets';
 import type { Particles } from './particles';
+import { TREE_PROFILES as TREES } from './resourceVectors';
 
 export type Strike = 'perfect' | 'hit' | 'miss';
 /** One blow: where it landed along the bar (0–1), its share of the node's toughness, and a seed for its shape. */
@@ -26,7 +27,7 @@ export interface NodeArt {
   readonly finished: boolean;
 }
 
-/** Numbers shared with art/gather.py: render scale and camera tilt, and for each tree where it's cut. */
+/** Illustration scale and tilt; cut planes and canopy envelopes come from the shared vector profiles. */
 const TILT = Math.cos((15 * Math.PI) / 180);
 const TREE_UNIT = 80;
 const ROCK_UNIT = 100;
@@ -38,24 +39,6 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
 // ----------------------------------------------------------------------------------------------------------- trees
 
-const TREES = {
-  oak: {
-    cut: 0.3, r: 0.2, trunkTop: 1.0, canopy: { z: 1.36, rx: 0.66, rz: 0.46 },
-    leaves: ['#4fae4f', '#62c060', '#3f9a45', '#6ac666'], heart: '#f3dcaa', heartDark: '#c89a60', bark: '#9a6a44', barkDark: '#4e3024',
-  },
-  pine: {
-    cut: 0.22, r: 0.15, trunkTop: 0.7, canopy: { z: 1.2, rx: 0.5, rz: 0.7 },
-    leaves: ['#2f7a45', '#3d8f52', '#4a9a5a'], heart: '#f0dca0', heartDark: '#c8a070', bark: '#7a5238', barkDark: '#3e281c',
-  },
-  glimwood: {
-    cut: 0.28, r: 0.16, trunkTop: 1.0, canopy: { z: 1.4, rx: 0.66, rz: 0.46 },
-    leaves: ['#9a82e8', '#b8a0ff', '#9ae6ff', '#d8c8ff'], heart: '#f6f2ff', heartDark: '#c0b0f0', bark: '#e4e0f0', barkDark: '#8a80a8',
-  },
-  emberwood: {
-    cut: 0.26, r: 0.19, trunkTop: 0.95, canopy: { z: 1.32, rx: 0.7, rz: 0.3 },
-    leaves: ['#8a2a26', '#c8402a', '#ff7a3a', '#ffb45a'], heart: '#ffb45a', heartDark: '#e0602a', bark: '#3a3238', barkDark: '#1e181c',
-  },
-} as const;
 export type TreeKind = keyof typeof TREES;
 /** Whether a gathering node is one of the trees (chopped) rather than a rock (mined). */
 export const isTreeKind = (kind: string): kind is TreeKind => kind in TREES;

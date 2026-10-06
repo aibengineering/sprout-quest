@@ -6,6 +6,7 @@ Reads art/out/*.json, writes public/assets/{atlas-N.webp, atlas.json, icons/*.we
 import glob
 import json
 import os
+import re
 import sys
 
 import bpy
@@ -35,9 +36,13 @@ def load(path):
 # stay in art/out as reference but aren't shipped. Everything shipped is squeezed hard: flat cel-shaded art hides WebP
 # artefacts well.
 NOT_SHIPPED = ('hero/', 'mon/', 'npc/')
+# These frame names are now resolution-independent paths in src/resourceVectors.ts.
+VECTOR_RESOURCE = re.compile(r'^(?:env/(?:tree[0-2]|pine[0-2]|boulder[0-2]|rock[0-2]|crystal[0-2]|(?:oak|pine|glimwood|emberwood)_(?:node|stump)|(?:rock|copper|iron|crystal|obsidian)_(?:node|rubble))|gather/(?:(?:oak|pine|glimwood|emberwood)_(?:whole|top|stump)|rock|copper|iron|crystal|obsidian))$')
 ATLAS_QUALITY = 78
 ICON_QUALITY = 85
-INCREMENTAL = '--incremental' in sys.argv
+# Remove the old resource pixels without rerendering or touching inventory icons.
+PRUNE_RESOURCES = '--prune-resources' in sys.argv
+INCREMENTAL = '--incremental' in sys.argv or PRUNE_RESOURCES
 # Append only updated sprites; keep previous pages byte-for-byte during a coordinated integration.
 OVERLAY = '--overlay' in sys.argv
 
@@ -69,7 +74,7 @@ def main():
     # Newest render wins: partial re-renders (e.g. `bun run art env grass_cave`) override older full ones, and each
     # frame is packed once.
     latest = {}
-    for f in sorted(glob.glob(os.path.join(OUT, f'{GROUP}*.json' if GROUP else '*.json')), key=os.path.getmtime):
+    for f in ([] if PRUNE_RESOURCES else sorted(glob.glob(os.path.join(OUT, f'{GROUP}*.json' if GROUP else '*.json')), key=os.path.getmtime)):
         for e in json.load(open(f)):
             latest[e['name']] = e
     # Item workers ship standalone gathering frames and their original grip anchors.
@@ -84,7 +89,7 @@ def main():
     os.makedirs(DEST, exist_ok=True)
     frames, sprites = {}, []
     for e in entries:
-        if e['name'].startswith(NOT_SHIPPED):
+        if e['name'].startswith(NOT_SHIPPED) or VECTOR_RESOURCE.fullmatch(e['name']):
             continue
         px = load(e['file'])
         if e['name'].startswith('icon/'):
@@ -97,13 +102,13 @@ def main():
     atlas_path = os.path.join(DEST, 'atlas.json')
     previous = json.load(open(atlas_path)) if os.path.isfile(atlas_path) and not GROUP else {'pages': [], 'frames': {}}
     if OVERLAY:
-        frames = dict(previous['frames'])
+        frames = {name: f for name, f in previous['frames'].items() if not VECTOR_RESOURCE.fullmatch(name)}
     if INCREMENTAL and not OVERLAY and not GROUP and os.path.isfile(atlas_path):
         previous = json.load(open(atlas_path))
         updated = {e['name'] for e, _, _, _ in sprites}
         old_pages = {}
         for name, frame in previous['frames'].items():
-            if name in updated:
+            if name in updated or VECTOR_RESOURCE.fullmatch(name):
                 continue
             page, x, y, w, h, ax, ay, ppu = frame
             if page not in old_pages:

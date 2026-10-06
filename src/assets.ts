@@ -2,6 +2,7 @@
 // procedural canvas drawings in sprites.ts, so it always stays playable. Characters are drawn in 3D (models.ts) once
 // their models are in, with their sprites as the fallback.
 import { drawModel, hasModel, loadModel, type Held } from './models';
+import { loadResourceArt, resourceFrame } from './resourceVectors';
 
 export interface Frame {
   img: HTMLImageElement | HTMLCanvasElement;
@@ -14,6 +15,8 @@ export interface Frame {
   ay: number;
   /** Pixels per Blender unit the frame was rendered at. */
   ppu: number;
+  /** Vector-backed frames regenerate at the destination's physical resolution, then reuse that cached image. */
+  rasterize?: (pixelsPerUnit: number) => Frame;
 }
 
 const frames = new Map<string, Frame>();
@@ -76,7 +79,8 @@ export async function loadAssets(onProgress?: (p: LoadProgress) => void): Promis
   };
   // The main atlas, and alongside it the rooms' props (Granny's Kitchen, Bram's Sawmill) and the Garden's tools: a
   // small atlas of their own, which can go missing without taking the rest down.
-  const [main] = await Promise.allSettled([load('assets/'), load('assets/rooms/'), load('assets/echo/'), load('assets/homes/')]);
+  // The trees' and rocks' hand-drawn SVGs come in alongside (see resourceVectors.ts).
+  const [main] = await Promise.allSettled([load('assets/'), load('assets/rooms/'), load('assets/echo/'), load('assets/homes/'), loadResourceArt()]);
   ready = main.status === 'fulfilled';
   return ready;
 }
@@ -112,7 +116,7 @@ export async function preloadIcons(ids: string[], onProgress?: (p: LoadProgress)
 }
 
 export function frame(name: string): Frame | undefined {
-  return ready ? frames.get(name) : undefined;
+  return resourceFrame(name) ?? (ready ? frames.get(name) : undefined);
 }
 
 export interface DrawOpts {
@@ -185,6 +189,12 @@ function outlineOf(f: Frame, color: string, width: number) {
 
 /** Draws a frame with its anchor at (x, y). `unit` is how many canvas units one Blender unit spans. */
 export function drawFrame(ctx: CanvasRenderingContext2D, f: Frame, x: number, y: number, unit: number, o: DrawOpts = {}) {
+  if (f.rasterize) {
+    const m = ctx.getTransform();
+    const resolution = unit * Math.max(Math.hypot(m.a,m.b) * Math.abs(o.sx ?? 1), Math.hypot(m.c,m.d) * Math.abs(o.sy ?? 1));
+    // Power-of-two buckets avoid rebuilding art on every small camera-zoom change.
+    f = f.rasterize(2 ** Math.ceil(Math.log2(Math.max(32, resolution))));
+  }
   const k = unit / f.ppu;
   ctx.save();
   ctx.translate(x, y);
