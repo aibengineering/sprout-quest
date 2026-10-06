@@ -1,5 +1,5 @@
 // Chopping and mining: starting the timing minigame at a tree or rock, playing it, paying out, and node labels.
-import { NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind } from '../data';
+import { MATS, NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind } from '../data';
 import { Chop, GatherView, type Look } from '../gather';
 import { BOULDER_COLORS, isTreeKind, type RockColors, type RockKind, type TreeKind } from '../nodeart';
 import { usingKeyboard } from '../input';
@@ -131,6 +131,8 @@ function collect(c: NonNullable<typeof chop>) {
   c.fromLv = s.skills[n.skill].lv;
   c.shown = revealed(s);
   c.reward = harvest(s, c.obj.node!, c.obj.id!, !!c.obj.grass, c.game.flawless);
+  // Celebrate the actual find while the tree falls, without pausing gathering or rolling another reward.
+  if (n.seed && c.reward.drops[n.seed.mat]) G.ui.toast(`🌱 You found ${MATS[n.seed.mat].name}!`, 3200);
   void G.ui.skillXpGain(n.skill, from, c.reward.xp).then(() => { c.xpFinished = true; });
   if(c.obj.boulder && openSeam(s,c.obj.boulder,c.game.streak)) {
     syncWorld();

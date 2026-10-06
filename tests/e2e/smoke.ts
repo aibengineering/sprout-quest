@@ -810,6 +810,76 @@ scenario('a tree falls and a rock breaks all the way, and what you earned lands 
   }
 });
 
+scenario('seed discoveries: actual finds are highlighted while chopping, without pausing or awarding twice', (g) => {
+  g.save.quest = g.quests.length;
+  g.save.tools.wood = 2;
+  g.save.skills.wood = { lv: 10, xp: 0 };
+  g.save.build.garden = 1;
+  g.save.stories.poppy = 6;
+  g.save.stories.bram = 9;
+  g.save.flags.push('poppy:returned', 'bram:hut', 'garden:welcome');
+  g.save.bosses.push('kingslime');
+}, async (page) => {
+  await run(page, `window.__seedFinds = [];
+    const toast = g.ui.toast.bind(g.ui);
+    g.ui.toast = (msg, ms) => {
+      if (msg.startsWith('🌱 You found')) window.__seedFinds.push({ msg, mode: g.mode, open: g.ui.isOpen });
+      toast(msg, ms);
+    };`);
+  for (const [kind, seed, name, roll, garden, width, found] of [
+    ['oak', 'berryseed', 'Berry Seeds', .39, 1, 390, true],
+    ['pine', 'herbseed', 'Herb Seeds', .39, 1, 320, true],
+    ['oak', 'berryseed', 'Berry Seeds', .39, 1, 1280, true],
+    ['oak', 'berryseed', 'Berry Seeds', .4, 1, 390, false],
+    ['oak', 'berryseed', 'Berry Seeds', 0, 0, 390, false],
+  ] as const) {
+    await page.setViewportSize({ width, height: 844 });
+    const placed = await game<boolean>(page, `(() => {
+      g.save.build.garden = ${garden};
+      const w = g.over.world;
+      for (const o of w.objs.filter(o => o.kind === 'node' && o.node === '${kind}' && !o.grass && !(g.save.nodes[o.id] > Date.now()))) {
+        for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1]]) {
+          const x = o.x + .4 + dx * .95, y = o.y + .6 + dy * .95;
+          if (w.blocked(x, y, .28)) continue;
+          g.over.teleport(x, y); g.over.roamers.calm = 999;
+          if (g.over.nearbyObject() === o) return true;
+        }
+      }
+      return false;
+    })()`);
+    check(placed, `no accessible ${kind} for seed discovery`);
+    const before = await game<number>(page, `g.save.mats.${seed}`);
+    const finds = await game<number>(page, 'window.__seedFinds.length');
+    await page.keyboard.press('KeyE');
+    await waitFor(page, 'seed discovery gathering', () => game<boolean>(page, `g.mode === 'gather'`));
+    // Cancel once: no harvest means no discovery, even when the subsequent roll would find a seed.
+    if (kind === 'oak' && width === 390 && found) {
+      await page.keyboard.press('Escape');
+      await waitFor(page, 'cancelled seed gathering', () => game<boolean>(page, `g.mode === 'world'`));
+      check(await game<boolean>(page, `g.save.mats.${seed} === ${before} && window.__seedFinds.length === ${finds}`), 'cancelled gathering discovered a seed');
+      await page.keyboard.press('KeyE');
+      await waitFor(page, 'seed gathering restarted', () => game<boolean>(page, `g.mode === 'gather'`));
+    }
+    await run(page, `window.__seedRandom = Math.random; Math.random = () => ${roll};
+      window.sproutPlaytest.enable({ combat: false, gather: true });`);
+    try {
+      await waitFor(page, 'seed reward committed', () => game<boolean>(page, `!!g.chop?.reward`));
+      check(await game<boolean>(page, `g.mode === 'gather' && !g.ui.isOpen`), 'seed discovery interrupted the gathering animation');
+      if (found) {
+        check(await page.locator('#toast').innerText() === `🌱 You found ${name}!`, 'wrong seed discovery text');
+        await page.waitForTimeout(300);
+        check(await game<boolean>(page, `g.mode === 'gather' && !g.ui.isOpen`), 'seed popup paused or skipped the falling tree');
+        if (SHOTS) await page.screenshot({ path: `${OUT}seed-discovery-${kind}-${width}.png` });
+      }
+      await waitFor(page, 'seed gathering finishes normally', () => game<boolean>(page, `g.mode === 'world'`));
+      check(await game<boolean>(page, `g.save.mats.${seed} === ${before + (found ? 1 : 0)} && window.__seedFinds.length === ${finds + (found ? 1 : 0)}`), 'seed reward or discovery was duplicated, missing, or fabricated');
+      check(await page.evaluate('window.__seedFinds.every(f => f.mode === "gather" && !f.open)'), 'discovery was delayed until after gathering');
+    } finally {
+      await run(page, `Math.random = window.__seedRandom; window.sproutPlaytest.disable();`);
+    }
+  }
+});
+
 scenario('resource gates: an old save inside the fallen log can always leave the grove', (g) => {
   g.save.lv=2;g.save.pos={x:70.5,y:35.5};
 },async(page)=>{
@@ -2628,7 +2698,7 @@ scenario('Resident upgrades: ask Clover for a pantry, hand in to Bram, reload, t
   check(await game<boolean>(page,`g.save.buildingJob==='kitchen2' && g.save.mats.pineplank===${before}`),'request charged or lost its job');
   await bramJob(page,'kitchen2');await page.click('[data-dialog="job:kitchen2"]');await page.waitForSelector('.craft-building');
   await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(2200);await closeDialogs(page);
-  check(await game<boolean>(page,`g.save.kitchenLevel===2 && g.save.mats.pineplank===${before-56} && !g.save.buildingJob`),'reload lost or charged the pantry twice');
+  check(await game<boolean>(page,`g.save.kitchenLevel===2 && g.save.mats.pineplank===${before-128} && !g.save.buildingJob`),'reload lost or charged the pantry twice');
   await run(page,`void g.over.actors.get('granny:granny').talk()`);
   await waitFor(page,'Clover requests her final kitchen',async()=>{await closeDialogs(page,8,'.caption');return !!await page.$('.upgrade-request');});
   await page.click('.upgrade-request [data-dialog="ask"]');await bramJob(page,'kitchen3');await handInJob(page,'kitchen3');

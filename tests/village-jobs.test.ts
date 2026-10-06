@@ -9,7 +9,7 @@ import { sceneModel } from './sceneModel';
 
 function settled() {
   const s = newState(); s.stories.poppy = 6; s.stories.bram = 9; s.flags.push('bram:hut','pip:returned','fox:trusted','rook:returned','moss:returned'); s.unlocked.push('plots'); s.build.sawmill = 4;
-  for (const m in s.mats) s.mats[m as keyof typeof s.mats] = 500;
+  for (const m in s.mats) s.mats[m as keyof typeof s.mats] = 1000;
   return s;
 }
 describe('Bram’s incremental building quests', () => {
@@ -30,6 +30,20 @@ describe('Bram’s incremental building quests', () => {
     expect(completeVillageJob(s, 'training1')).toBe('ok');
     expect(nextVillageJob(s)?.owner).toBe('Rook');
     expect(s.homes.pip).toBe(1); expect(s.build.training).toBe(1);
+  });
+  test('kitchen luxuries charge 128 pine or 192 glimmer planks, only when the entire requested upgrade is affordable', () => {
+    for (const [level, material, cost] of [[2, 'pineplank', 128], [3, 'glimplank', 192]] as const) {
+      const s = settled(); s.kitchenLevel = level - 1; s.buildingJob = `kitchen${level}`;
+      s.mats[material] = cost - 1;
+      const before = { ...s.mats };
+      expect(completeVillageJob(s, s.buildingJob)).toBe('missing');
+      expect(s.mats).toEqual(before); expect(s.kitchenLevel).toBe(level - 1);
+      s.mats[material]++;
+      expect(completeVillageJob(s, `kitchen${level}`)).toBe('ok');
+      expect(s.mats[material]).toBe(0); expect(s.kitchenLevel).toBe(level);
+      const paid = { ...s.mats };
+      expect(completeVillageJob(s, `kitchen${level}`)).toBe('stale'); expect(s.mats).toEqual(paid);
+    }
   });
   test('mill capability and meeting a resident gate their additions; the complete chain has real costs and no circular crop dependency', () => {
     const s = settled();

@@ -13,7 +13,7 @@ import type { MatId } from '../src/data';
 
 function ready() {
   const s = newState(); s.flags.push('bram:hut','pip:returned','rook:returned','moss:returned'); s.stories.bram = 9; s.stories.poppy = 6; s.flags.push('granny:extension'); s.build.sawmill = 1;
-  for (const m of Object.keys(s.mats) as MatId[]) s.mats[m] = 500;
+  for (const m of Object.keys(s.mats) as MatId[]) s.mats[m] = 1000;
   return s;
 }
 describe('Bram’s resident homes', () => {
@@ -48,6 +48,23 @@ describe('Bram’s resident homes', () => {
     const paid = { ...s.mats };
     expect(buildHome(s, 'rook', 0)).toBe('stale'); expect(s.mats).toEqual(paid);
     expect(s.build).toEqual(workshops); expect(playerStats(s)).toEqual(stats);
+  });
+  test('optional additions require eight then twelve trees worth of planks, and reject a short hand-in without charging', () => {
+    for (const id of HOME_ORDER) for (const [level, material, cost] of [
+      [1, id === 'moss' ? 'glimplank' : 'pineplank', 128],
+      [2, id === 'moss' ? 'emberplank' : 'glimplank', 192],
+    ] as const) {
+      const s = ready(); s.build.sawmill = 4; s.homes[id] = level;
+      s.mats[material] = cost - 1;
+      const before = { ...s.mats };
+      expect(buildHome(s, id, level)).toBe('missing');
+      expect(s.mats).toEqual(before); expect(homeLevel(s, id)).toBe(level);
+      s.mats[material]++;
+      expect(buildHome(s, id, level)).toBe('ok');
+      expect(s.mats[material]).toBe(0); expect(homeLevel(s, id)).toBe(level + 1);
+      const paid = { ...s.mats };
+      expect(buildHome(s, id, level)).toBe('stale'); expect(s.mats).toEqual(paid);
+    }
   });
   test('old Guest Cottages retain Pip and his recipe, without charging again; partial home saves round-trip', () => {
     const store: Record<string, string> = {};

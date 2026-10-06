@@ -449,6 +449,10 @@ h3::before { content: ''; width: 10px; height: 10px; flex: none; background: #6c
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 @media (max-width: 440px) { #toast { top: calc(120px + var(--safe-t)); } }
+/* Gathering cards start at max(96px, 12vh) and extend at most 288px; leave their title and timing bar clear. */
+@media (min-width: 441px) {
+  body:has(#hud-gather:not([hidden])) #toast { top: calc(max(96px, 12vh) + 304px); }
+}
 
 /* ---------- Title ---------- */
 #title {

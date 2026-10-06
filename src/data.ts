@@ -476,7 +476,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
     levels: [
       { name: 'Tent', cost: {}, perk: 'A cozy tent to call your own.' },
       { name: 'Cottage', cost: { bark: 24, stone: 12, clover: 1 }, perk: '+10% max HP' },
-      { name: 'Manor', cost: { glimplank: 32, emberplank: 32, obsidian: 8, crystal: 8, flower: 8 }, perk: '+20% max HP' },
+      { name: 'Manor', cost: { glimplank: 96, emberplank: 96, obsidian: 8, crystal: 8, flower: 8 }, perk: '+20% max HP' },
     ],
   },
   forge: {
