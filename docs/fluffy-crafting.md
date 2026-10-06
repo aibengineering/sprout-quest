@@ -48,7 +48,7 @@ the icon with `bun run art icons3d fluffvest`.
 bun run typecheck
 bun test
 bun run build
-bun run e2e --only 'Fluffy crafting' --shots -j 1
+bun run e2e:full --only 'Fluffy crafting' --shots -j 1
 ```
 
 The in-process DOM tests cover flight quantities, one reveal, skip/cancel, reduced motion, backgrounding, missing art, detached screens and focused keyboard choices. The browser scenarios cover a complete craft/equip, repeated requests, Keep, a 320×568 phone, reduced motion and reloading during assembly. Use `CHROMIUM_PATH=/path/to/chromium` if testing with a system browser rather than Playwright's downloaded build.

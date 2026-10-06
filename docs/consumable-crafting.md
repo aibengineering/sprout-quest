@@ -38,5 +38,5 @@ CHROMIUM_PATH=/usr/bin/chromium bun run tests/crafting-items/kitchen-icons.brows
 bun test tests/kitchen.test.ts tests/crafting.test.ts tests/weaponPose.test.ts
 bun test
 bun run build
-CHROMIUM_PATH=/usr/bin/chromium bun run e2e --only 'Fluffy crafting' --shots -j 1
+CHROMIUM_PATH=/usr/bin/chromium bun run e2e:full --only 'Fluffy crafting' --shots -j 1
 ```

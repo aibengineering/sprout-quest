@@ -83,8 +83,11 @@ Every push to `main` runs the typecheck and tests, builds the site and deploys i
 Work happens on `dev`; `main` is what's live. `main` only takes pull requests, and CI (`.github/workflows/ci.yml`)
 must pass first:
 
-- **Typecheck, tests and build**, and the **browser smoke test**, on every pull request and every push to `dev` that
-  touches the game (documentation and CI-only changes skip them)
+- **Typecheck, tests and build**, fast balance contracts, and the **six-scenario browser smoke test**, on every pull
+  request and every push to `dev` that touches the game (documentation and CI-only changes skip them)
+- **Full browser regression and balance**, only on game-changing release pull requests into `main`, or manually
+  through Actions → CI → Run workflow (select `dev` for a batch checkpoint). Routine `dev` pushes and non-release
+  pull requests do not run the exhaustive suite
 - **Version bump and patch notes**, on pull requests into `main`: the `version` in `package.json` must be newer than
   `main`'s, and the top entry of `PATCH_NOTES` in `src/version.ts` must describe it (`scripts/check-release.ts`); pull
   requests that only change documentation (Markdown, `docs/`) or CI tooling (`.github/`) skip it, since they don't
@@ -107,8 +110,42 @@ bun run balance:check  # fail if the native combat behavior contracts are broken
 bun run balance:estimate # the older ideal-hit/pacing/economy table, for comparison
 bun run sim            # a simulated playthrough (test tooling, see sim/README.md)
 bun run sim:compare -- <report.json>   # a real play report against the simulated playthroughs
-bun run e2e            # plays the real game in headless Chromium (add --shots for screenshots in tests/e2e/out/)
+bun run e2e            # fast browser smoke (same as e2e:fast); six representative flows
+bun run e2e:full       # exhaustive browser regression; checkpoint/release only (add --shots for screenshots)
 ```
+
+### Verification policy: keep iteration fast
+
+The full browser suite earns its place by checking whole stories, every weapon and monster, crafting transactions,
+room/route transitions, saves and presentation edge cases that unit tests cannot reach. It is **not a per-edit
+gate**. The October 2026 local audit measured 73 scenarios at about **10½ minutes**, versus a **0.2-second build**,
+**6.8-second typecheck** and **5.9-second unit suite**. CI also runs extra crafting and playtest checks; its exhaustive
+regression can take longer. The six-scenario fast suite passed locally in **45 seconds with four workers**, and
+**56 seconds with two workers** (CI's default concurrency on a four-core runner). Browser installation and CI setup
+are additional overhead. These timings depend on hardware and load, not promised limits.
+
+- **Small map/art/content edit:** playtest the affected area on `bun run dev`, plus relevant unit tests, e.g.
+  `bun test --isolate tests/routes.test.ts tests/village-layout.test.ts`. Do not run the full browser suite or
+  balance report for every edit.
+- **Normal code checkpoint:** `bun run typecheck`, `bun run test`, `bun run build`; use `bun run e2e` for a browser
+  sanity check. Routine CI runs these fast checks, not exhaustive regression.
+- **Changed a particular browser flow:** `bun run e2e:full --only '<scenario name fragment>'`. Run the affected
+  scenarios even when they are outside the fast subset.
+- **Batch checkpoint:** run the full regression after roughly **ten gameplay commits since the last successful
+  full run**, or sooner for broad combat, save, story or navigation changes. This is a developer checkpoint, not an
+  automatic every-ten-commits CI trigger. Consult the last successful full Actions run rather than counting docs-only
+  commits. Run CI manually on `dev` to include all auxiliary browser checks and the balance report.
+- **Release:** every game-changing PR into `main` runs the full regression automatically, including 0.3.x patches;
+  require a green full job on the release head before merging. Major releases are not the only ones worth checking.
+  If a full run fails, fix it and rerun the affected checks, then obtain a complete green run before release.
+- **Balance tuning:** run `bun run balance` when changing combat/progression/economy; do not generate its 37–59-second
+  simulation report for unrelated edits. Routine CI keeps the inexpensive `balance:check` contracts.
+
+The fast browser suite reuses six existing scenarios and all their assertions: new-game prologue, fight/level-up,
+campfire/Waystone travel, tree/rock gathering, Forge recipe visibility and preset save isolation. It deliberately
+does not cover whole side stories, all weapons/monsters or software-WebGL crafting. Passing it is a sanity check,
+not evidence that full regression passed. `bun run e2e` now defaults to this subset; use `e2e:full` explicitly for
+the old exhaustive behavior.
 
 ### Dev tools: save slots and preset saves
 
@@ -129,12 +166,12 @@ Navigation, dialogue and choosing a node stay manual. Stats, cooldowns, rewards 
 automated play reports describe a bot's performance. It is off by default, never stored in the save, and the
 production build fails if its console API appears in the bundle. GitHub Pages builds without `--dev`.
 
-The end-to-end smoke test (`tests/e2e/smoke.ts`) needs Playwright's Chromium once:
-`bunx playwright-core install chromium-headless-shell`. It plays a new game through the prologue, wins a fight
+The browser tests (`tests/e2e/smoke.ts`) need Playwright's Chromium once:
+`bunx playwright-core install chromium-headless-shell`. The full suite plays a new game through the prologue, wins a fight
 through its level-up screens, mashes every weapon class, fights every monster, mines crystal, checks the Forge's
 mystery cards, exports a play report, plays Poppy's side story start to finish and starts a preset save in its own
 slot, failing on any page error.
-`bun run e2e --only <name>` runs just the scenarios whose name contains it.
+`bun run e2e:full --only <name>` runs just the scenarios whose name contains it (including those outside the fast subset).
 
 On a minimal Linux installation, screenshots also need an emoji font for the HUD, menu buttons and speech bubbles.
 Install `fonts-noto-color-emoji`, or give the test browser an existing font without installing it globally:

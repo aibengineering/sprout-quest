@@ -1,10 +1,11 @@
 // End-to-end smoke test: plays the real game in headless Chromium, at phone size, through the flows the unit tests
 // can't reach (fights, level-up screens, attack pacing, dragon breath, mining, the Forge, the play report).
 //
-//   bun run e2e            run every scenario
-//   bun run e2e --shots    also save a screenshot per scenario to tests/e2e/out/
-//   bun run e2e --only X   just the scenarios whose name contains X
-//   bun run e2e -j N       N scenarios at a time (default: cores − 2; -j 1 runs them one by one)
+//   bun run e2e              run the six fast smoke scenarios
+//   bun run e2e:full         run every scenario (checkpoint/release only)
+//   bun run e2e --shots      also save a screenshot per scenario to tests/e2e/out/
+//   bun run e2e:full --only X just the scenarios whose name contains X
+//   bun run e2e -j N         N scenarios at a time (default: cores − 2; -j 1 runs them one by one)
 //
 // Needs Playwright's Chromium once: `bunx playwright-core install chromium-headless-shell`.
 import { chromium, type Browser, type Page } from 'playwright-core';
@@ -21,6 +22,16 @@ import { NEIGHBOURS } from '../../src/neighbours';
 
 const SHOTS = process.argv.includes('--shots');
 const env = browserEnv(SHOTS);
+const FAST = process.argv.includes('--fast');
+// Reuse the real assertions, not abbreviated versions: boot/new game, combat, travel, gathering, menu and saves.
+const FAST_SCENARIOS = new Set([
+  'a new game plays through the prologue to Elder Oswin',
+  'winning a fight levels you up and reveals new gear (and the quest tracker counts materials)',
+  'travel: a campfire takes you home to Sowerby, and the Waystone takes you back out',
+  'a tree falls and a rock breaks all the way, and what you earned lands in your bag',
+  'the Forge keeps gear a mystery until you reach its level',
+  'dev builds: a preset plays in its own slot, and your real save is untouched',
+]);
 const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].toLowerCase() : null;
 // Two cores left for the server and the timing-sensitive checks: 4 at a time on this 6-core box, 2 on CI's 4 cores.
 const JOBS = process.argv.includes('-j') ? Math.max(1, Number(process.argv[process.argv.indexOf('-j') + 1]) || 1) : Math.max(1, Math.min(6, availableParallelism() - 2));
@@ -203,6 +214,7 @@ const SLOW = ['Poppy', "Bram's story", 'drums in the dark', 'every monster', 'ch
 const weight = (name: string) => { const i = SLOW.findIndex((s) => name.includes(s)); return i < 0 ? SLOW.length : i; };
 
 function scenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>, opts: { webgl?: boolean } = {}) {
+  if (FAST && !FAST_SCENARIOS.has(name)) return;
   if (ONLY && !name.toLowerCase().includes(ONLY)) return;
   queue.push({ name, run: () => runScenario(name, seed, body, opts.webgl) });
 }
@@ -230,7 +242,7 @@ function check(ok: unknown, msg: string) {
   if (!ok) throw new Error(msg);
 }
 
-console.log('Sprout Quest smoke test');
+console.log(`Sprout Quest ${FAST ? 'fast smoke' : 'full regression'} test`);
 
 scenario('a new game plays through the prologue to Elder Oswin', null, async (page) => {
   // Start over from the title (base's save is replaced by New Game).
@@ -2897,7 +2909,7 @@ scenario('Timber shortcuts: six local crossings, cancel, tier locks, real walkin
 // The 3D characters: every model loads, and the hero, villagers and monsters render (in software WebGL here) without
 // errors, on the map and in a fight.
 const GL_NAME = 'characters are drawn in 3D: every model loads and renders on the map and in a fight';
-if (!ONLY || GL_NAME.toLowerCase().includes(ONLY)) queue.push({ name: GL_NAME, run: async () => {
+if (!FAST && (!ONLY || GL_NAME.toLowerCase().includes(ONLY))) queue.push({ name: GL_NAME, run: async () => {
   const name = GL_NAME;
   const gl = await chromium.launch({ executablePath, env, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await (await gl.newContext({ viewport: { width: 390, height: 844 } })).newPage();
@@ -3200,6 +3212,13 @@ scenario('Cave mouths: rocky forest edge, no outdoor cave preview, full black fa
  try{await waitFor(page,'return through eastern mouth',()=>game<boolean>(page,`!g.trans&&g.over.underground===g.over.cavern&&g.over.x>165`));}finally{await page.keyboard.up('KeyA');}
 });
 
+// A renamed scenario must not silently shrink the fast suite.
+if (!queue.length || (FAST && !ONLY && queue.length !== FAST_SCENARIOS.size)) {
+  await browser.close();
+  server.stop(true);
+  if (!queue.length) throw new Error('No scenarios matched; use e2e:full --only for scenarios outside the fast subset');
+  throw new Error(`Expected ${FAST_SCENARIOS.size} fast scenarios, found ${queue.length}`);
+}
 queue.sort((a, b) => weight(a.name) - weight(b.name));
 let next = 0;
 await Promise.all(Array.from({ length: Math.min(JOBS, queue.length) }, async () => {
