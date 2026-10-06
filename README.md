@@ -333,6 +333,11 @@ BLENDER=/path/to/blender bun run art
   buildings, menu icons
 - `art/pack.py`: trims frames and packs them into WebP atlases plus `atlas.json`
 
+Commit the final runtime assets in `public/assets/` (compressed GLB models, WebP atlases/icons and their metadata),
+along with their source builders in `art/`. Normal builds copy these ready-made assets; they do not run Blender.
+Regenerate and commit the affected assets only when their art changes. Intermediate `.raw.glb` exports, `art/out/`,
+build/test output and local `work/` playtest captures and map previews are ignored; they are not release content.
+
 Characters (the hero, the villagers and every monster) and every weapon are real-time 3D (the weapon rides in the hero's hand, the arm following each swing, or on the back or hip on the map): `art/models.py` exports each
 one with its animations to `public/assets/models/*.glb` (compressed with gltfpack; `bun run art models`), and
 `src/models.ts` draws them with a cel shader and inverted-hull outlines that match the Blender material. Each character

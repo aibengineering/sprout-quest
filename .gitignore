@@ -6,3 +6,9 @@ tests/e2e/out
 sim/out/
 art/music/cache
 .claude/worktrees/
+
+# Local playtest captures and map-concept previews, not release content.
+/work/
+# Blender export intermediates; keep the compressed runtime .glb files tracked.
+/public/assets/models/*.raw.glb
+/public/assets/crafting3d/*.raw.glb
