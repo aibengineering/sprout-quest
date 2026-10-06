@@ -199,6 +199,21 @@ button {
 /* ---------- Controls ---------- */
 .ctl { position: fixed; inset: 0; pointer-events: none; z-index: 8; }
 .ctl button { pointer-events: auto; }
+#shortcut-prompt { position: absolute; display: flex; align-items: center; gap: 10px; width: min(250px, calc(100vw - 24px)); padding: 12px; text-align: left; background: var(--parchment); border: 2px solid var(--outline); border-radius: 16px; box-shadow: 0 4px 0 #3a244855; }
+#shortcut-prompt .shortcut-icon { display: grid; place-items: center; flex: none; width: 36px; height: 40px; border-radius: 10px; background: #eadbc2; }
+#shortcut-prompt .icon { width: 34px; height: 34px; }
+.shortcut-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.shortcut-eyebrow { color: #80654f; font: 900 9px 'Nunito', sans-serif; letter-spacing: 1px; }
+.shortcut-copy b { font-size: 17px; line-height: 1.15; font-weight: 500; }
+.shortcut-copy small { color: #72583e; font: 800 12px 'Nunito', sans-serif; }
+.shortcut-status { color: #8a551b; font: 800 12px/1.3 'Nunito', sans-serif; }
+#shortcut-prompt[data-state="ok"] { border-color: #3c7045; }
+#shortcut-prompt[data-state="ok"] .shortcut-status { color: #3c7045; }
+#shortcut-prompt[data-state="locked"] .shortcut-status { color: #80654f; }
+#shortcut-prompt:focus-visible { outline: 3px solid #ffb627; outline-offset: 3px; }
+#shortcut-prompt:active { box-shadow: none; margin-top: 3px; }
+.shortcut-plan .result { overflow-y: auto; touch-action: pan-y; }
+.shortcut-plan .btns { margin-top: 16px; }
 .act {
   position: absolute;
   right: calc(22px + var(--safe-r));

@@ -16,7 +16,7 @@ import { kitchenOpen } from '../kitchen';
 import { poppyAway } from '../procession';
 import { World } from '../world';
 import { homeLevel } from '../housing';
-import { shortcutById, shortcutLock } from '../shortcuts';
+import { shortcutById } from '../shortcuts';
 import { seamAvailable, seamOpen, SEAMS } from '../seams';
 import { HUNTS, hunting } from '../hunts';
 
@@ -159,7 +159,7 @@ export function syncWorld() {
     if (o.kind === 'bridge') {
       const p = shortcutById(o.id!);
       o.hidden = !!p && s.flags.includes(p.flag);
-      o.label = p && !shortcutLock(s, p) ? 'Build shortcut' : 'Inspect crossing';
+      o.label = ''; // The sign is scenery; repairs are offered at either bank.
     }
     // Bram's cabin goes up at the end of his story.
     if (o.kind === 'prop' && o.id === 'bramhut') o.hidden = !s.flags.includes('bram:hut');

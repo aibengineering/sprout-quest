@@ -5,6 +5,7 @@ import { GATE_Y, T, World } from '../src/world';
 import { ZONES, zoneById, type MatId } from '../src/data';
 import { MOUTH } from '../src/procession';
 import { ECHO_OUTSIDE } from '../src/echoCave';
+import { Overworld } from '../src/overworld';
 
 /** Walking distances respect real object collisions and the player's feet, rather than just the ASCII road. */
 function distance(w: World, a: { x: number; y: number }, b: { x: number; y: number }) {
@@ -48,6 +49,33 @@ describe('intentional timber return loops', () => {
     expect(new Set(SHORTCUTS.map((p)=>p.id)).size).toBe(SHORTCUTS.length);
     expect(new Set(SHORTCUTS.map((p)=>p.flag)).size).toBe(SHORTCUTS.length);
     expect([...new Set(SHORTCUTS.flatMap((p)=>Object.keys(p.cost)))].sort()).toEqual(['emberplank','glimplank','pineplank','plank']);
+  });
+  test('repair targets belong to both banks, not the sign, and disappear after repair', () => {
+    const s=ready(), w=openWorld(), over=new Overworld(w,s);
+    for(const p of SHORTCUTS) {
+      for(const bank of [p.from,p.to]) {
+        const at=shortcutWorldPoint(p,bank);over.teleport(at.x,at.y);
+        expect(over.nearbyObject()?.id,p.name).toBe(p.id);
+      }
+      const sign=shortcutWorldPoint(p,p.marker);over.teleport(sign.x+.3,sign.y+.8);
+      expect(over.nearbyObject()?.id).not.toBe(p.id);
+      const at=shortcutWorldPoint(p,p.from);over.teleport(at.x,at.y+1.41);
+      expect(over.nearbyObject()?.id).not.toBe(p.id);
+      s.flags.push(p.flag);over.teleport(at.x,at.y);
+      expect(over.nearbyObject()?.id).not.toBe(p.id);
+    }
+  });
+  test('broken boards are ground art and posts sort at their banks rather than the sign', () => {
+    const s=ready(), w=openWorld(), over=new Overworld(w,s);
+    const boards:number[][]=[], items:{y:number;draw:()=>void}[]=[];
+    const ctx={fillStyle:'',fillRect:(...args:number[])=>boards.push(args)} as unknown as CanvasRenderingContext2D;
+    const o=w.objs.find(o=>o.id==='woods-camp')!;
+    (over as any).shortcutItems(ctx,o,40,items);
+    expect(boards).toEqual([[3800,382,80,18],[3800,560,80,18]]);
+    expect(items.map(i=>Math.round(i.y*100)/100)).toEqual([9.8,9.8,14.25,14.25,17.6]);
+    boards.length=0;items.length=0;s.flags.push('bridge:woods');
+    (over as any).shortcutItems(ctx,o,40,items);
+    expect(boards).toEqual([]);expect(items).toEqual([]);
   });
   for (const p of SHORTCUTS) {
     test(`${p.name}: both banks are reachable before building, and the crossing removes at least half the detour`, () => {

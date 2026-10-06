@@ -314,6 +314,17 @@ export class Overworld {
     };
     const talk = this.cast.list.find((a) => a.label && Math.hypot(a.x - this.x, a.y - (this.y - 0.2)) < 1.4 && facing(a));
     if (talk) return { kind: 'npc', id: talk.id, x: talk.x - 0.35, y: talk.y - 0.45, w: 0.7, h: 0.45, label: talk.label! };
+    if (this.fieldMap) {
+      for (const p of SHORTCUTS) {
+        if (shortcutBuilt(this.save, p)) continue;
+        if (![p.from, p.to].some(bank => {
+          const at = shortcutWorldPoint(p, bank);
+          return Math.hypot(this.x - at.x, this.y - at.y) < 1.4;
+        })) continue;
+        const o = this.map.objs.find(o => o.kind === 'bridge' && o.id === p.id);
+        if (o && !o.hidden) return { ...o, label: 'Repair bridge' };
+      }
+    }
     return this.map.nearestObj(this.x, this.y - 0.2, 1.4);
   }
 
@@ -459,7 +470,7 @@ export class Overworld {
     // Interaction hint bubble (not while chopping or mining: the minigame's card is up)
     const near = this.quiet || this.chopping || this.busyHands ? null : this.nearbyObject();
     this.roomRects.label = null;
-    if (near && this.alert <= 0) {
+    if (near && near.kind !== 'bridge' && this.alert <= 0) {
       // A room's doormat says "Leave" under it, not over you standing on it, and its stations wear theirs on top of
       // what's drawn (not over your head as you stand in front). In the Garden's field it's over the plot you'd work on.
       const bed = near.project === 'garden' && this.gardenPlot !== null ? plotSpot(near, this.gardenPlot) : null;
@@ -568,7 +579,8 @@ export class Overworld {
       const left = deck ? Math.min(o.x, deck.x - .45) : o.x;
       const right = deck ? Math.max(o.x + o.w, deck.x + crossing!.deck.w + .45) : o.x + o.w;
       if (right < x0 - 2 || left > x1 + 2) continue;
-      if (o.kind === 'fence') this.fenceItems(ctx, o, ts, items);
+      if (crossing) this.shortcutItems(ctx, o, ts, items);
+      else if (o.kind === 'fence') this.fenceItems(ctx, o, ts, items);
       else if (o.kind === 'plot' && o.project === 'garden') this.fieldItems(ctx, o, ts, items);
       else items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
     }
@@ -1297,8 +1309,6 @@ export class Overworld {
         return this.drawPickup(ctx, o, ts);
       case 'node':
         return this.drawTree(ctx, o, ts);
-      case 'bridge':
-        return this.drawShortcutSite(ctx, o, ts);
       case 'foe':
         return this.drawFoe(ctx, o, ts);
       case 'station': {
@@ -1313,26 +1323,28 @@ export class Overworld {
     if (!this.drawBuilding(ctx, o, ts)) this.drawBuildingFallback(ctx, o, ts);
   }
 
-  private drawShortcutSite(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+  private shortcutItems(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number, items: { y: number; draw: () => void }[]) {
     const p = shortcutById(o.id!);
-    if (!p || shortcutBuilt(this.save,p)) return;
+    if (!p || o.hidden || shortcutBuilt(this.save,p)) return;
     const d = p.deck, at = shortcutWorldPoint(p,d), vertical = d.h >= d.w, colours = this.bridgePalette(p);
-    // Broken landing boards on both banks make the missing connection legible before the player reads the plans.
+    // Boards lie on the ground; each post sorts at its own bank, never at the distant sign's depth.
     for (const far of [false,true]) {
       const x = at.x + (vertical ? 0 : far ? d.w : -.45), y = d.y + (vertical ? far ? d.h : -.45 : 0);
       ctx.fillStyle = colours[1];
       ctx.fillRect(x*ts,y*ts,(vertical ? d.w : .45)*ts,(vertical ? .45 : d.h)*ts);
-      ctx.fillStyle = colours[2];
       for (const side of [0,1]) {
         const sx = vertical ? (at.x+side*(d.w-.12))*ts : (x+.12)*ts;
         const sy = vertical ? (y+.12)*ts : (d.y+side*(d.h-.12))*ts;
-        ctx.fillRect(sx,sy-ts*.35,ts*.12,ts*.48);
+        items.push({ y: sy / ts + .13, draw: () => {
+          ctx.fillStyle = colours[2];
+          ctx.fillRect(sx,sy-ts*.35,ts*.12,ts*.48);
+        } });
       }
     }
-    const sprite = frame('env/sign');
-    const ax = (o.x+o.w/2)*ts, ay = (o.y+o.h)*ts;
-    if (sprite) drawFrame(ctx,sprite,ax,ay,ts/TILE_BU);
-    if (Math.hypot(this.x-(o.x+.3),this.y-(o.y+.5)) < 4.5) this.nameTag(ctx, `🌉 ${p.name}`, ax, ay-ts*.8, ts);
+    items.push({ y: o.y + o.h, draw: () => {
+      const sprite = frame('env/sign');
+      if (sprite) drawFrame(ctx,sprite,(o.x+o.w/2)*ts,(o.y+o.h)*ts,ts/TILE_BU);
+    } });
   }
 
   /** A white name tag centered over an object whose top is at `top`. */

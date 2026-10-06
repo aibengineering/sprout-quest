@@ -48,6 +48,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "🏘️ Optional home and kitchen additions need more timber, not early upgrades",
       "🌱 Seed finds pop up while trees fall, without interrupting gathering",
       "🏷️ World labels have smoother outlines without dark spikes",
+      "🌉 Repair cards at both banks show costs and locks before you confirm",
     ],
   },
   {

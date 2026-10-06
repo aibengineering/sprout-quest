@@ -2964,9 +2964,46 @@ const shortcutSeed = (g: any) => {
   s.pos = { x: 59.5, y: 18 };
 };
 
+scenario('Bridge repair: bank cards, missing timber, locks and explicit touch confirmation', shortcutSeed, async(page)=>{
+  await run(page,`g.save.mats.plank=28;g.over.teleport(95.5,14.8);g.over.roamers.list=[];g.over.roamers.calm=1e9;g.over.roamers.respawn=1e9`);
+  await page.waitForSelector('#shortcut-prompt[data-state="missing"]:not([hidden])');
+  check((await page.textContent('#shortcut-prompt'))?.includes('28 / 64')&&(await page.textContent('#shortcut-prompt'))?.includes('Need 36 more'),'missing-material card has wrong counts');
+  check(await game<boolean>(page,`g.mode==='world'&&!g.ui.isOpen`),'approaching opened a modal automatically');
+  if(SHOTS){await page.waitForTimeout(300);await page.screenshot({path:`${OUT}bridge-repair-missing.png`});}
+  await page.tap('#shortcut-prompt');await page.waitForSelector('.shortcut-plan');
+  check(!await page.$('[data-dialog="yes"]'),'missing materials allowed repair');
+  await page.click('[data-dialog="no"]');
+  await run(page,`g.over.teleport(95.5,9.5)`);await page.waitForSelector('#shortcut-prompt:not([hidden])');
+  check(await game<boolean>(page,`g.over.nearbyObject()?.id==='woods-camp'`),'far bank has no repair target');
+  await run(page,`g.save.build.sawmill=0`);await page.waitForSelector('#shortcut-prompt[data-state="locked"]');
+  check((await page.textContent('#shortcut-prompt'))?.includes('level 1'),'locked card has no prerequisite');
+  await page.keyboard.press('KeyE');await page.waitForSelector('.shortcut-plan');
+  check((await page.textContent('.shortcut-plan'))?.includes('level 1')&&!await page.$('[data-dialog="yes"]'),'locked details do not explain or enforce prerequisite');
+  await page.keyboard.press('Escape');
+  await run(page,`g.save.build.sawmill=1;g.save.mats.plank=64;g.over.teleport(95.5,14.8)`);
+  await page.waitForSelector('#shortcut-prompt[data-state="ok"]');
+  check((await page.textContent('#shortcut-prompt'))?.includes('Ready to repair'),'ready card missing');
+  for(const size of [{width:390,height:844},{width:320,height:568},{width:568,height:320}]){
+    await page.setViewportSize(size);await page.waitForTimeout(300);
+    check(await page.locator('#shortcut-prompt').evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&r.height>=44;}),'repair card clipped');
+    check(await game<boolean>(page,`(()=>{const r=document.getElementById('shortcut-prompt').getBoundingClientRect(),h=g.over.toScreen(g.over.x,g.over.y),ts=g.over.ts;return r.bottom<h.y-ts*1.4||r.left>h.x+ts*.55||r.right<h.x-ts*.55;})()`),'repair card covers hero');
+    if(SHOTS)await page.screenshot({path:`${OUT}bridge-repair-ready-${size.width}.png`});
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('#shortcut-prompt').focus();await page.keyboard.press('Space');await page.waitForSelector('.shortcut-plan');
+  check(await game<boolean>(page,`g.save.mats.plank===64&&!g.save.flags.includes('bridge:woods')`),'opening confirmation spent timber');
+  await page.keyboard.press('Escape');
+  await page.tap('#shortcut-prompt');await page.waitForSelector('.shortcut-plan');
+  if(SHOTS){await page.waitForTimeout(300);await page.screenshot({path:`${OUT}bridge-repair-confirm.png`});}
+  await page.click('[data-dialog="yes"]');
+  await waitFor(page,'bridge repaired',()=>game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('bridge:woods')&&g.save.mats.plank===0`));
+  check(await page.locator('#shortcut-prompt').isHidden(),'repaired bridge still offers repair');
+});
+
 scenario('Timber shortcuts: six local crossings, cancel, tier locks, real walking and reload during assembly', shortcutSeed, async (page) => {
   const approach = async (id: string) => {
-    await run(page, `const o = g.over.world.objs.find(o => o.kind === 'bridge' && o.id === '${id}'); g.over.teleport(o.x+.3,o.y+o.h+.45); g.over.face=-Math.PI/2; g.over.roamers.list=[]; g.over.roamers.respawn=1e9; g.over.roamers.calm=1e9`);
+    const p=SHORTCUTS.find(p=>p.id===id)!,at=shortcutWorldPoint(p,p.from);
+    await run(page, `g.over.teleport(${at.x},${at.y}); g.over.face=-Math.PI/2; g.over.roamers.list=[]; g.over.roamers.respawn=1e9; g.over.roamers.calm=1e9`);
     await page.waitForTimeout(250); await page.keyboard.press('KeyE');
     await page.waitForSelector('#modal:not([hidden]) [data-dialog]');
   };

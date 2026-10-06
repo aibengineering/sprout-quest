@@ -23,6 +23,7 @@ import { canShareFiles } from './share';
 import { reportInfo } from './stats';
 import { newerThan } from './semver';
 import { PATCH_NOTES, VERSION } from './version';
+import { canBuildShortcut, shortcutLock, type Shortcut } from './shortcuts';
 
 /** Which unlock reveals each menu tab (settings is always there). */
 const TAB_UNLOCK: Partial<Record<Tab, UnlockId>> = { journey: 'journal', items: 'bag', forge: 'forge', village: 'village' };
@@ -821,6 +822,29 @@ export class UI {
       b.hidden = !label;
       if (label) b.innerHTML = `${esc(label)}<kbd class="key">E</kbd>`;
     });
+  }
+
+  /** A tappable repair plan above the hero, or beside them on short screens. */
+  shortcutPrompt(p: Shortcut | null, hero?: { x: number; y: number }, ts = 0) {
+    const b = $('shortcut-prompt');
+    b.hidden = !p;
+    if (!p || !hero) return;
+    const s = this.hooks.save(), state = canBuildShortcut(s, p), lock = shortcutLock(s, p);
+    const materials = Object.entries(p.cost) as [MatId, number][];
+    const counts = materials.map(([m, n]) => `${MATS[m].name}s ${s.mats[m]} / ${n}`).join(' · ');
+    const missing = materials.filter(([m, n]) => s.mats[m] < n).map(([m, n]) => `${n - s.mats[m]} more ${MATS[m].name.toLowerCase()}s`).join(', ');
+    const status = lock ? lock.split('. ')[0] : state === 'ok' ? 'Ready to repair →' : `Need ${missing}`;
+    this.set('shortcut', `${p.id}|${state}|${counts}|${status}`, () => {
+      b.dataset.shortcut = p.id;
+      b.dataset.state = state;
+      b.innerHTML = `<span class="shortcut-icon" aria-hidden="true">${icon(materials[0][0],'🪵')}</span><span class="shortcut-copy"><span class="shortcut-eyebrow">REPAIR BRIDGE <kbd class="key">E</kbd></span><b>${esc(p.name)}</b><small>${esc(counts)}</small><span class="shortcut-status">${esc(status)}</span></span>`;
+    });
+    const w = b.offsetWidth, h = b.offsetHeight;
+    const side = innerHeight < 480 && hero.x + ts * .7 + w < innerWidth - 8;
+    const left = side ? hero.x + ts * .7 : hero.x - w / 2;
+    const top = side ? hero.y - h / 2 : hero.y - ts * 1.5 - h - 12;
+    b.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, left))}px`;
+    b.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, top))}px`;
   }
 
   /**
