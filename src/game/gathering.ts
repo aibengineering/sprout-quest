@@ -1,7 +1,7 @@
 // Chopping and mining: starting the timing minigame at a tree or rock, playing it, paying out, and node labels.
-import { zoneById, NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind } from '../data';
+import { NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind } from '../data';
 import { Chop, GatherView, type Look } from '../gather';
-import { isTreeKind, type RockColors, type RockKind, type TreeKind } from '../nodeart';
+import { BOULDER_COLORS, isTreeKind, type RockColors, type RockKind, type TreeKind } from '../nodeart';
 import { usingKeyboard } from '../input';
 import { canGather, harvest, hasOldTools, revealed, sweetWidth, toolPower, type GatherReward } from '../rules';
 import { logEvent } from '../stats';
@@ -11,7 +11,7 @@ import { celebrateSkill, lootLines } from './rewards';
 import { progressQuests } from './story';
 import { storyFelled, storyNoisy, storyTooLoud } from './stories';
 import { sweetBoost, miningSweetBoost } from '../kitchen';
-import { seamById, seamOpen, openSeam } from '../seams';
+import { seamById, seamAvailable, openSeam } from '../seams';
 import { syncWorld } from './context';
 
 /** The minigame in progress, if any, and what it paid out once the node gave way. */
@@ -42,9 +42,7 @@ const timeLeft = (ms: number) => {
 export function tryGather(o: WorldObj) {
   const s = G.save, n = NODES[o.node!];
   const seam = o.boulder ? seamById(o.boulder) : undefined;
-  if(seam && seamOpen(s,seam.id)) return;
-  const guardian=seam&&zoneById(seam.zone).guardian;
-  if(guardian&&!s.bosses.includes(guardian.kind)){G.ui.toast('Open the road to this region first.');return;}
+  if(o.boulder && !seamAvailable(s,o.boulder)) return;
   const why = canGather(s, o.node!, o.id!);
   if (why === 'tool') {
     const t = TOOLS.find((t) => t.skill === n.skill && t.tier === n.tier)!;
@@ -64,7 +62,7 @@ export function tryGather(o: WorldObj) {
   const tool = s.tools[n.skill];
   const look: Look = isTreeKind(o.node!)
     ? { kind: 'wood', tree: o.node, tool }
-    : { kind: 'mine', rock: o.node as RockKind, tool, ...ROCK_COLORS[o.node as RockKind] };
+    : { kind: 'mine', rock: o.node as RockKind, tool, boulder: !!o.boulder, ...(o.boulder ? BOULDER_COLORS : ROCK_COLORS[o.node as RockKind]) };
   const view = new GatherView(look);
   view.onSound = (sfx) => G.audio.play(sfx);
   // Woodcutter's Stew (Granny's) widens the sweet spot on trees.
@@ -207,6 +205,6 @@ export function syncNodes() {
   for (const o of [...G.world.objs,...G.over.oreGallery.objs]) {
     if (o.kind !== 'node') continue;
     const skill = NODES[o.node!].skill;
-    o.label = o.boulder ? 'Break boulder' : (G.save.nodes[o.id!] ?? 0) <= now ? SKILL_VERB[skill] : skill === 'wood' ? 'Regrowing' : 'Rubble';
+    o.label = o.boulder ? seamAvailable(G.save,o.boulder) ? 'Break boulder' : '' : (G.save.nodes[o.id!] ?? 0) <= now ? SKILL_VERB[skill] : skill === 'wood' ? 'Regrowing' : 'Rubble';
   }
 }

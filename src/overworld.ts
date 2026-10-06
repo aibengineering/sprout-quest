@@ -30,6 +30,8 @@ import { HUNTS, VARIANTS } from './hunts';
 import { SHORTCUTS, shortcutById, shortcutBuilt, shortcutWorldPoint, type Shortcut } from './shortcuts';
 import { HOMES, homeLevel } from './housing';
 import { drawBubble, drawSpeech } from './bubble';
+import { drawBoulder } from './nodeart';
+import { seamAvailable } from './seams';
 
 const TAU = Math.PI * 2;
 /** Chip colors when mining each kind of rock. */
@@ -463,7 +465,7 @@ export class Overworld {
       const bed = near.project === 'garden' && this.gardenPlot !== null ? plotSpot(near, this.gardenPlot) : null;
       const top = this.room && near.kind === 'station' ? this.stationTop.get(near) : undefined;
       let bx = (bed ? bed.x : near.x + near.w / 2) * ts;
-      const by = (top !== undefined ? top / ts + 0.15 : bed ? bed.y - 0.55 : near.kind === 'door' ? near.y + near.h + 0.75 : near.y) * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
+      const by = (top !== undefined ? top / ts + 0.15 : bed ? bed.y - 0.55 : near.boulder ? near.y - (near.boulder === 'quarry' ? 1.2 : 0.6) : near.kind === 'door' ? near.y + near.h + 0.75 : near.y) * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
       ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
       const label = this.keyHints ? `[E] ${near.label}` : near.label;
       const tw = ctx.measureText(label).width + ts * 0.4;
@@ -835,12 +837,13 @@ export class Overworld {
   /** A gathering node: a ribboned tree or an ore-flecked rock when ready, a stump or rubble while it comes back. */
   private drawTree(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
     const ready = !!o.boulder || (this.save.nodes[o.id!] ?? 0) <= Date.now();
+    const highlighted = o.boulder ? seamAvailable(this.save, o.boulder) : ready;
     const rock = NODES[o.node!].skill === 'mine';
     // Rocks have no drawn fallback: skip them (glow and all) until the sprites are in.
-    if (rock && !frame(`env/${o.node}_node`)) return;
+    if (rock && !o.boulder && !frame(`env/${o.node}_node`)) return;
     const shake = o === this.chopping && this.shakeT > 0 ? Math.sin(this.shakeT * 70) * this.shakeT * 0.25 : 0;
     const cx = (o.x + o.w / 2) * ts, by = (o.y + o.h - 0.08) * ts;
-    if (ready) {
+    if (highlighted) {
       // One soft highlight marks all available resources, regardless of terrain.
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -850,10 +853,18 @@ export class Overworld {
       ctx.fill();
       ctx.restore();
     }
-    shadow(ctx, cx, by, ts * (ready ? 0.42 : 0.3));
+    shadow(ctx, cx, by, ts * (o.boulder ? o.boulder === 'quarry' ? 1.1 : 0.6 : ready ? 0.42 : 0.3));
     const sprite = frame(`env/${o.node}_${ready ? 'node' : rock ? 'rubble' : 'stump'}`) ?? (ready && !rock ? frame(o.node === 'pine' ? 'env/pine0' : 'env/tree1') : null);
     // A touch bigger than the scenery trees so they stand out.
-    if (sprite) drawFrame(ctx, sprite, cx, by, (ts / TILE_BU) * (o.boulder ? o.boulder==='quarry'?3.1:1.65 : ready ? 1.12 : 1), { rot: ready ? shake + Math.sin(this.t * 1.2 + o.x) * 0.012 : 0 });
+    if (o.boulder) {
+      ctx.save();
+      ctx.translate(cx, by);
+      const scale = ts * (o.boulder === 'quarry' ? 0.021 : 0.0105);
+      ctx.scale(scale, scale);
+      ctx.rotate(shake);
+      drawBoulder(ctx);
+      ctx.restore();
+    } else if (sprite) drawFrame(ctx, sprite, cx, by, (ts / TILE_BU) * (ready ? 1.12 : 1), { rot: ready ? shake + Math.sin(this.t * 1.2 + o.x) * 0.012 : 0 });
     else if (!ready) {
       ctx.fillStyle = '#9a6a44';
       ctx.beginPath();
@@ -865,7 +876,7 @@ export class Overworld {
       ctx.fill();
     }
     // A glint now and then marks resources that are ready to gather.
-    if (ready && Math.random() < 0.04) {
+    if (highlighted && Math.random() < 0.04) {
       this.fx.burst(cx + (Math.random() - 0.5) * ts * 0.8, by - ts * (0.6 + Math.random() * 0.8), '#ffffff', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.8 });
     }
   }

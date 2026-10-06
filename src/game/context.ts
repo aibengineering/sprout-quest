@@ -17,7 +17,7 @@ import { poppyAway } from '../procession';
 import { World } from '../world';
 import { homeLevel } from '../housing';
 import { shortcutById, shortcutLock } from '../shortcuts';
-import { seamOpen, SEAMS } from '../seams';
+import { seamAvailable, seamOpen, SEAMS } from '../seams';
 import { HUNTS, hunting } from '../hunts';
 
 /**
@@ -163,7 +163,7 @@ export function syncWorld() {
     }
     // Bram's cabin goes up at the end of his story.
     if (o.kind === 'prop' && o.id === 'bramhut') o.hidden = !s.flags.includes('bram:hut');
-    if(o.boulder) { o.hidden=seamOpen(s,o.boulder); o.label='Break boulder'; }
+    if(o.boulder) { o.hidden=seamOpen(s,o.boulder); o.label=seamAvailable(s,o.boulder)?'Break boulder':''; }
     if(o.tunnel) o.hidden=!seamOpen(s,o.tunnel);
     if(o.id==='burrow:home') o.hidden=!SEAMS.some(p=>seamOpen(s,p.id));
     if(o.hunt){const a=hunting(s).active,d=HUNTS.find(d=>d.kind===o.hunt)!;o.hidden=!a||a.kind!==o.hunt||a.status!=='tracking';o.foes=a?[{kind:a.kind,lv:a.lv}]:[];o.text=d.name;}

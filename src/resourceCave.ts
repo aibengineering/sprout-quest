@@ -4,7 +4,7 @@ import { zoneById } from './data';
 // Interior coordinates stay independent of the relocated exterior mouth, preserving old underground saves.
 const GALLERY_X0 = zoneById('cave').x0 + 6;
 import { T, TileMap } from './world';
-import { SEAMS, seamOpen } from './seams';
+import { SEAMS, seamAvailable, seamOpen } from './seams';
 import type { SaveState } from './state';
 const ROWS = [
   '##############',
@@ -44,8 +44,10 @@ export class ResourceCave extends TileMap {
     this.objs.push({ kind: 'door', id: 'burrow:quarry', tunnel: 'quarry', x: x0 + 11, y: 1.9, w: 1.2, h: .6, label: 'Tunnel to Sowerby', walkable: true, hidden: true });
   }
   sync(s: SaveState) { this.opened = seamOpen(s, 'quarry'); for (const o of this.objs) {
-    if (o.boulder)
+    if (o.boulder) {
       o.hidden = seamOpen(s, o.boulder);
+      o.label = seamAvailable(s, o.boulder) ? 'Break boulder' : '';
+    }
     if (o.tunnel)
       o.hidden = !seamOpen(s, o.tunnel);
     if (o.node && !o.boulder)

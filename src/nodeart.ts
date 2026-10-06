@@ -301,6 +301,42 @@ export class TreeArt implements NodeArt {
 export type RockKind = 'rock' | 'copper' | 'iron' | 'crystal' | 'obsidian';
 export interface RockColors { body: string; dark: string; fleck: string }
 
+export const BOULDER_COLORS: RockColors = { body: '#9394a6', dark: '#626477', fleck: '#d9dfba' };
+
+/** Quest barrier, not ore: a tall faceted slab, mossy crown and a deep zigzag seam. Vector paths shared by map and close-up. */
+export function drawBoulder(ctx: CanvasRenderingContext2D) {
+  const face = (color: string, points: number[][]) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+    ctx.closePath();
+    ctx.fill();
+  };
+  ctx.save();
+  ctx.lineJoin = 'round';
+  face(BOULDER_COLORS.body, [[-70,-14],[-63,-65],[-35,-96],[15,-103],[52,-80],[70,-35],[60,-5],[16,0],[-39,-3]]);
+  ctx.strokeStyle = '#3a2448';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  face('#b4b5c4', [[-63,-65],[-35,-96],[15,-103],[38,-80],[-13,-65]]);
+  face(BOULDER_COLORS.dark, [[38,-80],[52,-80],[70,-35],[60,-5],[16,0],[26,-43]]);
+  face('#7e8093', [[-70,-14],[-63,-65],[-13,-65],[-28,-30],[-39,-3]]);
+  face('#70945c', [[-43,-87],[-35,-96],[15,-103],[34,-91],[12,-87],[1,-91],[-14,-84],[-26,-89]]);
+  face('#9eba7b', [[-35,-96],[15,-103],[22,-97],[-1,-94],[-17,-91]]);
+  // Pale edge beside the dark fissure makes it read as split stone, not an ore vein.
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#d9d9e3';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(8,-85);ctx.lineTo(-3,-63);ctx.lineTo(11,-49);ctx.lineTo(-6,-27);ctx.lineTo(1,-9);
+  ctx.stroke();
+  ctx.strokeStyle = '#484054';
+  ctx.lineWidth = 3;
+  ctx.translate(-2,-1);
+  ctx.stroke();
+  ctx.restore();
+}
+
 interface Crack { pts: [number, number][]; width: number; branch: boolean }
 interface Chunk { canvas: HTMLCanvasElement; cx: number; cy: number; r: number; x: number; y: number; vx: number; vy: number; rot: number; spin: number }
 
@@ -328,12 +364,12 @@ export class RockArt implements NodeArt {
   private readonly crackColor: string;
   private readonly glow: string;
 
-  constructor(readonly kind: RockKind, readonly colors: RockColors) {
+  constructor(readonly kind: RockKind, readonly colors: RockColors, readonly boulder = false) {
     const crystal = kind === 'crystal';
     // Obsidian is black glass: its cracks show as hot ember light rather than shadow.
     this.crackColor = crystal ? 'rgba(255,255,255,0.9)' : kind === 'obsidian' ? 'rgba(255,138,58,0.9)' : 'rgba(46,32,56,0.82)';
     this.glow = kind === 'rock' ? '#fff6c8' : colors.fleck;
-    this.prepare(frame(`gather/${kind}`));
+    this.prepare(boulder ? undefined : frame(`gather/${kind}`));
   }
 
   /** Draws the rock once into its own canvas and reads back its pixels. */
@@ -346,7 +382,8 @@ export class RockArt implements NodeArt {
     }
     const g = this.base.getContext('2d')!;
     g.setTransform(RES, 0, 0, RES, -this.box.x * RES, -this.box.y * RES);
-    if (f) drawFrame(g, f, 0, 0, ROCK_UNIT);
+    if (this.boulder) drawBoulder(g);
+    else if (f) drawFrame(g, f, 0, 0, ROCK_UNIT);
     else {
       // No art loaded: a plain boulder shape.
       g.fillStyle = this.colors.body;
@@ -380,7 +417,7 @@ export class RockArt implements NodeArt {
 
   hit(b: Blow, progress: number, fx: Particles) {
     this.progress = progress;
-    const p = this.target(b.at), c = this.colors, ore = this.kind !== 'rock';
+    const p = this.target(b.at), c = this.colors, ore = !this.boulder && this.kind !== 'rock';
     if (b.kind === 'miss') {
       // The pick skids off: sparks, a pale scratch and a puff of grit.
       fx.sparks(p.x, p.y, 5, '#fff2a8', { dir: -Math.PI / 2, spread: 2.4, speed: [140, 260] });

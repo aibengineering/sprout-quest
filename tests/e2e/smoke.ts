@@ -3062,6 +3062,24 @@ scenario('Without WebGL, found items and tags keep their icons', null, async (pa
   check(await page.locator('canvas.live3d').count() === 0 && await page.locator('.view3d img.icon').isVisible(), 'the icon is not showing');
 });
 
+scenario('Quest boulders cannot be mined before Pip explains the seam', (g)=>{
+ const s=g.save;s.quest=g.quests.length;s.lv=17;
+ s.flags=s.flags.filter((f:string)=>!f.startsWith('pip:'));s.build.cottage=0;s.homes.pip=0;s.stories['journey-pip']=0;
+ s.bosses.push('kingslime','alphawolf','echoqueen','crystalking');s.tools.mine=4;s.skills.mine={lv:10,xp:0};
+},async(page)=>{
+ for(const id of ['stillwater','rootlight','cinder']){
+  await run(page,`const o=g.over.world.objs.find(o=>o.boulder==='${id}');g.over.teleport(o.x+o.w/2,o.y+o.h+.5);g.over.face=-Math.PI/2;g.over.roamers.calm=999`);
+  await page.waitForTimeout(650);
+  check(await game<boolean>(page,`g.over.world.objs.find(o=>o.boulder==='${id}').label===''&&!g.over.nearbyObject()?.boulder`),'quest boulder still offers mining');
+  await page.keyboard.press('KeyE');await page.waitForTimeout(200);
+  // Nearby ordinary ore remains mineable; only the quest barrier must be excluded.
+  check(await game<boolean>(page,`!g.chop?.obj.boulder&&!g.save.flags.includes('seam:${id}')`),'mined a boulder before the quest');
+  if(await game<boolean>(page,`g.mode==='gather'`)){
+   await page.keyboard.press('Escape');await waitFor(page,'leave ordinary ore',()=>game<boolean>(page,`g.mode==='world'&&!g.chop`));
+  }
+ }
+});
+
 scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel and a walk home', (g)=>{
  const s=g.save;s.lv=14;s.quest=g.quests.length;s.villageJobs=true;
  s.flags=s.flags.filter((f:string)=>!f.endsWith(':returned'));s.flags.push('bram:hut','granny:extension','poppy:returned');
@@ -3071,6 +3089,9 @@ scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel an
  await page.keyboard.press('KeyE');
  await waitFor(page,'Pip’s underground tunnel',()=>game<boolean>(page,`g.over.underground===g.over.oreGallery&&!g.trans`));
  check(await game<boolean>(page,`!!g.over.oreGallery.actors.get('journey-pip:pip')&&!g.over.actors.get('journey-pip:pip')`),'Pip is duplicated outside his tunnel');
+ await run(page,`g.over.x=g.over.oreGallery.x0+7;g.over.y=8.7;g.over.face=-Math.PI/2`);
+ await page.keyboard.press('KeyE');await page.waitForTimeout(650);
+ check(await game<boolean>(page,`g.mode==='world'&&!g.chop&&g.over.oreGallery.objs.find(o=>o.boulder).label===''`),'gallery boulder can be mined before talking to Pip');
  await run(page,`const a=g.over.oreGallery.actors.get('journey-pip:pip');g.over.x=a.x;g.over.y=a.y+.6;g.over.face=-Math.PI/2`);
  await page.keyboard.press('KeyE');await waitFor(page,'Pip explains the seam',async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('pip:seam:met')&&g.mode==='world'`);});
  if(SHOTS)await page.screenshot({path:`${OUT}pip-promising-tunnel.png`});
@@ -3078,6 +3099,8 @@ scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel an
  check(await game<boolean>(page,`g.over.underground===g.over.oreGallery&&g.save.flags.includes('pip:seam:met')`),'reload lost Pip’s discovery');
  await run(page,`g.over.x=g.over.oreGallery.x0+7;g.over.y=8.7;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
  await waitFor(page,'the boulder minigame',()=>game<boolean>(page,`g.mode==='gather'&&g.chop?.game.requiredStreak===10`));
+ check(await game<boolean>(page,`g.chop.view.look.boulder===true`),'quest boulder reused ordinary ore art');
+ if(SHOTS)await page.screenshot({path:`${OUT}pip-boulder-minigame.png`});
  for(let i=0;i<4;i++){await run(page,`const c=g.chop.game;c.lock=0;c.pos=c.center;c.strike()`);await page.waitForTimeout(180);}
  await run(page,`const c=g.chop.game;c.lock=0;c.pos=0;c.strike()`);
  check(await game<boolean>(page,`g.chop.game.streak===0&&!g.chop.game.done&&!g.save.flags.includes('seam:quarry')`),'a miss cleared the boulder or retained its streak');

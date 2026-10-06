@@ -125,7 +125,7 @@ const IMPACT = 0.3;
 const LOOT_T = 1.05;
 
 /** How a node's minigame looks: which tree or rock, the tool you swing (its tier), and for rocks the bar's colors. */
-export type Look = { kind: 'wood'; tree: TreeKind; tool: number } | ({ kind: 'mine'; rock: RockKind; tool: number } & RockColors);
+export type Look = { kind: 'wood'; tree: TreeKind; tool: number } | ({ kind: 'mine'; rock: RockKind; tool: number; boulder?: boolean } & RockColors);
 
 /** Sounds the minigame asks for as things happen (the game plays them). */
 export type GatherSound = 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup';
@@ -176,7 +176,7 @@ export class GatherView {
   onSound: (s: GatherSound) => void = () => {};
 
   constructor(readonly look: Look) {
-    this.art = look.kind === 'wood' ? new TreeArt(look.tree) : new RockArt(look.rock, look);
+    this.art = look.kind === 'wood' ? new TreeArt(look.tree) : new RockArt(look.rock, look, look.boulder);
   }
 
   /** What you earned (known once the node gives way): it pops out as the tree lands or the rock breaks. */
@@ -256,7 +256,8 @@ export class GatherView {
   draw(ctx: CanvasRenderingContext2D, c: Chop, vw: number, vh: number, title: string, hint: string) {
     const kind = this.look.kind, mine = kind === 'mine';
     const w = Math.min(vw - 48, 360), barH = mine ? 40 : 28;
-    const top = Math.max(96, vh * 0.12), groundY = top + STAGE[kind];
+    // The tall quest slab needs extra headroom so its pick never covers the streak title.
+    const top = Math.max(96, vh * 0.12), groundY = top + STAGE[kind] + (this.look.kind === 'mine' && this.look.boulder ? 32 : 0);
     const x = (vw - w) / 2, barY = groundY + 18, hintY = barY + barH + 22;
     const sx = (Math.random() - 0.5) * this.shake, sy = (Math.random() - 0.5) * this.shake;
     ctx.save();
