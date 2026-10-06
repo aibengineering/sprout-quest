@@ -15,10 +15,10 @@ export interface Seam {
 }
 const at = (zone: ZoneId, x: number, y: number) => ({ x: zoneById(zone).x0 + x, y });
 export const SEAMS: Seam[] = [
-  { id: 'quarry', name: 'Pip’s Promising Tunnel', zone: 'cave', at: at('cave', 12.5, 20.8), rock: 'copper', streak: 10 },
-  { id: 'stillwater', name: 'Stillwater Burrow', zone: 'woods', at: at('woods', 30.5, 18.8), rock: 'copper', streak: 10 },
-  { id: 'rootlight', name: 'Rootlight Burrow', zone: 'hollow', at: at('hollow', 10.5, 29.8), rock: 'iron', streak: 11 },
-  { id: 'cinder', name: 'Cinder Burrow', zone: 'peak', at: at('peak', 31.5, 30.8), rock: 'obsidian', streak: 11 },
+  { id: 'quarry', name: 'Pip’s Promising Tunnel', zone: 'cave', at: at('cave', 5.5, 33.8), rock: 'copper', streak: 10 },
+  { id: 'stillwater', name: 'Stillwater Burrow', zone: 'woods', at: at('woods', 35.5, 32.8), rock: 'copper', streak: 10 },
+  { id: 'rootlight', name: 'Rootlight Burrow', zone: 'hollow', at: at('hollow', 7.5, 36.8), rock: 'iron', streak: 11 },
+  { id: 'cinder', name: 'Cinder Burrow', zone: 'peak', at: at('peak', 38.5, 40.8), rock: 'obsidian', streak: 11 },
 ];
 export const seamById = (id: string) => SEAMS.find(p => p.id === id);
 export const seamOpen = (s: SaveState, id: string) => s.flags.includes(`seam:${id}`);

@@ -30,6 +30,7 @@ import { battleTheme, zoneTheme } from './music/scores';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
+const mapFade = document.getElementById('map-fade')!;
 let vw = 0, vh = 0;
 
 function resize() {
@@ -66,6 +67,7 @@ const bind = (id: string, a: Parameters<Input['bindButton']>[1]) => G.input.bind
 bind('btn-attack', 'attack');
 bind('btn-skill', 'skill');
 bind('btn-dodge', 'dodge');
+bind('btn-dash', 'dodge');
 bind('btn-potion', 'potion');
 bind('btn-run', 'run');
 bind('btn-act', 'act');
@@ -142,10 +144,13 @@ function worldFrame(dt: number) {
   const freeWorld = () => canPlay() && !ghost && !over.room;
   // Poppy's Garden, worked by hand on the map (the view leans in, taps on beds, holding the button).
   gardenTick(dt, freeWorld() && !over.underground);
-  // The action shown at the cave mouth must enter it even if a wandering monster is nearby.
-  const prey = freeWorld() && !over.underground && over.nearbyObject()?.id !== 'prop_cavemouth'
+  // People and entrances own the action button even when a monster is nearby. Attack still starts a surprise fight.
+  const actionTarget = freeWorld() ? over.nearbyObject() : null;
+  const priorityAction = actionTarget?.kind === 'npc' || actionTarget?.kind === 'door'
+    || ['prop_cavemouth', 'resource:mouth', 'cavern:entry', 'cavern:east'].includes(actionTarget?.id ?? '');
+  const prey = freeWorld() && over.fieldMap
     ? over.roamers.unaware(over.x, over.y) : null;
-  if (prey && (input.consume('act') || input.consume('attack'))) startFieldBattle(prey, true);
+  if (prey && (input.consume('attack') || (!priorityAction && input.consume('act')))) startFieldBattle(prey, true);
   else if (canPlay() && !ghost && !roomHeld && input.consume('act')) void interact();
   if (G.mode === 'title') over.t += dt;
   else {
@@ -173,7 +178,7 @@ function worldFrame(dt: number) {
     tickStories();
     // Stories wait until you're back outside (their scenes happen on the map).
     if (freeWorld()) void checkStories();
-    if (ev?.type === 'encounter' && freeWorld() && !over.underground) startFieldBattle(ev.roamer, false);
+    if (ev?.type === 'encounter' && freeWorld() && over.fieldMap) startFieldBattle(ev.roamer, false);
   }
   const near = canAct && !ghost ? over.nearbyObject() : null;
   // The play report notes when you first walk up to a guardian you haven't beaten.
@@ -181,7 +186,9 @@ function worldFrame(dt: number) {
     const g = ZONES.find((z) => z.id === near.zone)?.guardian;
     if (g && !s.bosses.includes(g.kind)) noteReached(s, g.kind);
   }
-  ui.setAction(G.mode === 'gather' && chop ? gatherVerb() : prey ? 'Attack!' : near ? near.label : null);
+  ui.setAction(G.mode === 'gather' && chop ? gatherVerb() : prey && !priorityAction ? 'Attack!' : near ? near.label : null);
+  const dash=document.getElementById('btn-dash')!;dash.hidden=!freeWorld()||!over.fieldMap||!s.perks.includes('shadowscarf');
+  dash.querySelector<HTMLElement>('.cd')!.style.setProperty('--p',over.dashFrac.toFixed(2));
   over.objective = G.mode === 'world' ? objective() : null;
   over.layers = storyLayers;
   over.keyHints = usingKeyboard();
@@ -265,7 +272,17 @@ function frame(now: number) {
   else worldFrame(dt);
   tickModels();
   G.input.flush();
-  if (G.trans) drawIris(G.trans.t / G.trans.dur);
+  mapFade.hidden=G.trans?.style!=='fade';
+  if (G.trans) {
+    const q=G.trans.t/G.trans.dur;
+    if(G.trans.style==='fade') {
+      // Hold full black around the midpoint: the map and camera change while completely hidden.
+      const opacity=Math.max(0,Math.min(1,q<.42?q/.42:(1-q)/.42));
+      mapFade.style.opacity=String(opacity);
+      ctx.save();ctx.globalAlpha=opacity;
+      ctx.fillStyle='#000';ctx.fillRect(0,0,vw,vh);ctx.restore();
+    } else drawIris(q);
+  }
   requestAnimationFrame(frame);
 }
 

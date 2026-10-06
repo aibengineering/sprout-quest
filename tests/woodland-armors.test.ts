@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync, statSync } from 'node:fs';
 import { GEAR } from '../src/data';
 import barkvest from '../src/crafting/items/barkvest';
 import shroomhood from '../src/crafting/items/shroomhood';
@@ -30,17 +29,14 @@ describe('ingredient-led woodland armor assets', () => {
       }
     }
   });
-  test('production costs and stats remain unchanged', () => {
+  test('expanded recipes include lining and bindings while keeping combat stats', () => {
     expect(ids.map(id => ({ id, recipe: GEAR[id].recipe, def: GEAR[id].def, hp: GEAR[id].hp,
       spd: GEAR[id].spd, regen: GEAR[id].regen }))).toEqual([
-      { id: 'barkvest', recipe: { bark: 36, stone: 18 }, def: 4, hp: 6, spd: undefined, regen: undefined },
-      { id: 'shroomhood', recipe: { cap: 36, fang: 8 }, def: 6, hp: 12, spd: undefined, regen: undefined },
-      { id: 'batcloak', recipe: { wing: 24, fang: 12 }, def: 10, hp: 10, spd: 12, regen: undefined },
-      { id: 'glimmershawl', recipe: { glimmer: 48, core: 1 }, def: 15, hp: 22, spd: undefined, regen: 1 },
+      { id: 'barkvest', recipe: { bark: 42, stone: 18, fluff: 3, goo: 6 }, def: 4, hp: 6, spd: undefined, regen: undefined },
+      { id: 'shroomhood', recipe: { cap: 42, fang: 8, fluff: 3, goo: 6 }, def: 6, hp: 12, spd: undefined, regen: undefined },
+      { id: 'batcloak', recipe: { wing: 30, fang: 12, fluff: 3, goo: 9, copper: 6 }, def: 10, hp: 10, spd: 12, regen: undefined },
+      { id: 'glimmershawl', recipe: { glimmer: 48, core: 1, fluff: 2, goo: 9 }, def: 15, hp: 22, spd: undefined, regen: 1 },
     ]);
   });
 
-  for (const id of ids) {
-
-  }
 });

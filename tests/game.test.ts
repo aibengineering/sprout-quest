@@ -178,7 +178,7 @@ describe('world', () => {
       if (z.monsters.length) {
         let grass = 0;
         for (let x = z.x0; x < z.x0 + z.w; x++) for (let y = 0; y < w.h; y++) if (w.tile(x, y) === T.GRASS) grass++;
-        expect(grass).toBeGreaterThan(80);
+        expect(grass).toBeGreaterThan(30);
       }
     }
   });

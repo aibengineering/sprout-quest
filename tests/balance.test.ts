@@ -68,7 +68,7 @@ describe('balance', () => {
     for (const sk of ['wood', 'mine'] as const) expect(minutesToSkillLevel(sk, SKILL_MAX)).toBeLessThanOrEqual(20);
   });
 
-  test('hunter gear is all monster drops, gatherer gear is all wood/stone/ore and needs a skill level', () => {
+  test('gear tracks follow primary armour materials and gathering skill requirements', () => {
     for (const g of Object.values(GEAR).filter((g) => g.recipe)) {
       const track = gearTrack(g);
       expect({ id: g.id, needsSkill: !!g.needs }).toEqual({ id: g.id, needsSkill: track !== 'hunter' });

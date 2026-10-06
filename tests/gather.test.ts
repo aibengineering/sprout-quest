@@ -79,6 +79,17 @@ describe('chopping minigame', () => {
 });
 
 describe('woodcutting rules', () => {
+  test('ground and grass give identical materials, skill XP, rare finds and regrowth for every resource', () => {
+    for (const kind of Object.keys(NODES) as (keyof typeof NODES)[]) {
+      for (const flawless of [false,true]) {
+        const ground=newState(), grass=newState();
+        const a=harvest(ground,kind,'test',false,flawless,()=>0,1000);
+        const b=harvest(grass,kind,'test',true,flawless,()=>0,1000);
+        expect(b).toEqual(a);
+        expect(grass.nodes.test).toBe(ground.nodes.test);
+      }
+    }
+  });
   test('trees need the right axe, pay out wood and XP, then regrow', () => {
     const s = newState();
     expect(canGather(s, 'oak', 'x', 0)).toBe('tool');
@@ -99,10 +110,10 @@ describe('woodcutting rules', () => {
     expect(canGather(s, 'oak', 'x', NODES.oak.grass.regrow * 1000)).toBe('ok');
   });
 
-  test('grass trees can turn up a rare find; safe ones never do', () => {
+  test('rare finds depend on the resource, not on grass', () => {
     const s = newState();
     expect(harvest(s, 'oak', 'a', true, false, () => 0, 0).drops.clover).toBe(1);
-    expect(harvest(s, 'oak', 'b', false, false, () => 0, 0).drops.clover).toBeUndefined();
+    expect(harvest(s, 'oak', 'b', false, false, () => 0, 0).drops.clover).toBe(1);
   });
 
   test('skill levels gate better axes and gatherer gear, and stop at the cap', () => {
@@ -169,7 +180,7 @@ describe('trees and rocks on the map', () => {
     expect(new Set(nodes.map((o) => o.id)).size).toBe(nodes.length);
   });
 
-  test('you can walk up to every tree; safe ones without touching grass, grass ones only through it', () => {
+  test('every resource has a walkable approach and records its terrain correctly', () => {
     for (const o of nodes) {
       const tx = Math.floor(o.x), ty = Math.floor(o.y);
       const around = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: tx + dx, y: ty + dy }));

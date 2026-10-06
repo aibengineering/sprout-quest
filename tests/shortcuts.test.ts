@@ -35,14 +35,14 @@ function ready() {
 describe('intentional timber return loops', () => {
   test('later regions gain exploration space without shifting Sowerby, entrances or the separate cave mouth', () => {
     const w = new World();
-    expect(w.h).toBe(36);
+    expect(w.h).toBe(46);
     for (const id of ['meadow','woods','cave','hollow','peak'] as const) {
       const at=w.entryPoint(id);expect(w.blocked(at.x,at.y,.28)).toBe(false);expect(Math.floor(at.y)).toBe(14);
     }
     expect(w.blocked(ECHO_OUTSIDE.x,ECHO_OUTSIDE.y,.28)).toBe(false);
     expect(MOUTH).toEqual({ x: zoneById('cave').x0+26.5,y:8.9 });
     // The added height does not open a path around old borders in the village or Meadow.
-    for (const id of ['village','meadow','woods'] as const) for (let x=zoneById(id).x0;x<zoneById(id).x0+zoneById(id).w;x++) expect(w.tile(x,26)).toBe(T.OBST);
+    for (const id of ['village'] as const) for (let x=zoneById(id).x0;x<zoneById(id).x0+zoneById(id).w;x++) expect(w.tile(x,26)).toBe(T.OBST);
   });
   test('shortcut flags and definitions are unique, and every tier of planks has a use', () => {
     expect(new Set(SHORTCUTS.map((p)=>p.id)).size).toBe(SHORTCUTS.length);

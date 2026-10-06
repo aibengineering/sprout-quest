@@ -80,7 +80,7 @@ export interface SaveState {
   /** The room you're in (Granny's Kitchen, Bram's Sawmill): you carry on there. `pos` is then just outside its door. */
   room?: RoomId;
   /** A separate underground instance; pos remains outside its entrance. */
-  underground?: { id: 'echo' | 'resource'; x: number; y: number };
+  underground?: { id: 'echo' | 'resource' | 'cavern'; x: number; y: number };
   /** Set once the Forge has its five levels (older saves had three: Smithy was ★★★–★★★★, Master Forge the third). */
   forgeLevels?: 5;
   /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */
@@ -282,6 +282,10 @@ export function loadState(): SaveState | null {
     }
     if (!data.villageJobs && (merged.stories.poppy ?? 0) >= 6 && !merged.flags.includes('granny:extension')) merged.flags.push('granny:extension');
     merged.villageJobs = true;
+    // Alder's paid practice place and completed recruitment remain usable after the keeper changes.
+    // The new scarf remains a field reward, so this migration never grants it automatically.
+    if((merged.flags.includes('alder:returned')||(merged.stories['journey-alder']??0)>=2||merged.build.training>0)&&!merged.flags.includes('fox:trusted'))merged.flags.push('fox:trusted');
+    if(merged.flags.includes('alder:met')&&!merged.flags.includes('fox:met'))merged.flags.push('fox:met');
     return merged;
   } catch {
     return null;

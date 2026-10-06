@@ -284,7 +284,7 @@ function drawDark(ctx: CanvasRenderingContext2D, ts: number, view: { x: number; 
   const cave = G.over.currentZone.id === 'cave', me = you();
   const underground = !!(G.over.underground === G.over.echo);
   // The main cavern stays readable everywhere; the secluded tunnels keep the deeper mood.
-  const want = cave ? (underground ? .78 : .28) : 0;
+  const want = cave ? (underground ? .78 : .20) : 0;
   dim += (want - dim) * Math.min(1, Math.max(0, clock - last) * 5);
   if (dim < .01) return;
   const w = Math.ceil(view.w), h = Math.ceil(view.h);

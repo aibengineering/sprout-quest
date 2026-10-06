@@ -225,8 +225,9 @@ export function gardenTick(dt: number, canAct: boolean) {
   }
   const s = G.save, js = jobs(), n = js.length;
   for (const i of tugs.keys()) if (js[i] !== 'weed') tugs.delete(i);
-  target = targetPlot(o, n, G.over.x, G.over.y, G.over.face);
-  const any = target === null ? targetPlot(o, FIELD_PLOTS.length, G.over.x, G.over.y, G.over.face) : null;
+  // Resolve the physical bed first, including untilled beds. Facing a planted neighbour must not override it.
+  const any = targetPlot(o, FIELD_PLOTS.length, G.over.x, G.over.y, G.over.face);
+  target = any !== null && any < n ? any : null;
   untilled = any !== null && any >= n ? any : null;
   G.over.gardenPlot = target;
   // Out on a plot, the button's for the plot, even with Poppy right there helping (talk to her from the paths).

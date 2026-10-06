@@ -162,10 +162,16 @@ describe('weapon attachments', () => {
       const scatter = battleWeapon(g, b.moves, b.reach, b.p, b.t);
       expect(scatter.idle).toBe(false);
       expect(b.projs.length).toBe(5);
+      const castId = b.projs[0].strikeId;
+      expect(castId).toBeGreaterThan(0);
+      expect(new Set(b.projs.map(p => p.strikeId)).size).toBe(1);
       for (const p of b.projs) {
         expect(p.x).toBeCloseTo(b.p.x + scatter.tip.x, 6);
         expect(p.y).toBeCloseTo(b.p.y + scatter.tip.y, 6);
       }
+      b.projs = [];
+      simulation(b).skill(skillAt('scatter', 2)!);
+      expect(b.projs[0].strikeId).not.toBe(castId);
     }
   });
 });

@@ -16,15 +16,15 @@ export interface HuntDef {
 }
 const at = (zone: ZoneId, x: number, y: number) => ({ x: zoneById(zone).x0 + x, y });
 export const HUNTS: HuntDef[] = [
-  { kind: 'slime', name: 'Willow Slime', zone: 'meadow', at: at('meadow', 21.5, 9.8), place: 'the eastern shore of Willow Pond', variant: 'armoured', lodge: 1 },
-  { kind: 'bunny', name: 'Orchard Hopbun', zone: 'meadow', at: at('meadow', 27.5, 12.8), place: 'the eastern orchard', variant: 'swift', lodge: 1 },
-  { kind: 'shroom', name: 'Stillwater Sporecap', zone: 'woods', at: at('woods', 16.5, 12.8), place: 'the western bank of Stillwater', variant: 'fierce', lodge: 1 },
+  { kind: 'slime', name: 'Willow Slime', zone: 'meadow', at: at('meadow', 29.5, 23.8), place: 'the eastern shore of Willow Pond', variant: 'armoured', lodge: 1 },
+  { kind: 'bunny', name: 'Orchard Hopbun', zone: 'meadow', at: at('meadow', 32.5, 17.8), place: 'the eastern orchard', variant: 'swift', lodge: 1 },
+  { kind: 'shroom', name: 'Stillwater Sporecap', zone: 'woods', at: at('woods', 16.5, 16.8), place: 'the western bank of Stillwater', variant: 'fierce', lodge: 1 },
   { kind: 'wolf', name: 'Camp Woolf', zone: 'woods', at: at('woods', 10.5, 6.8), place: 'the path below Bram’s old camp', variant: 'swift', lodge: 1 },
-  { kind: 'bat', name: 'Quarry Flapper', zone: 'cave', at: at('cave', 14.5, 20.8), place: 'the Old Quarry’s western descent', variant: 'swift', lodge: 2 },
-  { kind: 'golem', name: 'Ironback Pebblor', zone: 'cave', at: at('cave', 25.5, 18.8), place: 'the Old Quarry’s eastern galleries', variant: 'armoured', lodge: 2 },
-  { kind: 'glimmer', name: 'Mirror Glimmer', zone: 'hollow', at: at('hollow', 13.5, 27.8), place: 'the Rootlight crystal beds', variant: 'armoured', lodge: 2 },
-  { kind: 'imp', name: 'Cinder Impy', zone: 'peak', at: at('peak', 13.5, 23.8), place: 'the western Cinder Basin', variant: 'swift', lodge: 3 },
-  { kind: 'magma', name: 'Coalheart Slime', zone: 'peak', at: at('peak', 32.5, 27.8), place: 'the Cinder Basin’s eastern workings', variant: 'fierce', lodge: 3 },
+  { kind: 'bat', name: 'Quarry Flapper', zone: 'cave', at: at('cave', 11.5, 24.8), place: 'the Old Quarry’s western descent', variant: 'swift', lodge: 2 },
+  { kind: 'golem', name: 'Ironback Pebblor', zone: 'cave', at: at('cave', 30.5, 26.8), place: 'the Old Quarry’s eastern galleries', variant: 'armoured', lodge: 2 },
+  { kind: 'glimmer', name: 'Mirror Glimmer', zone: 'hollow', at: at('hollow', 8.5, 35.8), place: 'the Rootlight crystal beds', variant: 'armoured', lodge: 2 },
+  { kind: 'imp', name: 'Cinder Impy', zone: 'peak', at: at('peak', 30.5, 37.8), place: 'the western Cinder Basin', variant: 'swift', lodge: 3 },
+  { kind: 'magma', name: 'Coalheart Slime', zone: 'peak', at: at('peak', 36.5, 40.8), place: 'the Cinder Basin’s eastern workings', variant: 'fierce', lodge: 3 },
 ];
 export const VARIANTS: Record<HuntVariant, {
   label: string;

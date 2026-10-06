@@ -19,7 +19,7 @@ export async function bramHousePlans() {
   try {
     await paused(async () => {
       const s = G.save, job = nextVillageJob(s);
-      if (!job) return say(BRAM, 'Everyone’s got a roof. For now. Inside the mill if you need planks; Alder’s at the dojo if you need practice.', 'happy');
+      if (!job) return say(BRAM, 'Everyone’s got a roof. For now. Inside the mill if you need planks; Your quiet teacher is up in the Hollow if you need practice.', 'happy');
       if (job.recruit && !neighbourReturned(s,job.recruit)) return say(BRAM,NEIGHBOURS[job.recruit].lead,'happy');
       if (!s.flags.includes(`building:asked:${job.id}`)) {
         await say(BRAM, job.request, 'happy');
@@ -45,7 +45,7 @@ export async function bramHousePlans() {
         else await G.ui.builtKitchen(before, kitchenPresentation(job.level), job.level);
       } finally { G.over.camTarget = target; }
       persist();
-      await say(BRAM, job.id === 'kitchen' ? 'Clover’s got her benches. Go on in; she’s waiting by the book.' : job.id === 'training1' ? 'Alder’s waiting at the dojo. His targets bite softer than the Woods.' : `${job.owner} can take it from here. Come back when you’re ready for the next job.`, 'happy');
+      await say(BRAM, job.id === 'kitchen' ? 'Clover’s got her benches. Go on in; she’s waiting by the book.' : job.id === 'training1' ? 'The targets are waiting in that hidden clearing. I’ll keep the place to myself.' : `${job.owner} can take it from here. Come back when you’re ready for the next job.`, 'happy');
     });
   } finally { planning = false; }
 }
@@ -62,7 +62,7 @@ export async function offerVillageUpgrade(owner: string) {
     Pip: j.level===2 ? 'Stones under the chair, stones on the chair. I could do with a study. Reckon Bram would help?' : 'I’d like to keep every find and still see the floor. Could you ask Bram about an archive?',
     Rook: j.level===2 ? 'These shelves barely do them justice! Ask Bram about a trophy hall? I have buyers to impress.' : 'The finest specimens deserve the finest room. Could Bram manage a grand lodge?',
     Moss: j.level===2 ? 'Nowhere cool to put the dough. Could you ask Bram about a larder?' : 'Clover’s oven is getting crowded. Could Bram add one beside my larder?',
-    Alder: 'The moving targets need more room. Ask Bram about the next dojo, and I’ll put the space to use.',
+    'Masked Fox': 'A moving target, perhaps? Ask your timber man. Quietly. We have neighbours behind those stones.',
   };
   const answer=await G.ui.dialog(`<h2>${esc(j.name)}</h2><p>${esc(wishes[owner])}</p><p>${esc(j.perk)}</p><p>Bram can take this on next. You’ll bring the materials to him.</p>`,[['ask','Ask Bram about it'],['close','Later']],'upgrade-request');
   if(answer!=='ask') return;

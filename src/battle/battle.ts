@@ -7,7 +7,7 @@ import { vibrate } from '../audio';
 import { GEAR, MONSTERS, POTION_HEAL, type Fx as Element, type Gear, type MatId, type MonsterKind } from '../data';
 import { Fx } from '../fx';
 import type { Input } from '../input';
-import { GENTLE_ATK, MONSTER_HP, calcDamage, dodgeCharges, levelEdge, xpEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
+import { GENTLE_ATK, MONSTER_HP, calcDamage, dodgeCharges, dodgeMotion, levelEdge, xpEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
 import { BLINK, MOVESETS, RIPOSTE, SKILL_DATA, STAGGER, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
@@ -110,6 +110,7 @@ export class Battle implements FoeWorld, HitWorld {
   /** …and whose "Clang!" or "Exposed!". */
   private clangShown = 0;
   /** Running tallies for the play report. */
+  readonly afterimages: {x:number;y:number;face:number;t:number}[] = [];
   readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0, critDealt: 0, cooling: 0, rested: 0, lastHitBy: '' };
 
   constructor(
@@ -304,6 +305,8 @@ export class Battle implements FoeWorld, HitWorld {
 
   private updatePlayer(dt: number) {
     const p = this.p, st = this.stats, inp = this.input;
+    for(let i=this.afterimages.length-1;i>=0;i--) if((this.afterimages[i].t-=dt)<=0)this.afterimages.splice(i,1);
+    if(p.dodgeT>0&&this.save.perks.includes('shadowscarf')&&(!this.afterimages.length||this.afterimages[this.afterimages.length-1].t<.20))this.afterimages.push({x:p.x,y:p.y,face:p.face,t:.24});
     for (let i = 0; i < p.dodgeCds.length; i++) p.dodgeCds[i] -= dt;
     p.skillCd -= dt; p.iframes -= dt; p.hurtT -= dt; p.dodging -= dt; p.riposte -= dt; p.dizzy -= dt; p.castT -= dt;
     if (p.poison > 0) {
@@ -347,8 +350,8 @@ export class Battle implements FoeWorld, HitWorld {
     if (p.whirlT > 0) speed *= this.skillNow?.move || 0.5;
     if (p.dodgeT > 0) {
       p.dodgeT -= dt;
-      p.vx = Math.cos(p.dodgeDir) * speed * 3;
-      p.vy = Math.sin(p.dodgeDir) * speed * 3;
+      p.vx = Math.cos(p.dodgeDir) * speed * 3 * dodgeMotion(this.save);
+      p.vy = Math.sin(p.dodgeDir) * speed * 3 * dodgeMotion(this.save);
       if (Math.random() < 0.6) this.fx.burst(p.x, p.y - 4, 'rgba(255,255,255,0.8)', 1, 30, { size: 4, grav: 0, life: 0.3 });
     } else {
       p.vx = a.x * speed;
@@ -420,8 +423,9 @@ export class Battle implements FoeWorld, HitWorld {
   /** Magic's dodge: a short teleport, with a puff of sparkles where you were and where you land. */
   private blink(dir: number) {
     const p = this.p, col = this.el.colors;
+    if(this.save.perks.includes('shadowscarf'))this.afterimages.push({x:p.x,y:p.y,face:p.face,t:.24});
     this.fx.burst(p.x, p.y - 12, col[0], 12, 110, { size: 4, star: true, grav: 0, life: 0.4 });
-    const mv = this.arena.move(p.x, p.y, Math.cos(dir) * BLINK, Math.sin(dir) * BLINK, p.r);
+    const mv = this.arena.move(p.x, p.y, Math.cos(dir) * BLINK * dodgeMotion(this.save), Math.sin(dir) * BLINK * dodgeMotion(this.save), p.r);
     p.x = mv.x;
     p.y = mv.y;
     this.fx.burst(p.x, p.y - 12, col[1], 12, 110, { size: 4, star: true, grav: 0, life: 0.4 });
@@ -493,7 +497,7 @@ export class Battle implements FoeWorld, HitWorld {
     const heavy = s.mult >= 1.5 || this.moves.combo[0].windup > 0.12;
     this.audio.play(s.shape === 'shot' ? 'shoot' : heavy ? 'heavy' : 'swing');
     if (s.shape === 'shot') {
-      for (const off of s.shots ?? [0]) this.shoot(sw.aim + off, s.mult, s.size * (1 + this.tier * 0.06));
+      for (const off of s.shots ?? [0]) this.shoot(sw.aim + off, s.mult, s.size * (1 + this.tier * 0.06), sw.id);
     }
     if (s.lunge) this.fx.burst(p.x, p.y, '#e8dcc8', 5, 60, { size: 3, grav: 0, life: 0.3 });
   }
@@ -730,7 +734,8 @@ export class Battle implements FoeWorld, HitWorld {
         // A fan of bolts where you aim, `size` radians wide.
         p.castT = 0.18;
         p.castAng = ang;
-        for (let i = 0; i < r.count; i++) this.shoot(ang + (i / (r.count - 1) - 0.5) * r.size, r.sub, SKILL_DATA.scatter.size);
+        const castId = ++this.hitCounter;
+        for (let i = 0; i < r.count; i++) this.shoot(ang + (i / (r.count - 1) - 0.5) * r.size, r.sub, SKILL_DATA.scatter.size, castId);
         const outlet = battleWeapon(this.weapon, this.moves, this.reach, p, this.t).tip;
         this.fx.burst(p.x + outlet.x, p.y + outlet.y, col[0], 10, 160, { size: 4, star: true, grav: 0, life: 0.3 });
         this.punch = Math.max(this.punch, 0.02);
@@ -763,13 +768,13 @@ export class Battle implements FoeWorld, HitWorld {
     if (this.setup.dojo && !this.skillContacts.has(cast)) { this.skillContacts.add(cast); this.skillHits++; }
   }
 
-  private shoot(ang: number, mult: number, r: number) {
+  private shoot(ang: number, mult: number, r: number, strikeId = ++this.hitCounter) {
     const p = this.p;
     const outlet = battleWeapon(this.weapon, this.moves, this.reach, p, this.t).tip;
     this.projs.push({
       x: p.x + outlet.x, y: p.y + outlet.y,
       vx: Math.cos(ang) * 400, vy: Math.sin(ang) * 400, r,
-      atk: 0, mult, owner: 'p', life: 1.2, color: this.weapon.trail ?? this.weapon.color ?? '#ccc', homing: this.el.homing,
+      atk: 0, mult, owner: 'p', life: 1.2, color: this.weapon.trail ?? this.weapon.color ?? '#ccc', homing: this.el.homing, strikeId,
     });
   }
 
@@ -1146,7 +1151,7 @@ export class Battle implements FoeWorld, HitWorld {
           if (e.dead) continue;
           if (Math.hypot(pr.x - e.x, pr.y - (e.y - e.r * 0.7 - e.z)) < pr.r + e.r) {
             if (pr.dojoCast !== undefined) this.recordSkillContact(pr.dojoCast);
-            this.hitEnemy(e, pr.mult, Math.atan2(pr.vy, pr.vx), 70, 0, 0, 0.025);
+            this.hitEnemy(e, pr.mult, Math.atan2(pr.vy, pr.vx), 70, 0, pr.strikeId ?? 0, 0.025);
             this.fx.burst(pr.x, pr.y, pr.color, 6, 100, { star: true, size: 3 });
             pr.life = 0;
             break;

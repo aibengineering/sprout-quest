@@ -22,6 +22,9 @@ import type { SaveState } from './state';
 import { hash2, T, type TileMap, type World, type WorldObj } from './world';
 import { WALL_RISE, type Room } from './room';
 import { EchoCave, ECHO_OUTSIDE } from './echoCave';
+import { Cavern } from './cavern';
+import { surfaceBounds, caveApproachStone, CAVE_WEST_EDGE } from './caveEntrance';
+import { dodgeCharges, dodgeMotion } from './rules';
 import { ResourceCave } from './resourceCave';
 import { HUNTS, VARIANTS } from './hunts';
 import { SHORTCUTS, shortcutById, shortcutBuilt, shortcutWorldPoint, type Shortcut } from './shortcuts';
@@ -103,7 +106,9 @@ export class Overworld {
   readonly echo = new EchoCave();
   /** Separate underground map, with its own collision and cast. */
   readonly oreGallery = new ResourceCave();
-  underground: EchoCave | ResourceCave | null = null;
+  readonly cavern: Cavern;
+  underground: EchoCave | ResourceCave | Cavern | null = null;
+  get fieldMap() { return !this.room && (!this.underground || this.underground === this.cavern); }
   /**
    * What the side stories paint onto the map: on the ground (under everyone), and over everything (light and dark,
    * ripples, a gaze on the floor), under the feelings over people's heads. `view` is the screen, in map pixels.
@@ -118,6 +123,11 @@ export class Overworld {
   /** Tree being chopped, and how long it keeps shaking from the last strike. */
   chopping: WorldObj | null = null;
   private shakeT = 0;
+  private dashT=0;
+  private dashDir=0;
+  private dashCds:number[]=[];
+  private afterimages:{x:number;y:number;face:number;t:number}[]=[];
+  get dashFrac() { return this.dashCds.some(t=>t<=0)?0:Math.max(0,Math.min(...this.dashCds))/.9; }
   private crossingRaisedAt: Record<string, number> = {};
 
   /** A paid crossing assembles on the map; its saved collision already exists if the page is reloaded. */
@@ -130,15 +140,19 @@ export class Overworld {
   }
 
   constructor(private world: World, private save: SaveState) {
+    this.dashCds=Array(dodgeCharges(save)).fill(0);
+    this.cavern = new Cavern(world, this.actors);
     this.x = save.pos.x;
     this.y = save.pos.y;
     // Recover from a stale save position that's now inside a wall.
     if (world.blocked(this.x, this.y, 0.28)) {
-      const p = world.entryPoint('village');
+      const p = world.safePosition({x:this.x,y:this.y});
       this.x = p.x;
       this.y = p.y;
     }
+    if(save.spirit&&!save.underground) { const p=world.safePosition(save.spirit);save.spirit.x=p.x;save.spirit.y=p.y; }
     this.zone = world.zoneAt(this.x);
+    if(this.zone.id==='cave') this.underground=this.cavern;
     this.camX = this.x;
     this.camY = this.y;
     this.roamers = new Roamers(world);
@@ -154,6 +168,12 @@ export class Overworld {
     return this.underground ?? this.room ?? this.world;
   }
 
+  /** Camera and walking bounds of the visible map. Surface land never includes the underground region. */
+  get sceneBounds() {
+    const m=this.map;
+    return m===this.world ? surfaceBounds(this.x) : {x0:m.x0,w:m.w};
+  }
+
   /** Who's around you: the room's people, or the map's. */
   get cast() {
     return this.underground?.actors ?? this.room?.actors ?? this.actors;
@@ -161,7 +181,7 @@ export class Overworld {
 
   /** Where your save puts you: outside the door while you're in a room (rooms aren't saved positions). */
   get savedPos() {
-    return this.underground ? this.underground === this.echo ? { ...ECHO_OUTSIDE } : { ...this.oreGallery.outside } : this.room ? { ...this.outside } : { x: this.x, y: this.y };
+    return this.underground && this.underground !== this.cavern ? this.underground === this.echo ? { ...ECHO_OUTSIDE } : { ...this.oreGallery.outside } : this.room ? { ...this.outside } : { x: this.x, y: this.y };
   }
 
   /** Steps into a room, from `outside` (where you'll come back out). */
@@ -195,6 +215,7 @@ export class Overworld {
     this.camY = y;
     this.roamers.calm = 3;
     this.zone = this.world.zoneAt(x);
+    if(this.zone.id==='cave') { this.cavern.sync(); this.underground=this.cavern; }
     this.actors.regroup(x, y);
   }
 
@@ -297,9 +318,11 @@ export class Overworld {
   /** `roam`: monsters keep moving (and can catch you) even while you can't walk, e.g. while chopping. */
   update(dt: number, input: Input, frozen: boolean, roam = !frozen): WorldEvent {
     this.t += dt;
+    this.dashCds=this.dashCds.map(t=>Math.max(0,t-dt));
+    for(let i=this.afterimages.length-1;i>=0;i--)if((this.afterimages[i].t-=dt)<=0)this.afterimages.splice(i,1);
     // A spirit walks unseen: nothing notices it, chases it or jumps out at it.
     if (this.save.spirit) this.roamers.calm = Math.max(this.roamers.calm, 0.5);
-    if (roam && this.alert <= 0 && !this.room && !this.underground) {
+    if (roam && this.alert <= 0 && this.fieldMap) {
       const caught = this.roamers.update(dt, this.x, this.y, this.save.wins === 0, repelBelow(this.save));
       if (caught) {
         this.alert = 0.3;
@@ -324,20 +347,33 @@ export class Overworld {
       this.moving = false;
       return null;
     }
-    const a = input.axis();
+    let a = input.axis();
+    if(this.dashCds.length!==dodgeCharges(this.save))this.dashCds=Array(dodgeCharges(this.save)).fill(0);
+    const charge=this.dashCds.findIndex(t=>t<=0);
+    if(input.consume('dodge')&&charge>=0&&this.fieldMap&&!this.save.spirit&&this.save.perks.includes('shadowscarf')&&this.dashT<=0){
+      this.dashDir=Math.hypot(a.x,a.y)>.1?Math.atan2(a.y,a.x):this.face;this.dashT=.18;this.dashCds[charge]=.9;
+    }
+    const dashing=this.dashT>0;
+    this.dashT=Math.max(0,this.dashT-dt);
+    if(dashing){a={x:Math.cos(this.dashDir),y:Math.sin(this.dashDir)};if(!this.afterimages.length||this.afterimages[this.afterimages.length-1].t<.2)this.afterimages.push({x:this.x,y:this.y,face:this.face,t:.24});}
     const mag = Math.hypot(a.x, a.y);
     this.moving = mag > 0.1;
     if (!this.moving) return null;
     this.face = Math.atan2(a.y, a.x);
     const spdBonus = (GEAR[this.save.equip.armor]?.spd ?? 0) + (this.save.equip.charm ? GEAR[this.save.equip.charm]?.spd ?? 0 : 0);
-    const speed = 5 * (1 + spdBonus / 100) * (this.save.perks.includes('trailboots') ? 1.25 : 1);
+    const speed = 5 * (1 + spdBonus / 100) * (this.save.perks.includes('trailboots') ? 1.25 : 1) * (dashing ? 2.6 : 1);
     const dx = a.x * speed * dt, dy = a.y * speed * dt;
     const r = 0.28;
     const ox = this.x, oy = this.y;
-    if (!this.map.blocked(this.x + dx, this.y, r)) this.x += dx;
-    if (!this.map.blocked(this.x, this.y + dy, r)) this.y += dy;
+    const steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/.18));
+    const bounds=this.sceneBounds;
+    for(let n=0;n<steps;n++){
+      const nx=this.x+dx/steps;
+      if(nx-r>=bounds.x0&&nx+r<bounds.x0+bounds.w&&!this.map.blocked(nx,this.y,r))this.x=nx;
+      if(!this.map.blocked(this.x,this.y+dy/steps,r))this.y+=dy/steps;
+    }
     const moved = Math.hypot(this.x - ox, this.y - oy);
-    if (this.room || this.underground) return null;
+    if (!this.fieldMap) return null;
 
     let ev: WorldEvent = null;
     const z = this.world.zoneAt(this.x);
@@ -395,10 +431,11 @@ export class Overworld {
     const ts = (this.ts = R
       ? Math.round(Math.min(Overworld.tileSize(vw, vh) * 1.25, vw / (R.w - 0.3), (vh - ROOM_BAND.top - ROOM_BAND.bottom) / roomRows) * this.zoom)
       : Math.round(Overworld.tileSize(vw, vh) * this.zoom));
-    const mapW = W.w * ts, mapH = (!this.room && !this.underground ? ROUTES[this.zone.id]?.length ?? WORLD_H : W.h) * ts;
+    const bounds=this.sceneBounds;
+    const mapW = bounds.w * ts, mapH = (this.fieldMap ? ROUTES[this.zone.id]?.length ?? WORLD_H : W.h) * ts;
     let camX = this.camX * ts - vw / 2;
     let camY = (this.camY - 0.5) * ts - vh / 2;
-    const mapLeft = W.x0 * ts, mapTop = W.y0 * ts;
+    const mapLeft = bounds.x0 * ts, mapTop = W.y0 * ts;
     camX = mapW <= vw ? mapLeft + (mapW - vw) / 2 : Math.max(mapLeft, Math.min(mapLeft + mapW - vw, camX));
     // The camera can look a little past the top and bottom of the map (the forest carries on out there), so nothing
     // on the edge rows hides under the HUD or the buttons.
@@ -430,7 +467,7 @@ export class Overworld {
       ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
       const label = this.keyHints ? `[E] ${near.label}` : near.label;
       const tw = ctx.measureText(label).width + ts * 0.4;
-      if (this.room) bx = Math.max(camX + tw / 2 + 4, Math.min(camX + vw - tw / 2 - 4, bx));
+      bx = Math.max(camX + tw / 2 + 4, Math.min(camX + vw - tw / 2 - 4, bx));
       ctx.fillStyle = 'rgba(255,255,255,0.95)';
       rrect(ctx, bx - tw / 2, by - ts * 0.5, tw, ts * 0.55, ts * 0.2);
       if (this.room) this.roomRects.label = { x: bx - tw / 2 - camX, y: by - ts * 0.5 - camY, w: tw, h: ts * 0.55 };
@@ -444,6 +481,11 @@ export class Overworld {
   }
 
   /** The map itself: ground, scenery, buildings, monsters and the hero. `left`/`top` are the camera's corner in tiles. */
+  private sceneryTile(x:number,y:number) {
+    // The logical graph retains gate coordinates for old saves; the outdoor view ends in a cliff behind its mouth.
+    return !this.underground&&!this.room&&x===CAVE_WEST_EDGE-1 ? T.OBST : this.map.tile(x,y);
+  }
+
   private drawScene(ctx: CanvasRenderingContext2D, left: number, top: number, ts: number, vw: number, vh: number) {
     const W = this.map;
     const camX = Math.round(left * ts), camY = Math.round(top * ts);
@@ -452,19 +494,47 @@ export class Overworld {
     ctx.save();
     ctx.translate(-camX, -camY);
 
-    const x0 = Math.max(W.x0, Math.floor(camX / ts) - 1), x1 = Math.min(W.x0 + W.w - 1, Math.ceil((camX + vw) / ts) + 1);
+    const bounds=this.sceneBounds;
+    ctx.beginPath();ctx.rect(bounds.x0*ts,camY,bounds.w*ts,vh);ctx.clip();
+
+    const x0 = Math.max(bounds.x0, Math.floor(camX / ts) - 1), x1 = Math.min(bounds.x0 + bounds.w - 1, Math.ceil((camX + vw) / ts) + 1);
     // Rows past the map's edges are forest (World.tile calls them obstacles).
     const y0 = Math.max(W.y0 - Math.ceil(OVERSCROLL.top + this.headroom) - 1, Math.floor(camY / ts) - 1), y1 = Math.min(W.y0 + W.h + Math.ceil(OVERSCROLL.bottom), Math.ceil((camY + vh) / ts) + 2);
 
+    // Four-tile patches keep adjacent ground continuous, without a checkerboard or per-tile gradients.
+    const groundPatches = new Map<string, CanvasGradient>();
     // Ground layer
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         const th = zoneAtX(x).theme;
-        const t = W.tile(x, y);
+        const t = this.sceneryTile(x, y);
         const px = x * ts, py = y * ts;
-        ctx.fillStyle = hash2(x, y, 1) < 0.5 ? th.ground : th.ground2;
+        // Broad, soft colour patches replace the conspicuous checkerboard of individual tiles.
+        ctx.fillStyle = th.ground;
         ctx.fillRect(px, py, ts + 1, ts + 1);
-        if (t === T.PATH) this.drawPath(ctx, x, y, px, py, ts, th);
+        const gx=Math.floor(x/4),gy=Math.floor(y/4),patchKey=`${zoneAtX(x).id}:${gx}:${gy}`;
+        let patch=groundPatches.get(patchKey);
+        if(!patch){
+          const cx=(gx*4+1.8+hash2(gx,gy,71)*.4)*ts,cy=(gy*4+1.8+hash2(gx,gy,72)*.4)*ts;
+          patch=ctx.createRadialGradient(cx,cy,0,cx,cy,ts*1.7);
+          patch.addColorStop(0,th.ground2);patch.addColorStop(1,th.ground);groundPatches.set(patchKey,patch);
+        }
+        ctx.fillStyle=patch;ctx.fillRect(px,py,ts+1,ts+1);
+        const stone=!this.underground?caveApproachStone(x,y):0;
+        if(stone>0){
+          ctx.fillStyle=`rgba(116,119,105,${stone*.72})`;ctx.fillRect(px,py,ts+1,ts+1);
+          if(t===T.GROUND&&hash2(x,y,84)<stone*.45){
+            ctx.fillStyle='#b4b6a2';ctx.beginPath();ctx.ellipse(px+ts*(.2+hash2(x,y,85)*.6),py+ts*(.3+hash2(x,y,86)*.4),ts*.045,ts*.028,0,0,TAU);ctx.fill();
+          }
+        }
+        // Shade the floor beside solid scenery, rather than treating it as a flat tile grid.
+        if(t!==T.OBST&&t!==T.POOL&&t!==T.CHASM){
+          const shade=ctx.createLinearGradient(px,py,px,py+ts*.3);
+          shade.addColorStop(0,'rgba(24,32,40,.16)');shade.addColorStop(1,'rgba(24,32,40,0)');
+          if(W.tile(x,y-1)===T.OBST){ctx.fillStyle=shade;ctx.fillRect(px,py,ts,ts*.3);}
+          if(t===T.GROUND&&hash2(x,y,73)<.10)this.drawDecor(ctx,x,y,px,py,ts,th);
+        }
+        if (t === T.PATH) this.drawPath(ctx, x, y, px, py, ts, stone>.5?{...th,path:'#a9a28f'}:th);
         else if (t === T.POOL) this.drawPool(ctx, x, y, px, py, ts, th);
         else if (t === T.CHASM) this.drawChasm(ctx, x, y, px, py, ts);
         else if (t === T.BRIDGE) {
@@ -485,7 +555,7 @@ export class Overworld {
     const items: { y: number; draw: () => void }[] = [];
     for (let y = y0; y <= y1; y++)
       for (let x = x0; x <= x1; x++)
-        if (W.tile(x, y) === T.OBST) {
+        if (this.sceneryTile(x, y) === T.OBST) {
           const th = zoneAtX(x).theme;
           items.push({ y: y + 0.9, draw: () => this.drawObstacle(ctx, x, y, ts, th) });
         }
@@ -500,7 +570,8 @@ export class Overworld {
       else if (o.kind === 'plot' && o.project === 'garden') this.fieldItems(ctx, o, ts, items);
       else items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
     }
-    for (const r of this.underground ? [] : this.roamers.list) {
+    for (const r of this.fieldMap ? this.roamers.list : []) {
+      if ((r.zone==='cave') !== (this.underground===this.cavern)) continue;
       if (r.x < x0 - 2 || r.x > x1 + 2) continue;
       items.push({ y: r.y, draw: () => this.drawRoamer(ctx, r, ts) });
     }
@@ -508,6 +579,7 @@ export class Overworld {
       if (a.x < x0 - 2 || a.x > x1 + 2) continue;
       items.push({ y: a.y, draw: () => this.drawActor(ctx, a, ts) });
     }
+    for(const g of this.afterimages)items.push({y:g.y,draw:()=>drawHero(ctx,this.save.equip.armor,g.x*ts,g.y*ts,ts/1.2,g.face,false,this.t,{alpha:g.t*.9,tint:'#b7a8f1',tintAmount:.6},'hero:map-ghost')});
     items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
     const body = this.save.spirit;
     if (body) items.push({ y: body.y, draw: () => this.drawBody(ctx, body, ts) });
@@ -563,6 +635,7 @@ export class Overworld {
       } });
     }
     for (const a of R.actors.list) items.push({ y: a.y, draw: () => this.drawActor(ctx, a, ts) });
+    for(const g of this.afterimages)items.push({y:g.y,draw:()=>drawHero(ctx,this.save.equip.armor,g.x*ts,g.y*ts,ts/1.2,g.face,false,this.t,{alpha:g.t*.9,tint:'#b7a8f1',tintAmount:.6},'hero:map-ghost')});
     items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
@@ -768,10 +841,10 @@ export class Overworld {
     const shake = o === this.chopping && this.shakeT > 0 ? Math.sin(this.shakeT * 70) * this.shakeT * 0.25 : 0;
     const cx = (o.x + o.w / 2) * ts, by = (o.y + o.h - 0.08) * ts;
     if (ready) {
-      // A soft glow on the ground marks trees you can chop (gold out in the grass).
+      // One soft highlight marks all available resources, regardless of terrain.
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = o.grass ? `rgba(255,210,90,${0.22 + Math.sin(this.t * 3 + o.x) * 0.07})` : `rgba(255,255,230,${0.16 + Math.sin(this.t * 3 + o.x) * 0.05})`;
+      ctx.fillStyle = `rgba(255,255,230,${0.16 + Math.sin(this.t * 3 + o.x) * 0.05})`;
       ctx.beginPath();
       ctx.ellipse(cx, by - ts * 0.02, ts * 0.62, ts * 0.26, 0, 0, TAU);
       ctx.fill();
@@ -791,9 +864,9 @@ export class Overworld {
       ctx.ellipse(cx, by - ts * 0.2, ts * 0.17, ts * 0.08, 0, 0, TAU);
       ctx.fill();
     }
-    // A glint now and then marks trees you can chop; golden ones out in the grass hide rarer finds.
+    // A glint now and then marks resources that are ready to gather.
     if (ready && Math.random() < 0.04) {
-      this.fx.burst(cx + (Math.random() - 0.5) * ts * 0.8, by - ts * (0.6 + Math.random() * 0.8), o.grass ? '#ffd35a' : '#ffffff', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.8 });
+      this.fx.burst(cx + (Math.random() - 0.5) * ts * 0.8, by - ts * (0.6 + Math.random() * 0.8), '#ffffff', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.8 });
     }
   }
 
@@ -832,8 +905,11 @@ export class Overworld {
   private drawPath(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
     ctx.fillStyle = th.path;
     const up = this.map.tile(x, y - 1) === T.PATH, down = this.map.tile(x, y + 1) === T.PATH;
-    const inset = ts * 0.12;
-    ctx.fillRect(px, py + (up ? 0 : inset), ts + 1, ts - (up ? 0 : inset) - (down ? 0 : inset) + 1);
+    const left=this.map.tile(x-1,y)===T.PATH,right=this.map.tile(x+1,y)===T.PATH;
+    const inset=ts*.09, lx=left?0:inset, rx=right?0:inset, uy=up?0:inset, dy=down?0:inset;
+    rrect(ctx,px+lx,py+uy,ts-lx-rx+1,ts-uy-dy+1,ts*.11);ctx.fill();
+    ctx.fillStyle='rgba(255,245,211,.11)';
+    if(!up)ctx.fillRect(px+lx+ts*.07,py+uy,ts-lx-rx-ts*.14,ts*.045);
     if (hash2(x, y, 4) < 0.4) {
       ctx.fillStyle = 'rgba(120,90,60,0.18)';
       ctx.beginPath();
@@ -937,6 +1013,15 @@ export class Overworld {
     ctx.globalAlpha = 0.35;
     ctx.fillRect(px, py, ts + 1, ts + 1);
     ctx.globalAlpha = 1;
+    if(zoneAtX(x).id==='cave'){
+      // Encounter pockets underground are shale and pale mineral chips, rather than tall garden grass.
+      for(let i=0;i<4;i++){
+        const cx=px+ts*(.16+hash2(x,y,91+i)*.68),cy=py+ts*(.25+hash2(x,y,101+i)*.65);
+        ctx.fillStyle=th.grassTip;ctx.globalAlpha=.5;
+        ctx.beginPath();ctx.moveTo(cx-ts*.06,cy);ctx.lineTo(cx-ts*.02,cy-ts*.1);ctx.lineTo(cx+ts*.06,cy-ts*.035);ctx.lineTo(cx+ts*.025,cy+ts*.02);ctx.closePath();ctx.fill();
+      }
+      ctx.globalAlpha=1;return;
+    }
     const tuft = frame(`env/grass_${zoneAtX(x).id}`);
     if (tuft) {
       for (let i = 0; i < 2; i++) {
@@ -1024,13 +1109,14 @@ export class Overworld {
   }
 
   private drawObstacle(ctx: CanvasRenderingContext2D, x: number, y: number, ts: number, th: Theme) {
-    if (zoneAtX(x).id === 'cave') {
+    const stone=!this.underground?caveApproachStone(x,y):0;
+    if (zoneAtX(x).id === 'cave' || stone>=.85) {
       // Joined rock faces enclose the tunnels; individual boulders still mark mineable cover.
       const px = x * ts, py = y * ts;
-      ctx.fillStyle = '#303247';
+      ctx.fillStyle = stone>=.85?'#646c61':'#303247';
       ctx.fillRect(px, py - ts * .28, ts + 1, ts * 1.28 + 1);
-      const open = (dx: number, dy: number) => this.map.tile(x + dx, y + dy) !== T.OBST;
-      ctx.strokeStyle = '#51536d'; ctx.lineWidth = ts * .065;
+      const open = (dx: number, dy: number) => this.sceneryTile(x + dx, y + dy) !== T.OBST;
+      ctx.strokeStyle = stone>=.85?'#939987':'#51536d'; ctx.lineWidth = ts * .065;
       ctx.beginPath();
       if (open(-1, 0)) { ctx.moveTo(px + ts * .04, py); ctx.lineTo(px + ts * .04, py + ts); }
       if (open(1, 0)) { ctx.moveTo(px + ts * .96, py); ctx.lineTo(px + ts * .96, py + ts); }
@@ -1043,6 +1129,7 @@ export class Overworld {
       }
       return;
     }
+    if(stone>=.4)th={...th,obstacle:'boulder'};
     const cx = (x + 0.5) * ts + (hash2(x, y, 12) - 0.5) * ts * 0.15;
     const by = (y + 0.92) * ts;
     const v = hash2(x, y, 13);
@@ -1154,6 +1241,31 @@ export class Overworld {
   /** Draws something on the map: a sprite if the art is loaded, otherwise a simple canvas drawing. */
   private drawObj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
     if (o.hidden) return;
+    if(o.id==='poppy:thicket') {
+      // A fallen trunk spans the whole trail, directly behind Poppy in the rescue scene.
+      ctx.save(); ctx.translate(o.x*ts,o.y*ts); ctx.scale(ts,ts); ctx.lineCap='round';
+      ctx.fillStyle='rgba(44,35,23,.22)';ctx.beginPath();ctx.ellipse(.56,1.04,.54,1.08,0,0,TAU);ctx.fill();
+      ctx.strokeStyle='#63432d';ctx.lineWidth=.1;
+      ctx.beginPath();ctx.moveTo(.3,.65);ctx.lineTo(.04,.43);ctx.moveTo(.7,1.2);ctx.lineTo(.97,.99);ctx.stroke();
+      const bark=ctx.createLinearGradient(.12,0,.88,0);
+      bark.addColorStop(0,'#765034');bark.addColorStop(.35,'#a47a4d');bark.addColorStop(1,'#69442d');
+      ctx.fillStyle=bark;ctx.strokeStyle='#573d2b';ctx.lineWidth=.045;
+      ctx.beginPath();ctx.roundRect(.12,-.08,.76,2.12,.2);ctx.fill();ctx.stroke();
+      ctx.strokeStyle='#6c472f';ctx.lineWidth=.035;
+      for(let i=0;i<4;i++) {
+        const x=.23+i*.16;
+        ctx.beginPath();ctx.moveTo(x,.1);ctx.bezierCurveTo(x-.08,.65,x+.06,1.1,x,1.83);ctx.stroke();
+      }
+      ctx.fillStyle='#d4ac73';ctx.strokeStyle='#795536';ctx.lineWidth=.04;
+      ctx.beginPath();ctx.ellipse(.5,1.94,.38,.18,0,0,TAU);ctx.fill();ctx.stroke();
+      ctx.beginPath();ctx.ellipse(.5,1.94,.24,.1,0,0,TAU);ctx.stroke();
+      ctx.beginPath();ctx.ellipse(.5,1.94,.1,.045,0,0,TAU);ctx.stroke();
+      for(let i=0;i<5;i++) {
+        ctx.fillStyle=i%2?'#78984b':'#5e803f';ctx.beginPath();
+        ctx.ellipse(.27+(i%2)*.1,.2+i*.22,.16,.14,-.3,0,TAU);ctx.fill();
+      }
+      ctx.restore();return;
+    }
     if(o.id?.startsWith('burrow:')||o.id==='resource:mouth'||o.id==='resource:exit'){
       const x=(o.x+o.w/2)*ts,y=(o.y+o.h)*ts;
       ctx.fillStyle='#6a5a4f';ctx.beginPath();ctx.ellipse(x,y-ts*.13,ts*.6,ts*.32,0,0,TAU);ctx.fill();
@@ -1318,7 +1430,7 @@ export class Overworld {
       case 'lair': return { name: 'lair', back: 0.4 };
       case 'camp': return { name: 'campfire', back: 0.05 };
       case 'statue': return { name: `statue_${o.id}`, back: 0.1 };
-      case 'prop': return { name: o.id!, back: 0.2 };
+      case 'prop': return { name: o.id==='cavern:entry'||o.id==='cavern:east'||o.id==='fox:den'?'prop_cavemouth':o.id!, back: 0.2 };
       case 'residence': {
         const l = homeLevel(this.save, o.home!);
         return { name: l ? HOMES[o.home!].plans[l - 1].art : 'plot', back: .28 };
@@ -1376,6 +1488,7 @@ export class Overworld {
       }
       case 'prop':
         if (o.id === 'prop_cavemouth') this.nameTag(ctx, 'Pebbler Hollow', ax, top, ts);
+        if (o.id === 'fox:den') this.nameTag(ctx, 'The Quiet Den', ax, top, ts);
         break;
       case 'fountain':
         for (let i = 0; i < 3; i++) {
@@ -1399,7 +1512,7 @@ export class Overworld {
       case 'plot': {
         // Empty plots (and your home, always) say what goes there.
         const p = o.project!;
-        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🥋 Alder’s Dojo', warp: '🔮 Waystone', sawmill: '🪚 Sawmill', cottage: '🏡 Guest Cottage' } as Record<string, string>)[p] ?? '';
+        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🦊 Hidden Clearing', warp: '🔮 Waystone', sawmill: '🪚 Sawmill', cottage: '🏡 Guest Cottage' } as Record<string, string>)[p] ?? '';
         if (!this.save.build[p] || p === 'home' || p === 'sawmill' || p === 'training') this.nameTag(ctx, name, ax, top, ts);
         break;
       }

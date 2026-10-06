@@ -1,17 +1,16 @@
 import { describe, expect, test } from 'bun:test';
 import { sceneModel } from './sceneModel';
-import { readFileSync } from 'node:fs';
 import { GEAR } from '../src/data';
 import coppermail from '../src/crafting/items/coppermail';
 import ironplate from '../src/crafting/items/ironplate';
 import crystalmail from '../src/crafting/items/crystalmail';
 
 const armors = ['coppermail', 'ironplate', 'crystalmail'] as const;
-const recipes = { coppermail: { copper: 36, stone: 24 }, ironplate: { iron: 24, copper: 18, stone: 18, pine: 9 }, crystalmail: { crystal: 28, iron: 12, stone: 18 } };
+const recipes = { coppermail: { copper: 42, stone: 24, fluff: 3, goo: 6 }, ironplate: { iron: 33, copper: 24, fluff: 3, goo: 12 }, crystalmail: { crystal: 32, iron: 18, stone: 18, fluff: 2 } };
 const presentations = [coppermail, ironplate, crystalmail];
 
 describe('ingredient-led ore armor assets', () => {
-  test('the existing recipe economy is preserved', () => {
+  test('metal armour recipes include a padded foundation', () => {
     for (const id of armors) expect(GEAR[id].recipe).toEqual(recipes[id]);
   });
 

@@ -46,6 +46,7 @@ canvas#cv, #touch {
   height: 100%;
 }
 canvas#cv { display: block; }
+#map-fade { position: fixed; inset: 0; background: #000; z-index: 100; pointer-events: none; }
 
 button {
   font: inherit;
@@ -1413,3 +1414,5 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 .hunt-card span, .hunt-card small { font-size: .85em; }
 .hunt-card:disabled { opacity: .62; }
 .hunt-active { background: #e7efd7; border-radius: 14px; padding: 12px; }
+
+#btn-dash { right: calc(18px + var(--safe-r)); bottom: calc(152px + var(--safe-b)); background: #d3c7f4; }

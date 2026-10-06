@@ -6,8 +6,13 @@ felt off, is the model wrong, or are the targets wrong?**
 
 - If the real report lands **outside** the simulation's typical range, the model is off: the balance model's
   assumptions, or how the simulated player behaves (`CAL` in `player.ts`). Fix the model or calibrate it.
-- If it lands **inside** the range but still felt wrong, the model is right and the design targets are what need to
-  change.
+- If it lands **inside** the range but still felt wrong, agreement alone does not validate the model: omitted
+  mechanics can still matter. Inspect the integrated combat report before changing the targets.
+
+`bun run balance` is the combat comparison entry point: `sim/out/balance/index.html` measures the actual battle
+engine for every weapon and stage and contains these progression/economy estimates alongside it. This simulator
+still uses the simplified `killModel` and is useful for story pacing; it does not validate specials, enemy AI,
+hitboxes or weapon effects. Do not treat a successful simulated playthrough as a balanced-combat result.
 
 ## It's test tooling, not the game
 

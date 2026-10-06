@@ -37,18 +37,18 @@ export function noteProblems(p: PatchNote): string[] {
 export const PATCH_NOTES: PatchNote[] = [
   {
     version: '0.3.7',
-    date: '2026-10-02',
+    date: '2026-10-05',
     title: 'Rooms, Hunts and Hidden Tunnels',
     notes: [
-      "🌱 Grow Poppy’s garden and practise Alder’s dojo lessons for first-clear XP",
+      "🦊 Find the masked fox and earn her Shadow Scarf and hidden training lessons",
       "🪚 Carry logs to Bram's saw, pull its lever and collect the planks",
       "🍳 Pick Granny's recipes, carry one plate to the pot and watch it cook",
-      "🪨 Follow Poppy underground, with eye beams and clearer Cavern rocks",
+      "🗺️ Explore route forks, richer gathering stops and quest-opened secret groves",
       "🏘️ Walk new neighbours home, then ask Bram to build and improve their places",
       "🔨 Softer hammer slams, with one stronger Fracture hit per enemy",
       "🌉 Help Bram, then build timber shortcuts from oak through Emberwood",
       "⛏️ Help Pip break a boulder, discover mixed ore and open tunnels home",
-      "🏹 Meet Rook, take scaled hunts and mount bronze, silver and gold trophies",
+      "🏹 Find Rook after the Emberwyrm and take scaled hunts for trophy rewards",
       "🐛 Fixes: Granny's reunion freeze and crowded village paths and plots",
     ],
   },

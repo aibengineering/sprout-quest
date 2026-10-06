@@ -168,7 +168,7 @@ export function drawGather(ctx: CanvasRenderingContext2D, vw: number, vh: number
   const how = mine ? 'when the pick lines up with the seam!' : 'in the green!';
   const hint = seen ? 'Walk away to stop' : usingKeyboard() ? `Press E or Space ${how}` : `Tap ${how}`;
   const icon = TOOLS.find((t) => t.skill === n.skill)!.icon;
-  chop.view.draw(ctx, chop.game, vw, vh, chop.obj.boulder ? `${icon} Boulder · streak ${chop.game.streak}/${chop.game.requiredStreak}` : `${icon} ${chop.obj.grass ? 'Wild ' : ''}${n.name}`, chop.obj.boulder ? 'Clean hits build the streak. A miss resets it.' : chop.noise !== undefined ? 'Clean hits are quiet. Misses are loud!' : hint);
+  chop.view.draw(ctx, chop.game, vw, vh, chop.obj.boulder ? `${icon} Boulder · streak ${chop.game.streak}/${chop.game.requiredStreak}` : `${icon} ${n.name}`, chop.obj.boulder ? 'Clean hits build the streak. A miss resets it.' : chop.noise !== undefined ? 'Clean hits are quiet. Misses are loud!' : hint);
   if (chop.noise !== undefined) drawNoise(ctx, vw, chop.noise);
 }
 

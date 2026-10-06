@@ -1,12 +1,24 @@
 // Enter an independent underground map through its visible mouth, and return to the same doorstep.
+import { zoneById } from '../data';
 import { ECHO_OUTSIDE } from '../echoCave';
 import { MOUTH } from '../procession';
 import { seamById, seamOpen, SEAMS, TUNNEL_HOME } from '../seams';
 import { syncStories } from './stories';
+import { CAVE_WEST_EDGE, CAVE_EAST_EDGE, CAVE_WEST_OUTSIDE, CAVE_EAST_OUTSIDE } from '../caveEntrance';
 import { G, busy, paused, persist, transition } from './context';
 
+export function enterMainCavern(side: 'west' | 'east' = 'west') {
+ if(busy()||G.mode!=='world'||G.over.room||G.over.underground)return;
+ if(!G.save.bosses.includes('alphawolf')){G.ui.toast('The Alpha Woolf guards this cave entrance. Challenge it at the gate.');return;}
+ G.audio.play('step');G.input.reset();transition(()=>{
+   if(side==='east')G.over.teleport(CAVE_EAST_EDGE-1.5,14.8);
+   else { const p=G.world.entryPoint('cave');G.over.teleport(p.x+1,p.y); }
+   G.over.face=side==='east'?Math.PI:0;persist();
+ },.85,'fade');
+}
+
 export function enterEchoCave() {
-  if (busy() || G.over.room || G.over.underground || G.mode !== 'world') return;
+  if (busy() || G.over.room || !G.over.fieldMap || G.mode !== 'world') return;
   G.audio.play('step');
   G.input.reset();
   transition(() => { G.over.enterCave(); persist(); });
@@ -21,14 +33,28 @@ export function leaveEchoCave() {
 
 export function undergroundTick() {
   if (busy() || G.mode !== 'world' || G.over.room) return;
-  if (G.over.underground) {
+  if (G.over.underground===G.over.cavern) {
+    const c=G.over.cavern, a=G.input.axis();
+    if(c.outAt(G.over.x,G.over.y)) {
+      if(G.over.x<c.x0+.8&&a.x<-.5) {G.input.reset();transition(()=>{G.over.teleport(CAVE_WEST_OUTSIDE.x,CAVE_WEST_OUTSIDE.y);G.over.face=Math.PI;persist();},.85,'fade');}
+      else if(G.over.x>c.x0+c.w-.8&&a.x>.5&&G.save.bosses.includes('echoqueen')) {G.input.reset();transition(()=>{G.over.teleport(CAVE_EAST_OUTSIDE.x,CAVE_EAST_OUTSIDE.y);G.over.face=0;persist();},.85,'fade');}
+    }
+    if(a.y<-.5 && Math.abs(G.over.x-MOUTH.x)<.5 && G.over.y>MOUTH.y-.2&&G.over.y<MOUTH.y+.6) enterEchoCave();
+  } else if (G.over.underground) {
     if (G.over.underground.outAt(G.over.x, G.over.y)) G.over.underground===G.over.echo ? leaveEchoCave() : leaveOreGallery();
-  } else if (G.over.currentZone.id === 'cave' && G.input.axis().y < -.5
+  } else if(G.over.currentZone.id==='woods'&&G.over.x>CAVE_WEST_EDGE-2&&G.input.axis().x>.5&&G.save.bosses.includes('alphawolf')) enterMainCavern();
+  else if(G.over.currentZone.id==='hollow'&&G.over.x<CAVE_EAST_EDGE+1.1&&G.input.axis().x<-.5) enterMainCavern('east');
+  else if (G.over.currentZone.id === 'cave' && G.input.axis().y < -.5
     && Math.abs(G.over.x - MOUTH.x) < .5 && G.over.y > MOUTH.y - .2 && G.over.y < MOUTH.y + .6) enterEchoCave();
 }
 
 export function restoreUnderground() {
   const saved = G.save.underground;
+  if(saved?.id==='cavern'&&!G.over.room) {
+    const c=G.over.cavern; c.sync();
+    const valid=Number.isFinite(saved.x)&&Number.isFinite(saved.y)&&saved.x>=c.x0&&saved.x<c.x0+c.w&&!c.blocked(saved.x,saved.y,.28);
+    const p=valid?saved:G.world.entryPoint('cave'); G.over.teleport(p.x,p.y);return;
+  }
   if (saved?.id === 'resource' && !G.over.room) {
     G.over.oreGallery.sync(G.save);
     const valid=Number.isFinite(saved.x)&&Number.isFinite(saved.y)&&!G.over.oreGallery.blocked(saved.x,saved.y,.28);
@@ -40,7 +66,7 @@ export function restoreUnderground() {
 }
 
 export function enterOreGallery(){
- if(busy()||G.over.room||G.over.underground||G.mode!=='world')return;
+ if(busy()||G.over.room||!G.over.fieldMap||G.mode!=='world')return;
  G.audio.play('step');G.input.reset();transition(()=>{G.over.enterOreGallery();syncStories();persist();});
 }
 export function leaveOreGallery(){

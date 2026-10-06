@@ -1,44 +1,75 @@
-# Routes and timber shortcuts
+# Authored routes and timber returns — 0.3.7
 
-This is the first route redesign, for the upcoming 0.3.7 release. Open [the interactive map comparison](map-review.html) to compare each region before and after, then switch its timber crossings on. Rebuild it with `bun scripts/map-review.ts`.
-
-## What the review found
-
-The routes were already hand-authored and had useful encounter grass, resource pockets and guardian gates. Their repeated shape made them feel improvised: a narrow winding road with small pockets beside it, rather than places with recognisable destinations and connections. Only Bram's old bridge changed a return journey. Higher-tier timber had no equivalent role in exploration.
-
-Extra size helps when it makes room for a distinct destination and a route back. This pass adds three exploration loops, then places timber crossings where the player can see both banks and understand the connection they would build. Early regions retain their size. The later three grow southward, keeping existing entrances, resources and story anchors in place.
+The live maps now implement the route proposal. Each exploration region has a recognisable destination, longer dry routes, shorter risky cuts, gathering spurs and permanent return connections. Sunny Meadow is a clearing off **East Road**, rather than the whole region. The interactive proposal is hosted separately on port 3002; it is a schematic, not a pixel-perfect map editor.
 
 ## Region layouts
 
-| Region | Layout and purpose | Size |
+| Region | Destinations and choices | Tiles |
 | --- | --- | --- |
-| Sunny Meadow | Willow Pond is the main landmark. The northern shore leads toward the eastern orchard; the southern grass still branches toward Poppy's Secret Grove. An oak crossing connects the pond's banks. | 40 × 26, unchanged |
-| Whisper Woods | Keep the first climbing trail and old logging camp. The original oak bridge provides a strong return connection; a pine walk reconnects the two sides of Stillwater. | 40 × 26, unchanged |
-| Echo Cavern | Add the flooded Old Quarry below the galleries. Iron workings lie to the west, the gallery return to the east, and a southern rim connects them before the boardwalk is built. Pebbler Hollow remains a separate underground instance. | 40 × 34, +31% |
-| Glimmer Hollow | Mirror Gorge separates the camp-side approach from the crystal paths. Rootlight Garden is a southern destination for Glimmerwood and crystal; a Glimmerwood span provides a direct camp return. | 40 × 34, +31% |
-| Ember Peak | Retain the ascent around the main lava lake and the lair ridge. Add Cinder Basin with a western Emberwood grove, eastern obsidian workings and a southern rim connecting them. Emberwood spans the main lake. | 44 × 36, +38% |
+| Quiet Glade | Authored tutorial fights, awakening statue and optional lookout. One exit toward Sowerby. | 16 × 26 |
+| Sowerby | Bram’s mill and cabin share the northwestern work yard; Forge nearby. Kitchen, Moss and garden form a cooking neighbourhood; your home and Rook face a quieter southern lane. Pip stays by the northern tunnel. The central green has no public dojo. | 31 × 26 |
+| East Road | One orchard fork: dry northern cart trail or shorter southern Bunny Cut, then ridge or Slime Bend around Willow Pond. Broad, irregular grass patches and spacious gathering clearings replace narrow strips. Moss’s stop is a ridge spur; Sunny Meadow opens south, leading to Poppy’s narrow Secret Grove and a gathering pocket at its end. | 40 × 40 |
+| Whisper Woods | Longer southern logging trail or short central Woolf passage. Bram’s old camp branches north; Stillwater, copper and an old burrow give gathering trips distinct destinations. | 40 × 40 |
+| Echo Cavern | A separate, bounded underground map entered from the Woods gate. Upper galleries, short bat passage and longer flooded-quarry circuit. Pebbler Hollow and Pip’s ore gallery are further independent branches. | 40 × 46 |
+| Glimmer Hollow | Dry northern crystal ridge or shorter southern root passage around Mirror Gorge. Rootlight gathering spur; the fox’s hidden trail, shard trial and shared den branch north. | 40 × 42 |
+| Ember Peak | Western switchbacks or a shorter central ascent with brief ash-grass crossings. Cinder Basin is a resource side trip. Rook shelters under the western ledge after the Emberwyrm. | 44 × 46 |
 
-Entrance signs describe landmarks and choices. New signs identify the Quarry, Garden and Basin. Broken landing boards and stakes mark both ends of planned crossings in the world, so the build menu has a visible physical location.
+Dry lanes reach the next gate without entering encounter terrain. Grass beside those lanes is optional. Only brief sections fill the width of the quicker passages; walls and trees make these actual decisions rather than patches one can trivially sidestep. Cave encounter terrain is shale and pale mineral chips. Monsters remain visible and can chase onto a road: “safer” means avoiding their patches, not invulnerability.
 
-## Bram's construction progression
+The larger layouts make space for destinations and return loops. Resources are placed explicitly in gathering stops, with a few trail-side finds; no quota-filling scan remains. Signs explain local choices and landmarks. Soft ground patches, connected path edges, floor shadows and sparse native decoration replace the strong tile checkerboard. Echo’s main galleries are brighter; Pebbler Hollow retains its darker stealth atmosphere and geometry-clipped eye beams.
 
-Helping Bram return to Sowerby unlocks timber crossing plans. Ask him about **Shortcuts** from his house plans for guidance, then bring the right planks to a construction stake. Houses and workshop upgrades keep their separate progression. Crossings require the appropriate sawmill blade and the guardian that opens their region.
+Echo Cavern is hidden from outdoor cameras on both sides. Whisper Woods ends in a rocky, tree-lined cave mouth; stone and scree lead into its cliff face. Entering or leaving fades the entire screen, including the HUD, to black before switching maps. Return travel uses the eastern mouth in Glimmer Hollow. Cave monsters stay underground, and the Alpha Woolf still guards the forest entrance.
 
-| Crossing | Cost | Sawmill level | Walking distance between banks, before → after |
+## Gathering pass — 2026-10-05
+
+A node's terrain no longer changes its payout, skill XP, rare-find chance or regrowth. Wood and ordinary ore give
+four materials, crystal and obsidian give three, and every kind regrows in 120 seconds. Flawless gathering still
+adds one handful. These are playtest starting values; the reward for finding a rich place is its useful concentration
+of nodes and its access, rather than a hidden grass multiplier.
+
+- **East Road:** Poppy's grove has six oaks and four rocks. The rescue begins at its narrow trail entrance, with
+  Poppy trapped between a fallen log and the slimes. The bunny thief clears that same log and flees along the trail;
+  Big Bun guards the glade until defeated. Escorting Poppy no longer leaves the rich grove open.
+  Completed older saves retain access, and a player saved inside the closed grove can squeeze back out.
+- **Woods:** four pines at Bram's camp, four in the southern pine grove, and three copper veins at the Stillwater
+  workings. A few small trail stops connect these destinations. The southern circuit has a useful gathering purpose.
+- **Cavern:** three iron veins in the upper working, separate eastern and western ledges, and three deposits on the
+  lower quarry loop. Pip's quest still opens his six-node mixed-ore gallery and its tunnel home.
+- **Hollow:** four Glimmerwood trees in Rootlight, a five-node northern crystal chamber, and smaller gorge-side stops.
+- **Peak:** four Emberwood trees and three obsidian seams in Cinder Basin; distinct mineral shelves along the ascent.
+
+Four ordinary timber harvests give 16 logs, or 32 planks: a southern-pine, Rootlight or Cinder trip can supply the
+wood for its region's 32-plank crossing before flawless bonuses. The three-node upper iron working gives 12 iron.
+This ties a destination to a useful project without making roadside trees artificially worse.
+
+Iteration checks included full-map captures, moving wall-adjacent nodes inward, keeping water and chasms intact
+when widening clearings, restoring the Peak's route choice after a clearing joined its entrance, and checking real
+player clearance around every authored resource. Remaining tuning should focus on actual trip time and whether
+the two-minute regrowth encourages leaving to do something else between harvests.
+
+## Timber crossings
+
+Helping Bram unlocks crossing plans. Bring planks to the visible construction stakes. Crossings require the appropriate blade and regional guardian; housing and workshop upgrades keep their independent progression.
+
+| Crossing | Cost | Mill | Walking distance before → after |
 | --- | --- | --- | --- |
-| Willow Pond Crossing | 24 Oak Planks | 1 | 20 → 8 tiles |
-| Bram's Bridge | 64 Oak Planks | 1 | 43 → 3 tiles |
-| Stillwater Walk | 32 Pine Planks | 2 | 25 → 7 tiles |
-| Old Quarry Boardwalk | 32 Pine Planks | 2 | 19 → 7 tiles |
-| Mirror Gorge Span | 32 Glimmerwood Planks | 3 | 24 → 6 tiles |
-| Cinder Span | 32 Emberwood Planks | 4 | 26 → 10 tiles |
+| Willow Pond Crossing | 24 oak planks | 1 | 20 → 6 |
+| Bram’s Bridge | 64 oak planks | 1 | 27 → 5 |
+| Stillwater Walk | 32 pine planks | 2 | 29 → 9 |
+| Old Quarry Boardwalk | 32 pine planks | 2 | 38 → 16 |
+| Mirror Gorge Span | 32 Glimmerwood planks | 3 | 24 → 6 |
+| Cinder Span | 32 Emberwood planks | 4 | 38 → 8 |
 
-These are shortest tile paths between the two banks, with actual scenery collisions and the player's feet included. Each crossing removes at least twelve tiles and half the local detour. They reward learning a route and producing its timber; they are optional, so no resource or main road depends on building one first. Guardian gates remain unavoidable even when every crossing is built.
+Distances use shortest tile paths with scenery collisions and player clearance. Every crossing removes at least twelve tiles and half the local detour. Both banks are accessible before construction; the main route never requires payment. Building every bridge still cannot bypass a closed guardian boundary. Payment and completion persist before animation, including Bram’s original `bridge:woods` flag.
 
-Construction spends and saves once before boards settle into place on the map. Reloading during assembly restores the complete crossing. Reduced motion finishes it immediately. Oak, pine, Glimmerwood and Emberwood use different deck colours; board direction and outer rails follow each crossing's footprint. Existing saves retain Bram's original `bridge:woods` flag and their resource regrowth identities.
+Pip’s ten-hit discovery and later ten/eleven-hit boulders open additional tunnels from resource areas to Sowerby. Only discovered passages can be revisited from his village mouth.
 
-## Playtest questions and next pass
+## Characters and save compatibility
 
-This is ready for a focused route playtest. Walk each region once before building, gather in its new pocket, build the crossing, and repeat the return journey. Check whether the landmarks are recognisable on a phone, the bank stakes are easy to find, and the timber investment feels worthwhile. Automated reachability and distance checks establish that the routes work; they cannot establish that a repeated gathering trip feels good.
+Poppy’s rescue and the bunny chase share one enclosed, winding forest trail off Sunny Meadow. The slimes block its only exit, with Poppy just behind them; the chase then takes you deeper down that same trail into a glade containing six harvestable oaks and four rocks. The expanded meadow cannot spill across the trail’s tree walls. Bram retains his camp rescue and village construction role. Pip stays in the quarry branch. The masked fox remains a private friendship in Glimmer Hollow, including after Rook settles; Bram builds equipment at her den, and she teaches all six existing combat lessons. Rook’s new introduction requires the dragon, while existing Rook residents and hunts remain valid.
 
-Before expanding the whole world again, use that feedback to adjust encounter pacing and plank costs. Later passes can add more distinct arrival views, terrain transitions and quest destinations within these loops. New settlements should follow an actual story or travel need. Increasing the size of every map now would add walking before those destinations have a purpose.
+Logical zone coordinates, resource identities, purchased bridges, lesson clears and building levels are retained. Saves standing in newly solid terrain move to nearby walkable ground in the same region. Main-cavern positions and both branch instances survive reloads. The cavern has its own terrain bounds and camera; shared object identities keep resource regrowth and quest visibility consistent with the save.
+
+## Playtest focus
+
+Walk each fork before building, gather in its side pocket, construct the return crossing and repeat the journey. Check whether the longer safe routes justify their extra walking, grass cuts are readable on a phone, landmarks orient you, and the plank investment is worthwhile. Reachability and browser checks establish functioning routes; pacing, costs and atmosphere still need player feedback.

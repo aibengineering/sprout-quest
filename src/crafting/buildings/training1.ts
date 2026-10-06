@@ -5,7 +5,7 @@ export default {
   "duration": 2720,
   "scene": "building",
   "model": "assets/crafting3d/training1.glb",
-  "eyebrow": "SOWERBY · BUILT BY BRAM",
+  "eyebrow": "GLIMMER HOLLOW · BUILT BY BRAM",
   "layers": [
     {
       "id": "oak-post"
@@ -65,6 +65,6 @@ export default {
   ],
   "sceneLabel": "Oak Planks make the dummy’s post, arms and base. Bunny Fluff is stuffed into its body and head.",
   "pattern": "something to swing at",
-  "intro": "Bram builds the dojo. Alder prepares the next lessons.",
-  "finished": "Alder’s dojo is ready for practice."
+  "intro": "Bram builds the hidden clearing. The masked fox prepares the next lessons.",
+  "finished": "The masked fox’s hidden clearing is ready for practice."
 } satisfies CraftPresentation;

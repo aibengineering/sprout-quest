@@ -3,13 +3,45 @@
 What the game's numbers are aiming for, what they assume about how people play, and how to re-tune them when that
 changes. The numbers themselves live in code, so this page explains the targets rather than repeating every figure:
 
-- `src/balance.ts` holds the balance model: checkpoints, the expected playthrough, weapon and material measures.
-- `bun run balance` prints all of it. Treat that output as the current snapshot.
-- `tests/balance.test.ts` enforces the targets. If a change breaks one, the test name says which intent it broke.
+- `src/balance.ts` owns the targets, checkpoints, expected playthrough and economy estimates. Its combat formulas
+  assume ideal hits and omit parts of real combat.
+- `bun run balance` generates `sim/out/balance/index.html`, `data.json` and `fights.csv` together. It measures the real
+  `Battle.update` loop for every weapon at every checkpoint, all native enemy levels in the area's range, groups,
+  golden enemies and every boss. Normal-only, frequent-special and timed-special policies use the same seeds and
+  loadouts. The HTML also contains the existing economy/progression estimates, so there is one place to inspect it.
+- `tests/balance.test.ts` enforces the formula targets; `tests/balance-runtime.test.ts` enforces actual behavior
+  contracts and measurement integrity. Passing either does not by itself certify that the game is balanced.
 - The in-game play report (More → Play report) is the real-play check on the model. When they disagree, the report
   wins, and the model's assumptions get fixed, not just its numbers.
 - The playthrough simulator ([sim/](../sim/README.md)) plays the story with the model and lines its runs up against a
-  real report (`bun run sim:compare -- <report.json>`). That tells a wrong model apart from wrong targets.
+  real report (`bun run sim:compare -- <report.json>`). This helps investigate pacing assumptions; agreement alone
+  does not validate combat mechanics or design targets.
+
+## Reading the integrated report
+
+The Fights view shows victory-time distributions, win rate, effective DPS excluding overkill and boss helper cleanup, damage taken,
+life steal, regeneration, potion use and the time difference from normal attacks. Victory times describe wins;
+losses and 120-second timeouts stay visible in win rate. The scripted controller can favor one weapon: use the
+stationary Attack measurements to separate hit/damage mechanics from navigation and dodging behavior.
+
+Attack measurements cover every weapon at handling 1–10, against a small target, an armored Pebblor and a large
+Slime King, at four distances. Targets cannot die or retaliate; native poison/burn and projectiles still run. Direct
+damage, total damage over three seconds and damage to a nearby second target are separate columns. This is one
+attack, not a full sword combo or a DPS estimate.
+
+Every stage uses the same character level, armor, charm, home and training for all weapons. Handling assumptions
+are explicit in Method & loadouts. Future-tier, handling-locked and dragon-rematch gear remain in the data for
+comparison, but the default view excludes them; equipment that needs dragon scales cannot be first-dragon gear.
+No combat fixture touches the player's saved game.
+
+The source hash and generation time identify the combat snapshot. Re-run after edits; the report generator rejects
+a run if combat sources changed during measurement. `--seeds 20` gives a larger sample; `--fps 20` checks slower
+frame rates. CI generates a three-seed report and uploads it as `balance-report`.
+
+Behavior defects fail `bun run balance:check` and the regular unit suite. Damage/timing review flags remain visible
+without inventing new tuning targets to make them green. In particular, the old “Rank I is about 1.2×” special
+target compares raw multipliers between classes; a normal hammer slam is 2.5×. Specials need comparison with each
+class's own normal attack and its timing/area/control benefits before that target can validate their usefulness.
 
 ## The intent
 
@@ -19,9 +51,9 @@ These were decided with the game's designer while tuning 0.3.x. Keep them, or ch
 - A regular monster at your level takes 4–8 swings with Blades, 2–4 slams or cracks with a Hammer or Whip, or 3–6
   bolts with Magic, and it's over within about 5 seconds (`CLASS_STRIKES` in `src/balance.ts`). Nothing at your level
   falls to one blow.
-- It's measured by `killModel`, which plays out each strike with the class's real rhythm, strike multipliers, crits,
-  the level gap and Sunder. The old measure counted swings at 1× damage, which hid one-shot whip cracks and hammer
-  slams. Test: *a fair fight is a real exchange with every class*, at every checkpoint.
+- `killModel` estimates this using strike rhythm, multipliers, average crits and the level gap. It excludes Sunder,
+  other class abilities, specials, movement and weapon effects. Test: *a fair fight is a real exchange with every
+  class* checks that formula target; the integrated report measures whether native combat supports it.
 - Monsters you've outgrown still fall fast. That's the reward for levelling, and XP falls off to match.
 
 **Gear is an investment.** Armor costs about twice a weapon of its tier, built from the materials with the most room
@@ -61,8 +93,9 @@ in the farming budget. Weapons stay cheaper, so switching class stays easy.
 **Weapon classes play differently.**
 - Blades are the only combo class. Hammer, Whip and Magic strike once and rest, and weave in their special.
 - Handling speeds every class up about 2× from Lv 1 to Mastery (`pace` in `src/weapons.ts`).
-- Specials start small (Rank I ≈ 1.2× one hit) and end huge (Mastery ≈ 3.1×). At each rank every class hits one
-  target about the same, and no close-range special pulls ahead in a crowd.
+- The original special target uses roughly 1.2× the base damage at Rank I and 3.1× at Mastery, with similar raw
+  multipliers between classes. This is not a multiple of each class's normal attack: a normal hammer slam is 2.5×.
+  Actual hit count, timing, enemy defense and crowd effects must be checked in the integrated report.
 - Each class's damage stays within its band against its tier's gatherer weapons.
 
 ## What it assumes about how people play

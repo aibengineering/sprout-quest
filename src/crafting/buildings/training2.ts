@@ -5,7 +5,7 @@ export default {
   "duration": 3360,
   "scene": "building",
   "model": "assets/crafting3d/training2.glb",
-  "eyebrow": "SOWERBY · BUILT BY BRAM",
+  "eyebrow": "GLIMMER HOLLOW · BUILT BY BRAM",
   "layers": [
     {
       "id": "base"
@@ -85,6 +85,6 @@ export default {
   ],
   "sceneLabel": "Wolf Fangs stud a sparring post. Copper Ore becomes practice blades and their rack. Royal Jelly makes the golden bullseye of a target.",
   "pattern": "train every day",
-  "intro": "Bram builds the dojo. Alder prepares the next lessons.",
-  "finished": "Alder’s dojo is ready for practice."
+  "intro": "Bram builds the hidden clearing. The masked fox prepares the next lessons.",
+  "finished": "The masked fox’s hidden clearing is ready for practice."
 } satisfies CraftPresentation;

@@ -177,7 +177,7 @@ export function allIconIds(): string[] {
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
     ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
-    ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_rook', 'npc_moss', 'npc_alder', ...KITCHEN_PLANS.map((p)=>`b_${p.art}`),
+    ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_rook', 'npc_moss', 'npc_fox', ...KITCHEN_PLANS.map((p)=>`b_${p.art}`),
     // Story portraits and keepsakes.
     'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots', 'echoanklet',
     'npc_bram', 'npc_bram_happy', 'npc_bram_hurt', 'pie', 'npc_pip', 'npc_pip_wow', ...Object.keys(MEALS).map((m) => `meal_${m}`),
@@ -1145,6 +1145,7 @@ export class UI {
     }).join('');
     const PERKS: Record<string, [string, string, string, string]> = {
       trailboots: ['trailboots', 'Trail Boots', 'From Granny Clover: walk 25% faster outside of fights.', '👢'],
+      shadowscarf: ['glimmershawl', 'Shadow Scarf', 'A gift from the masked fox: farther, faster dodges and a dash along paths.', '🧣'],
       echoanklet: ['echoanklet', 'Echo Anklet', 'From the Pebblors: in a fight, dodge twice in a row.', '🪘'],
     };
     const perks = s.perks.filter((p) => PERKS[p]).map((p) => {
@@ -1264,7 +1265,7 @@ export class UI {
         <button class="go wide bp-go" data-build="${id}" ${ok && here ? '' : 'disabled'}>${label}</button></div>`;
     }).join('');
     const neighbours = HOME_ORDER.map((id) => `${HOMES[id].icon} ${HOMES[id].name}: ${homeLevel(s, id) ? HOMES[id].plans[homeLevel(s, id) - 1].name : 'a home to build'}`).join('<br>');
-    return `<div class="board">${note}<div class="note">🧔 Bram has the next building job for Poppy, Clover, Alder and our neighbours. Bring its materials to him outside the Sawmill.<br>${neighbours}</div><div class="blueprints">${cards}</div></div>`;
+    return `<div class="board">${note}<div class="note">🧔 Bram has the next building job for Poppy, Clover and our neighbours. Bring its materials to him outside the Sawmill.<br>${neighbours}</div><div class="blueprints">${cards}</div></div>`;
   }
 
   /** Dev builds add their own row to the More tab (save slots and presets; see src/dev/devtools.ts). */

@@ -102,7 +102,9 @@ bun run build          # static site in dist/: host anywhere (GitHub Pages, Netl
 bun run build --dev    # the same, with the dev tools (save slots and presets, see below) for a test server
 bun run test           # rules, balance, story, routes and map tests (isolated mocks)
 bun run typecheck
-bun run balance        # prints the balance model: fights, pacing, the material economy, every weapon
+bun run balance        # one HTML/JSON/CSV report: real combat for every weapon/stage, plus pacing and economy estimates
+bun run balance:check  # fail if the native combat behavior contracts are broken
+bun run balance:estimate # the older ideal-hit/pacing/economy table, for comparison
 bun run sim            # a simulated playthrough (test tooling, see sim/README.md)
 bun run sim:compare -- <report.json>   # a real play report against the simulated playthroughs
 bun run e2e            # plays the real game in headless Chromium (add --shots for screenshots in tests/e2e/out/)
@@ -195,9 +197,9 @@ one, and in the Journal.
 ## Areas
 
 Each area past the village is a hand-drawn route (`src/routes.ts`), Pokémon style: a path that winds through the
-area, tall-grass crossings you can't avoid, optional grassy pockets off the path (where the best nodes grow),
-ponds or lava, and signs. Tests check every route can be walked end to end, can't be done without wading through
-grass, and that every tree, rock, sign and campfire can be reached. Each area is one material tier.
+area, shorter grassy crossings and longer dry detours, deliberate gathering stops, ponds or lava, and signs.
+Resources follow named groves and workings; Poppy’s grove and Pip’s gallery are discoveries opened through their
+quests. Tests check route choices, shortcut value, gathering clearance and quest gates. Each area has its own material tier.
 
 | Area | Lv | Monsters | Materials |
 | --- | --- | --- | --- |
@@ -262,8 +264,9 @@ you hit), and a weapon at every tier from ★ to ★★★★★:
   its stump and lands in a shower of leaves, or the rock splits along its cracks and tumbles apart, and the materials
   you earned pop out and fly to your bag. Clean hits build a streak that speeds things up; a flawless job gives one
   extra.
-  Nodes by the path are safe but slow to come back; ones out in the tall grass give more and can hold a rare find, but
-  monsters roam there. Skill levels widen the sweet spot and unlock the better tools.
+  The same resource gives the same materials, skill XP and rare finds on any terrain, and regrows in two minutes.
+  Rich gathering destinations offer more nodes together; monsters affect the journey, not the contents of a tree.
+  Skill levels widen the sweet spot and unlock the better tools.
 - **The Forge**: 20 weapons, 10 armors (each changes how your hero looks), 4 charms and 3 potions. Gear you haven't
   reached the level for (Forge, gathering skill or weapon handling) stays a mystery: a silhouette, its class and tier,
   and the level that reveals it. The 🗺️ Map lets you warp home from anywhere and hop to discovered areas.

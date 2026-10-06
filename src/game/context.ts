@@ -47,8 +47,8 @@ class GameState {
   xpRate = 1;
   /** Runs once when the menu next closes (the Battle Tower's camp comes back after its Forge and Bag). */
   afterMenu: (() => void) | null = null;
-  /** Iris transition: closes to black, runs `mid`, then opens. */
-  trans: { t: number; dur: number; mid: () => void; fired: boolean } | null = null;
+  /** Closes the screen, switches maps at the midpoint, then opens it again. */
+  trans: { t: number; dur: number; mid: () => void; fired: boolean; style: 'iris' | 'fade' } | null = null;
   /** The overworld half of the zoom into and out of regular fights. */
   swoop: { t: number; dur: number; dir: 'in' | 'out'; then?: () => void } | null = null;
 
@@ -64,8 +64,8 @@ export const G = new GameState();
 /** Is a screen transition (iris or swoop) running? The world holds still meanwhile. */
 export const busy = () => !!G.trans || !!G.swoop;
 
-export function transition(mid: () => void, dur = 0.7) {
-  G.trans = { t: 0, dur, mid, fired: false };
+export function transition(mid: () => void, dur = 0.7, style: 'iris' | 'fade' = 'iris') {
+  G.trans = { t: 0, dur, mid, fired: false, style };
 }
 
 /**
@@ -87,7 +87,7 @@ export function persist() {
   G.save.pos = G.over.savedPos;
   if (G.over.room) G.save.room = G.over.room.id;
   else delete G.save.room;
-  if (G.over.underground) G.save.underground = { id: G.over.underground === G.over.echo ? 'echo' : 'resource', x: G.over.x, y: G.over.y };
+  if (G.over.underground) G.save.underground = { id: G.over.underground === G.over.echo ? 'echo' : G.over.underground === G.over.cavern ? 'cavern' : 'resource', x: G.over.x, y: G.over.y };
   else delete G.save.underground;
   saveState(G.save);
 }
@@ -129,8 +129,10 @@ export function syncWorld() {
   const s = G.save;
   G.world.setShortcuts(s);
   G.over.oreGallery.sync(s);
+  G.over.cavern.sync();
   for (const o of [...G.world.objs, ...G.over.echo.objs]) {
     const z = o.zone ? zoneById(o.zone) : null;
+    if(o.id==='cavern:entry'||o.id==='cavern:east')o.label=s.bosses.includes('alphawolf')?'Enter Echo Cavern':'';
     if (o.kind === 'gate' && z?.guardian) o.hidden = s.bosses.includes(z.guardian.kind);
     // A campfire is there once its road is open, cold until you light it.
     if (o.kind === 'camp') {
@@ -144,7 +146,7 @@ export function syncWorld() {
       if (o.project === 'cottage') o.label = s.build.cottage ? 'Visit' : 'Ask Bram';
       if (o.project === 'garden') o.label = gardenOpen(s) ? 'Garden' : 'Ask Bram';
     }
-    if (o.project === 'training') o.label = s.build.training ? 'Train with Alder' : 'Ask Bram';
+    if (o.project === 'training') o.label = s.build.training ? 'Train with the fox' : 'Ask Bram';
     if (o.kind === 'residence') {
       o.hidden = !s.flags.includes('bram:hut') && !homeLevel(s, o.home!);
       o.label = homeLevel(s, o.home!) ? 'Visit' : 'Ask Bram';

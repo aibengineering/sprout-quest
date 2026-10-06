@@ -1,14 +1,15 @@
 // Wayfinding describes actual places and choices, rather than repeating a region's level recommendation.
 import type { ZoneId } from './data';
 export const ROUTE_GUIDES: Partial<Record<ZoneId, string>> = {
-  meadow: 'Willow Pond: follow the north shore to the eastern orchard. The southern grass leads to Poppy’s Secret Grove. A broken crossing by the west bank needs Bram’s oak planks.',
-  woods: 'Whisper Woods: south to the climbing trail; north to Bram’s old logging camp. Stillwater divides the western climb from the eastern trail. Oak repairs the camp bridge; pine spans the lake.',
-  cave: 'Echo Cavern: upper galleries to Pebbler Hollow and the eastern road. The flooded Old Quarry lies below, with iron workings around its southern rim. A pine boardwalk reconnects its banks.',
-  hollow: 'Glimmer Hollow: follow the northern moss beds toward the crystal paths. South lies Rootlight Garden. Mirror Gorge separates those paths from this campfire; Glimmerwood makes a direct return.',
-  peak: 'Ember Peak: climb north round the lava lake to the lair ridge, or explore the southern Cinder Basin for Emberwood and obsidian. Only heat-hardened Emberwood can bridge the lake.',
+ meadow: 'East Road · At the orchard fork, the cart trail circles north; Bunny Cut takes the shorter way through the broad grass to the south. Beyond it, take the dry ridge or grassy Slime Bend around Willow Pond. The stakes on its opposite banks mark a future oak crossing. Sunny Meadow opens off the southern grass; explore its clearing to reach Poppy’s Secret Grove.',
+ woods: 'Whisper Woods · The central cut is quick but crosses Woolf grass. The longer southern logging trail stays dry. Bram’s old camp is above the first fork; oak restores its creek crossing. Pine opens the Stillwater return.',
+ cave: 'Echo Cavern · The lit trail forks into a short dark passage and a longer lower quarry loop. Upper galleries lead to Pebbler Hollow; Pip’s tunnel opens off the southwest descent. Pine spans the flooded quarry.',
+ hollow: 'Glimmer Hollow · The northern ridge stays clear of encounter moss. The shorter southern loop crosses a little of it. Rootlight is a gathering spur, and glimmer dust leads off the upper ridge. Glimmerwood spans Mirror Gorge.',
+ peak: 'Ember Peak · Descend to the foot of the mountain. The western switchbacks are longer and quieter; the central ascent is shorter with two small ash-grass crossings. Cinder Basin lies off the lower trail. Emberwood spans the lava.',
 };
 export const LANDMARK_SIGNS = [
-  { zone: 'cave' as const, x: 15.2, y: 24.2, text: 'Old Quarry · West bank: iron workings. East bank: return to the galleries. Follow the southern rim, or build the pine boardwalk across the flooded cut.' },
-  { zone: 'hollow' as const, x: 14.2, y: 29.2, text: 'Rootlight Garden · Glimmerwood grows beside the crystal beds. Back north to the main trail; the Mirror Gorge span leads straight to the campfire.' },
-  { zone: 'peak' as const, x: 10.2, y: 24.2, text: 'Cinder Basin · Emberwood grove to the west, obsidian workings on the east bank. The southern rim joins both banks and returns to the lair-side trail.' },
+ {zone:'meadow' as const,x:29.2,y:20.8,text:'Willow Pond · The two banks mark an unfinished crossing. Help Bram, then bring 24 oak planks to the western stakes. Until then, follow the northern ridge or the southern grass around the pond.'},
+ {zone:'cave' as const,x:10.2,y:29.2,text:'Old Quarry · Pip’s tunnel to the west. Pine boardwalk to the east. The lower loop stays clear of the dark upper passage.'},
+ {zone:'hollow' as const,x:10.2,y:35.2,text:'Rootlight Garden · Glimmerwood, crystal and an old burrow. Return by the ridge, or restore Mirror Gorge’s span.'},
+ {zone:'peak' as const,x:28.2,y:38.2,text:'Cinder Basin · Emberwood and obsidian. The boulder at the far end hides an old route home.'},
 ];

@@ -5,7 +5,7 @@ export default {
   "duration": 3360,
   "scene": "building",
   "model": "assets/crafting3d/training3.glb",
-  "eyebrow": "SOWERBY · BUILT BY BRAM",
+  "eyebrow": "GLIMMER HOLLOW · BUILT BY BRAM",
   "layers": [
     {
       "id": "base"
@@ -26,7 +26,7 @@ export default {
   "roles": {
     "iron": "A gong and iron post caps",
     "horn": "Horns crowning the gate",
-    "glimplank": "The deck and the Dojo gate",
+    "glimplank": "The deck and the practice gate",
     "flower": "Flowers from Poppy’s garden by the doorway"
   },
   "targets": [
@@ -82,12 +82,12 @@ export default {
     {
       "at": 2360,
       "stage": "reveal",
-      "text": "The Dojo. Bow as you enter.",
+      "text": "A quiet clearing for the harder lessons.",
       "sound": "ding"
     }
   ],
-  "sceneLabel": "Glimmerwood Planks make the deck and the Dojo gate. Iron Ore becomes a gong and caps on the posts. Imp Horns crown the gate.",
+  "sceneLabel": "Glimmerwood Planks make the deck and the practice gate. Iron Ore becomes a gong and caps on the posts. Imp Horns crown the gate.",
   "pattern": "the way of the blade",
-  "intro": "Bram builds the dojo. Alder prepares the next lessons.",
-  "finished": "Alder’s dojo is ready for practice."
+  "intro": "Bram builds the hidden clearing. The masked fox prepares the next lessons.",
+  "finished": "The masked fox’s hidden clearing is ready for practice."
 } satisfies CraftPresentation;

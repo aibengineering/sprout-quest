@@ -18,8 +18,8 @@ describe('meeting neighbours before building',()=>{
       if(id==='pip'){s.homes.pip=0;s.build.cottage=0;}
       if(id==='rook')s.homes.rook=0;
       s.flags.push(`${id}:journey:met`);
-      expect(neighbourReturned(s,id)).toBe(false);expect(jobLock(s,j)).toContain('bring');
-      s.flags.push(`${id}:returned`);expect(neighbourReturned(s,id)).toBe(true);expect(jobLock(s,j)).toBeNull();
+      expect(neighbourReturned(s,id)).toBe(false);expect(jobLock(s,j)).toContain(id==='alder'?'trust':'bring');
+      s.flags.push(id==='alder'?'fox:trusted':`${id}:returned`);expect(neighbourReturned(s,id)).toBe(true);expect(jobLock(s,j)).toBeNull();
     }
     const old=ready();old.homes.pip=2;old.homes.rook=1;old.build.training=3;
     expect(neighbourReturned(old,'pip')).toBe(true);expect(neighbourAvailable(old,'pip')).toBe(false);

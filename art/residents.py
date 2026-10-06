@@ -83,3 +83,39 @@ def build_rook():
     for z in (.09,.14,.19): torus((0,0,z),.095,.018,toon('#e5d5b6'),P['foot1'],seg=12)
     sphere((.10,-.32,.1),(.09,.018,.025),toon('#6a4434'),head,line=.004)
     return P
+
+
+def build_fox():
+    """A masked spirit: long ears, fox muzzle and a real tail, on shared walker pivots."""
+    P = {}
+    root = P['root'] = empty('fox')
+    body = P['body'] = empty('bodyPivot', root)
+    fur, cream, cloth = toon('#b85f45'), toon('#f8debd'), toon('#47465e')
+    for side in (-1, 1):
+        foot = P[f'foot{side}'] = empty(f'foot{side}', root, (.13*side, 0, 0))
+        sphere((0,-.04,.065),(.105,.15,.065),cloth,foot)
+    sphere((0,0,.43),(.27,.21,.32),cloth,body)
+    box((0,-.20,.38),(.26,.05,.35),toon('#686279'),body,bevel=.06)
+    for side in (-1,1):
+        arm=P[f'arm{side}']=empty(f'arm{side}',body,(.26*side,0,.55))
+        sphere((.025*side,0,-.1),(.085,.09,.15),cloth,arm)
+        sphere((.025*side,-.03,-.24),.075,fur,arm)
+    # Tail reaches behind, with a cream tip, so the silhouette reads as a fox from every side.
+    sphere((.20,.27,.38),(.16,.18,.30),fur,body,rot=(0,.65,0))
+    sphere((.35,.29,.62),(.13,.16,.17),cream,body,rot=(0,.65,0))
+    head=P['head']=empty('head',body,(0,0,.96))
+    sphere((0,0,0),(.30,.25,.27),fur,head)
+    for side in (-1,1):
+        cylinder((.21*side,0,.30),.14,.34,fur,head,seg=3,rot=(0,.18*side,0))
+        cylinder((.21*side,-.04,.30),.08,.24,toon('#eab391'),head,seg=3,rot=(0,.18*side,0),line=.006)
+    sphere((0,-.22,-.08),(.21,.20,.12),cream,head)
+    sphere((0,-.39,-.07),(.045,.025,.03),toon('#342d38'),head,line=.006)
+    # Ivory eye mask, fitted rather than a human face; dark glimmer eyes remain visible.
+    for side in (-1,1):
+        sphere((.11*side,-.24,.035),(.145,.045,.105),cream,head,rot=(0,0,-.22*side))
+        sphere((.11*side,-.285,.03),(.052,.02,.036),toon('#302b46'),head,line=.003)
+        sphere((.11*side,-.308,.035),(.014,.008,.02),toon('#b5e9da'),head,line=0)
+        box((.19*side,-.278,.07),(.035,.015,.09),toon('#ab6055'),head,rot=(0,.3*side,0),line=0)
+    torus((0,0,.71),.25,.048,toon('#8983ae'),body,seg=20)
+    box((-.15,.13,.61),(.13,.035,.32),toon('#aaa1d0'),body,bevel=.04,rot=(0,-.25,0))
+    return P

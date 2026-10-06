@@ -214,13 +214,13 @@ const GEAR_LIST: Gear[] = [
   // Armor
   { id: 'tunic', name: 'Cozy Tunic', slot: 'armor', icon: '👕', def: 1, color: '#6fa8ff', desc: 'Smells like home.' },
   { id: 'fluffvest', name: 'Fluffy Vest', slot: 'armor', icon: '🧥', tier: 1, def: 3, hp: 6, color: '#fff1e6', desc: 'Bunny Fluff panels, a cloud-soft collar, and springy Slime Goo seams.', recipe: { fluff: 36, goo: 12 } },
-  { id: 'barkvest', name: 'Timber Vest', slot: 'armor', icon: '🪵', tier: 1, def: 4, hp: 6, color: '#9a6a44', desc: 'Sturdy oak and stone buttons.', needs: { wood: 2 }, recipe: { bark: 36, stone: 18 } },
-  { id: 'shroomhood', name: 'Shroom Hood', slot: 'armor', icon: '🥋', tier: 2, def: 6, hp: 12, color: '#e8505a', desc: 'Spotty and stylish.', recipe: { cap: 36, fang: 8 } },
-  { id: 'coppermail', name: 'Copper Mail', slot: 'armor', icon: '🟠', tier: 2, def: 8, hp: 12, color: '#e8904a', desc: 'Warm, bright and clanky.', needs: { mine: 4 }, recipe: { copper: 36, stone: 24 } },
-  { id: 'batcloak', name: 'Bat Cloak', slot: 'armor', icon: '🧣', tier: 3, def: 10, hp: 10, spd: 12, color: '#7a5ab8', desc: 'Swoosh! +speed.', recipe: { wing: 24, fang: 12 } },
-  { id: 'ironplate', name: 'Iron Plate', slot: 'armor', icon: '🛡️', tier: 3, def: 14, hp: 18, color: '#aab4c8', desc: 'Heavy, honest iron.', needs: { mine: 6 }, recipe: { iron: 24, copper: 18, stone: 18, pine: 9 } },
-  { id: 'glimmershawl', name: 'Glimmer Shawl', slot: 'armor', icon: '🧣', tier: 4, def: 15, hp: 22, regen: 1, color: '#c8b0ff', desc: 'Shimmers, and slowly heals you in battle.', recipe: { glimmer: 48, core: 1 } },
-  { id: 'crystalmail', name: 'Crystal Mail', slot: 'armor', icon: '🛡️', tier: 4, def: 18, hp: 24, color: '#8ad8f0', desc: 'Shiny and tough.', needs: { mine: 8 }, recipe: { crystal: 28, iron: 12, stone: 18 } },
+  { id: 'barkvest', name: 'Timber Vest', slot: 'armor', icon: '🪵', tier: 1, def: 4, hp: 6, color: '#9a6a44', desc: 'Oak shingles over a padded vest, with stone belt fasteners.', needs: { wood: 2 }, recipe: { bark: 42, stone: 18, fluff: 3, goo: 6 } },
+  { id: 'shroomhood', name: 'Shroom Hood', slot: 'armor', icon: '🥋', tier: 2, def: 6, hp: 12, color: '#e8505a', desc: 'A spotted woodland hood with a soft lining and small fang charms.', recipe: { cap: 42, fang: 8, fluff: 3, goo: 6 } },
+  { id: 'coppermail', name: 'Copper Mail', slot: 'armor', icon: '🟠', tier: 2, def: 8, hp: 12, color: '#e8904a', desc: 'Hammered copper over a quilted lining, with stone shoulder studs.', needs: { mine: 4 }, recipe: { copper: 42, stone: 24, fluff: 3, goo: 6 } },
+  { id: 'batcloak', name: 'Bat Cloak', slot: 'armor', icon: '🧣', tier: 3, def: 10, hp: 10, spd: 12, color: '#7a5ab8', desc: 'A lined wing cloak, copper shoulder clasp and little fang ornaments. +speed.', recipe: { wing: 30, fang: 12, fluff: 3, goo: 9, copper: 6 } },
+  { id: 'ironplate', name: 'Iron Plate', slot: 'armor', icon: '🛡️', tier: 3, def: 14, hp: 18, color: '#aab4c8', desc: 'A forged iron breastplate, layered pauldrons and open helm over a quilted gambeson.', needs: { mine: 6 }, recipe: { iron: 33, copper: 24, fluff: 3, goo: 12 } },
+  { id: 'glimmershawl', name: 'Glimmer Shawl', slot: 'armor', icon: '🧣', tier: 4, def: 15, hp: 22, regen: 1, color: '#c8b0ff', desc: 'A softly lined glowing shawl with glass shoulders and a core brooch. Slowly heals you in battle.', recipe: { glimmer: 48, core: 1, fluff: 2, goo: 9 } },
+  { id: 'crystalmail', name: 'Crystal Mail', slot: 'armor', icon: '🛡️', tier: 4, def: 18, hp: 24, color: '#8ad8f0', desc: 'Faceted crystal plates in an iron frame over a padded lining.', needs: { mine: 8 }, recipe: { crystal: 32, iron: 18, stone: 18, fluff: 2 } },
   { id: 'magmamail', name: 'Magma Mail', slot: 'armor', icon: '🦺', tier: 5, def: 24, hp: 34, color: '#e8703a', desc: 'Toasty protection.', needs: { mine: 8 }, recipe: { ember: 42, horn: 8, crystal: 12, iron: 12 } },
   { id: 'dragonmail', name: 'Dragon Mail', slot: 'armor', icon: '🐲', tier: 5, def: 30, hp: 50, color: '#c83a3a', desc: 'The ultimate cozy armor.', needs: { wood: 8, mine: 8 }, recipe: { scale: 4, ember: 24, crystal: 12, iron: 18 } },
   // Charms
@@ -290,7 +290,7 @@ export const ZONES: Zone[] = [
     theme: { ground: '#9be07a', ground2: '#93d872', grass: '#5fbf4a', grassTip: '#86dc5e', path: '#ecd9aa', obstacle: 'tree', pool: 'water', decor: 'flower', outside: '#5fae4c' },
   },
   {
-    id: 'meadow', name: 'Sunny Meadow', x0: 47, w: 40, rec: 1, lv: [1, 3], maxEnemies: 2,
+    id: 'meadow', name: 'East Road', x0: 47, w: 40, rec: 1, lv: [1, 3], maxEnemies: 2,
     monsters: [{ kind: 'slime', w: 3 }, { kind: 'bunny', w: 2 }],
     theme: { ground: '#a8e27f', ground2: '#9fd975', grass: '#4fb043', grassTip: '#86dc5e', path: '#ecd9aa', obstacle: 'tree', pool: 'water', decor: 'flower', outside: '#62b451' },
   },
@@ -304,7 +304,7 @@ export const ZONES: Zone[] = [
   {
     id: 'cave', name: 'Echo Cavern', guardian: { kind: 'alphawolf', lv: 9, gate: 'rock' }, x0: 127, w: 40, rec: 8, lv: [8, 11], maxEnemies: 3,
     monsters: [{ kind: 'bat', w: 3 }, { kind: 'golem', w: 2 }, { kind: 'shroom', w: 0.7 }],
-    theme: { ground: '#515264', ground2: '#494c5f', grass: '#4f8a6a', grassTip: '#7ac89a', path: '#696b7f', obstacle: 'boulder', pool: 'water', decor: 'pebble', outside: '#3e4250' },
+    theme: { ground: '#686c80', ground2: '#64687b', grass: '#515b77', grassTip: '#8797b4', path: '#858b9d', obstacle: 'boulder', pool: 'water', decor: 'pebble', outside: '#3e4250' },
   },
   {
     id: 'hollow', name: 'Glimmer Hollow', guardian: { kind: 'echoqueen', lv: 12, gate: 'rock' }, x0: 167, w: 40, rec: 11, lv: [11, 13], maxEnemies: 3,
@@ -385,61 +385,58 @@ export interface NodeDef {
   mat: MatId;
   /** Strike damage needed to fell or break it (a tier-1 tool does 1 per clean hit). */
   hp: number;
-  /** Nodes on open ground: safe to reach, but slow to regrow and give less. */
-  safe: { yield: number; xp: number; regrow: number };
-  /** Nodes out in the tall grass: you brave monsters to reach them, for more, faster regrowth and a rare find. */
+  /** Terrain categories are retained for saves and placement; gathering rewards are identical. */
+  safe: { yield: number; xp: number; regrow: number; rare: { mat: MatId; chance: number; n: number } };
+  /** The same gathering profile, including rare finds, applies in encounter grass. */
   grass: { yield: number; xp: number; regrow: number; rare: { mat: MatId; chance: number; n: number } };
   /** Trees that can drop a seed for Poppy's Garden when they fall, safe or wild (once the Garden is hers). */
   seed?: { mat: MatId; chance: number };
 }
 
+/** A resource's value belongs to its kind, never to the terrain under it. */
+function gathering(yieldCount: number, xp: number, rare: NodeDef['grass']['rare']) {
+  const profile = { yield: yieldCount, xp, regrow: 120, rare };
+  return { safe: { ...profile }, grass: { ...profile } };
+}
+
 export const NODES: Record<NodeKind, NodeDef> = {
   oak: {
     name: 'Oak', skill: 'wood', tier: 1, mat: 'bark', hp: 4,
-    safe: { yield: 3, xp: 10, regrow: 180 },
-    grass: { yield: 6, xp: 15, regrow: 75, rare: { mat: 'clover', chance: 0.12, n: 1 } },
+    ...gathering(4, 10, { mat: 'clover', chance: 0.12, n: 1 }),
     seed: { mat: 'berryseed', chance: 0.4 },
   },
   pine: {
     name: 'Pine', skill: 'wood', tier: 2, mat: 'pine', hp: 6,
-    safe: { yield: 3, xp: 25, regrow: 180 },
-    grass: { yield: 6, xp: 35, regrow: 75, rare: { mat: 'clover', chance: 0.1, n: 1 } },
+    ...gathering(4, 25, { mat: 'clover', chance: 0.1, n: 1 }),
     seed: { mat: 'herbseed', chance: 0.4 },
   },
   glimwood: {
     name: 'Glimmerwood', skill: 'wood', tier: 3, mat: 'glimwood', hp: 8,
-    safe: { yield: 3, xp: 40, regrow: 180 },
-    grass: { yield: 6, xp: 55, regrow: 75, rare: { mat: 'glimmer', chance: 0.1, n: 3 } },
+    ...gathering(4, 40, { mat: 'glimmer', chance: 0.1, n: 3 }),
   },
   emberwood: {
     name: 'Emberwood', skill: 'wood', tier: 4, mat: 'emberwood', hp: 10,
-    safe: { yield: 3, xp: 70, regrow: 180 },
-    grass: { yield: 6, xp: 90, regrow: 75, rare: { mat: 'ember', chance: 0.15, n: 3 } },
+    ...gathering(4, 70, { mat: 'ember', chance: 0.15, n: 3 }),
   },
   rock: {
     name: 'Rock', skill: 'mine', tier: 1, mat: 'stone', hp: 4,
-    safe: { yield: 3, xp: 10, regrow: 180 },
-    grass: { yield: 6, xp: 15, regrow: 75, rare: { mat: 'clover', chance: 0.08, n: 1 } },
+    ...gathering(4, 10, { mat: 'clover', chance: 0.08, n: 1 }),
   },
   copper: {
     name: 'Copper Vein', skill: 'mine', tier: 2, mat: 'copper', hp: 6,
-    safe: { yield: 3, xp: 25, regrow: 180 },
-    grass: { yield: 6, xp: 35, regrow: 75, rare: { mat: 'stone', chance: 0.3, n: 3 } },
+    ...gathering(4, 25, { mat: 'stone', chance: 0.3, n: 3 }),
   },
   iron: {
     name: 'Iron Vein', skill: 'mine', tier: 3, mat: 'iron', hp: 8,
-    safe: { yield: 3, xp: 40, regrow: 180 },
-    grass: { yield: 6, xp: 55, regrow: 75, rare: { mat: 'core', chance: 0.1, n: 1 } },
+    ...gathering(4, 40, { mat: 'core', chance: 0.1, n: 1 }),
   },
   crystal: {
     name: 'Crystal Cluster', skill: 'mine', tier: 4, mat: 'crystal', hp: 10,
-    safe: { yield: 2, xp: 70, regrow: 180 },
-    grass: { yield: 4, xp: 90, regrow: 75, rare: { mat: 'glimmer', chance: 0.15, n: 3 } },
+    ...gathering(3, 70, { mat: 'glimmer', chance: 0.15, n: 3 }),
   },
   obsidian: {
     name: 'Obsidian Seam', skill: 'mine', tier: 4, mat: 'obsidian', hp: 12,
-    safe: { yield: 2, xp: 80, regrow: 180 },
-    grass: { yield: 4, xp: 100, regrow: 75, rare: { mat: 'ember', chance: 0.2, n: 3 } },
+    ...gathering(3, 80, { mat: 'ember', chance: 0.2, n: 3 }),
   },
 };
 
@@ -448,12 +445,12 @@ export const SLOW_TOOL = 0.4;
 
 /** How many nodes of each kind each zone has, on open ground and out in the grass (placed by the route maps). */
 export const NODE_SPAWNS: Partial<Record<ZoneId, { kind: NodeKind; safe: number; grass: number }[]>> = {
-  meadow: [{ kind: 'oak', safe: 5, grass: 5 }, { kind: 'rock', safe: 5, grass: 3 }],
-  // (Woods pines: four of the six by the path stand in Bram's camp.)
-  woods: [{ kind: 'oak', safe: 2, grass: 2 }, { kind: 'pine', safe: 6, grass: 5 }, { kind: 'rock', safe: 1, grass: 2 }, { kind: 'copper', safe: 2, grass: 3 }],
-  cave: [{ kind: 'copper', safe: 2, grass: 2 }, { kind: 'iron', safe: 3, grass: 5 }],
-  hollow: [{ kind: 'crystal', safe: 2, grass: 5 }, { kind: 'iron', safe: 1, grass: 2 }, { kind: 'glimwood', safe: 4, grass: 4 }],
-  peak: [{ kind: 'iron', safe: 2, grass: 3 }, { kind: 'crystal', safe: 1, grass: 2 }, { kind: 'emberwood', safe: 3, grass: 4 }, { kind: 'obsidian', safe: 3, grass: 4 }],
+  meadow: [{ kind: 'oak', safe: 10, grass: 5 }, { kind: 'rock', safe: 7, grass: 3 }],
+  // Four pines in Bram's camp; four more in the southern gathering grove.
+  woods: [{ kind: 'oak', safe: 3, grass: 0 }, { kind: 'pine', safe: 9, grass: 1 }, { kind: 'rock', safe: 2, grass: 0 }, { kind: 'copper', safe: 4, grass: 0 }],
+  cave: [{ kind: 'copper', safe: 3, grass: 2 }, { kind: 'iron', safe: 5, grass: 2 }],
+  hollow: [{ kind: 'crystal', safe: 6, grass: 1 }, { kind: 'iron', safe: 1, grass: 1 }, { kind: 'glimwood', safe: 4, grass: 4 }],
+  peak: [{ kind: 'iron', safe: 3, grass: 0 }, { kind: 'crystal', safe: 1, grass: 1 }, { kind: 'emberwood', safe: 5, grass: 1 }, { kind: 'obsidian', safe: 3, grass: 3 }],
 };
 
 // ----------------------------------------------------------------------------- village construction
@@ -503,11 +500,11 @@ export const PROJECTS: Record<ProjectId, Project> = {
     ],
   },
   training: {
-    name: 'Alder’s Dojo', icon: '🥋',
+    name: 'Hidden Training Clearing', icon: '🥋',
     levels: [
-      { name: 'Oak Dojo', cost: { plank: 40, stone: 18, fluff: 18 }, perk: '+5% attack; Alder’s first two combat challenges' },
-      { name: 'Pine Dojo', cost: { pineplank: 48, fang: 18, royaljelly: 1, copper: 12 }, perk: '+10% attack; rush and special-attack challenges' },
-      { name: 'Glimmer Dojo', cost: { glimplank: 48, horn: 10, iron: 12, flower: 8 }, perk: '+15% attack; Alder’s advanced challenges' },
+      { name: 'Oak Practice Clearing', cost: { plank: 40, stone: 18, fluff: 18 }, perk: '+5% attack; the fox’s first two combat challenges' },
+      { name: 'Pine Practice Clearing', cost: { pineplank: 48, fang: 18, royaljelly: 1, copper: 12 }, perk: '+10% attack; rush and special-attack challenges' },
+      { name: 'Glimmer Practice Clearing', cost: { glimplank: 48, horn: 10, iron: 12, flower: 8 }, perk: '+15% attack; the fox’s advanced challenges' },
     ],
   },
   warp: {

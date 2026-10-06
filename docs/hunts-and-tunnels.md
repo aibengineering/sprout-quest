@@ -1,6 +1,6 @@
 # Rook’s hunts and Pip’s discoveries — 0.3.7
 
-Rook replaces the current Hazel resident slot, keeping its aligned village lot. He is found sheltering in Glimmer Hollow after the Echo Queen, injured while pursuing the Emberwyrm. Walk him to Clover before Bram offers the lodge. He is a courteous human outsider with buyers back home, overly interested in the value of unusual monsters. Clover, Poppy and Pip express different objections. Future confrontation or refusal quests remain proposals in the sibling Bible.
+Rook replaces the current Hazel resident slot, keeping its aligned village lot. He is found sheltering on Ember Peak after the Emberwyrm, injured while pursuing the Emberwyrm. Walk him to Clover before Bram offers the lodge. He is a courteous human outsider with buyers back home, overly interested in the value of unusual monsters. Clover, Poppy and Pip express different objections. Future confrontation or refusal quests remain proposals in the sibling Bible.
 
 ## Hunt loop
 

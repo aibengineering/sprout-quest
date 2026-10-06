@@ -58,4 +58,4 @@ function journey(id: NeighbourId): Story {
     fainted:()=>{if (G.over.actors.get(aid)?.follow) waitAt(aid,flag(id,'waiting'));},
   };
 }
-export const NEIGHBOUR_STORIES=NEIGHBOUR_ORDER.map(journey);
+export const NEIGHBOUR_STORIES=NEIGHBOUR_ORDER.filter(id=>id!=='alder').map(journey);

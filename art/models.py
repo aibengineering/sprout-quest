@@ -106,6 +106,7 @@ CHARACTERS = {
     'npc_pip': lambda: (hero.build_pip(), walker_anims()),
     'npc_rook': lambda: (residents.build_rook(), walker_anims()),
     'npc_hazel': lambda: (residents.build_hazel(), walker_anims()),
+    'npc_fox': lambda: (residents.build_fox(), walker_anims()),
     'npc_alder': lambda: (residents.build_alder(), walker_anims()),
     'npc_moss': lambda: (residents.build_moss(), walker_anims()),
     **{f'mon_{k}': monster(k) for k in monsters.BUILDERS},

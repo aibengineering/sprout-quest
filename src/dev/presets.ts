@@ -78,7 +78,7 @@ function standAt(s: SaveState, x: number, y: number) {
 }
 
 /** In front of a guardian's gate (on the road just west of it). */
-const gate = (id: ZoneId) => ({ x: zoneById(id).x0 - 1.5, y: GATE_Y + 2.4 });
+const gate = (id: ZoneId) => ({ x: map().obj('gate',id)!.x - 1.5, y: GATE_Y + 2.4 });
 
 function finish(s: SaveState) {
   // A preset has seen everything it can make (no wall of "New" badges in the Forge).

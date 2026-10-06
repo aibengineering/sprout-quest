@@ -44,6 +44,12 @@ jobs:
       - run: bun run typecheck
       - run: bun test --isolate
       - run: bun run build
+      - run: bun run balance --seeds 3
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: balance-report
+          path: sim/out/balance/
 
   e2e:
     name: Browser smoke test

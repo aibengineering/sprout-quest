@@ -1,5 +1,5 @@
-// Balance model: where we expect the player to be at each point in the story, and how fights should feel there.
-// tests/balance.test.ts enforces the targets; `bun run balance` prints the full table while tuning.
+// Progression/economy targets and ideal-hit combat estimates. Combat behavior is measured through Battle.update
+// by `bun run balance` (scripts/balance.ts); `bun run balance:estimate` prints this reference table.
 import { ARENA_RX, ARENA_RY } from './arena';
 import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, STYLE_NAMES, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
 import { MOVESETS, comboDps, openingBurst, skillRank, skillShape, stepTime, strikeDamage, strikeShape, tierScale } from './weapons';
@@ -255,8 +255,8 @@ let trees: WorldObj[] | null = null;
 const worldTrees = () => (trees ??= new World().objs.filter((o) => o.kind === 'node'));
 
 /**
- * Per second, from chopping the zone's trees of one kind: grass trees first (they pay best), then safe ones with the
- * time left over. Each tree can only be felled once per regrowth. `per` picks what to count (wood, XP…).
+ * Per second, from chopping the zone's trees of one kind: easier ground nodes first, then grass nodes with the
+ * time left over; terrain does not change the reward. Each tree can only be felled once per regrowth. `per` picks what to count (wood, XP…).
  */
 function chopRate(zone: ZoneId, kind: NodeKind, per: (spot: { yield: number; xp: number }) => number, toolTier = NODES[kind].tier): number {
   const n = NODES[kind];
@@ -264,9 +264,9 @@ function chopRate(zone: ZoneId, kind: NodeKind, per: (spot: { yield: number; xp:
   const g = here.filter((o) => o.grass).length, sf = here.length - g;
   const secs = chopSeconds(kind, toolTier);
   const gCycle = secs + GRASS_TRIP, sCycle = secs + SAFE_TRIP;
-  const gChops = Math.min(g / n.grass.regrow, 1 / gCycle);
-  const busy = gChops * gCycle;
-  const sChops = Math.min(sf / n.safe.regrow, (1 - busy) / sCycle);
+  const sChops = Math.min(sf / n.safe.regrow, 1 / sCycle);
+  const busy = sChops * sCycle;
+  const gChops = Math.min(g / n.grass.regrow, (1 - busy) / gCycle);
   return gChops * per(n.grass) + sChops * per(n.safe);
 }
 
@@ -389,10 +389,14 @@ export function minutesToSkillLevel(skill: SkillId, target: number): number {
 const gathered = (m: string) => Object.values(NODES).some((n) => n.mat === m);
 
 /**
- * Gear tracks: hunter gear is made only from monster drops; gatherer gear only from wood, stone and ore (and needs a
- * gathering skill level); the strongest top-tier pieces need both.
+ * Weapons follow their ingredient sources. Armour below tier 5 follows its main material: cloth linings, bindings
+ * and small fittings can come from either source. The strongest top-tier pieces need both.
  */
 export function gearTrack(g: Gear): 'hunter' | 'gatherer' | 'both' {
+  if (g.slot === 'armor' && (g.tier ?? 0) < 5) {
+    const primary = Object.entries(g.recipe ?? {}).sort((a, b) => b[1]! - a[1]!)[0]?.[0];
+    return primary && gathered(primary) ? 'gatherer' : 'hunter';
+  }
   const mats = Object.keys(g.recipe ?? {});
   const wild = mats.some(gathered), hunted = mats.some((m) => !gathered(m));
   return wild && hunted ? 'both' : wild ? 'gatherer' : 'hunter';

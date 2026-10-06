@@ -1,9 +1,11 @@
-"""Faceted crystal scales in an iron frame, anchored by stone. No cloth."""
+"""Faceted crystal scales in an iron frame, anchored by stone. Padded cloth lining."""
 import math
 from lib import box, crystal, sphere, toon, torus
 from gear._metal import pivots, shell, shoulder, stone
 
-PARTS = ('iron-frame', 'crystal-scales', 'left-crystal', 'right-crystal', 'stone-anchors')
+from gear._garment import lining, binding
+
+PARTS = ('fluff-lining', 'iron-frame', 'crystal-scales', 'left-crystal', 'right-crystal', 'stone-anchors')
 
 
 def build_armor(P):
@@ -13,6 +15,7 @@ def build_armor(P):
 def build(body, arms=None, head=None):
     arms, _ = pivots(body, arms, head)
     parts = {p: [] for p in PARTS}
+    lining(parts, 'fluff-lining', body, arms)
     parts['iron-frame'] = shell(body, '#718496', 'iron_crystal_foundation')
     gem = toon('#80dfee', rim=.3, emit=.035)
     pale = toon('#c4f8ff', rim=.24, emit=.025)

@@ -700,6 +700,7 @@ function drawHero(b: Battle, ctx: Ctx) {
   };
   shadow(ctx, p.x, p.y, 14);
   const armor = b.save.equip.armor;
+  for(const ghost of b.afterimages) drawHeroSprite(ctx,armor,ghost.x,ghost.y,UNIT*HERO_SCALE,ghost.face,false,b.t,{alpha:ghost.t*.9,tint:'#aaa0ed',tintAmount:.6},'hero:battle-ghost');
   // In 3D the weapon is in the hero's own hand: the arm turns to follow the swing's angle (the same one the hitboxes
   // use), clears the ground at rest, and rises for the heavy wind-ups (the sprites grew for those).
   // (Its size stays put: the 2D sprite grew to fake height, the 3D one really goes up.)

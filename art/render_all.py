@@ -105,14 +105,24 @@ elif GROUP == 'env':
 
 elif GROUP == 'homes':
     for name in ('res_pip2', 'res_rook1', 'res_rook2', 'res_moss1', 'res_moss2', 'res_pip3', 'res_rook3', 'res_moss3', 'kitchen1', 'kitchen2', 'kitchen3', 'training1', 'training2', 'training3', 'cottage1'):
+        if not wanted(name):
+            continue
         lib.clear_objects()
         buildings.whole(name)
         shot(f'env/{name}', 320, 288, 64, fit_origin=.86)
         shot(f'icon/b_{name}', 128, 128, 30, fit_origin=.82)
-    for name, fn in (('rook', residents.build_rook), ('moss', residents.build_moss), ('alder', residents.build_alder)):
+    for name, fn in (('rook', residents.build_rook), ('moss', residents.build_moss), ('alder', residents.build_alder), ('fox', residents.build_fox)):
+        if not wanted(name):
+            continue
         lib.clear_objects()
-        fn()
+        P = fn()
         shot(f'icon/npc_{name}', 128, 128, 88, anchor=(0, 0, .70), elevation=math.radians(12), fit_origin=.5)
+        if name == 'fox':
+            # Directional fallback remains visible while WebGL or the model is unavailable.
+            for d, ang in enumerate(HERO_DIRS):
+                P['root'].rotation_euler = (0, 0, math.radians(ang))
+                hero.pose(P, 0, False)
+                shot(f'env/fox/{d}/0', 240, 240, 96)
 
 elif GROUP in ('rooms', 'echo'):
     # The rooms you walk into, and the Garden's hand tools (art/rooms.py): packed into their own atlas.

@@ -42,6 +42,7 @@ export function playerStats(s: SaveState): PlayerStats {
 }
 
 /** Dodges you can make back to back in a fight: two with the Pebblors' Echo Anklet (see game/stories/drums.ts). */
+export const dodgeMotion = (s: SaveState) => s.perks.includes('shadowscarf') ? 1.35 : 1;
 export const dodgeCharges = (s: SaveState) => (s.perks.includes('echoanklet') ? 2 : 1);
 
 /**
@@ -172,6 +173,7 @@ export const cottageDue = (s: SaveState) => s.flags.includes('bram:hut') && s.bu
 /** Whether a project's plot is open (on the map and in the building plans). Anything already built stays open. */
 export const plotOpen = (s: SaveState, id: ProjectId) => {
   // Bram's Sawmill opens the moment he's moved in (the unlock card follows).
+  if (id === 'training') return s.flags.includes('fox:trusted') || s.build.training > 0;
   if (id === 'sawmill') return s.flags.includes('bram:home') || s.build.sawmill > 0;
   // The Guest Cottage, once he's settled in: his Sawmill up and his cabin built.
   if (id === 'cottage') return cottageDue(s) || s.build.cottage > 0;
@@ -375,7 +377,7 @@ export function revealed(s: SaveState): Set<string> {
 export interface GatherReward { drops: Partial<Record<MatId, number>>; xp: number; levels: number }
 
 /**
- * Fells a tree or breaks a rock: pays out its material (a handful more for a flawless job, and on Rock Candy), a grass node's
+ * Fells a tree or breaks a rock: pays out its material (a handful more for a flawless job, and on Rock Candy), a resource's
  * rare find, maybe a seed for the Garden, skill XP, and starts regrowth.
  */
 export function harvest(s: SaveState, kind: NodeKind, nodeId: string, grass: boolean, flawless: boolean, rng: Rng = Math.random, now = Date.now()): GatherReward {
@@ -385,7 +387,7 @@ export function harvest(s: SaveState, kind: NodeKind, nodeId: string, grass: boo
   // A flawless job, and Rock Candy on a rock, each add one more handful (a node on open ground's yield).
   const handful = n.safe.yield;
   const drops: Partial<Record<MatId, number>> = { [n.mat]: spot.yield + (flawless ? handful : 0) + (n.skill === 'mine' ? oreBoost(s) * handful : 0) };
-  if (grass && rng() < n.grass.rare.chance) drops[n.grass.rare.mat] = (drops[n.grass.rare.mat] ?? 0) + n.grass.rare.n;
+  if (rng() < spot.rare.chance) drops[spot.rare.mat] = (drops[spot.rare.mat] ?? 0) + spot.rare.n;
   // Oaks and pines can drop a seed for Poppy's Garden, once it's hers.
   if (n.seed && gardenOpen(s) && rng() < n.seed.chance) drops[n.seed.mat] = (drops[n.seed.mat] ?? 0) + 1;
   mergeDrops(s.mats, drops);

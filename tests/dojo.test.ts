@@ -20,7 +20,7 @@ function practice(weapon = 'stonesword') {
   b.intro = 0; b.p.x = b.p.y = 0; b.p.face = 0; b.p.skillCd = 0;
   return { b,s,pressed,outcome:()=>finished };
 }
-describe('Alder’s dojo challenges', () => {
+describe('the hidden fox clearing’s challenges', () => {
   test('successful first clears grant fixed combat and handling XP once, while repeats, exits, failed objectives and locked lessons grant nothing', () => {
     const s = newState(); s.build.training = 3;
     expect(dojoLock(s, DOJO_CHALLENGES[1])).toBeTruthy();

@@ -55,7 +55,7 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'plots', icon: '🌱', title: 'New Building Plots',
-    text: 'There’s space for Poppy’s Garden and a dojo. Help Bram move home, then bring him materials for the next building job.',
+    text: 'Help Bram move home, then bring him materials for Poppy’s Garden and our neighbours’ building requests.',
     when: (s) => s.bosses.includes('kingslime'),
   },
   {

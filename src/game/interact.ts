@@ -14,7 +14,7 @@ import { gardenOpen } from '../garden';
 import { poppyAway } from '../procession';
 import { kitchenOpen } from '../kitchen';
 import { enterRoom, roomAct } from './rooms';
-import { enterEchoCave, leaveEchoCave, enterOreGallery, leaveOreGallery, useBurrow } from './underground';
+import { enterMainCavern, enterEchoCave, leaveEchoCave, enterOreGallery, leaveOreGallery, useBurrow } from './underground';
 import { gardenAct, gardenStation, POPPY_AWAY } from './gardenWork';
 import { askBramForHome } from './housing';
 import { visitResident } from './stories/residents';
@@ -95,7 +95,14 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
   // The Garden's sign by the field's gate: its next level, in the village plans.
   station: (o) => (o.id === 'garden:sign' ? askBramForHome() : o.id?.startsWith('garden:') ? gardenStation(o) : roomAct(o)),
   door: (o) => o.id?.startsWith('burrow:') ? useBurrow(o.id.slice(7)) : o.id==='resource:exit' ? leaveOreGallery() : o.id === 'echo:exit' ? leaveEchoCave() : roomAct(o),
-  prop: (o) => { if (o.id === 'prop_cavemouth') enterEchoCave(); else if(o.id==='resource:mouth')enterOreGallery(); },
+  prop: (o) => {
+    if(o.id==='poppy:thicket') {
+      // Old saves may already be inside the grove: always permit a way back out.
+      if(G.over.x<o.x+o.w) { G.over.teleport(o.x+o.w+.6,o.y+o.h-.5); persist(); G.ui.toast('You clamber back over the fallen log onto the trail.'); }
+      else G.ui.toast('A heavy fallen log blocks the grove trail. Small pawprints disappear underneath…');
+    } else if (o.id==='cavern:entry'||o.id==='cavern:east') enterMainCavern(o.id==='cavern:east'?'east':'west');
+    else if (o.id === 'prop_cavemouth') enterEchoCave(); else if(o.id==='resource:mouth')enterOreGallery();
+  },
 
   async pickup() {
     await paused(() => G.ui.itemFound('twig', 'Twig Sword', "It's just a stick… but it feels right in your hand.", '🗡️', 'You found', true));

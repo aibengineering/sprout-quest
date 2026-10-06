@@ -249,7 +249,8 @@ export function drawWalker(ctx: CanvasRenderingContext2D, prefix: string, x: num
   if (drawModel(ctx, slot, prefix.replace('/', '_'), pose, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, { ...o, outline: undefined }))) return 'model';
   const { dir, flip } = heroDir(face);
   const n = moving ? 1 + (Math.floor(t * 9) % 4) : 0;
-  const f = frame(`${prefix}/${dir}/${n}`) ?? frame(`${prefix}/${dir}/0`) ?? frame(`${prefix}/0/0`);
+  const f = frame(`${prefix}/${dir}/${n}`) ?? frame(`${prefix}/${dir}/0`) ?? frame(`${prefix}/0/0`)
+    ?? (prefix.startsWith('npc/') ? frame(`${prefix.replace('npc/', 'env/')}/${dir}/0`) : undefined);
   if (!f) return false;
   const breathe = moving ? 1 : 1 + Math.sin(t * 3) * 0.015;
   drawFrame(ctx, f, x, y, unit, { ...o, flip, sy: (o.sy ?? 1) * breathe, sx: (o.sx ?? 1) / breathe });

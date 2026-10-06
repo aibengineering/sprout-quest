@@ -60,7 +60,7 @@ describe('village', () => {
     expect(build(s, 'home')).toBe('ok');
     expect(s.build.home).toBe(2);
     expect(playerStats(s).maxHp).toBeGreaterThan(hp);
-    s.unlocked.push('plots');
+    s.unlocked.push('plots'); s.flags.push('fox:trusted');
     expect(build(s, 'training')).toBe('ok');
     expect(build(s, 'training')).toBe('ok');
     expect(playerStats(s).atk).toBeGreaterThan(atk);
@@ -69,7 +69,7 @@ describe('village', () => {
     expect(potionRefill(s)).toBe(3);
   });
 
-  test('the Garden and Training Yard open after the Slime King, the Waystone after the Alpha Woolf', () => {
+  test('the Garden opens after the Slime King, training after fox trust, Waystone after Alpha Woolf', () => {
     const s = newState();
     for (const k in s.mats) s.mats[k as keyof typeof s.mats] = 99;
     for (const id of ['garden', 'training', 'warp'] as const) expect(build(s, id)).toBe('locked');
@@ -77,6 +77,8 @@ describe('village', () => {
     s.bosses.push('kingslime');
     checkUnlocks(s);
     expect(build(s, 'garden')).toBe('ok');
+    expect(build(s, 'training')).toBe('locked');
+    s.flags.push('fox:trusted');
     expect(build(s, 'training')).toBe('ok');
     expect(build(s, 'warp')).toBe('locked');
     s.bosses.push('alphawolf');

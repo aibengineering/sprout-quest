@@ -61,16 +61,24 @@ describe('Sowerby’s lots and paths', () => {
     walk({ x: cabinFront.x, y: yard.y }, cabinFront);
   });
 
+  test('Moss faces the road beside Clover and the garden, leaving the southern green open', () => {
+    const w = new World(), door = residentDoor('moss');
+    expect(w.blocked(door.x, door.y, .28)).toBe(false);
+    expect(w.tile(Math.floor(door.x), Math.floor(door.y))).toBe(T.PATH);
+    expect(RESIDENT_PLOTS.moss.y).toBeLessThan(13);
+    expect(w.tile(V+18, 22)).not.toBe(T.PATH);
+  });
+
   test('southern homes face the same lane with separate door paths and an open green behind them', () => {
     const world = new World();
-    for (const o of [world.obj('plot', 'home')!, RESIDENT_PLOTS.rook, RESIDENT_PLOTS.moss]) {
+    for (const o of [world.obj('plot', 'home')!, RESIDENT_PLOTS.rook]) {
       const x = Math.floor(o.x + o.w / 2), y = o.y + o.h;
       expect(y).toBe(21);
       expect(world.tile(x, y)).toBe(T.PATH);
       expect(world.tile(x, y + 1)).toBe(T.PATH);
       expect(world.blocked(o.x + o.w / 2, y + .6, .28)).toBe(false);
     }
-    for (const id of ['rook', 'moss'] as const) {
+    for (const id of ['rook'] as const) {
       const door = residentDoor(id);
       expect(world.blocked(door.x, door.y, .28)).toBe(false);
       // No long vertical road running through the house's grass lot.

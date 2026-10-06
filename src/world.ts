@@ -3,6 +3,7 @@ import { NEIGHBOURS } from './neighbours';
 import { WORLD_H, WORLD_W, ZONES, zoneAtX, zoneById, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
 import { FIELD_COLS, FIELD_ROWS } from './garden';
 import { ROUTES } from './routes';
+import { POPPY_GROVE, poppyTrailOpen } from './poppyGrove';
 import type { HomeId } from './housing';
 import { RESIDENT_PLOTS, TOWN_CABIN, TOWN_FORGE, TOWN_HOME, TOWN_SAWMILL, TOWN_SPRING, TOWN_TRAINING, TOWN_WAYSTONE, VILLAGE_PATHS } from './villageLayout';
 import type { SaveState } from './state';
@@ -10,6 +11,7 @@ import { SHORTCUTS, shortcutBuilt } from './shortcuts';
 import { LANDMARK_SIGNS, ROUTE_GUIDES } from './mapDesign';
 import { SEAMS, TUNNEL_HOME } from './seams';
 import { HUNTS } from './hunts';
+import { CAVE_WEST_MOUTH, CAVE_EAST_MOUTH } from './caveEntrance';
 
 export const T = {
   GROUND: 0,
@@ -236,7 +238,7 @@ export class World extends TileMap {
       }
     }
     // Small roadside stops for newcomers; clear the approach before resource objects are generated.
-    for (const p of Object.values(NEIGHBOURS).filter(p=>p.name==='Alder'||p.name==='Moss')) for (let y=Math.floor(p.at.y)-1;y<=Math.ceil(p.at.y)+1;y++) for (let x=Math.floor(p.at.x)-1;x<=Math.ceil(p.at.x)+1;x++) {
+    for (const p of Object.values(NEIGHBOURS).filter(p=>p.name==='Moss')) for (let y=Math.floor(p.at.y)-1;y<=Math.ceil(p.at.y)+1;y++) for (let x=Math.floor(p.at.x)-1;x<=Math.ceil(p.at.x)+1;x++) {
       if (this.tile(x,y)!==T.PATH) this.set(x,y,T.GROUND);
     }
     this.placeObjects();
@@ -282,13 +284,17 @@ export class World extends TileMap {
     add({ kind: 'house', x: V + 13, y: 4.3, w: 3, h: 5.2, label: '' });
     add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
     add({ kind: 'plot', project: 'home', ...TOWN_HOME, label: 'Build', text: 'Home' });
-    add({ kind: 'plot', project: 'training', ...TOWN_TRAINING, label: 'Build', text: 'Alder’s Dojo' });
+    add({ kind: 'plot', project: 'training', ...TOWN_TRAINING, label: 'Build', text: 'Hidden Training Clearing', shown: s => s.flags.includes('fox:trusted') || s.build.training > 0 });
+    add({kind:'prop',id:'fox:den',x:zoneById('hollow').x0+26.5,y:3.2,w:1.6,h:1.4,label:''},false);
     add({ kind: 'plot', project: 'warp', ...TOWN_WAYSTONE, label: 'Build', text: 'Waystone' });
     // Bram lives beside his mill, across the work yard from the Forge. His cabin
     // stays behind the yard's path so it cannot block the mill's front door.
     add({ kind: 'plot', project: 'sawmill', ...TOWN_SAWMILL, label: 'Build', text: 'Sawmill' });
     add({ kind: 'prop', id: 'bramhut', ...TOWN_CABIN, label: '' });
     this.placeField();
+    // The log traps Poppy at the entrance and stays closed until the bunny chase.
+    add({kind:'prop',id:'poppy:thicket',...POPPY_GROVE.barrier,x:zoneById('meadow').x0+POPPY_GROVE.barrier.x,
+      label:'Inspect log',hidden:true,shown:s=>!poppyTrailOpen(s)},false);
     // The Guest Cottage, up in the north-east corner behind the Waystone: once Bram's settled in, for whoever comes next.
     add({ kind: 'plot', project: 'cottage', ...RESIDENT_PLOTS.pip, label: 'Ask Bram', text: 'Guest Cottage' });
     for (const home of ['rook', 'moss'] as const) add({ kind: 'residence', home, ...RESIDENT_PLOTS[home], label: 'Ask Bram' });
@@ -297,6 +303,8 @@ export class World extends TileMap {
     add({ kind: 'prop', id: 'prop_campmill', zone: 'woods', x: W + 3.8, y: 3.2, w: 2.6, h: 1, label: '' }, false);
     add({ kind: 'prop', id: 'prop_campstump', zone: 'woods', x: W + 8.6, y: 5.1, w: 1.2, h: 0.7, label: '' }, false);
     add({ kind: 'prop', id: 'prop_logs', zone: 'woods', x: W + 11, y: 4.1, w: 1, h: 0.6, label: '' }, false);
+    add({kind:'prop',id:'cavern:entry',...CAVE_WEST_MOUTH,label:'Enter Echo Cavern',walkable:true},false);
+    add({kind:'prop',id:'cavern:east',...CAVE_EAST_MOUTH,label:'Enter Echo Cavern',walkable:true},false);
     // Local plans at physical crossing sites; the stake must not obstruct its bank approach.
     for (const p of SHORTCUTS) add({ kind: 'bridge', id: p.id, flag: p.flag, zone: p.zone, x: zoneById(p.zone).x0 + p.marker.x, y: p.marker.y, w: .6, h: .5, label: 'Inspect crossing', text: p.name, walkable: true }, false);
     add({ kind: 'fountain', ...TOWN_SPRING, label: 'Rest', text: "Veyra's Spring" });
@@ -309,7 +317,7 @@ export class World extends TileMap {
     });
     add({
       kind: 'sign', x: V + 29.4, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
-      text: 'East: Sunny Meadow. Walk through tall grass to find monsters. Bring back materials to the Forge!',
+      text: 'East: East Road. Dry trails take the long way round; grass cuts are quicker. Sunny Meadow and Poppy’s grove lie off the southern trail.',
     });
     for (const z of ZONES) {
       for (const p of this.mark(z.id, 'S')) {
@@ -319,14 +327,19 @@ export class World extends TileMap {
         }, false);
       }
       // Guardians block the road into their zone; a campfire checkpoint waits just past each gate.
-      if (z.guardian) add({ kind: 'gate', zone: z.id, x: z.x0, y: GATE_Y, w: 1, h: 4, label: 'Challenge', text: z.name }, false);
+      if (z.guardian) add({ kind: 'gate', zone: z.id, x: z.x0 - (z.id==='cave'?2:0), y: GATE_Y, w: z.id==='cave'?3:1, h: 4, label: 'Challenge', text: z.name }, false);
       for (const p of this.mark(z.id, 'C')) add({ kind: 'camp', zone: z.id, x: p.x + 0.1, y: p.y + 0.2, w: 0.8, h: 0.6, label: 'Rest', text: 'Campfire' }, false);
       for (const p of this.mark(z.id, 'L')) add({ kind: 'lair', x: p.x, y: p.y, w: 3, h: 2, label: 'Enter', text: "Emberwyrm's Lair" }, false);
       // Trees to chop and rocks to mine: by the path (safe) or out in the grass.
       for (const [c, kind, grass] of NODE_MARKS) {
-        this.mark(z.id, c).forEach((p, i) => this.objs.push({
-          kind: 'node', node: kind, id: `${z.id}:${kind}:${grass ? 'g' : 's'}${i}`, grass, x: p.x + 0.1, y: p.y + 0.35, w: 0.8, h: 0.6, label: 'Chop', text: kind,
-        }));
+        this.mark(z.id, c).forEach((p, i) => {
+          // Small deterministic offsets keep authored clusters from looking planted on a grid.
+          const jx=(hash2(p.x,p.y,812)-.5)*.16;
+          const jy=(hash2(p.x,p.y,813)-.5)*.18;
+          this.objs.push({
+            kind: 'node', node: kind, id: `${z.id}:${kind}:${grass ? 'g' : 's'}${i}`, grass, x: p.x + 0.1+jx, y: p.y + 0.35+jy, w: 0.8, h: 0.6, label: 'Chop', text: kind,
+          });
+        });
       }
     }
     for (const p of LANDMARK_SIGNS) add({ kind: 'sign', zone: p.zone, x: zoneById(p.zone).x0 + p.x, y: p.y, w: .6, h: .5, label: 'Read', text: p.text }, false);
@@ -360,6 +373,23 @@ export class World extends TileMap {
     this.objs.push({ kind: 'station', id: 'garden:butt', x: x0 + 0.2, y: fy - 0.1, w: 0.6, h: 0.5, label: 'Watering can', hidden: true });
     this.objs.push({ kind: 'station', id: 'garden:seeds', x: x0 + 0.25, y: fy + 1.3, w: 0.5, h: 0.4, label: 'Seed basket', hidden: true });
     this.objs.push({ kind: 'station', id: 'garden:sign', x: gate + 2.3, y: y0 - 0.75, w: 0.6, h: 0.4, label: 'Upgrade', hidden: true });
+  }
+
+  /** Recover an old position after a terrain edit, staying in its region and outside solid scenery. */
+  safePosition(p:{x:number;y:number}) {
+    if(Number.isFinite(p.x)&&Number.isFinite(p.y)&&!this.blocked(p.x,p.y,.28))return {...p};
+    const zone=Number.isFinite(p.x)?this.zoneAt(p.x):zoneById('village');
+    if(Number.isFinite(p.x)&&Number.isFinite(p.y))for(let radius=1;radius<=10;radius++) {
+      const candidates:{x:number;y:number;d:number}[]=[];
+      for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
+        if(Math.max(Math.abs(dx),Math.abs(dy))!==radius)continue;
+        const x=Math.floor(p.x)+dx+.5,y=Math.floor(p.y)+dy+.9;
+        if(x<zone.x0+1||x>=zone.x0+zone.w-1||this.blocked(x,y,.28))continue;
+        candidates.push({x,y,d:Math.hypot(x-p.x,y-p.y)});
+      }
+      candidates.sort((a,b)=>a.d-b.d);if(candidates.length)return {x:candidates[0].x,y:candidates[0].y};
+    }
+    return this.campPoint(zone.id);
   }
 
   /** Tiles you can walk to from the village (guardian gates count as open). */

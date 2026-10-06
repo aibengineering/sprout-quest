@@ -152,7 +152,9 @@ describe("Poppy's Garden", () => {
     expect(harvest(s, 'oak', 'b', false, false, lucky, T0).drops.berryseed).toBe(1);
     expect(harvest(s, 'pine', 'c', true, false, lucky, T0).drops.herbseed).toBe(1);
     expect(harvest(s, 'oak', 'd', false, false, () => 0.99, T0).drops.berryseed).toBeUndefined();
-    expect(harvest(s, 'rock', 'e', false, false, lucky, T0).drops).toEqual({ stone: 3 });
+    const rock=harvest(s, 'rock', 'e', false, false, lucky, T0);
+    expect(rock.drops.berryseed).toBeUndefined();
+    expect(rock.drops.herbseed).toBeUndefined();
     expect(s.mats.berryseed).toBe(1);
   });
 

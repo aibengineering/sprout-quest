@@ -8,12 +8,12 @@ import { kitchenPresentation, KITCHEN_EXTENSION_PRESENTATION } from '../src/craf
 import { sceneModel } from './sceneModel';
 
 function settled() {
-  const s = newState(); s.stories.poppy = 6; s.stories.bram = 9; s.flags.push('bram:hut','pip:returned','alder:returned','rook:returned','moss:returned'); s.unlocked.push('plots'); s.build.sawmill = 4;
+  const s = newState(); s.stories.poppy = 6; s.stories.bram = 9; s.flags.push('bram:hut','pip:returned','fox:trusted','rook:returned','moss:returned'); s.unlocked.push('plots'); s.build.sawmill = 4;
   for (const m in s.mats) s.mats[m as keyof typeof s.mats] = 500;
   return s;
 }
 describe('Bram’s incremental building quests', () => {
-  test('garden → Clover’s kitchen → Pip → Alder, with a single material hand-in and no skipped or repeated job', () => {
+  test('garden → Clover’s kitchen → Pip → masked fox, with a single material hand-in and no skipped or repeated job', () => {
     const s = settled();
     expect(kitchenOpen(s)).toBe(false);
     expect(completeVillageJob(s, 'kitchen')).toBe('stale');
@@ -44,7 +44,7 @@ describe('Bram’s incremental building quests', () => {
         expect(completeVillageJob(s, job.id)).toBe('locked');
         s.flags.push(job.home === 'pip' ? 'pip:candy' : job.home === 'rook' ? 'rook:lodge' : `${job.home}:recipe`);
       }
-      if(job.project==='training' && job.level>1) s.flags.push('alder:met');
+      if(job.project==='training' && job.level>1) s.flags.push('fox:met');
       if (job.cost.flower) expect(s.build.garden).toBeGreaterThan(0);
       const before = { ...s.mats };
       expect(completeVillageJob(s, job.id)).toBe('ok');

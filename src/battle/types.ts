@@ -86,6 +86,8 @@ export interface Proj {
   from?: MonsterKind;
   /** Bat bolts swerve toward foes. */
   homing?: boolean;
+  /** Player attack/cast identity, shared by all bolts in one cast for once-per-attack elemental effects. */
+  strikeId?: number;
   /** Sporecap spores: seconds of poison if it hits you. */
   poison?: number;
   /** Practice special identity; used to count successful casts rather than individual bolts. */

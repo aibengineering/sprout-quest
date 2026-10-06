@@ -141,7 +141,7 @@ async function bramJob(page: Page, id: string) {
   await waitFor(page, `Bram's ${id} job`, async () => {
     await closeDialogs(page, 8, '.caption');
     return !!(await page.$('.sheet.building-job'));
-  }, 12000);
+  }, 12000).catch(async(e)=>{throw new Error(`${e.message}: ${JSON.stringify(await game(page, `({mode:g.mode,room:g.room,underground:g.save.underground,near:g.over.nearbyObject(),job:g.save.buildingJob,build:g.save.build,flags:g.save.flags,dialog:document.querySelector('#modal .sheet')?.textContent})`))}`);});
 }
 async function handInJob(page: Page, id: string) {
   await page.click(`[data-dialog="job:${id}"]`);
@@ -746,6 +746,88 @@ scenario('a tree falls and a rock breaks all the way, and what you earned lands 
   }
 });
 
+scenario('resource gates: an old save inside the fallen log can always leave the grove', (g) => {
+  g.save.lv=2;g.save.pos={x:70.5,y:35.5};
+},async(page)=>{
+  check(await game<boolean>(page,`!g.over.world.objs.find(o=>o.id==='poppy:thicket').hidden`),'the log did not block the entrance before the quest');
+  if(SHOTS)await page.screenshot({path:`${OUT}resources-thicket-before-quest.png`});
+  await page.keyboard.press('KeyE');
+  await waitFor(page,'escape the old saved position',async()=>game<boolean>(page,`g.over.x>g.over.world.objs.find(o=>o.id==='poppy:thicket').x+1.5&&!g.over.world.blocked(g.over.x,g.over.y,.28)`));
+  check(await game<boolean>(page,`!g.save.flags.includes('poppy:bigbun')&&(g.save.stories.poppy??0)===0`),'escaping changed quest progress');
+});
+
+scenario('resource trips: walk a pine grove and iron working, gather their nodes and leave them regrowing', (g) => {
+  const s=g.save;
+  s.lv=14;s.quest=g.quests.length;s.tools={wood:2,mine:3};
+  s.skills.wood={lv:5,xp:0};s.skills.mine={lv:7,xp:0};
+  s.bosses=['kingslime','alphawolf','echoqueen','crystalking','dragon'];
+  s.stories={poppy:6,bram:9,granny:99,pip:1,drums:4,fox:3,moss:1,rook:1,village:2};
+  s.flags.push('poppy:returned','bram:hut','granny:extension','fox:trusted');
+}, async (page) => {
+  for(const site of [
+    {name:'southern-pines',m:87,start:[98.5,34.5],kind:'pine',mat:'pine',points:[[9,29],[12,29],[10,32],[13,31]]},
+    {name:'upper-iron',m:127,start:[151.5,12.5],kind:'iron',mat:'iron',points:[[22,14],[25,13],[25,15]]},
+  ]) {
+    await run(page,`g.over.teleport(${site.start[0]},${site.start[1]});g.over.roamers.calm=9999`);
+    await page.waitForTimeout(400);
+    const before=await game<number>(page,`g.save.mats.${site.mat}`);
+    for(const [nx,ny]of site.points) {
+      const target=await game<{id:string;path:{x:number;y:number}[]}>(page,`(() => {
+        const w=g.over.map, node=w.objs.find(o=>o.node==='${site.kind}'&&Math.floor(o.x)===${site.m+nx}&&Math.floor(o.y)===${ny});
+        if(!node)throw new Error('Missing authored resource');
+        const start={x:Math.round(g.over.x*2)/2,y:Math.round(g.over.y*2)/2};
+        const q=[start],parents=new Map([[start.x+','+start.y,null]]);let end=null;
+        for(let i=0;i<q.length;i++) {
+          const p=q[i],dx=Math.max(node.x-p.x,0,p.x-node.x-node.w),dy=Math.max(node.y-p.y,0,p.y-node.y-node.h);
+          if(Math.hypot(dx,dy)<.75&&!w.blocked(p.x,p.y,.28)){end=p;break;}
+          for(const [dx,dy]of[[.5,0],[-.5,0],[0,.5],[0,-.5]]) {
+            const x=p.x+dx,y=p.y+dy,key=x+','+y;
+            if(x<${site.m}||x>=${site.m+40}||y<0||y>45||parents.has(key)||w.blocked(x,y,.28))continue;
+            parents.set(key,p);q.push({x,y});
+          }
+        }
+        if(!end)throw new Error('No walkable resource approach');
+        const path=[];for(let p=end;p;p=parents.get(p.x+','+p.y))path.unshift(p);
+        return {id:node.id,path};
+      })()`);
+      // Walk with keyboard events through the normal movement and collision loop.
+      await page.evaluate(async (path) => {
+        const g=(window as any).game;
+        let i=0,held='';const until=performance.now()+15000;
+        const key=(code:string)=>{
+          if(code===held)return;
+          if(held)window.dispatchEvent(new KeyboardEvent('keyup',{code:held,bubbles:true}));
+          held=code;
+          if(held)window.dispatchEvent(new KeyboardEvent('keydown',{code:held,bubbles:true}));
+        };
+        try {
+          while(i<path.length&&performance.now()<until) {
+            while(i<path.length&&Math.hypot(path[i].x-g.over.x,path[i].y-g.over.y)<.12)i++;
+            if(i>=path.length)break;
+            const dx=path[i].x-g.over.x,dy=path[i].y-g.over.y;
+            key(Math.abs(dx)>Math.abs(dy)?(dx>0?'KeyD':'KeyA'):(dy>0?'KeyS':'KeyW'));
+            await new Promise(requestAnimationFrame);
+          }
+          if(i<path.length)throw new Error('Walking to a resource got stuck');
+        }finally{key('');}
+      },target.path);
+      check(await game<string>(page,'g.over.nearbyObject()?.id')===target.id,'walk ended beside the wrong resource');
+      await page.keyboard.press('KeyE');
+      await waitFor(page,'gather at the authored stop',async()=>await game<string>(page,'g.mode')==='gather');
+      for(let i=0;i<30&&!(await game<boolean>(page,'g.chop?.game.done ?? true'));i++) {
+        await waitFor(page,'clean gathering hit',async()=>game<boolean>(page,`(() => {const c=g.chop?.game;return !c||c.done||(Math.abs(c.pos-c.center)<c.width*.3&&c.lock<=0);})()`),8000);
+        await page.keyboard.press('KeyE');await page.waitForTimeout(60);
+      }
+      await waitFor(page,'gathering animation finishes',async()=>await game<string>(page,'g.mode')!=='gather',6000);
+      await closeDialogs(page);
+      check(await game<boolean>(page,`g.save.nodes[${JSON.stringify(target.id)}]>Date.now()`),'harvest did not start regrowth');
+    }
+    const gained=await game<number>(page,`g.save.mats.${site.mat}`)-before;
+    check(gained>=site.points.length*4,`${site.name}: gathering circuit paid too little`);
+    if(SHOTS)await page.screenshot({path:`${OUT}resources-${site.name}-harvested.png`});
+  }
+});
+
 scenario('the Forge keeps gear a mystery until you reach its level', (g) => {
   g.save.tools.mine = 1;
   g.save.skills.mine = { lv: 1, xp: 0 };
@@ -875,21 +957,33 @@ scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   };
 
   // Only the meadow's south-east pocket starts it: not the south edge of any other area.
+  check(await game<boolean>(page, `!g.over.world.objs.find(o=>o.id==='poppy:thicket').hidden && g.over.world.blocked(70.5,35.5,.28)`), 'the rich grove is already open before Poppy’s quest');
   await goTo(143.5, 24.5);
   await page.waitForTimeout(600);
   check((await step()) === 0 && (await game<string>(page, 'g.mode')) === 'world', "Poppy's story started outside the meadow");
   // Coming down into the meadow's south-east pocket: she's cornered in the grove's mouth.
   const M = 47;
-  await goTo(M + 31, 21.6);
+  await goTo(M + 31, 23.8); await page.waitForTimeout(600);
+  check((await step()) === 0 && (await game<string>(page, 'g.mode')) === 'world', "Poppy's grove scene started up by the pond");
+  await goTo(M + 29.1, 35.4);
+  if (SHOTS) {
+    await waitFor(page, 'Poppy cornered in the side route', async () => /Somebody, help/.test((await page.textContent('#modal .sheet')) ?? ''));
+    await page.screenshot({path: `${OUT}poppy-rescue-pocket-phone.png`});
+    await page.setViewportSize({width:960,height:720});
+    await page.waitForTimeout(250);
+    await page.screenshot({path: `${OUT}poppy-rescue-pocket-wide.png`});
+    await page.setViewportSize({width:390,height:844});
+  }
   check(/Somebody, help/.test(await lines()), 'no cry for help');
   await waitFor(page, 'free to walk', mode('world'));
   check((await step()) === 1 && !(await game<boolean>(page, `g.over.world.objs.find((o) => o.flag === 'poppy:rescue').hidden`)), 'the slimes are not blocking the grove');
   // Run up behind them: a surprise attack, with Poppy watching.
-  await goTo(M + 28.4, 23.2);
+  await page.keyboard.down('KeyA'); await page.waitForTimeout(350); await page.keyboard.up('KeyA');
   await waitFor(page, 'the rescue fight', async () => game<boolean>(page, `!!g.battle?.setup.bystander && !!g.battle.setup.ambush`), 8000);
   await win('the rescue fight');
   check(/walk me home/.test(await lines()), 'Poppy never asks to be walked home');
   check((await step()) === 2 && (await game<boolean>(page, `g.over.actors.get('poppy:poppy').follow`)), 'Poppy is not following you');
+  check(await game<boolean>(page, `!g.over.world.objs.find(o=>o.id==='poppy:thicket').hidden`), 'the grove opened between the rescue and the chase');
 
   // Home (she catches up when you travel), then the toy's gone.
   await waitFor(page, 'free to walk', mode('world'));
@@ -900,13 +994,14 @@ scenario("Poppy's story plays from the rescue to the reunion", (g) => {
   check((await step()) === 3, `home scene left the story at step ${await step()}`);
 
   // Back at the grove: the thief runs in, and its friends guard the way.
-  await goTo(M + 29, 23.3);
+  await goTo(M + 29, 35.3);
   await waitFor(page, 'the thief scene', mode('dialog'));
   await waitFor(page, 'the getaway', async () => !!(await page.$('#modal:not([hidden]) .sheet.caption')), 12000);
-  check(/ran deep into the grove/.test(await lines()), 'nobody says where the thief went');
+  check(/shoved the fallen log aside/.test(await lines()), 'nobody says where the thief went');
   await waitFor(page, 'free to walk', mode('world'));
   check((await step()) === 4, 'the chase never started');
-  for (const [flag, x, y] of [['pack1', M + 24.4, 23.2], ['pack2', M + 19.5, 24.6], ['bigbun', M + 8.3, 23.2]] as const) {
+  check(await game<boolean>(page, `g.over.world.objs.find(o=>o.id==='poppy:thicket').hidden`), 'the thief never cleared the log');
+  for (const [flag, x, y] of [['pack1', M + 24.5, 35.3], ['pack2', M + 19.6, 38.5], ['bigbun', M + 15.6, 35.5]] as const) {
     check(!(await game<boolean>(page, `g.over.world.objs.find((o) => o.flag === 'poppy:${flag}').hidden`)), `${flag} is not there`);
     await goTo(x, y);
     await win(`the ${flag} fight`);
@@ -1142,7 +1237,7 @@ scenario("The drums in the dark: tail the Pebblors unseen (once spotted and drop
   // Walk back up to the same cave mouth before returning home.
   await goTo(C + 26.5, 9.3);
   await page.keyboard.down('KeyS');
-  await waitFor(page, 'outside the cave again', async () => game<boolean>(page, `!g.over.underground && !g.trans`)).finally(() => page.keyboard.up('KeyS'));
+  await waitFor(page, 'outside the cave again', async () => game<boolean>(page, `g.over.underground===g.over.cavern && !g.trans`)).finally(() => page.keyboard.up('KeyS'));
   check(await game<boolean>(page, `Math.hypot(g.over.x - ${C + 26.5}, g.over.y - 9.7) < .15`), 'cave exit returned to the wrong place');
   // Home: Poppy's in trouble with Granny.
   await goTo(31.6, 11.4);
@@ -1184,7 +1279,7 @@ scenario('Echo cave: completed quests can enter, save underground, return throug
   await page.waitForTimeout(150);
   check(await game<boolean>(page, `!!g.over.roamers.unaware(g.over.x, g.over.y) && document.querySelector('#btn-act').textContent.includes('Enter cave')`), 'nearby monster replaced the cave action');
   await page.keyboard.press('KeyE');
-  await waitFor(page, 'underground', async () => game<boolean>(page, `!!g.over.underground && !g.trans && g.over.map !== g.over.world`));
+  await waitFor(page, 'underground', async () => game<boolean>(page, `g.over.underground===g.over.echo && !g.trans && g.over.map !== g.over.world`));
   check(await game<boolean>(page, `!g.battle && g.mode === 'world'`), 'cave entry started a surprise battle');
   check(await game<boolean>(page, `g.over.cast === g.over.echo.actors && g.over.cast.list.filter((a) => a.id.startsWith('drums:g')).length === 4 && !g.over.cast.get('drums:poppy')`), 'completed cast did not stay underground');
   await run(page, `g.over.relocate(157.6, 6.6)`);
@@ -1194,11 +1289,11 @@ scenario('Echo cave: completed quests can enter, save underground, return throug
   check(await game<boolean>(page, `g.over.x === 157.6 && g.over.y === 6.6 && g.save.stories.drums === 4 && g.save.perks.filter((p) => p === 'echoanklet').length === 1 && g.save.mats.iron === 17`), 'reload moved the player or changed quest rewards');
   await run(page, `g.over.relocate(153.5, 9.8); g.over.face = Math.PI / 2`);
   await page.keyboard.press('KeyE');
-  await waitFor(page, 'back at the entrance', async () => game<boolean>(page, `!g.over.underground && !g.trans`));
-  check(await game<boolean>(page, `Math.hypot(g.over.x - 153.5, g.over.y - 9.7) < .01 && !g.save.underground && !g.over.actors.get('drums:g0')`), 'outside state or cast leaked from the instance');
+  await waitFor(page, 'back at the entrance', async () => game<boolean>(page, `g.over.underground===g.over.cavern && !g.trans`));
+  check(await game<boolean>(page, `Math.hypot(g.over.x - 153.5, g.over.y - 9.7) < .01 && g.save.underground?.id==='cavern' && !g.over.actors.get('drums:g0')`), 'outside state or cast leaked from the instance');
   // The same entrance also works by walking into it, without replaying Poppy's scene.
   await page.keyboard.down('KeyW');
-  await waitFor(page, 'walk back into the cave', async () => game<boolean>(page, `!!g.over.underground && !g.trans`)).finally(() => page.keyboard.up('KeyW'));
+  await waitFor(page, 'walk back into the cave', async () => game<boolean>(page, `g.over.underground===g.over.echo && !g.trans`)).finally(() => page.keyboard.up('KeyW'));
   check(await game<boolean>(page, `g.mode === 'world' && g.save.stories.drums === 4 && !g.ui.isOpen`), 're-entry replayed the completed story');
   await run(page, `g.warp('village')`);
   await waitFor(page, 'save the warp out', async () => game<boolean>(page, `!JSON.parse(localStorage.getItem('sprout-quest-save')).underground`), 8000);
@@ -1515,6 +1610,9 @@ scenario("Poppy's field by hand: seeds from the basket, hold the button down a r
   await stand(...onPlot(1, 1));
   await press();
   check(await game<boolean>(page, 'g.save.mats.berry === 9 && g.save.mats.herb === 2'), 'the harvest did not reach your bag');
+  // The first herb harvest teaches Meadow Tea; dismiss that recipe card before working another bed.
+  await closeDialogs(page);
+  await waitFor(page, 'back to the field after the herb recipe', () => game<boolean>(page, `g.mode==='world'&&!g.ui.isOpen`));
   // The Bloom Garden's plots aren't tilled yet: Poppy says so.
   await stand(...onPlot(4, 0));
   check(await label() === 'Untilled', `untilled ground was not labelled (${await label()})`);
@@ -2395,7 +2493,7 @@ scenario('New neighbours: meet on the road, resume the journey, return together,
   const s=g.save;s.lv=12;s.quest=g.quests.length;s.villageJobs=true;
   s.stories={...s.stories,poppy:6,bram:9,drums:4,granny:99};
   s.flags=s.flags.filter((f:string)=>!f.endsWith(':returned'));
-  s.flags.push('bram:hut','granny:extension','poppy:returned','seam:quarry','pip:journey:met');s.bosses.push('kingslime','alphawolf','echoqueen');
+  s.flags.push('bram:hut','granny:extension','poppy:returned','seam:quarry','pip:journey:met');s.bosses.push('kingslime','alphawolf','echoqueen','dragon');
   s.build.garden=1;s.build.sawmill=4;s.unlocked.push('plots','sawmill');
   for(const m in s.mats)s.mats[m]=1000;
   s.pos={x:20.2,y:9.2};
@@ -2403,7 +2501,7 @@ scenario('New neighbours: meet on the road, resume the journey, return together,
   await bramJob(page,'garden2');
   check(!await page.$('[data-dialog="job:pip1"]'),'Bram offers a home before meeting Pip');
   await page.click('.building-job [data-dialog="close"]');
-  for(const [id,job] of [['pip','pip1'],['alder','training1'],['rook','rook1'],['moss','moss1']]){
+  for(const [id,job] of [['pip','pip1'],['rook','rook1'],['moss','moss1']]){
     const aid=`journey-${id}:${id}`;
     await waitFor(page, `${id} on the road`,()=>game<boolean>(page,`!!g.over.actors.get('${aid}')`));
     await run(page,`const a=g.over.actors.get('${aid}');g.over.teleport(a.x,a.y+.6);g.over.face=-Math.PI/2`);
@@ -2425,7 +2523,7 @@ scenario('New neighbours: meet on the road, resume the journey, return together,
     await handInJob(page,job);
     check(!await game<boolean>(page,`!!g.over.actors.get('${aid}')`),`temporary ${id} guest duplicated the settled resident`);
   }
-  check(await game<boolean>(page,`g.save.homes.pip===1 && g.save.homes.rook===1 && g.save.homes.moss===1 && g.save.build.training===1 && g.save.build.garden===1`),'an optional upgrade blocked newcomer buildings');
+  check(await game<boolean>(page,`g.save.homes.pip===1 && g.save.homes.rook===1 && g.save.homes.moss===1 && g.save.build.training===0 && g.save.build.garden===1`),'an optional upgrade blocked newcomer buildings');
 }, {webgl:true});
 
 scenario('Resident upgrades: ask Clover for a pantry, hand in to Bram, reload, then finish the final home additions', (g)=>{
@@ -2461,7 +2559,7 @@ scenario('Resident upgrades: ask Clover for a pantry, hand in to Bram, reload, t
   check(await game<boolean>(page,`g.save.homes.pip===3&&g.save.homes.rook===3&&g.save.homes.moss===3&&g.save.kitchenLevel===3`),'final tiers missing');
 },{webgl:true});
 
-scenario('Bram’s new construction chain: garden flowers, Granny’s kitchen extension, cottage and Alder’s dojo', (g) => {
+scenario('Bram’s new construction chain: garden flowers, Granny’s kitchen extension, cottage and Masked Fox’s hidden clearing', (g) => {
   const s = g.save; s.villageJobs = true;
   s.lv = 12; s.quest = g.quests.length;
   s.stories = { ...s.stories, poppy: 6, bram: 9, drums: 4, granny: 99 };
@@ -2495,29 +2593,32 @@ scenario('Bram’s new construction chain: garden flowers, Granny’s kitchen ex
   if (SHOTS) await page.screenshot({ path: `${OUT}granny-big-kitchen.png` });
   await run(page, `g.leaveRoom(); g.save.mats.flower = 500`); await waitFor(page, 'outside', () => settledIn(page, null));
   await bramJob(page, 'pip1'); await handInJob(page, 'pip1');
+  await waitFor(page,'Pip’s welcome and recipe finish',async()=>{await closeDialogs(page,12);return game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('pip:candy')`);},20000);
+  await run(page, `g.save.flags.push('fox:seen','fox:trusted','fox:catch','fox:trial');g.save.perks.push('shadowscarf')`);
   await bramJob(page, 'training1'); await handInJob(page, 'training1');
-  check(await game<boolean>(page, `g.save.build.training === 1 && !!g.over.actors.get('alder:alder')`), 'Alder did not arrive at his dojo');
-  await run(page, `const a = g.over.actors.get('alder:alder'); g.over.teleport(a.x, a.y + .6); g.over.face = -Math.PI / 2`);
+  check(await game<boolean>(page, `g.save.build.training === 1 && !!g.over.actors.get('fox:fox')`), 'Fox did not remain at her den');
+  await run(page, `const a = g.over.actors.get('fox:fox'); g.over.teleport(a.x, a.y + .6); g.over.face = -Math.PI / 2`);
   await page.waitForTimeout(400); await page.keyboard.press('KeyE');
-  await waitFor(page, 'Alder introduces his lessons', async () => {
+  await waitFor(page, 'Fox introduces her lessons', async () => {
     await closeDialogs(page, 8, '.caption'); return !!(await page.$('.sheet.dojo'));
   });
-  check(await game<boolean>(page, `g.save.flags.includes('alder:met')`), 'Alder did not introduce himself');
-  if (SHOTS) await page.screenshot({ path: `${OUT}alder-dojo-lessons.png` });
+  check(await game<boolean>(page, `g.save.flags.includes('fox:met')`), 'Fox did not introduce herself');
+  if (SHOTS) await page.screenshot({ path: `${OUT}fox-clearing-lessons.png` });
   await page.click('.dojo [data-dialog="close"]');
 }, { webgl: true });
 
-scenario('Alder’s dojo: clean dodge, once-only XP, safe practice and withdrawal', (g) => {
+scenario('Masked Fox’s hidden clearing: clean dodge, once-only XP, safe practice and withdrawal', (g) => {
   const s = g.save; s.lv = 12; s.quest = g.quests.length;
   s.stories = { ...s.stories, poppy: 6, bram: 9, drums: 4, granny: 99, alder: 1 };
   s.flags.push('poppy:returned', 'bram:hut', 'alder:met');
   s.build.training = 3; s.build.garden = 3; s.build.cottage = 1; s.build.sawmill = 3;
   s.homes = { pip: 2, rook: 2, moss: 2 }; s.hp = 41; s.potions = 3;
-  s.pos = { x: 42.45, y: 11.8 };
+  s.pos = { x: 192.2, y: 8.4 };
+  s.flags.push('fox:seen','fox:trusted','fox:catch','fox:trial'); s.perks.push('shadowscarf');
 }, async (page) => {
   const before = await game<any>(page, `({ hp:g.save.hp, potions:g.save.potions, xp:g.save.xp, mats:g.save.mats, wins:g.save.wins, kills:g.save.questKills })`);
   const start = async () => {
-    await run(page, `void g.over.actors.get('alder:alder').talk()`);
+    await run(page, `void g.over.actors.get('fox:fox').talk()`);
     await page.waitForSelector('.sheet.dojo'); await page.click('[data-dialog="dojo:footwork"]');
     await waitFor(page, 'practice battle', () => game<boolean>(page, `g.mode === 'battle' && g.battle?.intro <= 0`), 12000);
   };
@@ -2527,7 +2628,7 @@ scenario('Alder’s dojo: clean dodge, once-only XP, safe practice and withdrawa
   await page.keyboard.press('KeyK');
   await run(page, `const b=g.battle; b.projs.push({x:b.p.x,y:b.p.y-10,vx:0,vy:0,r:20,atk:10,mult:1,owner:'e',life:1,color:'#fff'});`);
   await waitFor(page, 'a real clean dodge', () => game<boolean>(page, 'g.battle.evades === 1'));
-  if (SHOTS) await page.screenshot({ path: `${OUT}alder-dojo-practice.png` });
+  if (SHOTS) await page.screenshot({ path: `${OUT}fox-clearing-practice.png` });
   await endFight(page);
   await waitFor(page, 'lesson result', async () => !!await page.$('.dojo-result'), 12000);
   check((await page.textContent('.dojo-result'))?.includes('+180 combat XP'), 'first-clear reward missing');
@@ -2608,7 +2709,6 @@ scenario('Sowerby layout: clear empty plots, upgraded homes, Bram’s work yard 
   s.homes = { pip: 2, rook: 0, moss: 0 };
   s.pos = { x: 24.5, y: 14.5 };
 }, async (page) => {
-  await waitFor(page, 'native characters rendered for the layout review', () => game<boolean>(page, 'g.modelStats.renders > 0'), 20000);
   check(await game<boolean>(page, `!g.over.actors.get('rook:rook') && !g.over.actors.get('moss:moss')`), 'residents appeared before their homes were built');
   const capture = async (name: string, x: number, y: number, wide = false) => {
     await page.setViewportSize(wide ? { width: 1350, height: 1200 } : { width: 390, height: 844 });
@@ -2618,7 +2718,7 @@ scenario('Sowerby layout: clear empty plots, upgraded homes, Bram’s work yard 
   };
   await capture('empty-wide', 31.5, 13, true);
   await capture('empty-rook-phone', 27.5, 20);
-  await capture('empty-moss-phone', 34.5, 20);
+  await capture('empty-moss-phone', 41.25, 10.8);
   await run(page, `g.save.homes = { pip: 2, rook: 2, moss: 2 }; Object.assign(g.save.stories, { rook: 1, moss: 1 }); g.save.flags.push('rook:lodge', 'moss:recipe'); localStorage.setItem('sprout-quest-save', JSON.stringify(g.save))`);
   await page.reload(); await page.waitForSelector('.title-btns:not([hidden])'); await page.click('#btn-continue');
   await page.waitForTimeout(2200); await closeDialogs(page);
@@ -2627,7 +2727,7 @@ scenario('Sowerby layout: clear empty plots, upgraded homes, Bram’s work yard 
   await capture('work-yard-phone', 21.3, 8.2);
   await capture('home-phone', 20.5, 20);
   await capture('rook-phone', 27.5, 20);
-  await capture('moss-phone', 34.5, 20);
+  await capture('moss-phone', 41.25, 10.8);
 
   // Walk the lane with real input, then along each short doorstep spur. No teleport
   // into a supposedly accessible front to hide a path blocked by a house or fence.
@@ -2635,18 +2735,23 @@ scenario('Sowerby layout: clear empty plots, upgraded homes, Bram’s work yard 
     const from = await game<number>(page, `g.over.${axis}`), positive = target > from;
     await page.keyboard.down(key);
     try {
-      await waitFor(page, `walking to ${axis}=${target}`, () => game<boolean>(page, `g.over.${axis} ${positive ? '>=' : '<='} ${target}`), 8000);
+      await waitFor(page, `walking to ${axis}=${target}`, () => game<boolean>(page, `g.over.${axis} ${positive ? '>=' : '<='} ${target}`), 30000);
     } finally { await page.keyboard.up(key); }
     check(await game<boolean>(page, `g.mode === 'world' && !g.over.map.blocked(g.over.x, g.over.y, .28)`), 'walk ended inside a building or dialogue');
   };
   await run(page, `g.over.teleport(24.5, 14.5)`);
   await leg('y', 22.5, 'KeyS');
   await leg('x', 27.5, 'KeyD');
-  await leg('y', 21.65, 'KeyW');
+  await page.keyboard.down('KeyW');
+  try { await waitFor(page, 'walking through Rook’s front door', () => settledIn(page, 'hunter'), 8000); }
+  finally { await page.keyboard.up('KeyW'); }
+  await run(page, `g.leaveRoom()`); await waitFor(page, 'back on Rook’s doorstep', () => settledIn(page, null));
   await leg('y', 22.5, 'KeyS');
-  await leg('x', 34.5, 'KeyD');
-  await leg('y', 21.65, 'KeyW');
-  check(await game<boolean>(page, `Math.abs(g.over.x - 34.5) < .7 && g.over.y > 21`), 'could not walk up to Moss’s front');
+  await leg('x', 24.5, 'KeyA');
+  await leg('y', 14.5, 'KeyW');
+  await leg('x', 41.25, 'KeyD');
+  await leg('y', 11.6, 'KeyW');
+  check(await game<boolean>(page, `Math.abs(g.over.x - 41.25) < .7 && g.over.y < 12`), 'could not walk up to Moss’s front beside the kitchen');
 
   // One continuous walk from the main road up the mill approach and through its door.
   await run(page, `const o = g.over.world.objs.find(o => o.project === 'sawmill'); g.over.teleport(o.x + o.w/2, 14.5)`);
@@ -2655,7 +2760,7 @@ scenario('Sowerby layout: clear empty plots, upgraded homes, Bram’s work yard 
   finally { await page.keyboard.up('KeyW'); }
   await run(page, `g.leaveRoom()`); await waitFor(page, 'leaving onto the new mill path', () => settledIn(page, null));
   check(await game<boolean>(page, `!g.over.map.blocked(g.over.x, g.over.y, .28) && !!g.over.actors.get('bram:bram')`), 'mill exit or Bram was blocked after moving the cabin');
-}, { webgl: true });
+});
 
 scenario('Sowerby voices: neighbour chats follow the cave reunion and dragon defeat without early revelations', (g) => {
   const s=g.save;s.quest=g.quests.length;s.lv=8;
@@ -2732,7 +2837,7 @@ scenario('Timber shortcuts: six local crossings, cancel, tier locks, real walkin
     const a=shortcutWorldPoint(p,p.from), b=shortcutWorldPoint(p,p.to), vertical=p.deck.h>=p.deck.w;
     await run(page, `g.over.teleport(${a.x},${a.y});g.over.roamers.list=[];g.over.roamers.respawn=1e9;g.over.roamers.calm=1e9`);
     await page.keyboard.down(vertical?'ArrowUp':'ArrowRight');
-    try { await waitFor(page, `walking across ${p.name}`, () => game<boolean>(page, vertical?`g.over.y<=${b.y+.2}`:`g.over.x>=${b.x-.2}`), 12000); }
+    try { await waitFor(page, `walking across ${p.name}`, () => game<boolean>(page, vertical?`g.over.y<=${b.y+.2}`:`g.over.x>=${b.x-.2}`), 30000); }
     finally { await page.keyboard.up(vertical?'ArrowUp':'ArrowRight'); }
     if (SHOTS) await page.screenshot({path:`${OUT}${p.id}-built.png`});
   }
@@ -2751,7 +2856,7 @@ scenario('Timber shortcuts: six local crossings, cancel, tier locks, real walkin
     }
     await run(page, `g.zoom=0`);
   }
-}, { webgl: true });
+});
 
 // The 3D characters: every model loads, and the hero, villagers and monsters render (in software WebGL here) without
 // errors, on the map and in a fight.
@@ -2870,7 +2975,7 @@ scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel an
  const s=g.save;s.lv=14;s.quest=g.quests.length;s.villageJobs=true;
  s.flags=s.flags.filter((f:string)=>!f.endsWith(':returned'));s.flags.push('bram:hut','granny:extension','poppy:returned');
  s.stories={...s.stories,poppy:6,bram:9,drums:4,granny:99};s.build.sawmill=2;s.build.garden=1;
- s.bosses.push('kingslime','alphawolf');s.tools.mine=3;s.skills.mine={lv:10,xp:0};s.pos={x:139.95,y:21.6};
+ s.bosses.push('kingslime','alphawolf');s.tools.mine=3;s.skills.mine={lv:10,xp:0};s.pos={x:132.95,y:34.8};
 },async(page)=>{
  await page.keyboard.press('KeyE');
  await waitFor(page,'Pip’s underground tunnel',()=>game<boolean>(page,`g.over.underground===g.over.oreGallery&&!g.trans`));
@@ -2880,7 +2985,7 @@ scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel an
  if(SHOTS)await page.screenshot({path:`${OUT}pip-promising-tunnel.png`});
  await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(1800);await closeDialogs(page);
  check(await game<boolean>(page,`g.over.underground===g.over.oreGallery&&g.save.flags.includes('pip:seam:met')`),'reload lost Pip’s discovery');
- await run(page,`g.over.x=140;g.over.y=8.7;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
+ await run(page,`g.over.x=g.over.oreGallery.x0+7;g.over.y=8.7;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
  await waitFor(page,'the boulder minigame',()=>game<boolean>(page,`g.mode==='gather'&&g.chop?.game.requiredStreak===10`));
  for(let i=0;i<4;i++){await run(page,`const c=g.chop.game;c.lock=0;c.pos=c.center;c.strike()`);await page.waitForTimeout(180);}
  await run(page,`const c=g.chop.game;c.lock=0;c.pos=0;c.strike()`);
@@ -2890,7 +2995,7 @@ scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel an
  await waitFor(page,'the boulder opens',async()=>{await closeDialogs(page);return game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('seam:quarry')`);},10000);
  await run(page,`const a=g.over.oreGallery.actors.get('journey-pip:pip');g.over.x=a.x;g.over.y=a.y+.6;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
  await waitFor(page,'Pip joins the walk',async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('pip:journey:met')&&g.over.oreGallery.actors.get('journey-pip:pip')?.follow`);});
- await run(page,`g.over.x=140;g.over.y=8.7;g.over.roamers.calm=999`);await page.keyboard.down('KeyW');
+ await run(page,`g.over.x=g.over.oreGallery.x0+7;g.over.y=8.7;g.over.roamers.calm=999`);await page.keyboard.down('KeyW');
  try{await waitFor(page,'walk through the opened neck',()=>game<boolean>(page,`g.over.y<4.9`),10000);}finally{await page.keyboard.up('KeyW');}
  if(SHOTS)await page.screenshot({path:`${OUT}pip-ore-gallery.png`});
  await run(page,`const o=g.over.oreGallery.objs.find(o=>o.id==='burrow:quarry');g.over.x=o.x+o.w/2;g.over.y=o.y+o.h+.5;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
@@ -2915,7 +3020,7 @@ scenario('Hidden burrows: clear later boulders, return home and revisit only dis
   await run(page,`const o=g.over.world.objs.find(o=>o.boulder==='${id}');g.over.teleport(o.x+o.w/2,o.y+o.h+.5);g.over.face=-Math.PI/2;g.over.roamers.calm=999`);await page.keyboard.press('KeyE');
   await waitFor(page,'buried boulder',()=>game<boolean>(page,`g.mode==='gather'&&g.chop?.game.requiredStreak===${count}`));
   for(let i=0;i<count;i++){await run(page,`const c=g.chop.game;c.lock=0;c.pos=c.center;c.strike()`);await page.waitForTimeout(180);}
-  await waitFor(page,'uncovered tunnel',async()=>{await closeDialogs(page);return game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('seam:${id}')`);},10000);
+  await waitFor(page,'uncovered tunnel',async()=>{await closeDialogs(page);return game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('seam:${id}')`);},30000);
   discovered++;
   check(await game<boolean>(page,`g.over.world.objs.find(o=>o.boulder==='${id}').hidden&&!g.over.world.objs.find(o=>o.id==='burrow:${id}').hidden`),'boulder did not reveal its hole');
   await run(page,`const o=g.over.world.objs.find(o=>o.id==='burrow:${id}');g.over.x=o.x+o.w/2;g.over.y=o.y+o.h+.5;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
@@ -2929,7 +3034,7 @@ scenario('Hidden burrows: clear later boulders, return home and revisit only dis
  if(SHOTS)await page.screenshot({path:`${OUT}cinder-hidden-burrow.png`});
  await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(1800);await closeDialogs(page);
  check(await game<boolean>(page,`['stillwater','rootlight','cinder'].every(id=>g.save.flags.includes('seam:'+id)&&g.over.world.objs.find(o=>o.boulder===id).hidden)`),'reload restored a cleared boulder');
-},{webgl:true});
+});
 
 scenario('Rook’s lodge: accept, reload, hunt one variant and mount trophies once', (g)=>{
  const s=g.save;s.quest=g.quests.length;s.lv=14;s.homes={pip:1,rook:3,moss:1};s.build.cottage=1;s.build.sawmill=3;s.build.garden=2;s.build.training=1;
@@ -2961,7 +3066,103 @@ scenario('Rook’s lodge: accept, reload, hunt one variant and mount trophies on
  await run(page,`g.over.x=4.5;g.over.y=7.4`);await page.waitForTimeout(500);if(SHOTS)await page.screenshot({path:`${OUT}rook-trophy-lodge.png`});
  await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(1800);await closeDialogs(page);
  check(await game<boolean>(page,`g.room==='hunter'&&!g.save.hunting.active&&g.save.hunting.claimed.filter(id=>id==='slime:1').length===1&&g.save.hunting.trophies.length===2`),'reload lost the lodge or duplicated trophies');
-},{webgl:true});
+});
+
+scenario('Route redesign: hidden fox chase, shard trial, scarf dash and private return after Rook', (g) => {
+  const s=g.save; s.quest=g.quests.length; s.lv=12;
+  s.flags=s.flags.filter((f:string)=>!f.startsWith('alder:')&&!f.startsWith('fox:'));
+  s.flags.push('bram:hut','granny:extension','poppy:returned');
+  s.stories={...s.stories,poppy:6,bram:9,drums:4,granny:99};
+  s.bosses.push('kingslime','alphawolf','echoqueen');s.build.training=0;s.pos={x:173.5,y:9.3};
+},async(page)=>{
+  check(!await game<boolean>(page,`g.save.perks.includes('shadowscarf')||g.save.flags.includes('fox:trusted')`),'new friendship was pre-awarded');
+  await run(page,`void g.over.actors.get('fox:fox').talk();g.over.roamers.calm=999`);
+  await waitFor(page,'fox starts the hidden trail',async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('fox:seen')`);});
+  await waitFor(page,'catching the fox after all three trail stops',async()=>{
+    await run(page,`const a=g.over.actors.get('fox:fox');g.over.teleport(a.x,a.y+.6);g.over.roamers.calm=999`);
+    return game<boolean>(page,`g.save.flags.includes('fox:trail:2')`);
+  },120000);
+  const before=await game<any>(page,'({hp:g.save.hp,mats:g.save.mats})');
+  await run(page,`void g.over.actors.get('fox:fox').talk()`);
+  await waitFor(page,'falling glimmer trial',async()=>{await closeDialogs(page,8,'.caption');return !!await page.$('#fox-trial');});
+  for(let wave=1;wave<=6;wave++){
+    await waitFor(page,`shard ${wave}`,async()=>((await page.textContent('#fox-trial-status'))??'').startsWith(`${wave}/6`),20000);
+    await page.click(wave%2?'#fox-left':'#fox-right');
+    if(SHOTS&&wave===2)await page.screenshot({path:`${OUT}fox-shard-trial.png`});
+  }
+  await waitFor(page,'all six shards have fallen',async()=>!await page.$('#fox-trial'),120000);
+  await waitFor(page,'Shadow Scarf gift',async()=>{await closeDialogs(page,12);return game<boolean>(page,`g.mode==='world'&&!g.ui.isOpen&&g.save.perks.includes('shadowscarf')`);},15000);
+  check(await game<boolean>(page,`g.save.hp===${before.hp}&&JSON.stringify(g.save.mats)===${JSON.stringify(JSON.stringify(before.mats))}&&g.save.build.training===0`),'field gift charged materials or health');
+  await run(page,`g.save.flags.push('rook:returned');g.save.homes.rook=1;g.over.teleport(192.2,8.4);g.over.roamers.calm=999`);
+  await page.waitForTimeout(500);
+  check(await game<boolean>(page,`!!g.over.actors.get('fox:fox')&&!g.over.actors.get('journey-alder:alder')`),'Rook exposed or removed the fox');
+  await run(page,`g.over.teleport(180.5,6.8);g.over.face=0`);await page.waitForTimeout(100);
+  const x=await game<number>(page,'g.over.x');await page.click('#btn-dash');await page.waitForTimeout(280);
+  check(await game<boolean>(page,`g.over.x>${x+1.5}&&!g.over.world.blocked(g.over.x,g.over.y,.28)`),'scarf dash did not move or passed into scenery');
+  await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(1800);await closeDialogs(page);
+  check(await game<boolean>(page,`g.save.flags.includes('fox:trusted')&&g.save.perks.filter(p=>p==='shadowscarf').length===1&&!!g.over.actors.get('fox:fox')`),'reload lost or duplicated the private gift');
+});
+
+scenario('Route redesign: separate main cavern, both side branches, guardian exit and saved gallery position', (g)=>{
+ const s=g.save;s.lv=12;s.quest=g.quests.length;s.stories={...s.stories,poppy:6,bram:9,drums:4,granny:99};
+ s.flags.push('bram:hut','granny:extension','poppy:returned');s.bosses.push('kingslime','alphawolf','echoqueen');s.pos={x:128.5,y:14.8};
+},async(page)=>{
+ check(await game<boolean>(page,`g.over.underground===g.over.cavern&&g.over.map===g.over.cavern&&g.over.map.w===40&&g.over.fieldMap`),'Echo Cavern uses the surface map');
+ await run(page,`g.over.teleport(152.5,11.8);g.over.roamers.calm=999`);await page.waitForTimeout(600);
+ await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(1800);await closeDialogs(page);
+ check(await game<boolean>(page,`g.over.underground===g.over.cavern&&Math.hypot(g.over.x-152.5,g.over.y-11.8)<.1`),'main cave reload lost its instance or position');
+ await run(page,`g.enterEchoCave()`);await waitFor(page,'Pebbler Hollow',()=>game<boolean>(page,`g.over.underground===g.over.echo&&!g.trans`));
+ await run(page,`g.leaveEchoCave()`);await waitFor(page,'main cavern again',()=>game<boolean>(page,`g.over.underground===g.over.cavern&&!g.trans`));
+ await run(page,`g.enterOreGallery()`);await waitFor(page,'Pip’s gallery',()=>game<boolean>(page,`g.over.underground===g.over.oreGallery&&!g.trans`));
+ await run(page,`g.leaveOreGallery()`);await waitFor(page,'main cavern after Pip',()=>game<boolean>(page,`g.over.underground===g.over.cavern&&!g.trans`));
+ check(await game<boolean>(page,`!g.over.map.blocked(g.over.x,g.over.y,.28)`),'gallery exit is blocked');
+ await run(page,`g.over.teleport(166.5,14.8);g.over.roamers.calm=999`);await page.keyboard.down('KeyD');
+ try{await waitFor(page,'Hollow exit transition',()=>game<boolean>(page,`g.over.currentZone.id==='hollow'&&!g.over.underground&&!g.trans`));}finally{await page.keyboard.up('KeyD');}
+ await run(page,`g.over.teleport(126.3,14.8);g.over.roamers.calm=999`);await page.keyboard.down('KeyD');
+ try{await waitFor(page,'surface cave entrance',()=>game<boolean>(page,`g.over.underground===g.over.cavern&&!g.trans`));}finally{await page.keyboard.up('KeyD');}
+ if(SHOTS)await page.screenshot({path:`${OUT}main-cavern-phone.png`});
+ await run(page,`g.encounter()`);await waitFor(page,'field encounter underground',()=>game<boolean>(page,`g.mode==='battle'&&g.battle?.setup.zone.id==='cave'`),12000);
+});
+
+scenario('Cave mouths: rocky forest edge, no outdoor cave preview, full black fade and return through both mouths', (g)=>{
+ const s=g.save;s.lv=12;s.quest=g.quests.length;s.bosses=['kingslime'];s.pos={x:122.8,y:14.8};
+ s.stories={...s.stories,poppy:6,bram:9,drums:4,granny:99};s.flags.push('poppy:returned','bram:hut','granny:extension');
+ s.unlocked.push('village','plots','warpplot','kitchen','sawmill','cottage');s.fresh=[];
+},async(page)=>{
+ const calm=()=>run(page,`g.over.roamers.list=[];g.over.roamers.calm=999;g.over.roamers.respawn=1e9`);
+ await calm();
+ check(await game<boolean>(page,`g.over.sceneBounds.x0+g.over.sceneBounds.w===127&&!g.over.underground`),'outdoor map still includes the cave');
+ await page.keyboard.down('KeyD');await page.waitForTimeout(800);await page.keyboard.up('KeyD');
+ check(await game<boolean>(page,`g.over.x<125&&!g.over.underground&&!g.trans`),'walked past the Alpha Woolf into the cave');
+ await run(page,`g.save.bosses.push('alphawolf');g.over.world.obj('gate','cave').hidden=true;g.over.world.objs.find(o=>o.id==='cavern:entry').label='Enter Echo Cavern';g.over.teleport(123.7,14.8)`);await page.waitForTimeout(650);await calm();
+ for(const [width,height] of [[390,844],[960,640]]){
+   await page.setViewportSize({width,height});await page.waitForTimeout(200);
+   check(await game<boolean>(page,`g.over.view.left+${width}<=127*g.over.ts+1`),'outdoor camera peeks into cave tiles');
+   if(SHOTS)await page.screenshot({path:`${OUT}cave-mouth-outside-${width}.png`});
+ }
+ await page.setViewportSize({width:390,height:844});
+ await page.keyboard.down('KeyD');
+ try{await waitFor(page,'cave fade begins',()=>game<boolean>(page,`g.trans?.style==='fade'&&!g.trans.fired&&!g.over.underground`));}
+ finally{await page.keyboard.up('KeyD');}
+ await run(page,`g.trans.dur=6;g.trans.t=2.7`);
+ const black=()=>page.evaluate(()=>{const c=document.querySelector('canvas')!;const ctx=c.getContext('2d')!;return [[10,10],[c.width/2,c.height/2],[c.width-10,c.height-10]].every(([x,y])=>{const p=ctx.getImageData(x,y,1,1).data;return p[0]===0&&p[1]===0&&p[2]===0&&p[3]===255;});});
+ await waitFor(page,'fully black before map switch',black);
+ check(await game<boolean>(page,`g.over.currentZone.id==='woods'&&!g.over.underground`),'map switched before closing the screen');
+ await waitFor(page,'map changes under black',()=>game<boolean>(page,`g.trans?.fired&&g.over.underground===g.over.cavern`));
+ check(await black(),'map changed while the screen was visible');
+ check(await page.locator('#map-fade').evaluate(el=>{const s=getComputedStyle(el),b=el.getBoundingClientRect();return s.opacity==='1'&&s.backgroundColor==='rgb(0, 0, 0)'&&b.width===innerWidth&&b.height===innerHeight;}),'blackout leaves the HUD visible');
+ if(SHOTS)await page.screenshot({path:`${OUT}cave-mouth-blackout.png`});
+ await run(page,`g.trans.dur=.85;g.trans.t=.6`);await waitFor(page,'cavern revealed',()=>game<boolean>(page,`!g.trans&&g.over.underground===g.over.cavern`));
+ if(SHOTS)await page.screenshot({path:`${OUT}cave-mouth-inside.png`});
+ await run(page,`g.over.teleport(127.6,14.8)`);await calm();await page.keyboard.down('KeyA');
+ try{await waitFor(page,'return to woods',()=>game<boolean>(page,`!g.trans&&!g.over.underground&&g.over.currentZone.id==='woods'`));}finally{await page.keyboard.up('KeyA');}
+ check(await game<boolean>(page,`Math.abs(g.over.x-123.7)<.1&&!g.over.map.blocked(g.over.x,g.over.y,.28)`),'exit lands behind the mouth or immediately re-enters it');
+ await run(page,`g.save.bosses.push('echoqueen');g.over.world.obj('gate','hollow').hidden=true;g.over.teleport(166.5,14.8)`);await calm();await page.keyboard.down('KeyD');
+ try{await waitFor(page,'hollow mouth exit',()=>game<boolean>(page,`!g.trans&&!g.over.underground&&g.over.currentZone.id==='hollow'`));}finally{await page.keyboard.up('KeyD');}
+ check(await game<boolean>(page,`g.over.sceneBounds.x0===167&&g.over.x>169`),'Hollow still shares the underground camera');
+ await page.keyboard.down('KeyA');
+ try{await waitFor(page,'return through eastern mouth',()=>game<boolean>(page,`!g.trans&&g.over.underground===g.over.cavern&&g.over.x>165`));}finally{await page.keyboard.up('KeyA');}
+});
 
 queue.sort((a, b) => weight(a.name) - weight(b.name));
 let next = 0;

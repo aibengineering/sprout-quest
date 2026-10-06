@@ -1,5 +1,8 @@
 // Pip's first discovery is a real underground instance, with a blocked neck and a mixed-ore gallery beyond it.
 import { Actors } from './actors';
+import { zoneById } from './data';
+// Interior coordinates stay independent of the relocated exterior mouth, preserving old underground saves.
+const GALLERY_X0 = zoneById('cave').x0 + 6;
 import { T, TileMap } from './world';
 import { SEAMS, seamOpen } from './seams';
 import type { SaveState } from './state';
@@ -26,10 +29,10 @@ export class ResourceCave extends TileMap {
   readonly actors = new Actors();
   readonly name = 'Pip’s Ore Gallery';
   readonly outside = { x: SEAMS[0].at.x + .45, y: SEAMS[0].at.y + .8 };
-  readonly spawn = { x: SEAMS[0].at.x + 1, y: 13.7 };
-  readonly pip = { x: SEAMS[0].at.x - .5, y: 10.6 };
+  readonly spawn = { x: GALLERY_X0 + 7.5, y: 13.7 };
+  readonly pip = { x: GALLERY_X0 + 6, y: 10.6 };
   constructor() {
-    const x0 = SEAMS[0].at.x - 6.5;
+    const x0 = GALLERY_X0;
     super(14, ROWS.length, x0);
     for (let y = 0; y < ROWS.length; y++)
       for (let x = 0; x < 14; x++)

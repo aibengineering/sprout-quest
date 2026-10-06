@@ -15,7 +15,7 @@ export const DOJO_CHALLENGES: DojoChallenge[] = [
 export const dojoChallenge = (id: string) => DOJO_CHALLENGES.find((c) => c.id === id);
 export const dojoCleared = (s: SaveState, id: string) => s.flags.includes(`dojo:clear:${id}`);
 export function dojoLock(s: SaveState, c: DojoChallenge): string | null {
-  if (s.build.training < c.rank) return `Bram needs to finish dojo level ${c.rank}.`;
+  if (s.build.training < c.rank) return `Bram needs to finish practice clearing level ${c.rank}.`;
   const previous = DOJO_CHALLENGES[DOJO_CHALLENGES.indexOf(c) - 1];
   if (previous && !dojoCleared(s, previous.id)) return `Clear “${previous.name}” first.`;
   if (c.skills && s.mastery[GEAR[s.equip.weapon]?.style ?? 'sword'].lv < 2) return 'Equip a weapon class with its special unlocked (handling Lv 2).';

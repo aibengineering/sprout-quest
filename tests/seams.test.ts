@@ -28,6 +28,8 @@ describe('Pip’s boulders and return tunnels', () => {
     });
   test('a gallery cannot be entered through its boulder; clearing it reveals mixed resources and the home tunnel', () => {
     const s = newState(), c = new ResourceCave();
+    // The outside mouth moved with the main quarry; the instance keeps the old save coordinates.
+    expect(c.x0).toBe(133);expect(c.spawn.x).toBe(140.5);
     c.sync(s);
     expect(c.blocked(c.spawn.x, 7.6, .28)).toBe(true);
     expect(c.objs.find(o => o.tunnel)?.hidden).toBe(true);
