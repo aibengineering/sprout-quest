@@ -465,7 +465,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
     },
   },
 
-  // Slime King: huge telegraphed belly-flops that splash goo, and he calls little slimes every few landings.
+  // Slime King: belly-flops splash goo unless hit mid-hop; calls little slimes every few landings.
   kingslime: {
     start: 'idle', color: '#8ac8ff', hops: true,
     think(e, w, _dt, _dist, _toP, rage) {
@@ -476,6 +476,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
         e.windup = e.t < 0.5 ? 1 - e.t / 0.5 : 0;
         if (e.t <= 0) {
           e.state = 'hop';
+          e.flag = false;
           const dur = 0.95 * rage;
           e.t = dur;
           e.windup = 0;
@@ -485,7 +486,7 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
           e.ty = ty;
           e.vx = (tx - e.x) / dur;
           e.vy = (ty - e.y) / dur;
-          w.hazard({ x: tx, y: ty, r: 72, delay: dur, atk: e.atk, from: e.kind, mult: 1.4 });
+          w.hazard({ x: tx, y: ty, r: 72, delay: dur, atk: e.atk, from: e.kind, mult: 1.4, jumper: e });
         }
       } else if (e.state === 'hop') {
         const dur = 0.95 * rage;
@@ -496,9 +497,11 @@ export const MONSTER_AI: Record<MonsterKind, Behaviour> = {
           e.z = 0;
           e.vx = e.vy = 0;
           e.squash = 0.25;
-          w.shakeAtLeast(10);
-          const n = rage < 1 ? 10 : 6, off = Math.random() * TAU;
-          for (let i = 0; i < n; i++) w.enemyShoot(e, off + (i / n) * TAU, 130, 8, '#8ac8ff', 0.7);
+          if (!e.flag) {
+            w.shakeAtLeast(10);
+            const n = rage < 1 ? 10 : 6, off = Math.random() * TAU;
+            for (let i = 0; i < n; i++) w.enemyShoot(e, off + (i / n) * TAU, 130, 8, '#8ac8ff', 0.7);
+          }
           w.fx.burst(e.x, e.y, '#bfe4ff', 16, 180, { size: 5 });
           e.sub++;
           if (e.sub % 3 === 0) w.summon('slime', Math.max(1, e.lv - 2), e, 2);

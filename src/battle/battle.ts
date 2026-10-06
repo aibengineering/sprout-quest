@@ -818,6 +818,12 @@ export class Battle implements FoeWorld, HitWorld {
 
   private hitEnemy(e: Enemy, mult: number, ang: number, kb: number, stun = 0, strikeId = 0, hitstop = 0.035) {
     if (e.dead) return;
+    // Any direct hit during the King's jump spoils the splash, without removing knockback or the hop.
+    if (e.kind === 'kingslime' && e.state === 'hop' && !e.flag) {
+      e.flag = true;
+      this.hazards = this.hazards.filter((h) => h.jumper !== e);
+      this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Interrupted!', '#ffe07a', 14);
+    }
     this.hits++;
     if (this.setup.dojo && (this.p.swing?.skill || this.p.whirlT > 0 || this.waves.some((w) => w.id === strikeId))) {
       this.recordSkillContact(this.log.skills);
@@ -1165,6 +1171,13 @@ export class Battle implements FoeWorld, HitWorld {
   private updateHazards(dt: number) {
     const p = this.p;
     for (const h of this.hazards) {
+      if (h.jumper && !h.done) {
+        if (h.jumper.dead || h.jumper.flag) { h.t = h.delay + 0.1; h.done = true; continue; }
+        if (h.jumper.state === 'hop') { h.t = Math.min(h.delay, h.t + dt); continue; }
+        h.x = h.jumper.x;
+        h.y = h.jumper.y;
+        h.t = h.delay;
+      }
       h.t += dt;
       if (!h.done && h.t >= h.delay) {
         h.done = true;
