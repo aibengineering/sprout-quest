@@ -36,6 +36,21 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.8',
+    date: '2026-10-06',
+    title: 'Gathering and Magic',
+    notes: [
+      "🪓 Woodcutting and Mining XP fill as you gather, with level-ups and mastery",
+      "🪄 Echo Cast replaces Blink: every third normal wand cast echoes a smaller bolt",
+      "👑 Hit the Slime King mid-hop to interrupt his landing splash and goo burst",
+      "🪨 Moss-capped quest boulders wait until Pip explains how to break them",
+      "⛏️ Pip’s tunnels show destination cards, and Escape safely keeps you home",
+      "🏘️ Optional home and kitchen additions need more timber, not early upgrades",
+      "🌱 Seed finds pop up while trees fall, without interrupting gathering",
+      "🏷️ World labels have smoother outlines without dark spikes",
+    ],
+  },
+  {
     version: '0.3.7',
     date: '2026-10-05',
     title: 'Rooms, Hunts and Hidden Tunnels',
