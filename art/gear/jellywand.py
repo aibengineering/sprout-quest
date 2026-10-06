@@ -4,7 +4,6 @@ from lib import cylinder, sphere, toon, torus
 from ._stone_jelly import component, shine, FLUFF, GOO
 
 LENGTH = 1.25
-CAMERA = dict(ppu=378.14685182881, anchor=(0.4313320368528366, 0, -0.022999994456768036), elevation=0)
 # Keep the level, untilted pose of the shipped meadow-weapon icon and workbench view.
 PREVIEW_ROTATION = (0, 0, 0)
 PREVIEW_SCALE = (1, 1, 1)

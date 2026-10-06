@@ -1,74 +1,130 @@
-// Bram's Sawmill: drop off logs and he saws them into Planks, one every so many seconds of real time, so they pile up
-// while you're out adventuring (or away from the game). Come back and collect them. The copper blade only manages
-// Oak; the Iron Sawmill cuts Pine too, and faster.
+// Bram's Sawmill: drop off logs and he saws each into a couple of Planks, a log every few seconds of real time, so they
+// pile up while you're out adventuring (or away from the game). Come back and collect them. Each wood makes its own
+// plank, and each blade upgrade saws the next wood (and faster): copper for Oak, iron for Pine, crystal for Glimmerwood,
+// obsidian for Emberwood.
+import type { MatId } from './data';
 import type { SaveState } from './state';
 
-/** Logs per Plank. */
-export const LOGS_PER_PLANK = 2;
-/** Seconds of real time per Plank: the copper blade, and the iron one. */
-export const SAW_SECONDS = 30;
-export const IRON_SAW_SECONDS = 20;
-export type SawLog = 'bark' | 'pine';
+/** Planks sawn from each log. */
+export const PLANKS_PER_LOG = 2;
+export type SawLog = 'bark' | 'pine' | 'glimwood' | 'emberwood';
+export type Plank = 'plank' | 'pineplank' | 'glimplank' | 'emberplank';
 
-/** How long a plank takes at this Sawmill. */
-export const sawSeconds = (s: SaveState) => (s.build.sawmill >= 2 ? IRON_SAW_SECONDS : SAW_SECONDS);
-/** Which logs it can saw: Oak with the copper blade, Pine too once it's iron. */
-export const sawLogs = (s: SaveState): SawLog[] => (s.build.sawmill >= 2 ? ['bark', 'pine'] : ['bark']);
-/** Planks waiting to be sawn or collected at once. */
-export const SAW_MAX = 12;
+/** The plank each wood becomes, and the Sawmill level that first saws it. */
+export const SAW: Record<SawLog, { plank: Plank; level: number }> = {
+  bark: { plank: 'plank', level: 1 },
+  pine: { plank: 'pineplank', level: 2 },
+  glimwood: { plank: 'glimplank', level: 3 },
+  emberwood: { plank: 'emberplank', level: 4 },
+};
+export const SAW_LOGS = Object.keys(SAW) as SawLog[];
+
+/** Seconds of real time per log, by Sawmill level: each blade is faster than the last. */
+const SAW_SECONDS_BY_LEVEL = [5, 5, 3.5, 2.5, 2];
+export const SAW_SECONDS = SAW_SECONDS_BY_LEVEL[1];
+
+/** How long a log takes at this Sawmill. */
+export const sawSeconds = (s: SaveState) => SAW_SECONDS_BY_LEVEL[Math.min(s.build.sawmill, SAW_SECONDS_BY_LEVEL.length - 1)];
+/** Which logs it can saw at its level. */
+export const sawLogs = (s: SaveState): SawLog[] => SAW_LOGS.filter((l) => s.build.sawmill >= SAW[l].level);
+/** Logs waiting on the bench at once. */
+export const SAW_MAX = 60;
 
 export interface SawState {
-  /** Planks ordered and not sawn yet. */
-  queued: number;
-  /** Sawn and waiting to be collected. */
-  ready: number;
+  /** Logs handed over, sawn in order. */
+  queue: SawLog[];
+  /** Sawn and waiting to be collected, by plank. */
+  ready: Partial<Record<Plank, number>>;
   /** When the plank being sawn now was started (Date.now()). */
   since: number;
 }
 
-const saw = (s: SaveState): SawState => (s.sawmill ??= { queued: 0, ready: 0, since: 0 });
+const saw = (s: SaveState): SawState => (s.sawmill ??= { queue: [], ready: {}, since: 0 });
 
-/** Brings the sawing up to `now`: every SAW_SECONDS turns one queued plank into a ready one. */
+/** Brings the sawing up to `now`: every log's worth of seconds turns the next queued log into its planks. */
 export function sawUpdate(s: SaveState, now = Date.now()): SawState {
   const w = saw(s);
   const each = sawSeconds(s) * 1000;
-  while (w.queued > 0 && now - w.since >= each) {
-    w.queued--;
-    w.ready++;
+  while (w.queue.length > 0 && now - w.since >= each) {
+    const plank = SAW[w.queue.shift()!].plank;
+    w.ready[plank] = (w.ready[plank] ?? 0) + PLANKS_PER_LOG;
     w.since += each;
   }
-  if (w.queued === 0) w.since = now;
+  if (w.queue.length === 0) w.since = now;
   return w;
 }
 
-/** How many more planks you could order from these logs now (room at the mill, and logs in your bag). */
+/** Planks sawn and waiting to be collected. */
+export const sawReady = (s: SaveState, now = Date.now()) => Object.values(sawUpdate(s, now).ready).reduce((a, n) => a + (n ?? 0), 0);
+
+/** How many more of these logs you could hand over now (room on the bench, and logs in your bag). */
 export function canOrder(s: SaveState, log: SawLog = 'bark', now = Date.now()): number {
   if (!sawLogs(s).includes(log)) return 0;
-  const w = sawUpdate(s, now);
-  return Math.max(0, Math.min(SAW_MAX - w.queued - w.ready, Math.floor(s.mats[log] / LOGS_PER_PLANK)));
+  return Math.max(0, Math.min(SAW_MAX - sawUpdate(s, now).queue.length, s.mats[log]));
 }
 
-/** Hands Bram the logs for up to `n` planks; returns how many he took on. */
+/** Hands Bram up to `n` logs to saw; returns how many he took. */
 export function sawOrder(s: SaveState, n: number, log: SawLog = 'bark', now = Date.now()): number {
   const k = Math.min(n, canOrder(s, log, now));
   if (k <= 0) return 0;
   const w = saw(s);
-  if (w.queued === 0) w.since = now;
-  w.queued += k;
-  s.mats[log] -= k * LOGS_PER_PLANK;
+  if (w.queue.length === 0) w.since = now;
+  for (let i = 0; i < k; i++) w.queue.push(log);
+  s.mats[log] -= k;
   return k;
 }
 
-/** Takes every ready plank; returns how many. */
-export function sawCollect(s: SaveState, now = Date.now()): number {
-  const w = sawUpdate(s, now), n = w.ready;
-  s.mats.plank = (s.mats.plank ?? 0) + n;
-  w.ready = 0;
+/** Takes every ready plank; returns how many of each. */
+export function sawCollect(s: SaveState, now = Date.now()): Partial<Record<Plank, number>> {
+  const w = sawUpdate(s, now), got = { ...w.ready };
+  for (const [p, n] of Object.entries(got) as [MatId, number][]) s.mats[p] = (s.mats[p] ?? 0) + n;
+  w.ready = {};
+  return got;
+}
+
+// ---------------------------------------------------------------- working the mill by hand
+// Walk in, pick up an armful from a wood's pile, carry it to the bench, and pull the lever: whatever's on the bench
+// goes to the saw through sawOrder, keeping one shared queue and clock for every batch.
+
+/** Logs you pick up from a pile at a time (hold the button to keep picking up). */
+export const ARMFUL = 5;
+
+/** Logs waiting on the bench for the lever, by wood (they're still in your bag until it's pulled). */
+export type Bench = Partial<Record<SawLog, number>>;
+export const benchTotal = (b: Bench) => Object.values(b).reduce((a, n) => a + (n ?? 0), 0);
+
+/** The next useful station, with finished planks always available as a second destination. */
+export function sawGuide(s: SaveState, carrying: { log: SawLog; n: number } | null, bench: Bench, now = Date.now()) {
+  const w = sawUpdate(s, now), ready = sawReady(s, now);
+  const piles = sawLogs(s).filter((log) => canCarry(s, log, 0, bench, now) > 0).map((log) => `pile:${log}`);
+  const next = carrying ? 'bench' : benchTotal(bench) ? 'lever' : ready ? 'collect' : piles.length ? 'logs' : w.queue.length ? 'sawing' : 'empty';
+  const stations = next === 'bench' || next === 'lever' ? [next] : next === 'logs' ? piles : [];
+  if (ready) stations.push('planks');
+  return { next, stations };
+}
+
+/**
+ * How many more of these logs you can pick up now: an armful at most, only what's in your bag that isn't already in
+ * your arms or on the bench, and only while the saw has room for them.
+ */
+export function canCarry(s: SaveState, log: SawLog, carrying: number, bench: Bench, now = Date.now()): number {
+  if (!sawLogs(s).includes(log)) return 0;
+  const room = SAW_MAX - sawUpdate(s, now).queue.length - benchTotal(bench) - carrying;
+  return Math.max(0, Math.min(ARMFUL, s.mats[log] - (bench[log] ?? 0) - carrying, room));
+}
+
+/** Pulls the lever: everything on the bench goes to the saw. Returns how many logs it took. */
+export function pullLever(s: SaveState, bench: Bench, now = Date.now()): number {
+  let n = 0;
+  for (const log of SAW_LOGS) {
+    n += sawOrder(s, bench[log] ?? 0, log, now);
+    delete bench[log];
+  }
   return n;
 }
 
-/** Seconds until the next plank is done (0 when nothing's on the bench). */
+/** Seconds until the next log is sawn (0 when nothing's on the bench). */
 export function nextPlankIn(s: SaveState, now = Date.now()): number {
   const w = sawUpdate(s, now);
-  return w.queued > 0 ? Math.max(0, Math.ceil(sawSeconds(s) - (now - w.since) / 1000)) : 0;
+  return w.queue.length > 0 ? Math.max(0, Math.ceil(sawSeconds(s) - (now - w.since) / 1000)) : 0;
 }

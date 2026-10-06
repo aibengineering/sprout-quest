@@ -1,17 +1,15 @@
 import type { CraftPresentation } from '../types';
-const src = (part: string) => `assets/crafting/jellywand-${part}.webp`;
 
 export default {
-  id: 'jellywand', duration: 3400,
-  layers: ['goo-rod', 'fluff-grip', 'goo-wraps', 'goo-crown', 'goo-drip'].map((id) => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'jellywand', model: 'assets/crafting3d/jellywand.glb', duration: 3400,
+  layers: ['goo-rod', 'fluff-grip', 'goo-wraps', 'goo-crown', 'goo-drip'].map((id) => ({ id })),
   roles: { goo: 'Hardened rod, springy wraps & wobbly slime crown', fluff: 'Soft felted grip wrap' },
   targets: [
-    { material: 'goo', part: 'goo-rod', at: 180, duration: 500, x: .45, y: .483, contact: 'solid', sound: 'craftGoo' },
-    { material: 'fluff', part: 'fluff-grip', at: 780, duration: 450, x: .167, y: .482, contact: 'soft', sound: 'craftFluff' },
-    { material: 'goo', part: 'goo-wraps', at: 1330, duration: 440, x: .49, y: .483, contact: 'bind', sound: 'craftGoo' },
-    { material: 'goo', part: 'goo-crown', at: 1850, duration: 500, x: .795, y: .472, contact: 'bind', sound: 'craftGoo' },
-    { material: 'goo', part: 'goo-drip', at: 2420, duration: 400, x: .765, y: .586, contact: 'bind', sound: 'craftGoo' },
+    { material: 'goo', part: 'goo-rod', at: 180, duration: 500, contact: 'solid', sound: 'craftGoo' },
+    { material: 'fluff', part: 'fluff-grip', at: 780, duration: 450, contact: 'soft', sound: 'craftFluff' },
+    { material: 'goo', part: 'goo-wraps', at: 1330, duration: 440, contact: 'bind', sound: 'craftGoo' },
+    { material: 'goo', part: 'goo-crown', at: 1850, duration: 500, contact: 'bind', sound: 'craftGoo' },
+    { material: 'goo', part: 'goo-drip', at: 2420, duration: 400, contact: 'bind', sound: 'craftGoo' },
   ],
   phases: [
     { at: 0, stage: 'rod', text: 'Slime Goo, setting into one glassy green rod…' },

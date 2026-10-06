@@ -2,10 +2,22 @@
 # Regenerates every sprite with Blender, then packs them into public/assets/.
 # Usage: bun run art            (all groups, then the 3D character models)
 #        bun run art monsters   (one group; the rest are reused from art/out)
-#        bun run art models     (just the 3D character models)
-#        bun run art crafting   (registered assembly layers and icons [id,id,...])
+#        bun run art models     (just the 3D models: characters, armour, weapons and crafting scenes [name,name,...])
+#        bun run art crafting   (the crafting scenes' 3D models [id,id,...])
+#        bun run art materials  (the materials' small 3D models [id,id,...])
+#        bun run art buildings  (the village buildings' 3D models, for their scenes [id,id,...])
+#        bun run art icons3d    (inventory icons rendered from the items' 3D models [id,id,...]; no Blender needed)
+#        bun run art rooms      (the Kitchen's and Sawmill's props and the Garden's tools: their own atlas)
+#        bun run art echo       (the cave mouth, ritual lattices and carried core: their own atlas)
 set -euo pipefail
 cd "$(dirname "$0")"
+
+# Gear, tool, potion and meal icons come from their 3D models (scripts/icons3d.ts), so a changed model changes its icon.
+#   bun run art icons3d [id,id,...] [--sheet before-after.png]
+if [ "${1:-}" = icons3d ]; then
+  shift
+  exec bun ../scripts/icons3d.ts "$@"
+fi
 BLENDER="${BLENDER:-blender}"
 command -v "$BLENDER" >/dev/null || { echo "Blender not found (set BLENDER=/path/to/blender)"; exit 1; }
 
@@ -18,13 +30,22 @@ export BLENDER
 # Characters are 3D models for the game's renderer: exported from Blender, then compressed with gltfpack.
 #   bun run art models [name,name,...]
 models() {
-  "$BLENDER" -b --factory-startup -P models.py -- "${1:-}" 2>&1 | grep -E "EXPORTED|Error|Traceback" || true
-  for raw in ../public/assets/models/*.raw.glb; do
+  # (`models -` only packs what's been exported.)
+  if [ "${1:-}" != - ]; then
+    "$BLENDER" -b --factory-startup -P models.py -- "${1:-}" 2>&1 | grep -E "EXPORTED|Error|Traceback" || true
+  fi
+  for raw in ../public/assets/models/*.raw.glb ../public/assets/crafting3d/*.raw.glb; do
     [ -e "$raw" ] || continue
-    bunx gltfpack -i "$raw" -o "${raw%.raw.glb}.glb" -cc > /dev/null
+    # Armour pieces and crafting layers are found by their node names (they have no animations to keep them): keep them.
+    keep=()
+    case "$raw" in */armor_*|*/crafting3d/*) keep=(-kn) ;; esac
+    bunx gltfpack -i "$raw" -o "${raw%.raw.glb}.glb" -cc "${keep[@]}" > /dev/null
     rm "$raw"
   done
   echo "MODELS $(ls ../public/assets/models/*.glb | wc -l) files, $(du -ch ../public/assets/models/*.glb | tail -1 | cut -f1)"
+  if ls ../public/assets/crafting3d/*.glb > /dev/null 2>&1; then
+    echo "CRAFTING $(ls ../public/assets/crafting3d/*.glb | wc -l) files, $(du -ch ../public/assets/crafting3d/*.glb | tail -1 | cut -f1)"
+  fi
 }
 
 if [ "${1:-}" = models ]; then
@@ -32,12 +53,42 @@ if [ "${1:-}" = models ]; then
   exit 0
 fi
 
-crafting() {
-  "$BLENDER" -b --factory-startup --python-exit-code 1 -P crafting.py -- "${1:-all}"
-}
+# Crafting scenes: every gear, tool, potion and meal as a 3D model of its layers, from the same builders the game wears
+# and holds (art/models.py), into public/assets/crafting3d.
+#   bun run art crafting [id,id,...]
+# Materials as small 3D models (art/models.py material_scene), into public/assets/crafting3d/mat_<id>.glb: their icons
+# (then run `bun run art icons3d`), and the pieces that tumble into crafting scenes.
+#   bun run art materials [id,id,...]
+if [ "${1:-}" = materials ]; then
+  if [ "${2:-all}" = all ]; then models materials; else models "$(echo "$2" | sed 's/\([^,]*\)/mat_\1/g')"; fi
+  exit 0
+fi
 
 if [ "${1:-}" = crafting ]; then
-  crafting "${2:-all}"
+  if [ "${2:-all}" = all ]; then models crafts; else models "$(echo "$2" | sed 's/\([^,]*\)/craft_\1/g')"; fi
+  exit 0
+fi
+
+# Village buildings rising from their materials (art/buildings), as 3D models for their crafting scenes
+# (art/building_models.py), into public/assets/crafting3d. Their map sprites and menu icons are the same models:
+# re-render those with `bun run art env <names>` and `bun run art icons2 <names>`.
+#   bun run art buildings [id,id,...]
+buildings() {
+  "$BLENDER" -b --factory-startup --python-exit-code 1 -P building_models.py -- "${1:-all}" 2>&1 | grep -E "EXPORTED|Error|Traceback|File \"" || true
+  models -
+}
+
+if [ "${1:-}" = buildings ]; then
+  buildings "${2:-all}"
+  exit 0
+fi
+
+# The rooms you walk into (Granny's Kitchen, Bram's Sawmill) and the Garden's hand tools: their own atlas, in
+# public/assets/rooms/ (the main one is left alone).
+if [ "${1:-}" = rooms ] || [ "${1:-}" = echo ] || [ "${1:-}" = homes ]; then
+  rm -rf "out/$1" "out/$1.json"
+  render "$1"
+  "$BLENDER" -b --factory-startup --python-exit-code 1 -P pack.py -- --group "$1" 2>&1 | grep -E "PACKED|Error|Traceback"
   exit 0
 fi
 
@@ -59,5 +110,10 @@ PACK_ARGS=()
 if [ $# -gt 0 ]; then PACK_ARGS=(-- --incremental); fi
 "$BLENDER" -b --factory-startup --python-exit-code 1 -P pack.py "${PACK_ARGS[@]}" 2>&1 | grep -E "PACKED|Error|Traceback"
 
-# Registered complete renders remain the canonical icons after atlas packing.
-if [ $# -eq 0 ]; then crafting all; fi
+if [ $# -eq 0 ]; then
+  buildings all
+  bash build.sh echo
+  bash build.sh homes
+fi
+# Packing rewrites the icons from art/out; the model icons are always redrawn from their models after it.
+bun ../scripts/icons3d.ts

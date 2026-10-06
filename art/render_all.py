@@ -1,7 +1,7 @@
 """Renders one group of sprites to art/out/<group>/ plus art/out/<group>.json (frame anchors).
 
 Usage: blender -b --factory-startup -P art/render_all.py -- <group> [filter]
-Groups: hero, monsters, weapons, env, icons, icons2, npc, gather
+Groups: hero, monsters, weapons, env, rooms, echo, icons, icons2, npc, gather
 """
 import json
 import math
@@ -11,12 +11,16 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
 import env  # noqa: E402
+import echo  # noqa: E402
 import gather  # noqa: E402
-from gear_parts import item_module, preview_parts, item_ids  # noqa: E402
+from gear_parts import item_module  # noqa: E402
 import hero  # noqa: E402
+import residents  # noqa: E402
+import buildings  # noqa: E402
 import icons  # noqa: E402
 import lib  # noqa: E402
 import monsters  # noqa: E402
+import rooms  # noqa: E402
 import weapons  # noqa: E402
 
 args = sys.argv[sys.argv.index('--') + 1:]
@@ -43,23 +47,10 @@ def wanted(key):
     return ONLY is None or key in ONLY.split(',')
 
 
-def contributed_icon(item_id, destination=None):
-    item = item_module(item_id)
-    if item is None:
-        return False
-    root, parts = preview_parts(item)
-    weapon = hasattr(item, 'build_weapon')
-    camera = dict(ppu=240 if weapon else 320,
-                  anchor=(.42, 0, .42) if weapon else (0, 0, .55),
-                  elevation=0 if weapon else math.radians(12), fit_origin=.5)
-    camera.update(getattr(item, 'CAMERA', {}))
-    camera['ppu'] /= 4
-    for key, objects in parts.items():
-        if key not in getattr(item, 'COMPLETE_PARTS', parts):
-            for obj in objects:
-                obj.hide_render = True
-    shot('icon/' + (destination or item_id), 128, 128, **camera)
-    return True
+def from_model(item_id):
+    """Items with a 3D model (a crafting scene, a material's model from `bun run art materials`, or the Twig Sword's
+    hand-held model) get their inventory icon rendered from it by `bun run art icons3d` (scripts/icons3d.ts), not here."""
+    return item_id in ('twig', 'fluffvest') or item_id in icons.MATERIALS or item_module(item_id) is not None
 
 
 lib.reset()
@@ -112,13 +103,43 @@ elif GROUP == 'env':
         fn()
         shot(f'env/{name}', int(w * 1.3), int(h * 1.25), 64, fit_origin=0.86)
 
+elif GROUP == 'homes':
+    for name in ('res_pip2', 'res_rook1', 'res_rook2', 'res_moss1', 'res_moss2', 'res_pip3', 'res_rook3', 'res_moss3', 'kitchen1', 'kitchen2', 'kitchen3', 'training1', 'training2', 'training3', 'cottage1'):
+        if not wanted(name):
+            continue
+        lib.clear_objects()
+        buildings.whole(name)
+        shot(f'env/{name}', 320, 288, 64, fit_origin=.86)
+        shot(f'icon/b_{name}', 128, 128, 30, fit_origin=.82)
+    for name, fn in (('rook', residents.build_rook), ('moss', residents.build_moss), ('alder', residents.build_alder), ('fox', residents.build_fox)):
+        if not wanted(name):
+            continue
+        lib.clear_objects()
+        P = fn()
+        shot(f'icon/npc_{name}', 128, 128, 88, anchor=(0, 0, .70), elevation=math.radians(12), fit_origin=.5)
+        if name == 'fox':
+            # Directional fallback remains visible while WebGL or the model is unavailable.
+            for d, ang in enumerate(HERO_DIRS):
+                P['root'].rotation_euler = (0, 0, math.radians(ang))
+                hero.pose(P, 0, False)
+                shot(f'env/fox/{d}/0', 240, 240, 96)
+
+elif GROUP in ('rooms', 'echo'):
+    # The rooms you walk into, and the Garden's hand tools (art/rooms.py): packed into their own atlas.
+    for name, (fn, w, h, *origin) in (rooms.PROPS if GROUP == 'rooms' else echo.PROPS).items():
+        if not wanted(name):
+            continue
+        lib.clear_objects()
+        fn()
+        shot(f"{'room' if GROUP == 'rooms' else 'env'}/{name}", int(w * 1.3), int(h * 1.25), 64, fit_origin=origin[0] if origin else 0.86)
+
 elif GROUP == 'icons':
     # Weapons tilted diagonally, centered.
     for wid, (fn, length) in weapons.WEAPONS.items():
         if not wanted(wid):
             continue
         lib.clear_objects()
-        if contributed_icon(wid):
+        if from_model(wid):
             continue
         root = lib.empty('w')
         fn(root)
@@ -130,13 +151,7 @@ elif GROUP == 'icons':
         if not wanted(armor):
             continue
         lib.clear_objects()
-        if contributed_icon(armor):
-            continue
-        if armor == 'fluffvest':
-            # Use the same headless garment as the tactile crafting assembly.
-            hero.build_fluffvest(lib.empty('fluffvest_icon'))
-            shot('icon/fluffvest', 128, 128, 128.75, anchor=(0, 0, 0.365),
-                 elevation=math.radians(12), fit_origin=0.5)
+        if from_model(armor):
             continue
         P = hero.build(armor)
         P['root'].rotation_euler = (0, 0, math.radians(15))
@@ -146,16 +161,11 @@ elif GROUP == 'icons':
         if not wanted(name):
             continue
         lib.clear_objects()
-        if contributed_icon(name.removeprefix('meal_'), name):
+        if from_model(name.removeprefix('meal_')):
             continue
         fn()
         shot(f'icon/{name}', 128, 128, 120, elevation=math.radians(12), fit_origin=0.5)
 
-    for item_id in item_ids():
-        if item_id not in ('jellypot', 'shroombrew', 'embertonic') or not wanted(item_id):
-            continue
-        lib.clear_objects()
-        contributed_icon(item_id)
 
 elif GROUP == 'npc':
     if wanted('elder'):
@@ -223,7 +233,8 @@ elif GROUP == 'icons2':
                         ('npc_granny', lambda: hero.build_granny()), ('npc_granny_worried', lambda: hero.build_granny('worried')),
                         ('floppers', lambda: hero.toy_bunny(None)), ('trailboots', hero.build_boots),
                         ('npc_bram', lambda: hero.build_bram('grumpy')), ('npc_bram_happy', lambda: hero.build_bram('happy')),
-                        ('npc_bram_hurt', lambda: hero.build_bram('hurt', hurt=True))):
+                        ('npc_bram_hurt', lambda: hero.build_bram('hurt', hurt=True)),
+                        ('npc_pip', lambda: hero.build_pip('happy')), ('npc_pip_wow', lambda: hero.build_pip('wow'))):
         if not wanted(name):
             continue
         lib.clear_objects()
@@ -241,21 +252,23 @@ elif GROUP == 'icons2':
         lib.render_fit(path, 128, math.radians(12))
         frames.append({'name': 'icon/npc_elder', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
     for name in ('home1', 'home2', 'home3', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'garden1', 'garden2', 'garden3',
-                 'training1', 'training2', 'training3', 'warp0', 'warp1', 'campfire', 'plot', 'sawmill0', 'sawmill1', 'sawmill2', 'bramhut'):
+                 'training1', 'training2', 'training3', 'warp0', 'warp1', 'campfire', 'plot', 'sawmill0', 'sawmill1', 'sawmill2', 'sawmill3',
+                 'sawmill4', 'bramhut', 'cottage1'):
         if not wanted(name):
             continue
         lib.clear_objects()
         env.SCENERY[name][0]()
         path = os.path.join(OUT, 'icons2', f'{name}.png')
-        lib.render_fit(path, 128, math.radians(25))
+        # Poppy's field is wide and flat: seen from higher up, so its plots read at icon size.
+        lib.render_fit(path, 128, math.radians(50 if name.startswith('garden') else 25))
         frames.append({'name': f'icon/b_{name}', 'file': path, 'ax': 0, 'ay': 0, 'ppu': 0})
 
 elif GROUP == 'gather':
     # Close-ups for the chop/mine minigame, big and nearly side-on (see art/gather.py).
     pieces = [(f'{kind}_{part}', lambda k=kind, p=part: getattr(gather, k)(p), 520, 560)
-              for kind in ('oak', 'pine') for part in ('whole', 'stump', 'top')]
+              for kind in ('oak', 'pine', 'glimwood', 'emberwood') for part in ('whole', 'stump', 'top')]
     pieces += [(name, lambda n=name: gather.boulder(n), 420, 320) for name in gather.ROCKS]
-    pieces += [('crystal', gather.crystal_rock, 420, 400)]
+    pieces += [('crystal', gather.crystal_rock, 420, 400), ('obsidian', gather.obsidian_rock, 420, 400)]
     for name, fn, w, h in pieces:
         if not wanted(name):
             continue

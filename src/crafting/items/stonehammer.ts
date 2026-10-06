@@ -1,15 +1,13 @@
 import type { CraftPresentation } from '../types';
-const src = (part: string) => `assets/crafting/stonehammer-${part}.webp`;
 
 export default {
-  id: 'stonehammer', duration: 3050,
-  layers: ['oak-shaft', 'stone-head', 'oak-clamp'].map((id) => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'stonehammer', model: 'assets/crafting3d/stonehammer.glb', duration: 3050,
+  layers: ['oak-shaft', 'stone-head', 'oak-clamp'].map((id) => ({ id })),
   roles: { bark: 'Grained oak shaft & split clamp', stone: 'Heavy, faceted mallet head' },
   targets: [
-    { material: 'bark', part: 'oak-shaft', at: 180, duration: 500, x: .428, y: .512, contact: 'solid', sound: 'craftStitch' },
-    { material: 'stone', part: 'stone-head', at: 850, duration: 600, x: .785, y: .514, contact: 'solid', sound: 'clink' },
-    { material: 'bark', part: 'oak-clamp', at: 1580, duration: 500, x: .783, y: .497, contact: 'solid', sound: 'craftStitch' },
+    { material: 'bark', part: 'oak-shaft', at: 180, duration: 500, contact: 'solid', sound: 'craftStitch' },
+    { material: 'stone', part: 'stone-head', at: 850, duration: 600, contact: 'solid', sound: 'clink' },
+    { material: 'bark', part: 'oak-clamp', at: 1580, duration: 500, contact: 'solid', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'shape', text: 'Oak Logs, shaped into a long handle…' },

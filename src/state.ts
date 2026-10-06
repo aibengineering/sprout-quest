@@ -2,10 +2,21 @@ import { slotKey, storageFrozen } from './slots';
 import { VERSION } from './version';
 import type { MealId } from './kitchen';
 import type { SawState } from './sawmill';
+import type { GardenState } from './garden';
+import type { RoomId } from './room';
+import { inSideArea, MOUTH } from './procession';
+import type { Homes } from './housing';
+import type { HuntingState } from './hunts';
 import { GEAR, MAT_ORDER, QUESTS, type MatId, type ProjectId, type SkillId, type Style, type ZoneId } from './data';
 
 export interface SaveState {
   version: 1;
+  /** New construction flow; absent in older saves whose open Kitchen is retained. */
+  villageJobs?: true;
+  /** Construction job requested in conversation with its resident. */
+  buildingJob?: string;
+  /** Kitchen additions, independent of Clover’s existing home. */
+  kitchenLevel?: number;
   lv: number;
   xp: number;
   hp: number;
@@ -28,6 +39,11 @@ export interface SaveState {
   /** Guardians (and the dragon) defeated. */
   bosses: string[];
   build: Record<ProjectId, number>;
+  /** Resident homes and additions, independent of workshop upgrades. */
+  homes: Homes;
+  hunting?: HuntingState;
+  /** Retain the duration of recipes already earned from the retired herbalist. */
+  legacyHerbLevel?: number;
   /** Zones whose campfire checkpoint has been lit. */
   camps: ZoneId[];
   /** Where you wake up after fainting. */
@@ -59,10 +75,18 @@ export interface SaveState {
   meal: { id: MealId; left: number } | null;
   /** Bram's Sawmill: planks queued, ready to collect, and when the current one was started (see sawmill.ts). */
   sawmill?: SawState;
+  /** Poppy's Garden: what's growing in each plot, and when she last brought you Flower Seeds (see garden.ts). */
+  garden?: GardenState;
+  /** The room you're in (Granny's Kitchen, Bram's Sawmill): you carry on there. `pos` is then just outside its door. */
+  room?: RoomId;
+  /** A separate underground instance; pos remains outside its entrance. */
+  underground?: { id: 'echo' | 'resource' | 'cavern'; x: number; y: number };
   /** Set once the Forge has its five levels (older saves had three: Smithy was ★★★–★★★★, Master Forge the third). */
   forgeLevels?: 5;
   /** Set once the save knows about the Echo Queen (0.3.0 put her quest between the Waystone and Glimmer Hollow). */
   echoQueen?: true;
+  /** Set once the save counts materials in handfuls (0.4.0): see MATERIAL_SCALE. */
+  units?: 2;
   /**
    * Fainted: you walk as a spirit from your last checkpoint back to your body, lying here (tile coordinates), and touch it
    * to wake. Veyra keeps bringing you back (see game/death.ts).
@@ -70,6 +94,11 @@ export interface SaveState {
   spirit?: { x: number; y: number };
   /** A Battle Tower run (dev builds, in a slot of its own): the next floor to fight. */
   tower?: { floor: number };
+  /**
+   * Set once the save knows Sowerby is wider (it grew FIELD_SHIFT tiles east for Poppy's field, pushing every area
+   * past it along): older saves standing (or lying) east of the village move with their area.
+   */
+  field?: true;
   /** Recipes you've seen in the Forge; ones revealed since show as new (missing: everything revealed counts as seen). */
   forgeSeen?: string[];
 }
@@ -81,6 +110,7 @@ export function newState(): SaveState {
   const mats = Object.fromEntries(MAT_ORDER.map((m) => [m, 0])) as Record<MatId, number>;
   return {
     version: 1,
+    villageJobs: true,
     lv: 1,
     xp: 0,
     hp: 30,
@@ -99,7 +129,8 @@ export function newState(): SaveState {
     talked: false,
     crafted: 0,
     bosses: [],
-    build: { home: 1, forge: 0, garden: 0, training: 0, warp: 0, sawmill: 0 },
+    build: { home: 1, forge: 0, garden: 0, training: 0, warp: 0, sawmill: 0, cottage: 0 },
+    homes: { pip: 0, rook: 0, moss: 0 },
     camps: [],
     respawn: 'glade',
     unlocked: [],
@@ -120,7 +151,37 @@ export function newState(): SaveState {
     meal: null,
     forgeSeen: [],
     forgeLevels: 5,
+    units: 2,
+    field: true,
   };
+}
+
+/** How far east Sowerby grew for Poppy's field, and where the areas past it used to begin. */
+export const FIELD_SHIFT = 9;
+const OLD_MEADOW_X0 = 38;
+
+/**
+ * 0.4.0 counts materials in sensible amounts: a bunny drops a handful of fluff, a tree a few logs, a house takes dozens
+ * of planks. Drops, yields and recipes all grew by the same factor per material (so the effort is the same), and a log
+ * now saws into two planks. Older saves are multiplied by the same factors so nothing is worth less.
+ */
+export const MATERIAL_SCALE: Partial<Record<MatId, number>> = {
+  goo: 3, fluff: 3, cap: 3, glimmer: 3, ember: 3, fang: 2, wing: 2, horn: 2,
+  bark: 3, pine: 3, glimwood: 3, emberwood: 3, stone: 3, copper: 3, iron: 3, crystal: 2, obsidian: 2,
+  berry: 2, herb: 2, flower: 2, plank: 8, pineplank: 8, glimplank: 8, emberplank: 8,
+};
+
+function countInHandfuls(s: SaveState) {
+  for (const [m, k] of Object.entries(MATERIAL_SCALE) as [MatId, number][]) s.mats[m] = (s.mats[m] ?? 0) * k;
+  // Planks ordered at the Sawmill were each two old logs: now four logs, which saw into the eight planks one is worth.
+  const w = s.sawmill as unknown as { queue?: string[]; queued?: number; ready: number | Record<string, number>; since: number } | undefined;
+  if (w) {
+    const orders: string[] = Array.isArray(w.queue) ? w.queue : Array.from({ length: w.queued ?? 0 }, () => 'bark');
+    const ready: Record<string, number> = typeof w.ready === 'number' ? { plank: w.ready } : { ...w.ready };
+    for (const k of Object.keys(ready)) ready[k] *= MATERIAL_SCALE.plank!;
+    s.sawmill = { queue: orders.flatMap((l) => [l, l, l, l]) as SawState['queue'], ready, since: w.since ?? 0 };
+  }
+  s.units = 2;
 }
 
 export function loadState(): SaveState | null {
@@ -137,10 +198,30 @@ export function loadState(): SaveState | null {
       mats: { ...base.mats, ...data.mats },
       equip: { ...base.equip, ...data.equip },
       build: { ...base.build, ...data.build },
+      homes: { ...base.homes, ...data.homes },
       tools: { ...base.tools, ...data.tools },
       skills: { ...base.skills, ...data.skills },
       mastery: { ...base.mastery, ...data.mastery },
     } as SaveState;
+    // Hazel's existing building becomes Rook's lodge at the same tier. Never charge for the replacement.
+    const former = (data.homes as (Partial<Homes> & {hazel?:number}) | undefined)?.hazel;
+    if (former !== undefined) {
+      merged.homes.rook = Math.max(merged.homes.rook, Number(former) || 0);
+      merged.legacyHerbLevel ??= Math.max(0, Math.min(3, Number(former) || 0));
+      delete (merged.homes as Homes & {hazel?:number}).hazel;
+      if (former > 0) merged.flags.push(...['rook:returned','rook:lodge'].filter(f=>!merged.flags.includes(f)));
+      if (merged.buildingJob?.startsWith('hazel')) merged.buildingJob = merged.buildingJob.replace('hazel','rook');
+    }
+    if (merged.flags.includes('hazel:recipe') && !merged.flags.includes('garden:herbs')) merged.flags.push('garden:herbs');
+    for (const key of ['met','waiting'] as const) if(merged.flags.includes(`hazel:journey:${key}`) && !merged.flags.includes(`rook:journey:${key}`)) merged.flags.push(`rook:journey:${key}`);
+    if ((merged.stories['journey-hazel']??0)>0) merged.stories['journey-rook']=Math.max(merged.stories['journey-rook']??0,merged.stories['journey-hazel']);
+    if (merged.flags.includes('hazel:returned') && !merged.flags.includes('rook:returned')) merged.flags.push('rook:returned');
+    merged.homes.pip = Math.max(merged.homes.pip, merged.build.cottage);
+    for (const id of ['pip', 'rook', 'moss'] as const) {
+      merged.homes[id] = Math.max(0, Math.min(3, Math.floor(Number(merged.homes[id]) || 0)));
+    }
+    if (merged.homes.pip) merged.build.cottage = 1;
+    if (merged.kitchenLevel !== undefined) merged.kitchenLevel = Math.max(0, Math.min(3, Math.floor(Number(merged.kitchenLevel) || 0)));
     if (data.mastery === undefined) migrateToTracks(merged);
     // Saves from before the story update: credit progress that already happened.
     if (data.flags === undefined) {
@@ -165,6 +246,7 @@ export function loadState(): SaveState | null {
       merged.crafted = Math.max(0, merged.owned.length - 2);
       if ((data.bossWins ?? 0) > 0) merged.bosses = ['dragon'];
     }
+    if (data.units === undefined) countInHandfuls(merged);
     // The Forge went from three levels to five (one per tier): nobody loses recipes they could make.
     if (data.forgeLevels === undefined) {
       merged.build.forge = [0, 1, 4, 5][merged.build.forge] ?? merged.build.forge;
@@ -184,8 +266,26 @@ export function loadState(): SaveState | null {
       }
       merged.echoQueen = true;
     }
+    // Sowerby grew east for Poppy's field: everything past it moved along with its area.
+    if (data.field === undefined) {
+      const along = (p: { x: number; y: number }) => (p.x >= OLD_MEADOW_X0 ? { x: p.x + FIELD_SHIFT, y: p.y } : p);
+      merged.pos = along(merged.pos);
+      if (merged.spirit) merged.spirit = along(merged.spirit);
+      merged.field = true;
+    }
     // Saves from before patch notes existed were made on 0.1.0.
     if (data.seenVersion === undefined) merged.seenVersion = '0.1.0';
+    // Old saves in the former side tunnels resume in their new independent map.
+    if (!merged.room && !merged.underground && inSideArea(merged.pos)) {
+      merged.underground = { id: 'echo', ...merged.pos };
+      merged.pos = { x: MOUTH.x, y: MOUTH.y + .8 };
+    }
+    if (!data.villageJobs && (merged.stories.poppy ?? 0) >= 6 && !merged.flags.includes('granny:extension')) merged.flags.push('granny:extension');
+    merged.villageJobs = true;
+    // Alder's paid practice place and completed recruitment remain usable after the keeper changes.
+    // The new scarf remains a field reward, so this migration never grants it automatically.
+    if((merged.flags.includes('alder:returned')||(merged.stories['journey-alder']??0)>=2||merged.build.training>0)&&!merged.flags.includes('fox:trusted'))merged.flags.push('fox:trusted');
+    if(merged.flags.includes('alder:met')&&!merged.flags.includes('fox:met'))merged.flags.push('fox:met');
     return merged;
   } catch {
     return null;

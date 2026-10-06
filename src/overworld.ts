@@ -1,14 +1,17 @@
 // Overworld: walking around, tall-grass encounters and drawing the tile map.
-import { GEAR, MONSTERS, NODES, ZONES, zoneAtX, type Theme, type Zone } from './data';
+import { kitchenLevel } from './kitchenUpgrades';
+import { GEAR, MATS, MONSTERS, NODES, WORLD_H, ZONES, zoneAtX, type Theme, type Zone } from './data';
+import { ROUTES } from './routes';
 import { currentQuest } from './quests';
 import { repelBelow } from './kitchen';
+import { gardenOpen, gardenUpdate, growthStage, plotCount, plotSpot, plotTile, PLOTS_BY_LEVEL } from './garden';
+import { drawCarried } from './roomArt';
 import { Actors, type Actor } from './actors';
 import { hasModel, loadModel } from './models';
 import { carriedMount, carriedWeapon, heroBody, projectWeaponPoint } from './weaponPose';
 import { Vector3 } from 'three';
 import { forgeArt } from './ui';
-import { drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, monsterReady, slotOf } from './assets';
-import { drawBubble } from './bubble';
+import { drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, heroIn3d, monsterReady, slotOf } from './assets';
 import { spriteScale } from './battle/monsters';
 import { Roamers, type Roamer } from './roamers';
 import { MOVESETS } from './weapons';
@@ -16,21 +19,51 @@ import { Fx } from './fx';
 import type { Input } from './input';
 import { drawPlayer, rrect, shadow } from './sprites';
 import type { SaveState } from './state';
-import { hash2, T, type World, type WorldObj } from './world';
+import { hash2, T, type TileMap, type World, type WorldObj } from './world';
+import { WALL_RISE, type Room } from './room';
+import { EchoCave, ECHO_OUTSIDE } from './echoCave';
+import { Cavern } from './cavern';
+import { surfaceBounds, caveApproachStone, CAVE_WEST_EDGE } from './caveEntrance';
+import { dodgeCharges, dodgeMotion } from './rules';
+import { ResourceCave } from './resourceCave';
+import { HUNTS, VARIANTS } from './hunts';
+import { SHORTCUTS, shortcutById, shortcutBuilt, shortcutWorldPoint, type Shortcut } from './shortcuts';
+import { HOMES, homeLevel } from './housing';
+import { drawBubble, drawSpeech } from './bubble';
 
 const TAU = Math.PI * 2;
 /** Chip colors when mining each kind of rock. */
-const ROCK_CHIPS: Partial<Record<string, string>> = { rock: '#9a9aa8', copper: '#e8904a', iron: '#b8c8e0' };
+const ROCK_CHIPS: Partial<Record<string, string>> = { rock: '#9a9aa8', copper: '#e8904a', iron: '#b8c8e0', obsidian: '#ff8a3a' };
+/** The leaves a felled tree sheds on the map (green by default). */
+const TREE_LEAVES: Partial<Record<string, string>> = { pine: '#2f7a45', glimwood: '#b8a0ff', emberwood: '#ff7a3a' };
 /** Chance per tile walked in tall grass of being ambushed by monsters you didn't see. */
 const ENCOUNTER_CHANCE = 0.06;
 /** Map tiles are 1.6 Blender units wide. */
 const TILE_BU = 1.6;
+/** Sprites are rendered looking down at 30°: ground depth shows at half its size. */
+const DEPTH = 0.5;
+
+export interface MapLayers {
+  ground(ctx: CanvasRenderingContext2D, ts: number): void;
+  over(ctx: CanvasRenderingContext2D, ts: number, view: { x: number; y: number; w: number; h: number }): void;
+  /** Extra tiles the camera may look past the map's top just now (a story's tunnels up against it, clear of the HUD). */
+  headroom(): number;
+}
 
 /** `roamer` is the monster that caught you, or null for an ambush from the grass. */
 export type WorldEvent = { type: 'encounter'; roamer: Roamer | null } | { type: 'zone'; zone: Zone } | null;
 
 /** How far (in tiles) the camera may look past the map's top and bottom: about the HUD's and the buttons' height. */
 const OVERSCROLL = { top: 1.5, bottom: 3 };
+
+/**
+ * A room fits on the screen whole, between the HUD (with the hint or what someone's saying under it) and the buttons
+ * at the bottom (pixels): nothing's ever cut off at the edges, and nothing needs the camera to follow you.
+ */
+export const ROOM_BAND = { top: 140, bottom: 136 };
+
+/** A rectangle on the screen, in pixels. */
+export interface Rect { x: number; y: number; w: number; h: number }
 
 export class Overworld {
   x: number;
@@ -44,7 +77,7 @@ export class Overworld {
   private stepAcc = 0;
   /** Camera zoom (above 1 while swooping into or out of a fight). */
   zoom = 1;
-  private fx = new Fx();
+  readonly fx = new Fx();
   ts = 40;
   /** Current goal's location in tiles; drawn as a bouncing waypoint arrow. */
   objective: { x: number; y: number } | null = null;
@@ -56,24 +89,70 @@ export class Overworld {
   camTarget: { x: number; y: number } | (() => { x: number; y: number }) | null = null;
   /** During scenes: no action prompt or waypoint arrow. */
   quiet = false;
+  /** A station is using your hands: no action prompt. */
+  busyHands = false;
+  /** Something you're carrying about on the map (seeds, the watering can), held up over your head. */
+  carried: { icon: string; emoji: string; count?: number } | null = null;
+  /** The Garden plot the action button works on just now (ringed on the map). */
+  gardenPlot: number | null = null;
   /** The last frame's view (camera top in pixels, tile size, height), to tell where things are on screen. */
-  private view = { top: 0, ts: 1, vh: 1 };
+  private view = { left: 0, top: 0, ts: 1, vh: 1 };
+  /** Inside a room, as last drawn (screen pixels): each station, you, and the feelings over people's heads. */
+  roomRects: { stations: (Rect & { id: string })[]; hero: Rect; bubbles: Rect[]; caption?: Rect | null; label?: Rect | null } = { stations: [], hero: { x: 0, y: 0, w: 0, h: 0 }, bubbles: [] };
+  /** Where each station's drawing tops out (map pixels), for its label to sit on it. */
+  private stationTop = new Map<WorldObj, number>();
   /** Story characters on the map. */
   readonly actors = new Actors();
+  readonly echo = new EchoCave();
+  /** Separate underground map, with its own collision and cast. */
+  readonly oreGallery = new ResourceCave();
+  readonly cavern: Cavern;
+  underground: EchoCave | ResourceCave | Cavern | null = null;
+  get fieldMap() { return !this.room && (!this.underground || this.underground === this.cavern); }
+  /**
+   * What the side stories paint onto the map: on the ground (under everyone), and over everything (light and dark,
+   * ripples, a gaze on the floor), under the feelings over people's heads. `view` is the screen, in map pixels.
+   */
+  layers: MapLayers | null = null;
+  /** The camera's extra headroom over the map's top (eased toward what the layers ask for). */
+  private headroom = 0;
+  /** The room you've walked into (Granny's Kitchen, Bram's Sawmill), if any: you walk around it instead of the map. */
+  room: Room | null = null;
+  /** Where you'll be back outside when you leave the room. */
+  private outside = { x: 0, y: 0 };
   /** Tree being chopped, and how long it keeps shaking from the last strike. */
   chopping: WorldObj | null = null;
   private shakeT = 0;
+  private dashT=0;
+  private dashDir=0;
+  private dashCds:number[]=[];
+  private afterimages:{x:number;y:number;face:number;t:number}[]=[];
+  get dashFrac() { return this.dashCds.some(t=>t<=0)?0:Math.max(0,Math.min(...this.dashCds))/.9; }
+  private crossingRaisedAt: Record<string, number> = {};
+
+  /** A paid crossing assembles on the map; its saved collision already exists if the page is reloaded. */
+  raiseShortcut(id: string, reduced = false) {
+    const p = shortcutById(id);
+    if (!p) return;
+    this.crossingRaisedAt[id] = this.t - (reduced ? 10 : 0);
+    const at = shortcutWorldPoint(p, { x: p.deck.x + p.deck.w/2, y: p.deck.y + p.deck.h/2 });
+    this.fx.burst(at.x * this.ts, at.y * this.ts, this.bridgePalette(p)[0], reduced ? 0 : 12, this.ts, { size: this.ts*.065, life: 1 });
+  }
 
   constructor(private world: World, private save: SaveState) {
+    this.dashCds=Array(dodgeCharges(save)).fill(0);
+    this.cavern = new Cavern(world, this.actors);
     this.x = save.pos.x;
     this.y = save.pos.y;
     // Recover from a stale save position that's now inside a wall.
     if (world.blocked(this.x, this.y, 0.28)) {
-      const p = world.entryPoint('village');
+      const p = world.safePosition({x:this.x,y:this.y});
       this.x = p.x;
       this.y = p.y;
     }
+    if(save.spirit&&!save.underground) { const p=world.safePosition(save.spirit);save.spirit.x=p.x;save.spirit.y=p.y; }
     this.zone = world.zoneAt(this.x);
+    if(this.zone.id==='cave') this.underground=this.cavern;
     this.camX = this.x;
     this.camY = this.y;
     this.roamers = new Roamers(world);
@@ -84,14 +163,84 @@ export class Overworld {
     return this.zone;
   }
 
+  /** What you're walking around: the room you're in, or the map. */
+  get map(): TileMap {
+    return this.underground ?? this.room ?? this.world;
+  }
+
+  /** Camera and walking bounds of the visible map. Surface land never includes the underground region. */
+  get sceneBounds() {
+    const m=this.map;
+    return m===this.world ? surfaceBounds(this.x) : {x0:m.x0,w:m.w};
+  }
+
+  /** Who's around you: the room's people, or the map's. */
+  get cast() {
+    return this.underground?.actors ?? this.room?.actors ?? this.actors;
+  }
+
+  /** Where your save puts you: outside the door while you're in a room (rooms aren't saved positions). */
+  get savedPos() {
+    return this.underground && this.underground !== this.cavern ? this.underground === this.echo ? { ...ECHO_OUTSIDE } : { ...this.oreGallery.outside } : this.room ? { ...this.outside } : { x: this.x, y: this.y };
+  }
+
+  /** Steps into a room, from `outside` (where you'll come back out). */
+  enterRoom(room: Room, outside: { x: number; y: number }) {
+    this.underground = null;
+    this.outside = { ...outside };
+    this.room = room;
+    const p = room.spawn;
+    this.x = this.camX = p.x;
+    this.y = this.camY = p.y;
+    this.face = -Math.PI / 2;
+    this.moving = false;
+    this.chopping = null;
+  }
+
+  /** Back out of the room's door, facing away from it. */
+  leaveRoom() {
+    if (!this.room) return;
+    this.room = null;
+    this.teleport(this.outside.x, this.outside.y);
+    this.face = Math.PI / 2;
+  }
+
   teleport(x: number, y: number) {
+    // Going anywhere else (a warp, a respawn) takes you out of a room first.
+    this.room = null;
+    this.underground = null;
     this.x = x;
     this.y = y;
     this.camX = x;
     this.camY = y;
     this.roamers.calm = 3;
     this.zone = this.world.zoneAt(x);
+    if(this.zone.id==='cave') { this.cavern.sync(); this.underground=this.cavern; }
     this.actors.regroup(x, y);
+  }
+
+  enterCave(at = this.echo.spawn) {
+    this.teleport(ECHO_OUTSIDE.x, ECHO_OUTSIDE.y);
+    this.underground = this.echo;
+    this.relocate(at.x, at.y);
+    this.face = -Math.PI / 2;
+    this.chopping = null;
+  }
+
+  enterOreGallery(at = this.oreGallery.spawn) {
+    this.teleport(this.oreGallery.outside.x, this.oreGallery.outside.y);
+    this.oreGallery.sync(this.save);
+    this.underground = this.oreGallery;
+    this.relocate(at.x, at.y);
+    this.face = -Math.PI / 2;
+    this.chopping = null;
+  }
+
+  /** Move within the active map (a cave-in or climb), without leaving its instance. */
+  relocate(x: number, y: number) {
+    this.x = this.camX = x;
+    this.y = this.camY = y;
+    this.moving = false;
   }
 
   /** A few seconds where no monster notices you, so you aren't jumped the moment a fight ends. */
@@ -145,7 +294,7 @@ export class Overworld {
         this.fx.burst(x, y + ts * 0.4, ROCK_CHIPS[o.node!] ?? '#9a9aa8', 20, ts * 3, { size: ts * 0.1, life: 0.8 });
         this.fx.burst(x, y + ts * 0.4, '#e8e0d8', 10, ts * 2, { size: ts * 0.12, life: 0.9, grav: -ts * 0.5 });
       } else {
-        this.fx.burst(x, y, o.node === 'pine' ? '#2f7a45' : '#5ab85a', 22, ts * 3, { size: ts * 0.1, life: 0.9 });
+        this.fx.burst(x, y, TREE_LEAVES[o.node!] ?? '#5ab85a', 22, ts * 3, { size: ts * 0.1, life: 0.9 });
         this.fx.burst(x, y + ts * 0.6, '#c89a6a', 8, ts * 2, { size: ts * 0.07, life: 0.6 });
       }
     }
@@ -161,17 +310,19 @@ export class Overworld {
       const turn = Math.abs(((Math.atan2(a.y - this.y, a.x - this.x) - this.face + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
       return turn < Math.PI / 3;
     };
-    const talk = this.actors.list.find((a) => a.label && Math.hypot(a.x - this.x, a.y - (this.y - 0.2)) < 1.4 && facing(a));
+    const talk = this.cast.list.find((a) => a.label && Math.hypot(a.x - this.x, a.y - (this.y - 0.2)) < 1.4 && facing(a));
     if (talk) return { kind: 'npc', id: talk.id, x: talk.x - 0.35, y: talk.y - 0.45, w: 0.7, h: 0.45, label: talk.label! };
-    return this.world.nearestObj(this.x, this.y - 0.2, 1.4);
+    return this.map.nearestObj(this.x, this.y - 0.2, 1.4);
   }
 
   /** `roam`: monsters keep moving (and can catch you) even while you can't walk, e.g. while chopping. */
   update(dt: number, input: Input, frozen: boolean, roam = !frozen): WorldEvent {
     this.t += dt;
+    this.dashCds=this.dashCds.map(t=>Math.max(0,t-dt));
+    for(let i=this.afterimages.length-1;i>=0;i--)if((this.afterimages[i].t-=dt)<=0)this.afterimages.splice(i,1);
     // A spirit walks unseen: nothing notices it, chases it or jumps out at it.
     if (this.save.spirit) this.roamers.calm = Math.max(this.roamers.calm, 0.5);
-    if (roam && this.alert <= 0) {
+    if (roam && this.alert <= 0 && this.fieldMap) {
       const caught = this.roamers.update(dt, this.x, this.y, this.save.wins === 0, repelBelow(this.save));
       if (caught) {
         this.alert = 0.3;
@@ -181,7 +332,8 @@ export class Overworld {
     }
     this.shakeT = Math.max(0, this.shakeT - dt);
     this.fx.update(dt);
-    this.actors.update(dt, this);
+    this.cast.update(dt, this);
+    this.headroom += ((this.layers?.headroom() ?? 0) - this.headroom) * (1 - Math.exp(-dt * 3));
     const target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? { x: this.x, y: this.y };
     const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : 12));
     this.camX += (target.x - this.camX) * k;
@@ -195,19 +347,33 @@ export class Overworld {
       this.moving = false;
       return null;
     }
-    const a = input.axis();
+    let a = input.axis();
+    if(this.dashCds.length!==dodgeCharges(this.save))this.dashCds=Array(dodgeCharges(this.save)).fill(0);
+    const charge=this.dashCds.findIndex(t=>t<=0);
+    if(input.consume('dodge')&&charge>=0&&this.fieldMap&&!this.save.spirit&&this.save.perks.includes('shadowscarf')&&this.dashT<=0){
+      this.dashDir=Math.hypot(a.x,a.y)>.1?Math.atan2(a.y,a.x):this.face;this.dashT=.18;this.dashCds[charge]=.9;
+    }
+    const dashing=this.dashT>0;
+    this.dashT=Math.max(0,this.dashT-dt);
+    if(dashing){a={x:Math.cos(this.dashDir),y:Math.sin(this.dashDir)};if(!this.afterimages.length||this.afterimages[this.afterimages.length-1].t<.2)this.afterimages.push({x:this.x,y:this.y,face:this.face,t:.24});}
     const mag = Math.hypot(a.x, a.y);
     this.moving = mag > 0.1;
     if (!this.moving) return null;
     this.face = Math.atan2(a.y, a.x);
     const spdBonus = (GEAR[this.save.equip.armor]?.spd ?? 0) + (this.save.equip.charm ? GEAR[this.save.equip.charm]?.spd ?? 0 : 0);
-    const speed = 5 * (1 + spdBonus / 100) * (this.save.perks.includes('trailboots') ? 1.25 : 1);
+    const speed = 5 * (1 + spdBonus / 100) * (this.save.perks.includes('trailboots') ? 1.25 : 1) * (dashing ? 2.6 : 1);
     const dx = a.x * speed * dt, dy = a.y * speed * dt;
     const r = 0.28;
     const ox = this.x, oy = this.y;
-    if (!this.world.blocked(this.x + dx, this.y, r)) this.x += dx;
-    if (!this.world.blocked(this.x, this.y + dy, r)) this.y += dy;
+    const steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/.18));
+    const bounds=this.sceneBounds;
+    for(let n=0;n<steps;n++){
+      const nx=this.x+dx/steps;
+      if(nx-r>=bounds.x0&&nx+r<bounds.x0+bounds.w&&!this.map.blocked(nx,this.y,r))this.x=nx;
+      if(!this.map.blocked(this.x,this.y+dy/steps,r))this.y+=dy/steps;
+    }
     const moved = Math.hypot(this.x - ox, this.y - oy);
+    if (!this.fieldMap) return null;
 
     let ev: WorldEvent = null;
     const z = this.world.zoneAt(this.x);
@@ -241,40 +407,70 @@ export class Overworld {
     return (y * this.view.ts - this.view.top) / this.view.vh;
   }
 
+  /** The map spot (in tiles) under a point on the screen, as of the last frame. */
+  toMap(px: number, py: number) {
+    return { x: (px + this.view.left) / this.view.ts, y: (py + this.view.top) / this.view.ts };
+  }
+
+  /** A map spot in screen pixels, for effects travelling from a station to the HUD. */
+  toScreen(x: number, y: number) {
+    return { x: x * this.view.ts - this.view.left, y: y * this.view.ts - this.view.top };
+  }
+
   /** Tile size in pixels for this screen (fights on the map zoom in from this). */
   static tileSize(vw: number, vh: number) {
     return Math.round(Math.max(32, Math.min(60, Math.min(vw, vh) / 9.5)));
   }
 
   render(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
-    const ts = (this.ts = Math.round(Overworld.tileSize(vw, vh) * this.zoom));
-    const W = this.world;
-    const mapW = W.w * ts, mapH = W.h * ts;
+    const W = this.map;
+    // Rooms are seen a little closer up than the map, but always whole: as big as fits between the HUD and the buttons,
+    // from the top of the back wall to the front wall.
+    const R = this.room?.spec;
+    const roomRows = R ? R.h + WALL_RISE - 0.1 : 0;
+    const ts = (this.ts = R
+      ? Math.round(Math.min(Overworld.tileSize(vw, vh) * 1.25, vw / (R.w - 0.3), (vh - ROOM_BAND.top - ROOM_BAND.bottom) / roomRows) * this.zoom)
+      : Math.round(Overworld.tileSize(vw, vh) * this.zoom));
+    const bounds=this.sceneBounds;
+    const mapW = bounds.w * ts, mapH = (this.fieldMap ? ROUTES[this.zone.id]?.length ?? WORLD_H : W.h) * ts;
     let camX = this.camX * ts - vw / 2;
     let camY = (this.camY - 0.5) * ts - vh / 2;
-    camX = mapW <= vw ? (mapW - vw) / 2 : Math.max(0, Math.min(mapW - vw, camX));
+    const mapLeft = bounds.x0 * ts, mapTop = W.y0 * ts;
+    camX = mapW <= vw ? mapLeft + (mapW - vw) / 2 : Math.max(mapLeft, Math.min(mapLeft + mapW - vw, camX));
     // The camera can look a little past the top and bottom of the map (the forest carries on out there), so nothing
     // on the edge rows hides under the HUD or the buttons.
-    const overTop = ts * OVERSCROLL.top, overBottom = ts * OVERSCROLL.bottom;
-    camY = mapH + overTop + overBottom <= vh ? (mapH - vh) / 2 : Math.max(-overTop, Math.min(mapH - vh + overBottom, camY));
+    const overTop = ts * (OVERSCROLL.top + this.headroom), overBottom = ts * OVERSCROLL.bottom;
+    // A room sits in the middle of the band between the HUD and the buttons, its back wall rising above its top row.
+    if (R) camY = (-WALL_RISE - 0.25 + roomRows / 2) * ts - (ROOM_BAND.top + (vh - ROOM_BAND.bottom)) / 2;
+    else if (mapH + overTop + overBottom <= vh) camY = mapTop + (mapH - vh) / 2;
+    else camY = Math.max(mapTop - overTop, Math.min(mapTop + mapH - vh + overBottom, camY));
     camX = Math.round(camX);
     camY = Math.round(camY);
-    this.view = { top: camY, ts, vh };
-    this.drawScene(ctx, camX / ts, camY / ts, ts, vw, vh);
+    this.view = { left: camX, top: camY, ts, vh };
+    if (this.room) this.drawRoom(ctx, this.room, camX, camY, ts, vw, vh);
+    else this.drawScene(ctx, camX / ts, camY / ts, ts, vw, vh);
 
     ctx.save();
     ctx.translate(-camX, -camY);
-    if (this.objective && !this.quiet) this.drawObjective(ctx, camX, camY, vw, vh, ts);
+    if (this.objective && !this.quiet && !this.room) this.drawObjective(ctx, camX, camY, vw, vh, ts);
 
     // Interaction hint bubble (not while chopping or mining: the minigame's card is up)
-    const near = this.quiet || this.chopping ? null : this.nearbyObject();
+    const near = this.quiet || this.chopping || this.busyHands ? null : this.nearbyObject();
+    this.roomRects.label = null;
     if (near && this.alert <= 0) {
-      const bx = (near.x + near.w / 2) * ts, by = near.y * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
+      // A room's doormat says "Leave" under it, not over you standing on it, and its stations wear theirs on top of
+      // what's drawn (not over your head as you stand in front). In the Garden's field it's over the plot you'd work on.
+      const bed = near.project === 'garden' && this.gardenPlot !== null ? plotSpot(near, this.gardenPlot) : null;
+      const top = this.room && near.kind === 'station' ? this.stationTop.get(near) : undefined;
+      let bx = (bed ? bed.x : near.x + near.w / 2) * ts;
+      const by = (top !== undefined ? top / ts + 0.15 : bed ? bed.y - 0.55 : near.kind === 'door' ? near.y + near.h + 0.75 : near.y) * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
       ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
       const label = this.keyHints ? `[E] ${near.label}` : near.label;
       const tw = ctx.measureText(label).width + ts * 0.4;
+      bx = Math.max(camX + tw / 2 + 4, Math.min(camX + vw - tw / 2 - 4, bx));
       ctx.fillStyle = 'rgba(255,255,255,0.95)';
       rrect(ctx, bx - tw / 2, by - ts * 0.5, tw, ts * 0.55, ts * 0.2);
+      if (this.room) this.roomRects.label = { x: bx - tw / 2 - camX, y: by - ts * 0.5 - camY, w: tw, h: ts * 0.55 };
       ctx.fill();
       ctx.fillStyle = '#5a3a6a';
       ctx.textAlign = 'center';
@@ -285,30 +481,66 @@ export class Overworld {
   }
 
   /** The map itself: ground, scenery, buildings, monsters and the hero. `left`/`top` are the camera's corner in tiles. */
+  private sceneryTile(x:number,y:number) {
+    // The logical graph retains gate coordinates for old saves; the outdoor view ends in a cliff behind its mouth.
+    return !this.underground&&!this.room&&x===CAVE_WEST_EDGE-1 ? T.OBST : this.map.tile(x,y);
+  }
+
   private drawScene(ctx: CanvasRenderingContext2D, left: number, top: number, ts: number, vw: number, vh: number) {
-    const W = this.world;
+    const W = this.map;
     const camX = Math.round(left * ts), camY = Math.round(top * ts);
     ctx.fillStyle = this.zone.theme.outside;
     ctx.fillRect(0, 0, vw, vh);
     ctx.save();
     ctx.translate(-camX, -camY);
 
-    const x0 = Math.max(0, Math.floor(camX / ts) - 1), x1 = Math.min(W.w - 1, Math.ceil((camX + vw) / ts) + 1);
-    // Rows past the map's edges are forest (World.tile calls them obstacles).
-    const y0 = Math.max(-Math.ceil(OVERSCROLL.top) - 1, Math.floor(camY / ts) - 1), y1 = Math.min(W.h + Math.ceil(OVERSCROLL.bottom), Math.ceil((camY + vh) / ts) + 2);
+    const bounds=this.sceneBounds;
+    ctx.beginPath();ctx.rect(bounds.x0*ts,camY,bounds.w*ts,vh);ctx.clip();
 
+    const x0 = Math.max(bounds.x0, Math.floor(camX / ts) - 1), x1 = Math.min(bounds.x0 + bounds.w - 1, Math.ceil((camX + vw) / ts) + 1);
+    // Rows past the map's edges are forest (World.tile calls them obstacles).
+    const y0 = Math.max(W.y0 - Math.ceil(OVERSCROLL.top + this.headroom) - 1, Math.floor(camY / ts) - 1), y1 = Math.min(W.y0 + W.h + Math.ceil(OVERSCROLL.bottom), Math.ceil((camY + vh) / ts) + 2);
+
+    // Four-tile patches keep adjacent ground continuous, without a checkerboard or per-tile gradients.
+    const groundPatches = new Map<string, CanvasGradient>();
     // Ground layer
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         const th = zoneAtX(x).theme;
-        const t = W.tile(x, y);
+        const t = this.sceneryTile(x, y);
         const px = x * ts, py = y * ts;
-        ctx.fillStyle = hash2(x, y, 1) < 0.5 ? th.ground : th.ground2;
+        // Broad, soft colour patches replace the conspicuous checkerboard of individual tiles.
+        ctx.fillStyle = th.ground;
         ctx.fillRect(px, py, ts + 1, ts + 1);
-        if (t === T.PATH) this.drawPath(ctx, x, y, px, py, ts, th);
+        const gx=Math.floor(x/4),gy=Math.floor(y/4),patchKey=`${zoneAtX(x).id}:${gx}:${gy}`;
+        let patch=groundPatches.get(patchKey);
+        if(!patch){
+          const cx=(gx*4+1.8+hash2(gx,gy,71)*.4)*ts,cy=(gy*4+1.8+hash2(gx,gy,72)*.4)*ts;
+          patch=ctx.createRadialGradient(cx,cy,0,cx,cy,ts*1.7);
+          patch.addColorStop(0,th.ground2);patch.addColorStop(1,th.ground);groundPatches.set(patchKey,patch);
+        }
+        ctx.fillStyle=patch;ctx.fillRect(px,py,ts+1,ts+1);
+        const stone=!this.underground?caveApproachStone(x,y):0;
+        if(stone>0){
+          ctx.fillStyle=`rgba(116,119,105,${stone*.72})`;ctx.fillRect(px,py,ts+1,ts+1);
+          if(t===T.GROUND&&hash2(x,y,84)<stone*.45){
+            ctx.fillStyle='#b4b6a2';ctx.beginPath();ctx.ellipse(px+ts*(.2+hash2(x,y,85)*.6),py+ts*(.3+hash2(x,y,86)*.4),ts*.045,ts*.028,0,0,TAU);ctx.fill();
+          }
+        }
+        // Shade the floor beside solid scenery, rather than treating it as a flat tile grid.
+        if(t!==T.OBST&&t!==T.POOL&&t!==T.CHASM){
+          const shade=ctx.createLinearGradient(px,py,px,py+ts*.3);
+          shade.addColorStop(0,'rgba(24,32,40,.16)');shade.addColorStop(1,'rgba(24,32,40,0)');
+          if(W.tile(x,y-1)===T.OBST){ctx.fillStyle=shade;ctx.fillRect(px,py,ts,ts*.3);}
+          if(t===T.GROUND&&hash2(x,y,73)<.10)this.drawDecor(ctx,x,y,px,py,ts,th);
+        }
+        if (t === T.PATH) this.drawPath(ctx, x, y, px, py, ts, stone>.5?{...th,path:'#a9a28f'}:th);
         else if (t === T.POOL) this.drawPool(ctx, x, y, px, py, ts, th);
+        else if (t === T.CHASM) this.drawChasm(ctx, x, y, px, py, ts);
         else if (t === T.BRIDGE) {
-          this.drawPool(ctx, x, y, px, py, ts, th);
+          const p = this.crossingAt(x, y);
+          if (p?.gap === 'chasm') this.drawChasm(ctx, x, y, px, py, ts);
+          else this.drawPool(ctx, x, y, px, py, ts, th);
           this.drawBridge(ctx, x, y, px, py, ts);
         }
         else if (t === T.GRASS) this.drawGrass(ctx, x, y, px, py, ts, th);
@@ -316,41 +548,106 @@ export class Overworld {
       }
     }
 
+    if (!this.underground) this.drawFieldGround(ctx, ts);
+    this.layers?.ground(ctx, ts);
+
     // Y-sorted: obstacles, buildings and the hero
     const items: { y: number; draw: () => void }[] = [];
     for (let y = y0; y <= y1; y++)
       for (let x = x0; x <= x1; x++)
-        if (W.tile(x, y) === T.OBST) {
+        if (this.sceneryTile(x, y) === T.OBST) {
           const th = zoneAtX(x).theme;
           items.push({ y: y + 0.9, draw: () => this.drawObstacle(ctx, x, y, ts, th) });
         }
     for (const o of W.objs) {
-      if (o.x + o.w < x0 - 2 || o.x > x1 + 2) continue;
-      items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
+      // A crossing's far landing can be visible while its construction stake is off screen.
+      const crossing = o.kind === 'bridge' ? shortcutById(o.id!) : null;
+      const deck = crossing && shortcutWorldPoint(crossing, crossing.deck);
+      const left = deck ? Math.min(o.x, deck.x - .45) : o.x;
+      const right = deck ? Math.max(o.x + o.w, deck.x + crossing!.deck.w + .45) : o.x + o.w;
+      if (right < x0 - 2 || left > x1 + 2) continue;
+      if (o.kind === 'fence') this.fenceItems(ctx, o, ts, items);
+      else if (o.kind === 'plot' && o.project === 'garden') this.fieldItems(ctx, o, ts, items);
+      else items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
     }
-    for (const r of this.roamers.list) {
+    for (const r of this.fieldMap ? this.roamers.list : []) {
+      if ((r.zone==='cave') !== (this.underground===this.cavern)) continue;
       if (r.x < x0 - 2 || r.x > x1 + 2) continue;
       items.push({ y: r.y, draw: () => this.drawRoamer(ctx, r, ts) });
     }
-    for (const a of this.actors.list) {
+    for (const a of this.cast.list) {
       if (a.x < x0 - 2 || a.x > x1 + 2) continue;
       items.push({ y: a.y, draw: () => this.drawActor(ctx, a, ts) });
     }
+    for(const g of this.afterimages)items.push({y:g.y,draw:()=>drawHero(ctx,this.save.equip.armor,g.x*ts,g.y*ts,ts/1.2,g.face,false,this.t,{alpha:g.t*.9,tint:'#b7a8f1',tintAmount:.6},'hero:map-ghost')});
     items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
     const body = this.save.spirit;
     if (body) items.push({ y: body.y, draw: () => this.drawBody(ctx, body, ts) });
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
+    if (this.carried) drawCarried(ctx, this.x * ts, this.y * ts, ts, this.carried.icon, this.carried.emoji, this.carried.count, this.t);
     this.fx.draw(ctx);
+    if(this.underground===this.oreGallery&&!this.oreGallery.opened){
+      ctx.fillStyle='rgba(23,21,32,.92)';ctx.fillRect((this.oreGallery.x0+1)*ts,ts,12*ts,5*ts);
+    }
+    this.layers?.over(ctx, ts, { x: camX, y: camY, w: vw, h: vh });
     // Feelings float above everything, so you can read them from across the screen.
-    for (const a of this.actors.list) {
+    for (const a of this.cast.list) {
       const emoji = a.bubble?.emoji ?? a.mood;
       if (!emoji || a.x < x0 - 2 || a.x > x1 + 2) continue;
       drawBubble(ctx, a.x * ts, (a.y - this.actorHeight(a)) * ts, emoji, ts * 0.62, a.bubble ? a.bubble.t : 1 + this.t, a.bubble?.hold ?? Infinity);
     }
+    this.drawSpeeches(ctx, this.cast.list, ts, camX, vw);
     for (const o of W.objs) {
       if (o.hidden || !o.foes || o.x + o.w < x0 - 2 || o.x > x1 + 2) continue;
       drawBubble(ctx, (o.x + o.w / 2) * ts, (o.y + o.h / 2 - (o.boss ? 1.9 : 1.2)) * ts, o.boss ? '😠' : '❗', ts * 0.55, 1 + this.t);
+    }
+    ctx.restore();
+  }
+
+  /** What people are saying, over their heads (and over their feelings), kept on screen. */
+  private drawSpeeches(ctx: CanvasRenderingContext2D, list: Actor[], ts: number, camX: number, vw: number) {
+    for (const a of list) {
+      if (!a.speech) continue;
+      const lift = this.actorHeight(a) + (a.bubble || a.mood ? 0.75 : 0);
+      drawSpeech(ctx, a.x * ts, (a.y - lift) * ts, a.speech.text, Math.max(26, ts * 0.55), a.speech.t, a.speech.hold, camX + 8, camX + vw - 8);
+    }
+  }
+
+  /**
+   * Inside a room: its floor and walls, then its stations, its people and you in depth order, then whatever floats
+   * over it all (what you're carrying, a pot's steam, people's feelings and what they say).
+   */
+  private drawRoom(ctx: CanvasRenderingContext2D, R: Room, camX: number, camY: number, ts: number, vw: number, vh: number) {
+    ctx.fillStyle = R.spec.bg;
+    ctx.fillRect(0, 0, vw, vh);
+    ctx.save();
+    ctx.translate(-camX, -camY);
+    R.painter?.floor(ctx, ts);
+    const items: { y: number; draw: () => void }[] = [];
+    const rects: Overworld['roomRects'] = (this.roomRects = { caption: this.roomRects.caption, stations: [], hero: { x: this.x * ts - ts * 0.4 - camX, y: (this.y - 1.4) * ts - camY, w: ts * 0.8, h: ts * 1.4 }, bubbles: [] });
+    for (const o of R.objs) {
+      if (o.hidden || o.kind !== 'station') continue;
+      items.push({ y: o.y + o.h, draw: () => {
+        const top = Math.min(o.y * ts, R.painter?.obj(ctx, o, ts) ?? Infinity);
+        this.stationTop.set(o, top);
+        rects.stations.push({ id: o.id!, x: o.x * ts - camX, y: top - camY, w: o.w * ts, h: (o.y + o.h) * ts - top });
+      } });
+    }
+    for (const a of R.actors.list) items.push({ y: a.y, draw: () => this.drawActor(ctx, a, ts) });
+    for(const g of this.afterimages)items.push({y:g.y,draw:()=>drawHero(ctx,this.save.equip.armor,g.x*ts,g.y*ts,ts/1.2,g.face,false,this.t,{alpha:g.t*.9,tint:'#b7a8f1',tintAmount:.6},'hero:map-ghost')});
+    items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
+    items.sort((a, b) => a.y - b.y);
+    for (const it of items) it.draw();
+    this.fx.draw(ctx);
+    R.painter?.over(ctx, ts);
+    // How people feel, over their heads; what they say shows at the top of the screen, with their feeling beside it
+    // (see drawRoomHud), never over the room.
+    for (const a of R.actors.list) {
+      const emoji = a.bubble?.emoji ?? a.mood, s = ts * 0.62, x = a.x * ts, y = (a.y - this.actorHeight(a)) * ts;
+      if (!emoji || a.speech) continue;
+      drawBubble(ctx, x, y, emoji, s, a.bubble ? a.bubble.t : 1 + this.t, a.bubble?.hold ?? Infinity);
+      rects.bubbles.push({ x: x - s * 0.58 - camX, y: y - s * 1.22 - camY, w: s * 1.16, h: s * 1.22 });
     }
     ctx.restore();
   }
@@ -485,7 +782,7 @@ export class Overworld {
     const held = wpn && carriedWeapon(wpn, size);
     // New gear was not owned at startup. Request it even while its sprite is still being drawn.
     if (held && !hasModel(held.id)) void loadModel(held.id);
-    const in3d = !!wpn && hasModel(`wpn_${wpn.id}`) && hasModel(`hero_${this.save.equip.armor}`);
+    const in3d = !!wpn && hasModel(`wpn_${wpn.id}`) && heroIn3d(this.save.equip.armor);
     const wf = !in3d && wpn && frame(`wpn/${wpn.id}`);
     const away = Math.sin(this.face) < -0.5;
     const back = () => {
@@ -506,7 +803,7 @@ export class Overworld {
     }
     if (away) back();
     // Tall grass hides your feet — cute and tells you you're in encounter territory.
-    if (this.world.tile(Math.floor(this.x), Math.floor(this.y - 0.1)) === T.GRASS) {
+    if (this.map.tile(Math.floor(this.x), Math.floor(this.y - 0.1)) === T.GRASS) {
       const th = this.zone.theme;
       ctx.fillStyle = th.grass;
       for (let i = -2; i <= 2; i++) {
@@ -537,17 +834,17 @@ export class Overworld {
 
   /** A gathering node: a ribboned tree or an ore-flecked rock when ready, a stump or rubble while it comes back. */
   private drawTree(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
-    const ready = (this.save.nodes[o.id!] ?? 0) <= Date.now();
+    const ready = !!o.boulder || (this.save.nodes[o.id!] ?? 0) <= Date.now();
     const rock = NODES[o.node!].skill === 'mine';
     // Rocks have no drawn fallback: skip them (glow and all) until the sprites are in.
     if (rock && !frame(`env/${o.node}_node`)) return;
     const shake = o === this.chopping && this.shakeT > 0 ? Math.sin(this.shakeT * 70) * this.shakeT * 0.25 : 0;
     const cx = (o.x + o.w / 2) * ts, by = (o.y + o.h - 0.08) * ts;
     if (ready) {
-      // A soft glow on the ground marks trees you can chop (gold out in the grass).
+      // One soft highlight marks all available resources, regardless of terrain.
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = o.grass ? `rgba(255,210,90,${0.22 + Math.sin(this.t * 3 + o.x) * 0.07})` : `rgba(255,255,230,${0.16 + Math.sin(this.t * 3 + o.x) * 0.05})`;
+      ctx.fillStyle = `rgba(255,255,230,${0.16 + Math.sin(this.t * 3 + o.x) * 0.05})`;
       ctx.beginPath();
       ctx.ellipse(cx, by - ts * 0.02, ts * 0.62, ts * 0.26, 0, 0, TAU);
       ctx.fill();
@@ -556,7 +853,7 @@ export class Overworld {
     shadow(ctx, cx, by, ts * (ready ? 0.42 : 0.3));
     const sprite = frame(`env/${o.node}_${ready ? 'node' : rock ? 'rubble' : 'stump'}`) ?? (ready && !rock ? frame(o.node === 'pine' ? 'env/pine0' : 'env/tree1') : null);
     // A touch bigger than the scenery trees so they stand out.
-    if (sprite) drawFrame(ctx, sprite, cx, by, (ts / TILE_BU) * (ready ? 1.12 : 1), { rot: ready ? shake + Math.sin(this.t * 1.2 + o.x) * 0.012 : 0 });
+    if (sprite) drawFrame(ctx, sprite, cx, by, (ts / TILE_BU) * (o.boulder ? o.boulder==='quarry'?3.1:1.65 : ready ? 1.12 : 1), { rot: ready ? shake + Math.sin(this.t * 1.2 + o.x) * 0.012 : 0 });
     else if (!ready) {
       ctx.fillStyle = '#9a6a44';
       ctx.beginPath();
@@ -567,9 +864,9 @@ export class Overworld {
       ctx.ellipse(cx, by - ts * 0.2, ts * 0.17, ts * 0.08, 0, 0, TAU);
       ctx.fill();
     }
-    // A glint now and then marks trees you can chop; golden ones out in the grass hide rarer finds.
+    // A glint now and then marks resources that are ready to gather.
     if (ready && Math.random() < 0.04) {
-      this.fx.burst(cx + (Math.random() - 0.5) * ts * 0.8, by - ts * (0.6 + Math.random() * 0.8), o.grass ? '#ffd35a' : '#ffffff', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.8 });
+      this.fx.burst(cx + (Math.random() - 0.5) * ts * 0.8, by - ts * (0.6 + Math.random() * 0.8), '#ffffff', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.8 });
     }
   }
 
@@ -607,9 +904,12 @@ export class Overworld {
 
   private drawPath(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
     ctx.fillStyle = th.path;
-    const up = this.world.tile(x, y - 1) === T.PATH, down = this.world.tile(x, y + 1) === T.PATH;
-    const inset = ts * 0.12;
-    ctx.fillRect(px, py + (up ? 0 : inset), ts + 1, ts - (up ? 0 : inset) - (down ? 0 : inset) + 1);
+    const up = this.map.tile(x, y - 1) === T.PATH, down = this.map.tile(x, y + 1) === T.PATH;
+    const left=this.map.tile(x-1,y)===T.PATH,right=this.map.tile(x+1,y)===T.PATH;
+    const inset=ts*.09, lx=left?0:inset, rx=right?0:inset, uy=up?0:inset, dy=down?0:inset;
+    rrect(ctx,px+lx,py+uy,ts-lx-rx+1,ts-uy-dy+1,ts*.11);ctx.fill();
+    ctx.fillStyle='rgba(255,245,211,.11)';
+    if(!up)ctx.fillRect(px+lx+ts*.07,py+uy,ts-lx-rx-ts*.14,ts*.045);
     if (hash2(x, y, 4) < 0.4) {
       ctx.fillStyle = 'rgba(120,90,60,0.18)';
       ctx.beginPath();
@@ -618,28 +918,68 @@ export class Overworld {
     }
   }
 
-  /** Bram's Bridge: planks laid across the water, with a rail along whichever sides are open water. */
+  private crossingAt(x: number, y: number) {
+    return SHORTCUTS.find((p) => {
+      const d = p.deck, x0 = shortcutWorldPoint(p, d).x;
+      return x >= x0 && x < x0+d.w && y >= d.y && y < d.y+d.h;
+    });
+  }
+
+  private bridgePalette(p?: Shortcut): [string, string, string] {
+    return p?.cost.emberplank ? ['#68483f','#4e3532','#eea25c'] : p?.cost.glimplank ? ['#e6dcf6','#c4b3dc','#8c78b3'] : p?.cost.pineplank ? ['#e0be80','#c79d60','#79583c'] : ['#d8a868','#c8965a','#7a5232'];
+  }
+
+  private drawChasm(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number) {
+    const cleft = (dx: number, dy: number) => {
+      const t = this.map.tile(x+dx,y+dy);
+      return t === T.CHASM || t === T.BRIDGE && this.crossingAt(x+dx,y+dy)?.gap === 'chasm';
+    };
+    ctx.fillStyle = '#282139'; ctx.fillRect(px,py,ts+1,ts+1);
+    ctx.fillStyle = '#52455f';
+    if (!cleft(-1,0)) ctx.fillRect(px,py,ts*.13,ts);
+    if (!cleft(1,0)) ctx.fillRect(px+ts*.87,py,ts*.13,ts);
+    if (!cleft(0,-1)) ctx.fillRect(px,py,ts,ts*.12);
+    if (!cleft(0,1)) ctx.fillRect(px,py+ts*.88,ts,ts*.12);
+    ctx.fillStyle = '#8c71ba';
+    if (hash2(x,y,41) > .55) {
+      ctx.beginPath(); ctx.moveTo(px+ts*.31,py+ts*.59);ctx.lineTo(px+ts*.43,py+ts*.35);ctx.lineTo(px+ts*.48,py+ts*.65);ctx.closePath();ctx.fill();
+    }
+  }
+
+  /** Timber colours, deck direction and outside rails follow the crossing's actual material and footprint. */
   private drawBridge(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number) {
-    const W = this.world, bridge = (dx: number) => W.tile(x + dx, y) === T.BRIDGE;
-    const boards = 4, bh = ts / boards;
+    const W = this.map, p = this.crossingAt(x,y), vertical = p ? p.deck.h >= p.deck.w : true;
+    const colours = this.bridgePalette(p), boards = 4, bh = ts / boards;
+    const began = p && this.crossingRaisedAt[p.id];
+    const progress = began === undefined ? 1 : Math.max(0, Math.min(1, (this.t-began-(vertical ? y-p!.deck.y : x-shortcutWorldPoint(p!,p!.deck).x)*.12)/.35));
+    if (!progress) return;
+    ctx.save(); ctx.globalAlpha = progress;
+    ctx.translate(0,-ts*.25*(1-progress));
     for (let i = 0; i < boards; i++) {
-      ctx.fillStyle = (i + y) % 2 ? '#d8a868' : '#c8965a';
-      ctx.fillRect(px - 1, py + i * bh + 1, ts + 2, bh - 2);
+      ctx.fillStyle = colours[(i+x+y)%2];
+      if (vertical) ctx.fillRect(px-1,py+i*bh+1,ts+2,bh-2);
+      else ctx.fillRect(px+i*bh+1,py-1,bh-2,ts+2);
       ctx.fillStyle = 'rgba(90, 58, 34, 0.45)';
-      ctx.fillRect(px + ts * (0.3 + hash2(x, y + i, 7) * 0.4), py + i * bh + bh * 0.35, ts * 0.05, bh * 0.3);
+      if (vertical) ctx.fillRect(px+ts*(.3+hash2(x,y+i,7)*.4),py+i*bh+bh*.35,ts*.05,bh*.3);
+      else ctx.fillRect(px+i*bh+bh*.35,py+ts*(.3+hash2(x+i,y,7)*.4),bh*.3,ts*.05);
     }
-    ctx.fillStyle = '#7a5232';
+    ctx.fillStyle = colours[2];
     for (const side of [-1, 1]) {
-      if (bridge(side)) continue;
-      const rx = side < 0 ? px - ts * 0.04 : px + ts * 0.92;
-      ctx.fillRect(rx, py, ts * 0.12, ts);
-      ctx.fillRect(rx - ts * 0.02, py + ts * 0.08, ts * 0.16, ts * 0.14);
+      if (W.tile(x+(vertical ? side : 0),y+(vertical ? 0 : side)) === T.BRIDGE) continue;
+      if (vertical) {
+        const rx = side < 0 ? px-ts*.04 : px+ts*.92;
+        ctx.fillRect(rx,py,ts*.12,ts);ctx.fillRect(rx-ts*.02,py+ts*.08,ts*.16,ts*.14);
+      } else {
+        const ry = side < 0 ? py-ts*.04 : py+ts*.92;
+        ctx.fillRect(px,ry,ts,ts*.12);ctx.fillRect(px+ts*.08,ry-ts*.02,ts*.14,ts*.16);
+      }
     }
+    ctx.restore();
   }
 
   private drawPool(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
     const lava = th.pool === 'lava';
-    const W = this.world;
+    const W = this.map;
     const inset = ts * 0.14;
     const pool = (dx: number, dy: number) => W.tile(x + dx, y + dy) === T.POOL || W.tile(x + dx, y + dy) === T.BRIDGE;
     const l = pool(-1, 0) ? 0 : inset, r = pool(1, 0) ? 0 : inset;
@@ -673,6 +1013,15 @@ export class Overworld {
     ctx.globalAlpha = 0.35;
     ctx.fillRect(px, py, ts + 1, ts + 1);
     ctx.globalAlpha = 1;
+    if(zoneAtX(x).id==='cave'){
+      // Encounter pockets underground are shale and pale mineral chips, rather than tall garden grass.
+      for(let i=0;i<4;i++){
+        const cx=px+ts*(.16+hash2(x,y,91+i)*.68),cy=py+ts*(.25+hash2(x,y,101+i)*.65);
+        ctx.fillStyle=th.grassTip;ctx.globalAlpha=.5;
+        ctx.beginPath();ctx.moveTo(cx-ts*.06,cy);ctx.lineTo(cx-ts*.02,cy-ts*.1);ctx.lineTo(cx+ts*.06,cy-ts*.035);ctx.lineTo(cx+ts*.025,cy+ts*.02);ctx.closePath();ctx.fill();
+      }
+      ctx.globalAlpha=1;return;
+    }
     const tuft = frame(`env/grass_${zoneAtX(x).id}`);
     if (tuft) {
       for (let i = 0; i < 2; i++) {
@@ -760,6 +1109,27 @@ export class Overworld {
   }
 
   private drawObstacle(ctx: CanvasRenderingContext2D, x: number, y: number, ts: number, th: Theme) {
+    const stone=!this.underground?caveApproachStone(x,y):0;
+    if (zoneAtX(x).id === 'cave' || stone>=.85) {
+      // Joined rock faces enclose the tunnels; individual boulders still mark mineable cover.
+      const px = x * ts, py = y * ts;
+      ctx.fillStyle = stone>=.85?'#646c61':'#303247';
+      ctx.fillRect(px, py - ts * .28, ts + 1, ts * 1.28 + 1);
+      const open = (dx: number, dy: number) => this.sceneryTile(x + dx, y + dy) !== T.OBST;
+      ctx.strokeStyle = stone>=.85?'#939987':'#51536d'; ctx.lineWidth = ts * .065;
+      ctx.beginPath();
+      if (open(-1, 0)) { ctx.moveTo(px + ts * .04, py); ctx.lineTo(px + ts * .04, py + ts); }
+      if (open(1, 0)) { ctx.moveTo(px + ts * .96, py); ctx.lineTo(px + ts * .96, py + ts); }
+      if (open(0, 1)) { ctx.moveTo(px, py + ts * .92); ctx.lineTo(px + ts, py + ts * .92); }
+      ctx.stroke();
+      if (hash2(x, y, 12) > .6) {
+        ctx.strokeStyle = '#242639'; ctx.lineWidth = ts * .035;
+        ctx.beginPath(); ctx.moveTo(px + ts * .3, py + ts * .15);
+        ctx.lineTo(px + ts * .55, py + ts * .38); ctx.lineTo(px + ts * .47, py + ts * .7); ctx.stroke();
+      }
+      return;
+    }
+    if(stone>=.4)th={...th,obstacle:'boulder'};
     const cx = (x + 0.5) * ts + (hash2(x, y, 12) - 0.5) * ts * 0.15;
     const by = (y + 0.92) * ts;
     const v = hash2(x, y, 13);
@@ -871,6 +1241,40 @@ export class Overworld {
   /** Draws something on the map: a sprite if the art is loaded, otherwise a simple canvas drawing. */
   private drawObj(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
     if (o.hidden) return;
+    if(o.id==='poppy:thicket') {
+      // A fallen trunk spans the whole trail, directly behind Poppy in the rescue scene.
+      ctx.save(); ctx.translate(o.x*ts,o.y*ts); ctx.scale(ts,ts); ctx.lineCap='round';
+      ctx.fillStyle='rgba(44,35,23,.22)';ctx.beginPath();ctx.ellipse(.56,1.04,.54,1.08,0,0,TAU);ctx.fill();
+      ctx.strokeStyle='#63432d';ctx.lineWidth=.1;
+      ctx.beginPath();ctx.moveTo(.3,.65);ctx.lineTo(.04,.43);ctx.moveTo(.7,1.2);ctx.lineTo(.97,.99);ctx.stroke();
+      const bark=ctx.createLinearGradient(.12,0,.88,0);
+      bark.addColorStop(0,'#765034');bark.addColorStop(.35,'#a47a4d');bark.addColorStop(1,'#69442d');
+      ctx.fillStyle=bark;ctx.strokeStyle='#573d2b';ctx.lineWidth=.045;
+      ctx.beginPath();ctx.roundRect(.12,-.08,.76,2.12,.2);ctx.fill();ctx.stroke();
+      ctx.strokeStyle='#6c472f';ctx.lineWidth=.035;
+      for(let i=0;i<4;i++) {
+        const x=.23+i*.16;
+        ctx.beginPath();ctx.moveTo(x,.1);ctx.bezierCurveTo(x-.08,.65,x+.06,1.1,x,1.83);ctx.stroke();
+      }
+      ctx.fillStyle='#d4ac73';ctx.strokeStyle='#795536';ctx.lineWidth=.04;
+      ctx.beginPath();ctx.ellipse(.5,1.94,.38,.18,0,0,TAU);ctx.fill();ctx.stroke();
+      ctx.beginPath();ctx.ellipse(.5,1.94,.24,.1,0,0,TAU);ctx.stroke();
+      ctx.beginPath();ctx.ellipse(.5,1.94,.1,.045,0,0,TAU);ctx.stroke();
+      for(let i=0;i<5;i++) {
+        ctx.fillStyle=i%2?'#78984b':'#5e803f';ctx.beginPath();
+        ctx.ellipse(.27+(i%2)*.1,.2+i*.22,.16,.14,-.3,0,TAU);ctx.fill();
+      }
+      ctx.restore();return;
+    }
+    if(o.id?.startsWith('burrow:')||o.id==='resource:mouth'||o.id==='resource:exit'){
+      const x=(o.x+o.w/2)*ts,y=(o.y+o.h)*ts;
+      ctx.fillStyle='#6a5a4f';ctx.beginPath();ctx.ellipse(x,y-ts*.13,ts*.6,ts*.32,0,0,TAU);ctx.fill();
+      ctx.fillStyle='#211d2b';ctx.beginPath();ctx.ellipse(x,y-ts*.17,ts*.46,ts*.24,0,0,TAU);ctx.fill();
+      ctx.strokeStyle='#c0a16f';ctx.lineWidth=ts*.045;ctx.beginPath();ctx.ellipse(x,y-ts*.16,ts*.51,ts*.28,0,Math.PI,TAU);ctx.stroke();
+      if(o.id==='resource:mouth'){ctx.fillStyle='#ffd790';ctx.fillRect(x+ts*.44,y-ts*.5,ts*.12,ts*.17);if(Math.hypot(this.x-o.x,this.y-o.y)<5)this.nameTag(ctx,'⛏️ A promising tunnel',x,y-ts*.8,ts);}
+      else if(o.id!=='resource:exit'&&Math.hypot(this.x-o.x,this.y-o.y)<4)this.nameTag(ctx,o.id==='burrow:home'?'⛏️ Pip’s tunnels':'⛏️ Tunnel to Sowerby',x,y-ts*.6,ts);
+      return;
+    }
     switch (o.kind) {
       case 'gate':
         if (this.drawGate(ctx, o, ts)) return;
@@ -882,10 +1286,42 @@ export class Overworld {
         return this.drawPickup(ctx, o, ts);
       case 'node':
         return this.drawTree(ctx, o, ts);
+      case 'bridge':
+        return this.drawShortcutSite(ctx, o, ts);
       case 'foe':
         return this.drawFoe(ctx, o, ts);
+      case 'station': {
+        // The Garden's water butt and seed basket (from the rooms' props), and the sign at its gate.
+        const f = frame(o.id === 'garden:butt' ? 'room/g_butt' : o.id === 'garden:sign' ? 'env/field_sign' : 'room/g_basket');
+        const ax = (o.x + o.w / 2) * ts, ay = (o.y + o.h - 0.08) * ts;
+        shadow(ctx, ax, ay, o.w * ts * 0.55, 0.2);
+        if (f) drawFrame(ctx, f, ax, ay, (ts / TILE_BU) * 1.15);
+        return;
+      }
     }
     if (!this.drawBuilding(ctx, o, ts)) this.drawBuildingFallback(ctx, o, ts);
+  }
+
+  private drawShortcutSite(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+    const p = shortcutById(o.id!);
+    if (!p || shortcutBuilt(this.save,p)) return;
+    const d = p.deck, at = shortcutWorldPoint(p,d), vertical = d.h >= d.w, colours = this.bridgePalette(p);
+    // Broken landing boards on both banks make the missing connection legible before the player reads the plans.
+    for (const far of [false,true]) {
+      const x = at.x + (vertical ? 0 : far ? d.w : -.45), y = d.y + (vertical ? far ? d.h : -.45 : 0);
+      ctx.fillStyle = colours[1];
+      ctx.fillRect(x*ts,y*ts,(vertical ? d.w : .45)*ts,(vertical ? .45 : d.h)*ts);
+      ctx.fillStyle = colours[2];
+      for (const side of [0,1]) {
+        const sx = vertical ? (at.x+side*(d.w-.12))*ts : (x+.12)*ts;
+        const sy = vertical ? (y+.12)*ts : (d.y+side*(d.h-.12))*ts;
+        ctx.fillRect(sx,sy-ts*.35,ts*.12,ts*.48);
+      }
+    }
+    const sprite = frame('env/sign');
+    const ax = (o.x+o.w/2)*ts, ay = (o.y+o.h)*ts;
+    if (sprite) drawFrame(ctx,sprite,ax,ay,ts/TILE_BU);
+    if (Math.hypot(this.x-(o.x+.3),this.y-(o.y+.5)) < 4.5) this.nameTag(ctx, `🌉 ${p.name}`, ax, ay-ts*.8, ts);
   }
 
   /** A white name tag centered over an object whose top is at `top`. */
@@ -951,7 +1387,7 @@ export class Overworld {
       if (!monsterReady(L.name)) return;
       const hop = a.moving ? Math.abs(Math.sin(this.t * 12)) * ts * 0.16 : 0;
       shadow(ctx, px, py, ts * 0.28 * k);
-      drawMonsterAt(ctx, a.id, L.name, false, (this.t * 7) / 6, Math.cos(a.face) < 0, px, py - hop, ts * 0.74 * spriteScale(L.name) * k);
+      drawMonsterAt(ctx, a.id, L.name, false, (this.t * 7) / 6, Math.cos(a.face) < 0, px, py - hop, ts * 0.74 * spriteScale(L.name) * k, {}, a.id.startsWith('drums:') ? a.face : undefined);
       return;
     }
     shadow(ctx, px, py, ts * 0.24 * k);
@@ -978,8 +1414,9 @@ export class Overworld {
     for (const { m, i, x, y } of spots.sort((a, b) => a.y - b.y)) {
       if (!monsterReady(m.kind)) continue;
       shadow(ctx, x * ts, y * ts, ts * 0.28 * spriteScale(m.kind));
-      drawMonsterAt(ctx, `${slotOf(o, 'pack')}:${i}`, m.kind, false, this.t + i / 3, o.facing ? o.facing < 0 : i % 2 === 0, x * ts, y * ts, ts * 0.74 * spriteScale(m.kind));
+      drawMonsterAt(ctx, `${slotOf(o, 'pack')}:${i}`, m.kind, false, this.t + i / 3, o.facing ? o.facing < 0 : i % 2 === 0, x * ts, y * ts, ts * (o.hunt?0.9:0.74) * spriteScale(m.kind), o.hunt?{tint:VARIANTS[HUNTS.find(d=>d.kind===o.hunt)!.variant].color,tintAmount:.3}:{});
     }
+    if(o.hunt)this.nameTag(ctx,`${o.text} · Lv ${o.foes![0].lv}`,(o.x+o.w/2)*ts,(o.y-.8)*ts,ts);
   }
 
   /** A building's sprite (by its upgrade level) and how far to push it back so its front meets the collision box. */
@@ -987,19 +1424,24 @@ export class Overworld {
     const lv = (id: keyof SaveState['build']) => this.save.build[id];
     switch (o.kind) {
       case 'forge': return { name: forgeArt(lv('forge')), back: 0.42 };
-      case 'house': return { name: 'house_blue', back: 0.42 };
+      case 'house': return { name: kitchenLevel(this.save) ? `kitchen${kitchenLevel(this.save)}` : 'house_blue', back: 0.42 };
       case 'fountain': return { name: 'fountain', back: 0.45 };
       case 'sign': return { name: 'sign', back: 0.05 };
       case 'lair': return { name: 'lair', back: 0.4 };
       case 'camp': return { name: 'campfire', back: 0.05 };
       case 'statue': return { name: `statue_${o.id}`, back: 0.1 };
-      case 'prop': return { name: o.id!, back: 0.2 };
+      case 'prop': return { name: o.id==='cavern:entry'||o.id==='cavern:east'||o.id==='fox:den'?'prop_cavemouth':o.id!, back: 0.2 };
+      case 'residence': {
+        const l = homeLevel(this.save, o.home!);
+        return { name: l ? HOMES[o.home!].plans[l - 1].art : 'plot', back: .28 };
+      }
       case 'bridge': return { name: 'sign', back: 0.05 };
       case 'plot': {
         const p = o.project!, l = lv(p);
         if (p === 'home') return { name: `home${l}`, back: 0.42 };
         if (p === 'warp') return { name: `warp${l}`, back: 0.1 };
         if (p === 'sawmill') return { name: `sawmill${l}`, back: 0.3 };
+        if (p === 'cottage') return { name: homeLevel(this.save, 'pip') >= 2 ? `res_pip${homeLevel(this.save,'pip')}` : l ? 'cottage1' : 'plot', back: .28 };
         return { name: l ? `${p}${l}` : 'plot', back: 0.28 };
       }
       default: return null;
@@ -1033,12 +1475,21 @@ export class Overworld {
     drawFrame(ctx, sprite, ax, ay, unit, cold ? { tint: '#4a4058', tintAmount: 0.55 } : {});
     const top = ay - sprite.ay * (unit / sprite.ppu);
     switch (o.kind) {
+      case 'residence': {
+        const who = HOMES[o.home!];
+        this.nameTag(ctx, `${who.icon} ${who.name}’s home`, ax, top, ts);
+        break;
+      }
       case 'forge': {
         const lit = this.save.build.forge > 0;
         if (lit && Math.random() < 0.08) this.fx.burst(ax + w * 0.3, top + ts * 0.3, 'rgba(220,220,230,0.8)', 1, ts * 0.6, { size: ts * 0.12, grav: -ts * 0.8, life: 1.2 });
         this.nameTag(ctx, lit ? '⚒ Forge' : '⚒ Old Forge', ax, top, ts);
         break;
       }
+      case 'prop':
+        if (o.id === 'prop_cavemouth') this.nameTag(ctx, 'Pebbler Hollow', ax, top, ts);
+        if (o.id === 'fox:den') this.nameTag(ctx, 'The Quiet Den', ax, top, ts);
+        break;
       case 'fountain':
         for (let i = 0; i < 3; i++) {
           const q = (this.t * 1.5 + i / 3) % 1;
@@ -1061,8 +1512,8 @@ export class Overworld {
       case 'plot': {
         // Empty plots (and your home, always) say what goes there.
         const p = o.project!;
-        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🎯 Training', warp: '🔮 Waystone', sawmill: '🪚 Sawmill' } as Record<string, string>)[p] ?? '';
-        if (!this.save.build[p] || p === 'home' || p === 'sawmill') this.nameTag(ctx, name, ax, top, ts);
+        const name = ({ home: '🏠 Home', garden: '🌱 Garden', training: '🦊 Hidden Clearing', warp: '🔮 Waystone', sawmill: '🪚 Sawmill', cottage: '🏡 Guest Cottage' } as Record<string, string>)[p] ?? '';
+        if (!this.save.build[p] || p === 'home' || p === 'sawmill' || p === 'training') this.nameTag(ctx, name, ax, top, ts);
         break;
       }
       case 'lair':
@@ -1070,6 +1521,112 @@ export class Overworld {
         break;
     }
     return true;
+  }
+
+  /**
+   * Poppy's field, on the ground: tilled soil on each plot the Garden has (pale and cracked when thirsty), pegged-out
+   * string where the next level's plots will go, and a ring round the plot the action button works on.
+   */
+  private drawFieldGround(ctx: CanvasRenderingContext2D, ts: number) {
+    const o = this.world.objs.find((f) => f.kind === 'plot' && f.project === 'garden');
+    if (!o || o.hidden) return;
+    const lv = this.save.build.garden, n = plotCount(this.save), next = PLOTS_BY_LEVEL[Math.min(lv + 1, PLOTS_BY_LEVEL.length - 1)];
+    const plots = n ? gardenUpdate(this.save).plots : [], unit = ts / TILE_BU;
+    for (let i = 0; i < next; i++) {
+      const t = plotTile(o, i), px = t.x * ts, py = t.y * ts;
+      if (i >= n) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(120, 84, 50, 0.45)';
+        ctx.lineWidth = Math.max(1.5, ts * 0.035);
+        ctx.setLineDash([ts * 0.12, ts * 0.1]);
+        rrect(ctx, px + ts * 0.1, py + ts * 0.1, ts * 0.8, ts * 0.8, ts * 0.12);
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
+      const soil = frame(plots[i]?.thirsty ? 'env/till_dry' : 'env/till');
+      if (soil) drawFrame(ctx, soil, px + ts / 2, py + ts * 0.96, unit);
+      else {
+        ctx.fillStyle = plots[i]?.thirsty ? '#c8a476' : '#7a5236';
+        rrect(ctx, px + ts * 0.06, py + ts * 0.06, ts * 0.88, ts * 0.88, ts * 0.14);
+        ctx.fill();
+      }
+    }
+    if (this.gardenPlot !== null) {
+      const t = plotTile(o, this.gardenPlot);
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,236,140,${0.75 + Math.sin(this.t * 6) * 0.2})`;
+      ctx.lineWidth = Math.max(2, ts * 0.06);
+      rrect(ctx, t.x * ts + ts * 0.05, t.y * ts + ts * 0.05, ts * 0.9, ts * 0.9, ts * 0.16);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /**
+   * Poppy's field, standing up: whatever's growing on each plot at its stage, weeds on top, and a drop or a sparkle to
+   * say it needs water or picking, each sorted with you (you walk in front of the row behind and behind the row in
+   * front). Its name over the gate.
+   */
+  private fieldItems(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number, items: { y: number; draw: () => void }[]) {
+    if (o.hidden) return;
+    const unit = ts / TILE_BU, n = plotCount(this.save), plots = n ? gardenUpdate(this.save).plots : [];
+    const tag = gardenOpen(this.save) ? "🌷 Poppy's Garden" : this.save.build.garden ? '' : '🌱 Garden';
+    if (tag) items.push({ y: o.y - 1, draw: () => this.nameTag(ctx, tag, (o.x + o.w / 2) * ts, (o.y - 1.6) * ts, ts) });
+    for (let i = 0; i < n; i++) {
+      const p = plots[i];
+      if (!p) continue;
+      const at = plotSpot(o, i), st = growthStage(p);
+      items.push({
+        y: at.y, draw: () => {
+          const x = at.x * ts, y = at.y * ts, k = unit * 1.15;
+          const crop = frame(`env/crop_${p.crop}_${st}`);
+          // Thirsty plants droop and fade a little; ripe ones sway.
+          if (crop) drawFrame(ctx, crop, x, y, k, p.thirsty ? { tint: '#c8a868', tintAmount: 0.35, sy: 0.9 } : { rot: st === 3 ? Math.sin(this.t * 2 + i) * 0.03 : 0 });
+          else {
+            ctx.font = `${Math.round(ts * 0.5)}px system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText(st === 3 ? MATS[p.crop].icon : '🌱', x, y - ts * 0.1);
+          }
+          const weeds = p.weeds && frame('env/weeds');
+          if (weeds) drawFrame(ctx, weeds, x, y, k, { rot: Math.sin(this.t * 1.5 + i) * 0.02 });
+          if (p.thirsty) {
+            ctx.font = `${Math.round(ts * 0.36)}px system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText('💧', x, y - ts * (0.75 + Math.sin(this.t * 3 + i) * 0.06));
+          } else if (st === 3 && Math.random() < 0.02) {
+            this.fx.burst(x + (Math.random() - 0.5) * ts * 0.5, y - ts * 0.45, '#fff6c8', 1, ts * 0.3, { size: ts * 0.05, star: true, grav: -ts * 0.3, life: 0.8 });
+          }
+        },
+      });
+    }
+  }
+
+  /**
+   * A run of the field's fence (its `o` box straddles the line): a picket section per tile along the top and bottom, a
+   * post per tile down the sides, each sorted with you on its own row.
+   */
+  private fenceItems(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number, items: { y: number; draw: () => void }[]) {
+    if (o.hidden) return;
+    const unit = ts / TILE_BU, across = o.w > o.h, x = o.x + o.w / 2, y = o.y + o.h / 2;
+    const len = Math.round(across ? o.w : o.h);
+    // Side sprites extend one tile back from their post. Include the final
+    // post at the bottom corner so that last section reaches the bottom rail.
+    for (let k = across ? 0 : 1; k < len + (across ? 0 : 1); k++) {
+      const at = across ? { x: o.x + 0.12 + k + 0.5, y } : { x, y: o.y + 0.12 + k };
+      items.push({
+        y: at.y, draw: () => {
+          const f = frame(across ? 'env/fence' : 'env/fence_post');
+          if (f) drawFrame(ctx, f, at.x * ts, at.y * ts, unit);
+          else {
+            ctx.fillStyle = '#fff4e2';
+            if (across) ctx.fillRect((at.x - 0.5) * ts, (at.y - 0.4) * ts, ts, ts * 0.1);
+            else ctx.fillRect(at.x * ts - ts * 0.025, (at.y - 1.4) * ts, ts * 0.05, ts);
+            ctx.fillRect(at.x * ts - ts * 0.05, (at.y - 0.5) * ts, ts * 0.1, ts * 0.5);
+          }
+        },
+      });
+    }
   }
 
   /** Simple canvas drawings for buildings, used only if the sprites failed to load. */
@@ -1179,4 +1736,3 @@ export class Overworld {
     }
   }
 }
-

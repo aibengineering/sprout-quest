@@ -1,27 +1,29 @@
 import type { CraftPresentation } from '../types';
 
-const src = (part: string) => `assets/crafting/shroomhood-${part}.webp`;
 
 export default {
-  id: 'shroomhood', duration: 3300,
+  id: 'shroomhood', model: 'assets/crafting3d/shroomhood.glb', duration: 3300,
   layers: [
-    ...['cap-mantle', 'cap-left', 'cap-right', 'cap-canopy', 'fang-toggles'].map(id => ({ id, src: src(id) })),
+    ...['fluff-lining', 'goo-seams', 'cap-mantle', 'cap-left', 'cap-right', 'cap-canopy', 'fang-ornaments'].map(id => ({ id })),
   ],
-  complete: src('complete'),
-  roles: { cap: 'Spotted canopy, gills & folded mantle', fang: 'Four ivory toggle closures' },
+  roles: { fluff: 'Quilted lining, sleeves & cloth hem', goo: 'Bound hems & sleeve seams', cap: 'Spotted canopy, gills & folded mantle', fang: 'Small hanging fang charms at one hip' },
   targets: [
-    { material: 'cap', part: 'cap-mantle', at: 200, duration: 500, x: .5, y: .729, contact: 'soft', sound: 'craftFluff' },
-    { material: 'cap', part: 'cap-left', at: 380, duration: 500, x: .37, y: .726, contact: 'soft', sound: 'craftFluff' },
-    { material: 'cap', part: 'cap-right', at: 560, duration: 500, x: .63, y: .726, contact: 'soft', sound: 'craftFluff' },
-    { material: 'cap', part: 'cap-canopy', at: 740, duration: 500, x: .5, y: .278, contact: 'soft', sound: 'craftGoo' },
-    { material: 'fang', part: 'fang-toggles', at: 1400, duration: 720, x: .521, y: .725, contact: 'solid', sound: 'craftStitch' },
+    { material: 'fluff', part: 'fluff-lining', at: 120, duration: 480, contact: 'soft', sound: 'craftFluff' },
+    { material: 'goo', part: 'goo-seams', at: 620, duration: 450, contact: 'bind', sound: 'craftGoo' },
+    { material: 'cap', part: 'cap-mantle', at: 200, duration: 500, contact: 'soft', sound: 'craftFluff' },
+    { material: 'cap', part: 'cap-left', at: 380, duration: 500, contact: 'soft', sound: 'craftFluff' },
+    { material: 'cap', part: 'cap-right', at: 560, duration: 500, contact: 'soft', sound: 'craftFluff' },
+    { material: 'cap', part: 'cap-canopy', at: 740, duration: 500, contact: 'soft', sound: 'craftGoo' },
+    { material: 'fang', part: 'fang-ornaments', at: 1400, duration: 720, contact: 'solid', sound: 'craftStitch' },
   ],
   phases: [
-    { at: 0, stage: 'shape', text: 'Shroom Caps, folding into a spotty little hood…' },
-    { at: 1400, stage: 'binding', text: 'Wolf Fangs, slipping into four snug toggles…' },
+    { at: 0, stage: 'line', text: 'Bunny Fluff, forming a softly quilted lining…' },
+    { at: 180, stage: 'shape', text: 'Shroom Caps, folding into a spotty little hood…' },
+    { at: 620, stage: 'seam', text: 'Slime Goo, binding the cloth hems and cuffs…' },
+    { at: 1400, stage: 'binding', text: 'Wolf Fangs, tied into little hip charms…' },
     { at: 2500, stage: 'reveal', text: 'A spotted canopy, ready for a woodland wander.', sound: 'craftStitch' },
   ],
-  sceneLabel: 'Shroom Caps become a spotted hood with gills and a layered mantle. Wolf Fangs close its front.',
-  pattern: 'caps for cover, fangs for closure', intro: 'Spots, soft folds, and four little toggles.',
-  finished: 'Shroom Caps overhead. Fang toggles tucked snug.',
+  sceneLabel: 'Shroom Caps become a spotted hood with gills and a layered mantle. Soft fluff lines the hood, goo binds its seams and small fang charms hang at one hip.',
+  pattern: 'spotted cover, softly lined', intro: 'Spots, soft folds, and small woodland charms.',
+  finished: 'A spotted hood, padded lining and little fang ornaments.',
 } satisfies CraftPresentation;

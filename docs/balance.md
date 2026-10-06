@@ -3,13 +3,45 @@
 What the game's numbers are aiming for, what they assume about how people play, and how to re-tune them when that
 changes. The numbers themselves live in code, so this page explains the targets rather than repeating every figure:
 
-- `src/balance.ts` holds the balance model: checkpoints, the expected playthrough, weapon and material measures.
-- `bun run balance` prints all of it. Treat that output as the current snapshot.
-- `tests/balance.test.ts` enforces the targets. If a change breaks one, the test name says which intent it broke.
+- `src/balance.ts` owns the targets, checkpoints, expected playthrough and economy estimates. Its combat formulas
+  assume ideal hits and omit parts of real combat.
+- `bun run balance` generates `sim/out/balance/index.html`, `data.json` and `fights.csv` together. It measures the real
+  `Battle.update` loop for every weapon at every checkpoint, all native enemy levels in the area's range, groups,
+  golden enemies and every boss. Normal-only, frequent-special and timed-special policies use the same seeds and
+  loadouts. The HTML also contains the existing economy/progression estimates, so there is one place to inspect it.
+- `tests/balance.test.ts` enforces the formula targets; `tests/balance-runtime.test.ts` enforces actual behavior
+  contracts and measurement integrity. Passing either does not by itself certify that the game is balanced.
 - The in-game play report (More → Play report) is the real-play check on the model. When they disagree, the report
   wins, and the model's assumptions get fixed, not just its numbers.
 - The playthrough simulator ([sim/](../sim/README.md)) plays the story with the model and lines its runs up against a
-  real report (`bun run sim:compare -- <report.json>`). That tells a wrong model apart from wrong targets.
+  real report (`bun run sim:compare -- <report.json>`). This helps investigate pacing assumptions; agreement alone
+  does not validate combat mechanics or design targets.
+
+## Reading the integrated report
+
+The Fights view shows victory-time distributions, win rate, effective DPS excluding overkill and boss helper cleanup, damage taken,
+life steal, regeneration, potion use and the time difference from normal attacks. Victory times describe wins;
+losses and 120-second timeouts stay visible in win rate. The scripted controller can favor one weapon: use the
+stationary Attack measurements to separate hit/damage mechanics from navigation and dodging behavior.
+
+Attack measurements cover every weapon at handling 1–10, against a small target, an armored Pebblor and a large
+Slime King, at four distances. Targets cannot die or retaliate; native poison/burn and projectiles still run. Direct
+damage, total damage over three seconds and damage to a nearby second target are separate columns. This is one
+attack, not a full sword combo or a DPS estimate.
+
+Every stage uses the same character level, armor, charm, home and training for all weapons. Handling assumptions
+are explicit in Method & loadouts. Future-tier, handling-locked and dragon-rematch gear remain in the data for
+comparison, but the default view excludes them; equipment that needs dragon scales cannot be first-dragon gear.
+No combat fixture touches the player's saved game.
+
+The source hash and generation time identify the combat snapshot. Re-run after edits; the report generator rejects
+a run if combat sources changed during measurement. `--seeds 20` gives a larger sample; `--fps 20` checks slower
+frame rates. CI generates a three-seed report and uploads it as `balance-report`.
+
+Behavior defects fail `bun run balance:check` and the regular unit suite. Damage/timing review flags remain visible
+without inventing new tuning targets to make them green. In particular, the old “Rank I is about 1.2×” special
+target compares raw multipliers between classes; a normal hammer slam is 2.5×. Specials need comparison with each
+class's own normal attack and its timing/area/control benefits before that target can validate their usefulness.
 
 ## The intent
 
@@ -19,9 +51,9 @@ These were decided with the game's designer while tuning 0.3.x. Keep them, or ch
 - A regular monster at your level takes 4–8 swings with Blades, 2–4 slams or cracks with a Hammer or Whip, or 3–6
   bolts with Magic, and it's over within about 5 seconds (`CLASS_STRIKES` in `src/balance.ts`). Nothing at your level
   falls to one blow.
-- It's measured by `killModel`, which plays out each strike with the class's real rhythm, strike multipliers, crits,
-  the level gap and Sunder. The old measure counted swings at 1× damage, which hid one-shot whip cracks and hammer
-  slams. Test: *a fair fight is a real exchange with every class*, at every checkpoint.
+- `killModel` estimates this using strike rhythm, multipliers, average crits and the level gap. It excludes Sunder,
+  other class abilities, specials, movement and weapon effects. Test: *a fair fight is a real exchange with every
+  class* checks that formula target; the integrated report measures whether native combat supports it.
 - Monsters you've outgrown still fall fast. That's the reward for levelling, and XP falls off to match.
 
 **Gear is an investment.** Armor costs about twice a weapon of its tier, built from the materials with the most room
@@ -61,8 +93,9 @@ in the farming budget. Weapons stay cheaper, so switching class stays easy.
 **Weapon classes play differently.**
 - Blades are the only combo class. Hammer, Whip and Magic strike once and rest, and weave in their special.
 - Handling speeds every class up about 2× from Lv 1 to Mastery (`pace` in `src/weapons.ts`).
-- Specials start small (Rank I ≈ 1.2× one hit) and end huge (Mastery ≈ 3.1×). At each rank every class hits one
-  target about the same, and no close-range special pulls ahead in a crowd.
+- The original special target uses roughly 1.2× the base damage at Rank I and 3.1× at Mastery, with similar raw
+  multipliers between classes. This is not a multiple of each class's normal attack: a normal hammer slam is 2.5×.
+  Actual hit count, timing, enemy defense and crowd effects must be checked in the integrated report.
 - Each class's damage stays within its band against its tier's gatherer weapons.
 
 ## What it assumes about how people play
@@ -115,6 +148,29 @@ tests pick it up automatically from the zone list.
 | `MOVESETS` | weapons.ts | Each class's rhythm and per-hit damage |
 | Monster `xp`, `hp`, `atk` | data.ts | One monster's reward and toughness |
 
+## Poppy's Garden
+
+Crops (Berries, Herbs, Flowers) aren't farmed: they grow in real time in Poppy's field (`src/garden.ts`), like Bram's
+planks, so they come along while you're out doing other things. Flowers supply the Manor and optional village jobs,
+including Granny's kitchen, resident homes and additions. Moss's home also uses berries, and Hazel's uses herbs.
+
+- The field has a plot per tile: 6, 12 and 20 plots at the Garden's three levels (`PLOTS_BY_LEVEL`). A plot gives half
+  what the old six-bed garden's beds did, and oaks and pines drop seeds twice as often, so **what a felled tree's seed
+  grows into is unchanged** (1.2 Berries per oak, 0.8 Herbs per pine; `cropsPerTree`, held by a test). A bigger field
+  lets you plant more at once, not get more crops for your chopping, so it can't flood the crop recipes; seeds stay
+  the limit. Poppy's handful of Flower Seeds doubled for the same reason (8 every 10 minutes).
+- The farm table gives crops a **garden** row: the real minutes to grow the demand on the plots you'd have when you
+  first need it (the Berry Garden's 12 for Flowers, since the Bloom Garden costs them), each seed going into the first
+  free plot once you have it (Poppy's handful of Flower Seeds, or a tree seed every so often while chopping).
+- Each planting counts its tended time (`tendedSeconds` in `src/balance.ts`): weeds modelled as left in from halfway,
+  and a thirsty plot waiting a minute (`THIRSTY_WAIT`) to be watered.
+- The ≤14 minute guard covers main-track workshops, gear and tools (`farmTable(false)`). Optional village jobs have
+  higher material costs and are reported by `farmTable(true)`; that estimate includes resident homes and Granny's
+  extension. Growing flowers for the kitchen is a deliberate early garden goal, rather than an adventure gate.
+
+The knobs are `CROPS` (grow time, yield), `PLOTS_BY_LEVEL`, `FLOWER_GIFT` / `GIFT_SECONDS` and the thirst and weed
+chances in `src/garden.ts`, and each tree's `seed` chance in `NODES`.
+
 ## Known gaps
 
 - The fight counts are estimates. Replace them with play-report numbers when there are some. The report's
@@ -128,3 +184,39 @@ tests pick it up automatically from the zone list.
   (half damage while it walks, 1.6× while it's open after a slam, about 12% slower on average if you hit whenever you
   can) and Impy dodging your attacks. They're meant to reward learning each monster, so real fights with a monster you
   haven't figured out yet will run longer than the model says.
+
+## Hammer playtest tuning (0.3.7)
+
+Normal hammer slams now use a **2.5× multiplier instead of 3.3×**, about 24% less attack power before defense and
+rounding. Reach, windup, recovery and Stagger stay the same. Normal DPS is intentionally below the equivalent
+Blade's (the formula guard is 70–90%); control and a committed special are the hammer's payoffs.
+
+**Fracture is one attack per enemy across the initial impact and every rock in the fan.** Its four ranks use
+3.1×, 3.5×, 4.0× and 4.6×: respectively 24%, 40%, 60% and 84% above a normal slam before defense. A target reached
+only by a rock takes the same full hit as one at the impact. Additional rocks widen coverage; they never add hits
+to the same target. A later cast gets a fresh hit record. The 4.5-second cooldown (3.5 at Mastery) is unchanged.
+
+This deliberately replaces the older equal-raw-multiplier target for Fracture. Spin, Whirl and Scatter retain
+their existing curves; their gameplay damage is unchanged. Hunter comparisons use the strongest gatherer at that
+tier rather than an average that changes when the hammer is reduced. The coverage estimate approximates the
+impact/fan union, rather than counting overlapping rays as separate damage-bearing areas.
+
+Runtime regression tests check large targets, multiple enemies, near and distant hits, new casts, all hammer
+tiers and all four Fracture ranks, including 20, 30, 60 and 120 FPS. These confirm the hit rules and damage ordering;
+the next playtest still determines whether the hammer feels right.
+
+## Alder's dojo
+
+Six optional lessons pay 180, 240, 400, 500, 750 and 1,000 combat and weapon-handling XP on their first successful
+clear. Real dodges through attacks and specials that connect count toward the objectives; empty inputs do not.
+Repeats award no XP or materials. Practice uses a fresh health pool, no potions, and does not change outdoor health,
+meal time, monster-kill quests or ordinary battle rewards. Dojo additions retain the existing 5/10/15% attack bonus.
+
+Playtest the size and timing of these rewards alongside village material costs; passing the main-track economy guard
+does not establish the pace of the optional housing chain.
+
+
+Village additions retain the garden/dojo's three ranks. Resident homes now have three tiers (+0/60/120 seconds for
+their own recipe), while Clover's kitchen has three (+0/30/60 seconds for her own dishes). These bonuses do not stack
+onto other residents' recipes. `farmTable(true)` includes every home and kitchen tier; the main-track budget remains
+separate. Arrival journeys cost no extra materials and optional upgrades do not gate meeting the next neighbour.

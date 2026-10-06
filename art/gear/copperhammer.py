@@ -8,7 +8,6 @@ from lib import box, cylinder, sphere, toon
 
 PARTS = ('pine-shaft', 'copper-core', 'copper-plates', 'copper-rivets')
 LENGTH = 1.4
-CAMERA = dict(ppu=206.958760, anchor=(.423448, .157465, .740816), elevation=math.radians(12))
 
 
 def build_weapon(root):

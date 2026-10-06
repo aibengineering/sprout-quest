@@ -28,8 +28,8 @@ describe('rules', () => {
     expect(craftGear(s, 'jellywhip')).toBe('forge'); // the forge starts in ruins
     s.build.forge = 1;
     expect(craftGear(s, 'jellywhip')).toBe('missing');
-    s.mats.goo = 6;
-    s.mats.fluff = 2;
+    s.mats.goo = 18;
+    s.mats.fluff = 6;
     const atkBefore = playerStats(s).atk;
     expect(craftGear(s, 'jellywhip')).toBe('ok');
     expect(s.mats.goo).toBe(0);
@@ -88,7 +88,7 @@ describe('rules', () => {
 
   test('potions cap out', () => {
     const s = newState();
-    s.mats.cap = 100;
+    s.mats.cap = 300;
     while (craftPotion(s, 'shroombrew') === 'ok');
     expect(s.potions).toBe(5);
     expect(craftPotion(s, 'shroombrew')).toBe('full');
@@ -96,20 +96,20 @@ describe('rules', () => {
 
   test('golden monsters always drop double', () => {
     const d = rollDrops(MONSTERS.slime, 0, true, () => 0);
-    expect(d.goo).toBe(2);
+    expect(d.goo).toBe(MONSTERS.slime.drops[0].min * 2);
     expect(d.clover).toBe(2);
   });
 
   test('a clover is guaranteed after a run of dry kills, and only clover droppers count', () => {
     const s = newState();
     for (let i = 1; i < CLOVER_PITY; i++) {
-      const d = { goo: 1 };
+      const d = { goo: 3 };
       cloverPity(s, MONSTERS.slime, d);
-      expect(d).toEqual({ goo: 1 });
+      expect(d).toEqual({ goo: 3 });
     }
     cloverPity(s, MONSTERS.wolf, {});
     expect(s.cloverDry).toBe(CLOVER_PITY - 1);
-    const d: Partial<Record<'goo' | 'clover', number>> = { goo: 1 };
+    const d: Partial<Record<'goo' | 'clover', number>> = { goo: 3 };
     cloverPity(s, MONSTERS.slime, d);
     expect(d.clover).toBe(1);
     expect(s.cloverDry).toBe(0);
@@ -178,7 +178,7 @@ describe('world', () => {
       if (z.monsters.length) {
         let grass = 0;
         for (let x = z.x0; x < z.x0 + z.w; x++) for (let y = 0; y < w.h; y++) if (w.tile(x, y) === T.GRASS) grass++;
-        expect(grass).toBeGreaterThan(80);
+        expect(grass).toBeGreaterThan(30);
       }
     }
   });

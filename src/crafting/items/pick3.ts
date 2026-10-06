@@ -2,18 +2,16 @@ import type { CraftPresentation } from '../types';
 
 export default {
   "id": "pick3",
+  "model": "assets/crafting3d/pick3.glb",
   "duration": 3100,
   "layers": [
     {
-      "id": "pine-haft",
-      "src": "assets/crafting/pick3-pine-haft.webp"
+      "id": "pine-haft"
     },
     {
-      "id": "iron-head",
-      "src": "assets/crafting/pick3-iron-head.webp"
+      "id": "iron-head"
     }
   ],
-  "complete": "assets/crafting/pick3-complete.webp",
   "roles": {
     "pine": "Grained pine shaft and grip",
     "iron": "Forged working head and collars"
@@ -24,8 +22,6 @@ export default {
       "part": "pine-haft",
       "at": 220,
       "duration": 530,
-      "x": 0.5,
-      "y": 0.56,
       "contact": "solid",
       "sound": "creak"
     },
@@ -34,8 +30,6 @@ export default {
       "part": "iron-head",
       "at": 1120,
       "duration": 580,
-      "x": 0.47,
-      "y": 0.19,
       "contact": "solid",
       "sound": "craftStitch"
     }

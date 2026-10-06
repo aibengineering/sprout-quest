@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { sceneModel } from '../sceneModel';
 import { readFileSync, statSync } from 'node:fs';
 import { Box3, Color, Mesh, Vector3 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -13,10 +14,10 @@ import type { CraftPresentation } from '../../src/crafting/types';
 
 const ids = ['emberblade', 'wyrmbreaker', 'dragontail', 'wyrmfire'] as const;
 const recipes = {
-  emberblade: { ember: 8, horn: 4, crystal: 4, iron: 4 },
-  wyrmbreaker: { scale: 3, ember: 6, crystal: 4, iron: 6 },
-  dragontail: { scale: 3, ember: 6, horn: 4, pine: 2 },
-  wyrmfire: { scale: 2, horn: 4, ember: 6, crystal: 3 },
+  emberblade: { ember: 24, horn: 8, crystal: 8, iron: 12 },
+  wyrmbreaker: { scale: 3, ember: 18, crystal: 8, iron: 18 },
+  dragontail: { scale: 3, ember: 18, horn: 8, emberwood: 6 },
+  wyrmfire: { scale: 2, horn: 8, ember: 18, crystal: 6 },
 };
 
 describe('legendary weapon ingredient art', () => {
@@ -24,7 +25,7 @@ describe('legendary weapon ingredient art', () => {
     for (const item of [emberblade, wyrmbreaker, dragontail, wyrmfire] as CraftPresentation[]) {
       expect(Object.keys(item.roles).sort()).toEqual(Object.keys(GEAR[item.id].recipe!).sort());
       expect([...new Set(item.targets.map(t => String(t.material)))].sort()).toEqual(Object.keys(item.roles).sort());
-      expect(item.layers.map(l => l.id)).toEqual(JSON.parse(readFileSync(`public/assets/crafting/${item.id}.json`, 'utf8')).stack);
+      expect(item.layers.map(l => l.id)).toEqual({ stack: Object.keys(sceneModel(`assets/crafting3d/${item.id}.glb`).layers) }.stack);
       const reveal = item.phases.find(p => p.stage === 'reveal')!;
       expect(reveal.at).toBeGreaterThan(Math.max(...item.targets.map(t => t.at + t.duration)));
       expect(item.duration - reveal.at).toBeGreaterThanOrEqual(500);
@@ -33,8 +34,6 @@ describe('legendary weapon ingredient art', () => {
       for (let i = 1; i < item.phases.length; i++) expect(item.phases[i].at).toBeGreaterThan(item.phases[i - 1].at);
       for (const t of item.targets) {
         expect(item.layers.some(l => l.id === t.part)).toBe(true);
-        expect(t.x).toBeGreaterThan(0); expect(t.x).toBeLessThan(1);
-        expect(t.y).toBeGreaterThan(0); expect(t.y).toBeLessThan(1);
         expect(t.duration).toBeGreaterThan(0);
       }
     }
@@ -44,29 +43,8 @@ describe('legendary weapon ingredient art', () => {
     expect(Object.values(GEAR).filter(g => g.slot === 'weapon' && g.tier === 5 && g.recipe).map(g => g.id)).toEqual([...ids]);
     for (const id of ids) {
       expect(GEAR[id].recipe).toEqual(recipes[id]);
-      const manifest = JSON.parse(readFileSync(`public/assets/crafting/${id}.json`, 'utf8'));
-      expect(manifest.size).toEqual([512, 512]);
+      const manifest = { stack: Object.keys(sceneModel(`assets/crafting3d/${id}.glb`).layers) };
       expect([...manifest.stack].sort()).toEqual(Object.keys(recipes[id]).sort());
-      let total = 0;
-      for (const [part, layer] of Object.entries(manifest.parts) as [string, any][]) {
-        expect(layer.src).toBe(`assets/crafting/${id}-${part}.webp`);
-        const path = `public/${layer.src}`, bytes = readFileSync(path);
-        expect(bytes.toString('ascii', 0, 4)).toBe('RIFF');
-        const format = bytes.toString('ascii', 12, 16);
-        expect(['VP8X', 'VP8L']).toContain(format);
-        const lossless = format === 'VP8L' ? bytes.readUInt32LE(21) : 0;
-        const dimensions = format === 'VP8L'
-          ? [(lossless & 0x3fff) + 1, ((lossless >>> 14) & 0x3fff) + 1]
-          : [bytes.readUIntLE(24, 3) + 1, bytes.readUIntLE(27, 3) + 1];
-        expect(dimensions).toEqual([512, 512]);
-        expect(bytes.byteLength).toBeLessThan(100 * 1024);
-        total += bytes.byteLength;
-        const [x0, y0, x1, y1] = layer.bounds;
-        expect(x0).toBeGreaterThan(0); expect(y0).toBeGreaterThan(0);
-        expect(x1).toBeLessThan(512); expect(y1).toBeLessThan(512);
-        expect(x1).toBeGreaterThan(x0); expect(y1).toBeGreaterThan(y0);
-      }
-      expect(total).toBeLessThan(250 * 1024);
     }
   });
 

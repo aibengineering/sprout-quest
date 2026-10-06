@@ -14,6 +14,11 @@ import numpy as np
 HERE = os.path.dirname(__file__)
 OUT = os.path.join(HERE, 'out')
 DEST = os.path.join(HERE, '..', 'public', 'assets')
+# `--group rooms`: pack only art/out/rooms*.json into its own atlas, public/assets/rooms/ (the rooms' props load on
+# their own, so the main atlas stays as it is).
+GROUP = sys.argv[sys.argv.index('--group') + 1] if '--group' in sys.argv else None
+if GROUP:
+    DEST = os.path.join(DEST, GROUP)
 PAGE = 2048
 PAD = 2
 
@@ -64,7 +69,7 @@ def main():
     # Newest render wins: partial re-renders (e.g. `bun run art env grass_cave`) override older full ones, and each
     # frame is packed once.
     latest = {}
-    for f in sorted(glob.glob(os.path.join(OUT, '*.json')), key=os.path.getmtime):
+    for f in sorted(glob.glob(os.path.join(OUT, f'{GROUP}*.json' if GROUP else '*.json')), key=os.path.getmtime):
         for e in json.load(open(f)):
             latest[e['name']] = e
     # Item workers ship standalone gathering frames and their original grip anchors.
@@ -74,24 +79,26 @@ def main():
             e = json.load(open(path))
             latest[e['name']] = dict(e, file=os.path.join(DEST, '..', e['src']))
     entries = list(latest.values())
-    os.makedirs(os.path.join(DEST, 'icons'), exist_ok=True)
+    icon_dest = os.path.join(HERE, '..', 'public', 'assets', 'icons')
+    os.makedirs(icon_dest, exist_ok=True)
+    os.makedirs(DEST, exist_ok=True)
     frames, sprites = {}, []
     for e in entries:
         if e['name'].startswith(NOT_SHIPPED):
             continue
         px = load(e['file'])
         if e['name'].startswith('icon/'):
-            save(px, os.path.join(DEST, 'icons', e['name'][5:] + '.webp'), quality=ICON_QUALITY)
+            save(px, os.path.join(icon_dest, e['name'][5:] + '.webp'), quality=ICON_QUALITY)
             continue
         cut, x0, y0 = trim(px)
         sprites.append((e, cut, e['ax'] - x0, e['ay'] - y0))
     # Isolated gear worktrees do not have every historical art/out render. Preserve
     # unchanged shipped scenery/sprites when packing just one group or item.
     atlas_path = os.path.join(DEST, 'atlas.json')
-    previous = json.load(open(atlas_path)) if os.path.isfile(atlas_path) else {'pages': [], 'frames': {}}
+    previous = json.load(open(atlas_path)) if os.path.isfile(atlas_path) and not GROUP else {'pages': [], 'frames': {}}
     if OVERLAY:
         frames = dict(previous['frames'])
-    if INCREMENTAL and not OVERLAY and os.path.isfile(atlas_path):
+    if INCREMENTAL and not OVERLAY and not GROUP and os.path.isfile(atlas_path):
         previous = json.load(open(atlas_path))
         updated = {e['name'] for e, _, _, _ in sprites}
         old_pages = {}

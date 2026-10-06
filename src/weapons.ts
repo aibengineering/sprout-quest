@@ -97,13 +97,12 @@ export const handlingStep = (lv: number): HandlingStep | null =>
 
 /**
  * Each skill at each rank (I–IV). `mult` is the main hit, `size` scales its reach, `count` is how many waves or bolts,
- * `sub` the damage of each wave, whirl lash or bolt, `stun` how long it stuns, `cd` its recharge, and for the whirl
- * `dur` (how long it spins) and `move` (how much of your walking speed you keep while it does).
+ * `sub` the damage of each whirl lash or bolt, `stun` how long it stuns, `cd` its recharge, and for the whirl `dur`
+ * (how long it spins) and `move` (how much of your walking speed you keep while it does).
  *
- * The curve is steep on purpose: Rank I is a modest taste of the move (about 1.2× on one target), and each rank adds
- * more, up to an over-the-top Mastery finisher (about 3.1×). At every rank, one target in front of you takes about the
- * same from every class (tests/balance.test.ts); each class spends it differently (a stunning cut, shockwaves, a
- * flurry, a blast of bolts).
+ * Spin, Whirl and Scatter grow from about 1.2× to 3.1× on one target. Fracture instead uses `mult` for one heavy hit
+ * across its impact and fan, always stronger than a normal hammer slam; more spikes widen coverage, never stack
+ * damage on the same target. Its longer windup and recovery make that damage a committed attack.
  */
 export interface SkillRank { name: string; note: string; mult: number; size: number; count: number; sub: number; stun: number; cd: number; dur: number; move: number }
 const rank = (name: string, note: string, r: Partial<SkillRank>): SkillRank => ({ name, note, mult: 1, size: 1, count: 0, sub: 0, stun: 0, cd: 4.5, dur: 0, move: 0, ...r });
@@ -115,10 +114,10 @@ export const SKILL_RANKS: Record<SkillKind, SkillRank[]> = {
     rank('Cyclone', 'A huge, stunning spin that recharges faster', { mult: 3.1, size: 1.35, stun: 0.8, cd: 3.5 }),
   ],
   quake: [
-    rank('Fracture', 'Slam the ground: a fan of 3 rock spikes bursts forward', { mult: 0.95, count: 3, sub: 0.25, stun: 0.5, size: 0.6 }),
-    rank('Fracture II', '5 stronger spikes in a wider fan', { mult: 1.1, count: 5, sub: 0.6, stun: 0.7, size: 0.8 }),
-    rank('Fracture III', '6 heavy spikes, and a harder slam', { mult: 1.3, count: 6, sub: 1.0, stun: 0.9, size: 1.0 }),
-    rank('Earthsplitter', 'A huge fan of 9 spikes, and it recharges faster', { mult: 1.6, count: 9, sub: 1.5, stun: 1.0, size: 1.4, cd: 3.5 }),
+    rank('Fracture', 'A fan of 3 spikes: one heavy hit per enemy', { mult: 3.1, count: 3, stun: 0.5, size: 0.6 }),
+    rank('Fracture II', '5 spikes in a wider fan: one stronger hit per enemy', { mult: 3.5, count: 5, stun: 0.7, size: 0.8 }),
+    rank('Fracture III', '6 heavy spikes: one powerful hit per enemy', { mult: 4.0, count: 6, stun: 0.9, size: 1.0 }),
+    rank('Earthsplitter', '9 spikes: one mighty hit per enemy, recharging faster', { mult: 4.6, count: 9, stun: 1.0, size: 1.4, cd: 3.5 }),
   ],
   whirl: [
     rank('Whirl', 'A short spin: three lashes around you', { sub: 0.4, size: 0.85, dur: 0.5, move: 0.4 }),
@@ -167,7 +166,7 @@ export const MOVESETS: Record<Style, Moveset> = {
     trick: 'stagger',
     combo: [
       {
-        anim: 'slam', shape: 'circle', windup: 0.32, active: 0.1, recover: 0.34, range: 0, reach: 42, size: 46, mult: 3.3, kb: 340,
+        anim: 'slam', shape: 'circle', windup: 0.32, active: 0.1, recover: 0.34, range: 0, reach: 42, size: 46, mult: 2.5, kb: 340,
         shake: 12, hitstop: 0.11, move: 0.2, stun: 0.45,
       },
     ],
@@ -289,7 +288,7 @@ export const SKILL_DATA = {
   quake: {
     strike: { anim: 'slam', shape: 'circle', windup: 0.36, active: 0.1, recover: 0.42, range: 0, reach: 0, size: 70, mult: 1.8, kb: 360, shake: 16, hitstop: 0.12, move: 0.1, stun: 0.8 } as Strike,
     /** Fracture's rock spikes, fanning out ahead of you (its rank's `size` is how wide the fan spreads, in radians). */
-    waves: { count: 6, range: 125, width: 28, speed: 520, mult: 0.5 },
+    waves: { count: 6, range: 125, width: 28, speed: 520 },
   },
   /** The whip's whirl: a lash every `tick` seconds while it spins (how long is its rank's `dur`), out to `radius`. */
   whirl: { tick: 0.16, radius: 80 },
@@ -316,8 +315,13 @@ export function skillShape(kind: SkillKind, reach: number, rk = SKILL_LEVELS.len
       return { ...s, mult: r.mult, crowd: s.area * r.mult };
     }
     case 'quake': {
-      const s = strikeShape(d.quake.strike, reach), w = d.quake.waves, waves = r.count * w.range * reach * w.width;
-      return { reach: Math.max(s.reach, w.range * reach), area: s.area + waves, mult: r.mult + r.sub, crowd: s.area * r.mult + waves * r.sub };
+      const s = strikeShape(d.quake.strike, reach), w = d.quake.waves, R = w.range * reach, radius = d.quake.strike.size * reach;
+      // Approximate the union: the impact already covers the inner fan, and the
+      // outer rays cannot cover more than their sector plus its edge strips.
+      const tail = Math.max(0, R - radius);
+      const waves = Math.min(r.count * tail * w.width, .5 * r.size * Math.max(0, R * R - radius * radius) + tail * w.width);
+      const area = s.area + waves;
+      return { reach: Math.max(s.reach, R), area, mult: r.mult, crowd: area * r.mult };
     }
     case 'whirl': {
       // The ground it covers includes the strip swept as you walk with it; what you pass is lashed for about half the spin.
@@ -331,4 +335,3 @@ export function skillShape(kind: SkillKind, reach: number, rk = SKILL_LEVELS.len
     }
   }
 }
-

@@ -5,7 +5,8 @@ import { CHECKPOINTS } from '../balance';
 import { GEAR, MAX_POTIONS, forgeLevelFor, MAT_ORDER, PROJECTS, QUESTS, TOOLS, ZONES, zoneById, zoneAtX, type MatId, type ZoneId } from '../data';
 import { playerStats } from '../rules';
 import { newState, type SaveState } from '../state';
-import { GATE_Y, World } from '../world';
+import { FIELD, GATE_Y, World } from '../world';
+import { TOWN_FORGE } from '../villageLayout';
 
 export interface Preset {
   id: string;
@@ -77,7 +78,7 @@ function standAt(s: SaveState, x: number, y: number) {
 }
 
 /** In front of a guardian's gate (on the road just west of it). */
-const gate = (id: ZoneId) => ({ x: zoneById(id).x0 - 1.5, y: GATE_Y + 2.4 });
+const gate = (id: ZoneId) => ({ x: map().obj('gate',id)!.x - 1.5, y: GATE_Y + 2.4 });
 
 function finish(s: SaveState) {
   // A preset has seen everything it can make (no wall of "New" badges in the Forge).
@@ -125,10 +126,40 @@ function bram(step: number, flags: string[], x: number, y: number, then?: (s: Sa
   });
 }
 
+const BRAM_DONE = ['bram:pie', 'bram:met', 'bram:wave1', 'bram:wave2', 'bram:scar', 'bram:ambush1', 'bram:ambush2', 'bram:home', 'bram:hut', 'bram:stew'];
+
+/** Pip's story at a step: Bram's story done (his Sawmill and cabin built), by the Guest Cottage's plot. */
+function pip(step: number, then?: (s: SaveState) => void) {
+  return bram(9, BRAM_DONE, zoneById('village').x0 + 19.9, 6.7, (s) => {
+    tools(s, 2, 2);
+    s.build.sawmill = 1;
+    s.unlocked.push('sawmill', 'cottage');
+    s.stories.pip = step;
+    then?.(s);
+  });
+}
+
+const C = zoneById('cave').x0;
+
+/** The drums in the dark (Echo Cavern's Pebblors) at a step: the Cavern open, Poppy's and Bram's stories done, in copper gear. */
+function drums(step: number, x: number, y: number, then?: (s: SaveState) => void) {
+  return base('warp', 'cave', x, y, (s) => {
+    tools(s, 2, 2);
+    s.stories.poppy = 6;
+    s.perks.push('trailboots');
+    s.flags.push(...bossFlags, 'poppy:returned', ...BRAM_DONE);
+    s.stories.bram = 9;
+    s.build.sawmill = 1;
+    s.unlocked.push('sawmill');
+    s.stories.drums = step;
+    then?.(s);
+  });
+}
+
 export const PRESETS: Preset[] = [
   {
-    id: 'fluffy-craft', name: 'Make a Fluffy Vest', desc: 'At the Forge with 12 Bunny Fluff and 4 Slime Goo. Try the automatic crafting reveal.',
-    make: () => base('cottage', 'meadow', zoneById('village').x0 + 7, 10.7, (s) => {
+    id: 'fluffy-craft', name: 'Make a Fluffy Vest', desc: 'At the Forge with 36 Bunny Fluff and 12 Slime Goo. Try the automatic crafting reveal.',
+    make: () => base('cottage', 'meadow', TOWN_FORGE.x + TOWN_FORGE.w / 2, TOWN_FORGE.y + TOWN_FORGE.h + .7, (s) => {
       s.build.forge = 1;
       s.lv = 4;
       s.equip.armor = 'tunic';
@@ -154,7 +185,7 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'poppy-return', name: 'Poppy: bringing him home', desc: 'Mr. Floppers is back; talk to Poppy by the blue house.',
-    make: () => poppy(5, bossFlags, 29.4, 12),
+    make: () => poppy(5, bossFlags, 31.8, 11.4),
   },
   {
     id: 'poppy-done', name: 'Poppy: story finished', desc: 'Trail Boots on, and the Secret Grove free to gather in.',
@@ -175,9 +206,83 @@ export const PRESETS: Preset[] = [
   {
     id: 'bram-mill', name: 'Bram: the Sawmill', desc: 'Bram lives in Sowerby now: build his Sawmill, then saw planks for his cabin.',
     make: () => bram(7, ['bram:pie', 'bram:met', 'bram:wave1', 'bram:wave2', 'bram:scar', 'bram:ambush1', 'bram:ambush2', 'bram:home'], zoneById('village').x0 + 4.5, 12.5, (s) => {
-      Object.assign(s.mats, { pine: 8, stone: 8, copper: 4, bark: 16 });
+      Object.assign(s.mats, { pine: 24, stone: 24, copper: 12, bark: 48 });
     }),
   },
+  {
+    id: 'pip-cottage', name: 'Pip: the Guest Cottage', desc: "Bram's settled in, with his Sawmill and cabin: build the Guest Cottage and see who moves in.",
+    make: () => pip(0, (s) => Object.assign(s.mats, { bark: 12, plank: 32, stone: 12, copper: 6 })),
+  },
+  {
+    id: 'pip-home', name: 'Pip: moved in', desc: 'Pip lives in the Guest Cottage and Granny knows his Rock Candy. A copper pick, and stone and copper to cook with.',
+    make: () => pip(1, (s) => {
+      s.build.cottage = 1;
+      s.flags.push('pip:candy');
+      Object.assign(s.mats, { stone: 36, copper: 18 });
+    }),
+  },
+  {
+    id: 'kitchen', name: "Granny's Kitchen", desc: 'Inside Granny\'s Kitchen with Bram\'s and Pip\'s recipes known, and plenty to cook with: pick an ingredient plate by the pantry and bring it to the pot.',
+    make: () => pip(1, (s) => {
+      s.build.cottage = 1;
+      s.flags.push('pip:candy');
+      Object.assign(s.mats, { fluff: 45, goo: 60, clover: 6, pine: 27, cap: 18, stone: 36, copper: 18 });
+      const o = map().obj('house')!;
+      s.pos = { x: o.x + o.w / 2 - 0.4, y: o.y + o.h + 0.7 };
+      s.room = 'kitchen';
+    }),
+  },
+  {
+    id: 'sawmill', name: "Bram's Sawmill", desc: "Inside Bram's Sawmill with an Iron Blade (Oak and Pine), piles of logs to carry to the bench, and a few planks already sawn.",
+    make: () => pip(1, (s) => {
+      s.build.cottage = 1;
+      s.build.sawmill = 2;
+      s.flags.push('pip:candy');
+      Object.assign(s.mats, { bark: 40, pine: 24 });
+      s.sawmill = { queue: [], ready: { plank: 8 }, since: 0 };
+      const o = map().objs.find((o) => o.project === 'sawmill')!;
+      s.pos = { x: o.x + o.w / 2, y: o.y + o.h + 0.7 };
+      s.room = 'sawmill';
+    }),
+  },
+  {
+    id: 'drums', name: 'Drums: Poppy enters the cave', desc: 'See Poppy run into the cave, catch her, then follow the glowing core.',
+    make: () => drums(0, C + 23.5, 12.6),
+  },
+  {
+    id: 'drums-tail', name: 'Drums: catch Poppy', desc: 'Poppy is just inside the cave mouth: talk to her, then tail the Pebblors.',
+    make: () => drums(1, C + 23.5, 12.6),
+  },
+  {
+    id: 'drums-done', name: 'Drums: the Echo Anklet', desc: "Poppy's home; the Echo Anklet grants two dodges. Watch the chamber from her passage.",
+    make: () => drums(4, C + 26.5, 9.7, (s) => { s.perks.push('echoanklet'); s.underground = { id: 'echo', x: C + 24.5, y: 1.5 }; }),
+  },
+  ...[1, 2, 3].map((lv) => ({
+    id: lv === 2 ? 'garden' : `garden${lv}`,
+    name: `Poppy's Garden: ${PROJECTS.garden.levels[lv - 1].name}`,
+    desc: [
+      "The Sprout Patch just built: walk in at the field's gate and Poppy hands over the Berry Seeds she saved for its six plots.",
+      "Poppy tends the Berry Garden's twelve plots: all empty to work by hand, a handful of every seed, and Bunny Fluff for a Berry Tart.",
+      "The Bloom Garden's twenty plots mid-season: sprouts, growing crops, a thirsty plot, a weedy one and a ripe row to pick.",
+    ][lv - 1],
+    make: () => base('smithy', 'woods', zoneById('village').x0 + FIELD.x + 2.5, FIELD.y - 0.3, (s) => {
+      tools(s, 2, 1);
+      s.stories.poppy = 6;
+      s.perks.push('trailboots');
+      s.flags.push(...bossFlags, 'poppy:returned', ...(lv > 1 ? ['garden:welcome'] : []));
+      s.build.garden = lv;
+      if (lv > 1) Object.assign(s.mats, { berryseed: 8, herbseed: 6, flowerseed: 4, fluff: 18 });
+      // Mid-season: what's in each plot, as of when the save is made (grown seconds, at full speed).
+      if (lv === 3) {
+        const now = Date.now(), crops = ['berry', 'berry', 'berry', 'herb', 'herb', 'herb', 'flower', 'flower', 'flower', 'berry', 'herb', 'flower'] as const;
+        s.garden = {
+          gift: now,
+          plots: crops.map((crop, i) => ({ crop, at: now, grown: [9999, 9999, 9999, 30, 200, 90, 40, 300, 150, 10, 100, 250][i], ...(i === 4 ? { thirsty: true } : i === 7 ? { weeds: true } : {}) })),
+        };
+        s.flags.push('garden:berries');
+      }
+    }),
+  })),
   {
     id: 'kingslime', name: 'Slime King', desc: 'Lv 4, Stone Sword and Fluff Vest, at the Whisper Woods gate.',
     make: () => base('kingslime', 'woods', gate('woods').x, gate('woods').y, (s) => tools(s, 1, 1)),
@@ -214,6 +319,9 @@ export const PRESETS: Preset[] = [
       for (const m of MAT_ORDER) s.mats[m as MatId] = 99;
       for (const st of Object.values(s.mastery)) st.lv = 10;
       for (const [id, p] of Object.entries(PROJECTS)) s.build[id as keyof typeof s.build] = p.levels.length;
+      // With the Guest Cottage built, Pip lives in it (rather than arriving the moment you start).
+      s.stories.pip = 1;
+      s.flags.push('pip:candy');
       // Past the last chapter, so nothing pops up.
       s.quest = QUESTS.length;
     }),

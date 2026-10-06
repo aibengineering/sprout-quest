@@ -3,7 +3,7 @@
 import { QUESTS, TOOLS } from './data';
 import type { SaveState } from './state';
 
-export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'trick' | 'forge' | 'village' | 'plots' | 'warpplot' | 'kitchen' | 'sawmill';
+export type UnlockId = 'journal' | 'bag' | 'mend' | 'skill' | 'trick' | 'forge' | 'village' | 'plots' | 'warpplot' | 'kitchen' | 'sawmill' | 'cottage';
 
 export interface Unlock {
   id: UnlockId;
@@ -55,7 +55,7 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'plots', icon: '🌱', title: 'New Building Plots',
-    text: 'A Garden and a Training Yard can now be built in the village.',
+    text: 'Help Bram move home, then bring him materials for Poppy’s Garden and our neighbours’ building requests.',
     when: (s) => s.bosses.includes('kingslime'),
   },
   {
@@ -65,13 +65,18 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'kitchen', icon: '🍳', title: "Granny's Kitchen",
-    text: 'Granny will cook for you! Visit her at the blue house: meals give you more XP, healing, or keep weak monsters away.',
-    when: (s) => (s.stories.poppy ?? 0) >= 6,
+    text: 'Cook with Granny! Choose a recipe by her pantry and bring the ingredient plate to the pot: meals give you more XP, healing, or keep weak monsters away.',
+    when: (s) => (s.stories.poppy ?? 0) >= 6 && (!s.villageJobs || s.flags.includes('granny:extension')),
   },
   {
     id: 'sawmill', icon: '🪚', title: "Bram's Sawmill",
     text: 'Bram wants to build a Sawmill in Sowerby. Find it in the village plans, beside the Forge.',
     when: (s) => s.flags.includes('bram:home'),
+  },
+  {
+    id: 'cottage', icon: '🏡', title: 'A Guest Cottage',
+    text: "Bram has work for the village: a garden, Clover’s kitchen and a cottage for Pip. Talk to him outside the Sawmill.",
+    when: (s) => s.flags.includes('bram:hut') && s.build.sawmill > 0,
   },
 ];
 

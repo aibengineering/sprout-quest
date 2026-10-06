@@ -1,6 +1,8 @@
 // The title screen: loading with real progress, then Continue / New Game.
 import { loadAssets, preloadIcons } from '../assets';
-import { GEAR, MONSTERS, QUESTS } from '../data';
+import { MONSTERS, QUESTS } from '../data';
+import { loadCraftArt } from '../crafting';
+import { loadMaterialArt } from '../itemview';
 import { loadModels, webglAvailable } from '../models';
 import { playerStats } from '../rules';
 import { clearLog, logEvent } from '../stats';
@@ -10,6 +12,8 @@ import { VERSION } from '../version';
 import { G, applySound, persist, showZoneBanner } from './context';
 import { zoneTheme } from '../music/scores';
 import { setUpStories } from './stories';
+import { restoreRoom } from './rooms';
+import { restoreUnderground } from './underground';
 import { progressQuests, unlocks } from './story';
 
 /** Set once the sprites and icons are in; the title's buttons only exist from then on. */
@@ -38,12 +42,15 @@ export async function boot() {
   const mb = (n: number) => (n / 1048576).toFixed(1);
   const ok = await loadAssets((p) => show(0.2 + 0.45 * (p.total ? p.done / p.total : 0), `Fetching scenery… ${mb(p.done)} / ${mb(p.total)} MB`));
   if (!ok) show(0.65, 'Sprites unavailable: using simple drawings');
-  // Characters are 3D models: the hero in their armor, the villagers and every monster. The other armors follow later.
+  // Characters are 3D models: the hero in their armor, the villagers and every monster. Other armour and weapons load
+  // when first worn or held.
   const armor = loadState()?.equip.armor ?? 'tunic';
   const weapon = loadState()?.equip.weapon ?? 'twig';
-  const characters = [`hero_${armor}`, `wpn_${weapon}`, 'npc_elder', 'npc_granny', 'npc_poppy', 'npc_poppy_hug', 'npc_bram', 'npc_bram_hurt', ...Object.keys(MONSTERS).map((k) => `mon_${k}`)];
-  await loadModels(characters, (done, total) => show(0.65 + 0.22 * (done / total), `Waking everyone up… ${done} / ${total}`));
-  await preloadIcons(allIconIds(), (p) => show(0.87 + 0.13 * (p.done / p.total), `Unpacking menu icons… ${p.done} / ${p.total}`));
+  const characters = [`hero_${armor}`, `wpn_${weapon}`, 'npc_elder', 'npc_granny', 'npc_poppy', 'npc_poppy_hug', 'npc_bram', 'npc_bram_hurt', 'npc_pip', 'npc_rook', 'npc_moss', 'npc_fox', ...Object.keys(MONSTERS).map((k) => `mon_${k}`)];
+  await loadModels(characters, (done, total) => show(0.65 + 0.15 * (done / total), `Waking everyone up… ${done} / ${total}`));
+  // Every crafting and building scene, so none ever waits for its model (they can only be drawn with WebGL).
+  if (webglAvailable()) await loadCraftArt((done, total) => show(0.8 + 0.1 * (done / total), `Laying out the workbench… ${done} / ${total}`));
+  await preloadIcons(allIconIds(), (p) => show(0.9 + 0.1 * (p.done / p.total), `Unpacking menu icons… ${p.done} / ${p.total}`));
   show(1, 'Ready!');
   const saved = !!loadState();
   document.getElementById('btn-continue')!.hidden = !saved;
@@ -58,10 +65,8 @@ export async function boot() {
   booted = true;
   // The music gets ready while you're on the title (it can only start playing once you tap): where you are first.
   G.music.preload(zoneTheme(G.over.currentZone.id));
-  // Every other armor, quietly, so changing gear shows the new look straight away.
-  void loadModels(Object.values(GEAR).filter((g) => g.slot === 'armor' && g.id !== armor).map((g) => `hero_${g.id}`));
-  // …and every weapon you own, so switching shows it in your hand straight away (others load when first held).
-  void loadModels((loadState()?.owned ?? []).filter((id) => GEAR[id]?.slot === 'weapon' && id !== weapon).map((id) => `wpn_${id}`));
+  // The materials' small models (the Bag, and the pieces that tumble into crafting scenes) come in behind the title.
+  if (webglAvailable()) void loadMaterialArt();
 }
 
 /** The version under the title, with a dot if a saved game hasn't read the newest patch notes. */
@@ -106,11 +111,15 @@ function startGame(fresh: boolean) {
       G.input.reset();
     });
   }
+  // Saved in Granny's Kitchen or Bram's Sawmill: carry on in there (before anything saves you back outside).
+  restoreRoom();
+  restoreUnderground();
   // Old saves catch up on unlocks quietly; new players get them one at a time.
   const catchUp = s.unlocked.length === 0 && (s.lv > 1 || s.quest > 0);
   unlocks(catchUp);
   setUpStories();
-  showZoneBanner(G.over.currentZone);
+  // (Not in a room: there the place's name is the room's, not the area around it.)
+  if (!G.over.room) showZoneBanner(G.over.currentZone);
   persist();
   void progressQuests();
 }

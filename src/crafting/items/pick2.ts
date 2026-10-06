@@ -2,18 +2,16 @@ import type { CraftPresentation } from '../types';
 
 export default {
   "id": "pick2",
+  "model": "assets/crafting3d/pick2.glb",
   "duration": 3000,
   "layers": [
     {
-      "id": "bark-haft",
-      "src": "assets/crafting/pick2-bark-haft.webp"
+      "id": "bark-haft"
     },
     {
-      "id": "copper-head",
-      "src": "assets/crafting/pick2-copper-head.webp"
+      "id": "copper-head"
     }
   ],
-  "complete": "assets/crafting/pick2-complete.webp",
   "roles": {
     "bark": "Ridged oak-bark haft and grip",
     "copper": "Curved working head and socket"
@@ -24,8 +22,6 @@ export default {
       "part": "bark-haft",
       "at": 220,
       "duration": 530,
-      "x": 0.5,
-      "y": 0.56,
       "contact": "solid",
       "sound": "creak"
     },
@@ -34,8 +30,6 @@ export default {
       "part": "copper-head",
       "at": 1080,
       "duration": 550,
-      "x": 0.47,
-      "y": 0.19,
       "contact": "solid",
       "sound": "craftStitch"
     }

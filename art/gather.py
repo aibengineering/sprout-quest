@@ -14,14 +14,14 @@ from lib import box, crystal, cylinder, empty, lathe, profile, sphere, toon, tor
 
 PPU = 240
 ELEVATION = math.radians(15)
-CUT = {'oak': 0.3, 'pine': 0.22}
-TRUNK_R = {'oak': 0.2, 'pine': 0.15}
+CUT = {'oak': 0.3, 'pine': 0.22, 'glimwood': 0.28, 'emberwood': 0.26}
+TRUNK_R = {'oak': 0.2, 'pine': 0.15, 'glimwood': 0.16, 'emberwood': 0.19}
 
 
 # ----------------------------------------------------------------------------- trees
 
 
-def _ridges(root, z0, z1, r0, r1, color, n=5, seed=0):
+def _ridges(root, z0, z1, r0, r1, color, n=5, seed=0, emit=0.0):
     """Bark: thin darker ridges running up the front of the trunk, in short pieces that follow its taper."""
     rnd = random.Random(seed)
     for i in range(n):
@@ -31,7 +31,7 @@ def _ridges(root, z0, z1, r0, r1, color, n=5, seed=0):
         for k in range(steps):
             lo, hi = za + (zb - za) * k / steps, za + (zb - za) * (k + 1) / steps
             r = r0 + (r1 - r0) * (((lo + hi) / 2 - z0) / max(1e-6, z1 - z0)) + 0.002
-            cylinder((math.cos(a) * r, math.sin(a) * r, (lo + hi) / 2), 0.018, hi - lo + 0.01, toon(color), root, seg=6,
+            cylinder((math.cos(a) * r, math.sin(a) * r, (lo + hi) / 2), 0.018, hi - lo + 0.01, toon(color, emit=emit), root, seg=6,
                      line=0)
 
 
@@ -108,6 +108,61 @@ def pine(part='whole'):
     return root
 
 
+def glimwood(part='whole'):
+    """A Glimmerwood tree (Glimmer Hollow): a pale, silvery trunk forking into two limbs under glowing lilac leaf
+    clusters, cyan puffs in front and little crystal leaves tucked in (the map sprite's palette, env.GLIM)."""
+    from env import GLIM as g
+    root = empty('glimwood')
+    cut, rc, rt, top = CUT['glimwood'], TRUNK_R['glimwood'], 0.12, 1.0
+    _trunk(root, part, 0.26, cut, rc, rt, top, g['bark'])
+    lo, hi = (0.12, cut) if part == 'stump' else (cut, top) if part == 'top' else (0.12, top)
+    _ridges(root, lo, hi, 0.18 if lo < cut else rc, rc if hi <= cut else rt, g['ridge'], n=4, seed=5)
+    if part == 'stump':
+        _rings(root, cut, rc, g['heart'], g['ring'])
+        return root
+    for sx in (-1, 1):
+        cylinder((sx * 0.16, 0, 0.9), 0.055, 0.44, toon(g['bark'], rim=0.4), root, seg=10, r2=0.03, rot=(0, sx * 0.7, 0),
+                 line=0.016)
+    dark, mid, cyan, pale = g['leaves']
+    lobes = [(-0.44, 0.18, 1.2, 0.36, dark), (0.44, 0.18, 1.22, 0.36, dark), (0, 0.22, 1.6, 0.4, dark),
+             (-0.28, -0.04, 1.42, 0.33, mid), (0.3, -0.04, 1.44, 0.33, mid), (0, 0.0, 1.14, 0.36, mid)]
+    for x, y, z, r, col in lobes:
+        sphere((x, y, z), r, toon(col, rim=0.5, emit=0.22), root, seg=28)
+    for x, z, r in ((-0.3, 1.12, 0.17), (0.3, 1.24, 0.16), (0.02, 1.52, 0.16)):
+        sphere((x, -0.3, z), r, toon(cyan, rim=0.5, emit=0.4), root, seg=20)
+    for x, z, tilt in ((-0.66, 1.3, -0.9), (0.66, 1.34, 0.9), (-0.22, 1.94, -0.5), (0.24, 1.96, 0.5)):
+        crystal((x, -0.14, z), 0.06, 0.22, toon(pale, rim=0.5, emit=0.35), root, rot=(-0.5, tilt, 0), sides=5, line=0.014)
+    for x, z in ((-0.14, 1.3), (0.16, 1.62), (-0.42, 1.44), (0.46, 1.08)):
+        sphere((x, -0.4, z), 0.035, toon('#ffffff', emit=0.6), root, line=0.01)
+    return root
+
+
+def emberwood(part='whole'):
+    """An Emberwood tree (Ember Peak): a gnarled, charcoal-black trunk split by glowing ember grain, bare twisting limbs
+    and smouldering red-orange tufts (the map sprite's palette, env.EMBER)."""
+    from env import EMBER as e
+    root = empty('emberwood')
+    cut, rc, rt, top = CUT['emberwood'], TRUNK_R['emberwood'], 0.14, 0.95
+    _trunk(root, part, 0.32, cut, rc, rt, top, e['bark'])
+    lo, hi = (0.1, cut) if part == 'stump' else (cut, top) if part == 'top' else (0.1, top)
+    _ridges(root, lo, hi, 0.22 if lo < cut else rc, rc if hi <= cut else rt, e['ridge'], n=3, seed=7, emit=0.9)
+    if part == 'stump':
+        _rings(root, cut, rc, e['heart'], e['ring'])
+        return root
+    for x, z, tilt, length in ((-0.24, 1.02, -1.0, 0.56), (0.26, 1.06, 1.05, 0.58), (0.02, 1.14, 0.12, 0.46)):
+        cylinder((x, 0, z), 0.07, length, toon(e['bark']), root, seg=10, r2=0.035, rot=(0, tilt, 0), line=0.016)
+    dark, red, orange, hot = e['leaves']
+    for cx, cz, k in ((-0.5, 1.22, 1.0), (0.52, 1.28, 1.0), (0.04, 1.44, 1.15)):
+        for dx, dy, dz, s, col, glow in ((0, 0.08, 0.03, 0.24, dark, 0.2), (-0.12, -0.02, -0.02, 0.18, red, 0.35),
+                                         (0.12, -0.02, 0.0, 0.17, red, 0.35), (0, -0.12, 0.07, 0.15, orange, 0.6),
+                                         (0.02, -0.22, 0.03, 0.08, hot, 0.8)):
+            sphere((cx + dx * k, dy * k, cz + dz * k), (s * k, s * k * 0.85, s * k * 0.8), toon(col, emit=glow), root, seg=20,
+                   line=0.018)
+    for x, z in ((-0.26, 1.6), (0.24, 1.68), (0.06, 1.8), (-0.6, 1.46)):
+        sphere((x, -0.24, z), 0.035, toon('#ffd07a', emit=0.9), root, line=0.01)
+    return root
+
+
 # ----------------------------------------------------------------------------- rocks
 
 
@@ -150,6 +205,33 @@ def crystal_rock():
                                (0.42, 0.05, 0.66, 0.55, '#9ae6ff'), (-0.02, -0.24, 0.56, -0.1, '#e0d0ff'),
                                (-0.46, -0.1, 0.5, -0.7, '#c8b0ff')):
         crystal((x, y, 0.26), 0.13, h, toon(col, rim=0.5, emit=0.15), root, rot=(0, tilt, 0), sides=6)
+    return root
+
+
+def obsidian_rock():
+    """An obsidian seam: a heap of glossy black volcanic glass, big faceted shards split by glowing ember veins."""
+    root = empty('obsidian')
+    glass, dark, vein = '#3a3248', '#241e2c', '#ff8a3a'
+    sphere((0, 0, 0.3), (0.66, 0.48, 0.34), toon(dark, rim=0.6), root, seg=16, rot=(0, 0.06, 0.3))
+    sphere((0.46, -0.14, 0.18), (0.28, 0.24, 0.2), toon(glass, rim=0.8), root, seg=10)
+    sphere((-0.48, -0.02, 0.16), (0.26, 0.24, 0.18), toon(glass, rim=0.8), root, seg=10)
+    for x, y, h, tilt, r in ((-0.3, 0.04, 0.78, -0.4, 0.22), (0.08, 0.02, 0.96, 0.1, 0.25), (0.42, 0.08, 0.64, 0.55, 0.2),
+                             (-0.58, 0.1, 0.48, -0.8, 0.14)):
+        crystal((x, y, 0.22), r, h, toon(glass, rim=0.9), root, rot=(0, tilt, 0), sides=5)
+    # Glassy glints on the shards.
+    for pts in (((-0.4, 0.58), (-0.33, 0.6), (-0.46, 0.84)), ((0.02, 0.66), (0.09, 0.68), (0.05, 0.98)), ((0.46, 0.5), (0.52, 0.52), (0.56, 0.68))):
+        profile(list(pts), 0.01, toon('#c8c0e8', emit=0.3), root, loc=(0, -0.3, 0), bevel=0, line=0)
+    # Glowing ember veins across the front of the heap, forking as they go.
+    for pts in (((-0.46, 0.14), (-0.32, 0.3), (-0.36, 0.46), (-0.24, 0.56)), ((-0.06, 0.1), (0.06, 0.3), (0.0, 0.5)),
+                ((0.06, 0.3), (0.18, 0.4)), ((0.34, 0.12), (0.44, 0.3), (0.4, 0.42))):
+        for a, b in zip(pts, pts[1:]):
+            profile([a, (a[0] + 0.045, a[1]), (b[0] + 0.045, b[1]), b], 0.03, toon(vein, emit=0.9), root, loc=(0, -0.47, 0),
+                    bevel=0, line=0)
+    for x, z, s in ((-0.16, 0.42, 0.07), (0.26, 0.46, 0.075), (0.52, 0.22, 0.05), (-0.52, 0.26, 0.05)):
+        crystal((x, -0.48 + abs(x) * 0.12, z), s, s * 1.8, toon('#ffb45a', emit=0.6, rim=0.5), root, rot=(1.0, 0.25 * x, 0),
+                sides=5, line=0.012)
+    for x, y, s in ((0.74, -0.3, 0.08), (-0.76, -0.26, 0.07), (0.56, -0.5, 0.05)):
+        sphere((x, y, s * 0.6), (s, s * 0.9, s * 0.7), toon(dark, rim=0.6), root, seg=10, line=0.014)
     return root
 
 
@@ -230,4 +312,4 @@ def tools():
             item.build_item(root)
             return root
         return legacy()
-    return [(f'axe{t}', lambda t=t: build(f'axe{t}', lambda: axe(t))) for t in (1, 2)] + [(f'pick{t}', lambda t=t: build(f'pick{t}', lambda: pick(t))) for t in (1, 2, 3, 4)]
+    return [(f'axe{t}', lambda t=t: build(f'axe{t}', lambda: axe(t))) for t in (1, 2, 3, 4)] + [(f'pick{t}', lambda t=t: build(f'pick{t}', lambda: pick(t))) for t in (1, 2, 3, 4)]

@@ -8,9 +8,6 @@ from lib import box, crystal, empty, profile, sphere, toon, torus
 
 PARTS = ('iron-shell', 'ember-seams', 'left-horns', 'right-horns', 'crystal-clasps')
 HELMET = False
-# Lossy alpha WebP (VP8X) keeps these layers inside their reviewed mobile download budget.
-WEBP_QUALITY = 95
-CAMERA = dict(ppu=480, anchor=(0, 0, .365), elevation=math.radians(12))
 
 
 def build_armor(P):
@@ -21,7 +18,7 @@ def build(body, arms=None, head=None):
     arms = arms or {side: empty('magma_arm' + str(side), body, (side * .29, 0, .37)) for side in (-1, 1)}
     parts = {name: [] for name in PARTS}
     iron = toon('#667080', rim=.16)
-    dark = toon('#343444', rim=.1)
+    dark = toon('#4a4a5e', rim=.1)
     edge = toon('#a7b0c0', rim=.2)
     ember = toon('#ff993f', rim=.08, emit=.16)
     horn = toon('#e5ba92', rim=.1)

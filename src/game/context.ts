@@ -2,7 +2,7 @@
 // screen transitions. Every flow module (fights, gathering, story…) reads and changes it through `G`.
 import { Audio } from '../audio';
 import type { Battle } from '../battle/battle';
-import { zoneById, type Zone } from '../data';
+import { PROJECTS, zoneById, type Zone } from '../data';
 import { Input } from '../input';
 import { Music } from '../music/player';
 import { Overworld } from '../overworld';
@@ -11,7 +11,14 @@ import { loadSound, saveSound, type SoundSettings } from '../sound';
 import type { UI } from '../ui';
 import { has } from '../unlocks';
 import { plotOpen } from '../rules';
+import { gardenOpen } from '../garden';
+import { kitchenOpen } from '../kitchen';
+import { poppyAway } from '../procession';
 import { World } from '../world';
+import { homeLevel } from '../housing';
+import { shortcutById, shortcutLock } from '../shortcuts';
+import { seamOpen, SEAMS } from '../seams';
+import { HUNTS, hunting } from '../hunts';
 
 /**
  * What the game is doing, which decides what takes input and what's drawn:
@@ -40,8 +47,8 @@ class GameState {
   xpRate = 1;
   /** Runs once when the menu next closes (the Battle Tower's camp comes back after its Forge and Bag). */
   afterMenu: (() => void) | null = null;
-  /** Iris transition: closes to black, runs `mid`, then opens. */
-  trans: { t: number; dur: number; mid: () => void; fired: boolean } | null = null;
+  /** Closes the screen, switches maps at the midpoint, then opens it again. */
+  trans: { t: number; dur: number; mid: () => void; fired: boolean; style: 'iris' | 'fade' } | null = null;
   /** The overworld half of the zoom into and out of regular fights. */
   swoop: { t: number; dur: number; dir: 'in' | 'out'; then?: () => void } | null = null;
 
@@ -57,8 +64,8 @@ export const G = new GameState();
 /** Is a screen transition (iris or swoop) running? The world holds still meanwhile. */
 export const busy = () => !!G.trans || !!G.swoop;
 
-export function transition(mid: () => void, dur = 0.7) {
-  G.trans = { t: 0, dur, mid, fired: false };
+export function transition(mid: () => void, dur = 0.7, style: 'iris' | 'fade' = 'iris') {
+  G.trans = { t: 0, dur, mid, fired: false, style };
 }
 
 /**
@@ -77,7 +84,11 @@ export async function paused<T>(show: () => Promise<T>, after: Mode = 'world'): 
 
 /** Saves, with where you're standing. */
 export function persist() {
-  G.save.pos = { x: G.over.x, y: G.over.y };
+  G.save.pos = G.over.savedPos;
+  if (G.over.room) G.save.room = G.over.room.id;
+  else delete G.save.room;
+  if (G.over.underground) G.save.underground = { id: G.over.underground === G.over.echo ? 'echo' : G.over.underground === G.over.cavern ? 'cavern' : 'resource', x: G.over.x, y: G.over.y };
+  else delete G.save.underground;
   saveState(G.save);
 }
 
@@ -116,9 +127,12 @@ export function showZoneBanner(z: Zone) {
 /** Opens gates whose guardians are beaten, lights campfires and reveals building plots as they unlock. */
 export function syncWorld() {
   const s = G.save;
-  G.world.setBridge(s.flags.includes('bridge:woods'));
-  for (const o of G.world.objs) {
+  G.world.setShortcuts(s);
+  G.over.oreGallery.sync(s);
+  G.over.cavern.sync();
+  for (const o of [...G.world.objs, ...G.over.echo.objs]) {
     const z = o.zone ? zoneById(o.zone) : null;
+    if(o.id==='cavern:entry'||o.id==='cavern:east')o.label=s.bosses.includes('alphawolf')?'Enter Echo Cavern':'';
     if (o.kind === 'gate' && z?.guardian) o.hidden = s.bosses.includes(z.guardian.kind);
     // A campfire is there once its road is open, cold until you light it.
     if (o.kind === 'camp') {
@@ -129,12 +143,31 @@ export function syncWorld() {
       o.hidden = !plotOpen(s, o.project!);
       if (o.project === 'home') o.label = has(s, 'village') ? 'Build' : 'Rest';
       if (o.project === 'sawmill') o.label = s.build.sawmill ? 'Sawmill' : 'Build';
+      if (o.project === 'cottage') o.label = s.build.cottage ? 'Visit' : 'Ask Bram';
+      if (o.project === 'garden') o.label = gardenOpen(s) ? 'Garden' : 'Ask Bram';
     }
+    if (o.project === 'training') o.label = s.build.training ? 'Train with the fox' : 'Ask Bram';
+    if (o.kind === 'residence') {
+      o.hidden = !s.flags.includes('bram:hut') && !homeLevel(s, o.home!);
+      o.label = homeLevel(s, o.home!) ? 'Visit' : 'Ask Bram';
+    }
+    if (o.kind === 'station' && o.id?.startsWith('garden:')) o.hidden = o.id === 'garden:sign' ? !s.build.garden || !plotOpen(s, 'garden') : !gardenOpen(s);
+    if (o.id === 'garden:sign') o.label = s.build.garden < PROJECTS.garden.levels.length ? 'Ask Bram' : '';
+    if (o.kind === 'house') o.label = kitchenOpen(s) && !poppyAway(s) ? 'Kitchen' : (s.stories.poppy ?? 0) >= 6 && !poppyAway(s) ? 'Ask Bram' : '';
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);
-    if (o.kind === 'bridge') o.hidden = s.flags.includes('bridge:woods');
+    if (o.kind === 'bridge') {
+      const p = shortcutById(o.id!);
+      o.hidden = !!p && s.flags.includes(p.flag);
+      o.label = p && !shortcutLock(s, p) ? 'Build shortcut' : 'Inspect crossing';
+    }
     // Bram's cabin goes up at the end of his story.
     if (o.kind === 'prop' && o.id === 'bramhut') o.hidden = !s.flags.includes('bram:hut');
+    if(o.boulder) { o.hidden=seamOpen(s,o.boulder); o.label='Break boulder'; }
+    if(o.tunnel) o.hidden=!seamOpen(s,o.tunnel);
+    if(o.id==='burrow:home') o.hidden=!SEAMS.some(p=>seamOpen(s,p.id));
+    if(o.hunt){const a=hunting(s).active,d=HUNTS.find(d=>d.kind===o.hunt)!;o.hidden=!a||a.kind!==o.hunt||a.status!=='tracking';o.foes=a?[{kind:a.kind,lv:a.lv}]:[];o.text=d.name;}
+    if (o.shown) o.hidden = !o.shown(s);
     // A story's monsters are only there at their step.
     if (o.story) o.hidden ||= (s.stories[o.story.id] ?? 0) !== o.story.step;
   }

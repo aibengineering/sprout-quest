@@ -1,6 +1,17 @@
 // Overworld map generation and collision. Coordinates are in tiles.
-import { WORLD_H, WORLD_W, ZONES, zoneAtX, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
+import { NEIGHBOURS } from './neighbours';
+import { WORLD_H, WORLD_W, ZONES, zoneAtX, zoneById, type MonsterKind, type NodeKind, type ProjectId, type Zone, type ZoneId } from './data';
+import { FIELD_COLS, FIELD_ROWS } from './garden';
 import { ROUTES } from './routes';
+import { POPPY_GROVE, poppyTrailOpen } from './poppyGrove';
+import type { HomeId } from './housing';
+import { RESIDENT_PLOTS, TOWN_CABIN, TOWN_FORGE, TOWN_HOME, TOWN_SAWMILL, TOWN_SPRING, TOWN_TRAINING, TOWN_WAYSTONE, VILLAGE_PATHS } from './villageLayout';
+import type { SaveState } from './state';
+import { SHORTCUTS, shortcutBuilt } from './shortcuts';
+import { LANDMARK_SIGNS, ROUTE_GUIDES } from './mapDesign';
+import { SEAMS, TUNNEL_HOME } from './seams';
+import { HUNTS } from './hunts';
+import { CAVE_WEST_MOUTH, CAVE_EAST_MOUTH } from './caveEntrance';
 
 export const T = {
   GROUND: 0,
@@ -9,32 +20,40 @@ export const T = {
   POOL: 3,
   PATH: 4,
   DECOR: 5,
-  /** Planks over water (Bram's Bridge, once built): drawn over the pool, and walkable. */
+  /** A walkable timber deck drawn over its water, chasm or lava gap. */
   BRIDGE: 6,
+  /** A deep, impassable rock cleft; Glimmerwood spans it without inventing a pond in the Hollow. */
+  CHASM: 7,
 } as const;
 
-/** Bram's Bridge: the creek tiles it spans (the Woods' west way up to the old camp), as offsets from the Woods' left edge. */
-const BRIDGE_TILES = [[6, 9], [7, 9], [6, 10], [7, 10]];
+/** Poppy's field: its first plot's tile, from the village's left edge (see placeField). */
+export const FIELD = { x: 23, y: 17 };
 
 /** Routes connect through rows GATE_Y..GATE_Y+3 on their west and east edges. */
 export const GATE_Y = 12;
 
 /** Route map characters → tiles (markers stand on open ground, or tall grass for trees out in the grass). */
 const ROUTE_TILE: Record<string, number> = {
-  '#': T.OBST, '.': T.GROUND, ',': T.GRASS, '=': T.PATH, '~': T.POOL, '*': T.DECOR,
+  '#': T.OBST, '.': T.GROUND, ',': T.GRASS, '=': T.PATH, '~': T.POOL, '^': T.CHASM, '*': T.DECOR,
   E: T.PATH, S: T.GROUND, C: T.GROUND, L: T.GROUND, k: T.GROUND, p: T.GROUND, K: T.GRASS, P: T.GRASS,
   r: T.GROUND, u: T.GROUND, i: T.GROUND, y: T.GROUND, R: T.GRASS, U: T.GRASS, I: T.GRASS, Y: T.GRASS,
+  g: T.GROUND, f: T.GROUND, o: T.GROUND, G: T.GRASS, F: T.GRASS, O: T.GRASS,
 };
 
 /** Route map markers for gathering nodes: [character, node, out in the grass]. */
 const NODE_MARKS: [string, NodeKind, boolean][] = [
   ['k', 'oak', false], ['K', 'oak', true], ['p', 'pine', false], ['P', 'pine', true],
   ['r', 'rock', false], ['R', 'rock', true], ['u', 'copper', false], ['U', 'copper', true], ['i', 'iron', false], ['I', 'iron', true],
-  ['y', 'crystal', false], ['Y', 'crystal', true],
+  ['y', 'crystal', false], ['Y', 'crystal', true], ['g', 'glimwood', false], ['G', 'glimwood', true],
+  ['f', 'emberwood', false], ['F', 'emberwood', true], ['o', 'obsidian', false], ['O', 'obsidian', true],
 ];
 
-/** 'prop': scenery drawn from its `id`'s sprite (Bram's camp, his hut). */
-export type ObjKind = 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop' | 'bridge';
+/**
+ * 'prop': scenery drawn from its `id`'s sprite (Bram's camp, his hut). 'station': something you work at by hand (a
+ * room's stove or saw bench, the Garden's water butt), told apart by its `id`. 'door': the way into a room, or out.
+ * 'fence': a run of the Garden field's fence (drawn with the field).
+ */
+export type ObjKind = 'residence' | 'fence' | 'forge' | 'fountain' | 'house' | 'sign' | 'lair' | 'gate' | 'camp' | 'elder' | 'plot' | 'pickup' | 'foe' | 'node' | 'npc' | 'statue' | 'prop' | 'bridge' | 'station' | 'door';
 
 export interface WorldObj {
   kind: ObjKind;
@@ -49,6 +68,7 @@ export interface WorldObj {
   zone?: ZoneId;
   /** Construction project on this plot. */
   project?: ProjectId;
+  home?: HomeId;
   /** Hidden objects are neither drawn nor solid (opened gates, unlit camps). */
   hidden?: boolean;
   /** Story flag set when this scripted object is resolved (sword picked up, prologue foe beaten). */
@@ -59,13 +79,21 @@ export interface WorldObj {
   node?: NodeKind;
   id?: string;
   grass?: boolean;
+  /** Permanent mining barrier / revealed burrow / contracted specimen. */
+  boulder?: string;
+  tunnel?: string;
+  hunt?: string;
   /** A story's monster group: who you fight when you walk into it (a guardian-style fight if `boss`). */
   foes?: { kind: MonsterKind; lv: number }[];
   boss?: boolean;
   /** Which way the group looks: -1 west, 1 east (they face every which way if unset). */
   facing?: -1 | 1;
+  /** You can walk over it (a garden bed you tend from beside it, a room's doormat). */
+  walkable?: boolean;
   /** Only there at this step of a side story. */
   story?: { id: string; step: number };
+  /** A prop that's only there sometimes (a story's), checked whenever the map syncs with the save. */
+  shown?: (s: SaveState) => boolean;
 }
 
 export function hash2(x: number, y: number, seed: number): number {
@@ -88,26 +116,66 @@ export function pathY(x: number): number {
   return Math.max(5, Math.min(WORLD_H - 7, Math.round(y)));
 }
 
-export class World {
-  readonly w = WORLD_W;
-  readonly h = WORLD_H;
-  readonly tiles = new Uint8Array(WORLD_W * WORLD_H);
+/** A walkable grid of tiles with objects on it: the overworld, or a room you've walked into (see room.ts). */
+export class TileMap {
+  readonly tiles: Uint8Array;
   readonly objs: WorldObj[] = [];
-  /** Marker positions from the route maps, by `${zone}:${char}`. */
-  private marks = new Map<string, { x: number; y: number }[]>();
 
-  constructor(seed = 7) {
-    this.generate(seed);
+  constructor(readonly w: number, readonly h: number, readonly x0 = 0, readonly y0 = 0) {
+    this.tiles = new Uint8Array(w * h);
   }
 
   tile(x: number, y: number): number {
+    x -= this.x0;
+    y -= this.y0;
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return T.OBST;
     return this.tiles[y * this.w + x];
   }
 
-  private set(x: number, y: number, t: number) {
+  protected set(x: number, y: number, t: number) {
+    x -= this.x0;
+    y -= this.y0;
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
     this.tiles[y * this.w + x] = t;
+  }
+
+  solidAt(x: number, y: number): boolean {
+    const t = this.tile(Math.floor(x), Math.floor(y));
+    if (t === T.OBST || t === T.POOL || t === T.CHASM) return true;
+    for (const o of this.objs) if (!o.hidden && !o.walkable && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
+    return false;
+  }
+
+  /** Whether a feet-box of half-width `r` whose bottom edge is at y overlaps anything solid. */
+  blocked(x: number, y: number, r: number): boolean {
+    const top = y - r, bot = y - 0.02;
+    return this.solidAt(x - r, top) || this.solidAt(x + r, top) || this.solidAt(x - r, bot) || this.solidAt(x + r, bot);
+  }
+
+  nearestObj(x: number, y: number, maxDist: number): WorldObj | null {
+    let best: WorldObj | null = null;
+    let bestD = maxDist;
+    for (const o of this.objs) {
+      if (!o.label || o.hidden) continue;
+      const cx = Math.max(o.x, Math.min(x, o.x + o.w));
+      const cy = Math.max(o.y, Math.min(y, o.y + o.h));
+      const d = Math.hypot(cx - x, cy - y);
+      if (d < bestD) {
+        bestD = d;
+        best = o;
+      }
+    }
+    return best;
+  }
+}
+
+export class World extends TileMap {
+  /** Marker positions from the route maps, by `${zone}:${char}`. */
+  private marks = new Map<string, { x: number; y: number }[]>();
+
+  constructor(seed = 7) {
+    super(WORLD_W, Math.max(WORLD_H, ...Object.values(ROUTES).map((rows) => rows.length)));
+    this.generate(seed);
   }
 
   zoneAt(x: number): Zone {
@@ -147,9 +215,9 @@ export class World {
       const route = ROUTES[zone.id];
       if (route) {
         for (let y = 0; y < h; y++) {
-          const c = route[y][x - zone.x0];
+          const c = route[y]?.[x - zone.x0] ?? '#';
           this.set(x, y, ROUTE_TILE[c] ?? T.OBST);
-          if (!'#.,=~*'.includes(c)) {
+          if (!'#.,=~^*'.includes(c)) {
             const key = `${zone.id}:${c}`;
             this.marks.set(key, [...(this.marks.get(key) ?? []), { x, y }]);
           }
@@ -158,15 +226,20 @@ export class World {
       }
       const py = pathY(x);
       for (let y = 0; y < h; y++) {
+        if (y >= WORLD_H) { this.set(x, y, T.OBST); continue; }
         let t: number = T.GROUND;
         const nearPath = y >= py - 1 && y <= py + 2;
         const gladeClearing = zone.id === 'glade' && x < GLADE_PATH_X;
         if ((y === py || y === py + 1) && !gladeClearing) t = T.PATH;
-        else if (y < 2 || y >= h - 2 || x === 0 || x === w - 1) t = T.OBST;
+        else if (y < 2 || y >= WORLD_H - 2 || x === 0 || x === w - 1) t = T.OBST;
         else if (zone.id === 'glade') t = this.gladeTile(x, y, nearPath, seed);
         else t = this.villageTile(x, y, seed, nearPath);
         this.set(x, y, t);
       }
+    }
+    // Small roadside stops for newcomers; clear the approach before resource objects are generated.
+    for (const p of Object.values(NEIGHBOURS).filter(p=>p.name==='Moss')) for (let y=Math.floor(p.at.y)-1;y<=Math.ceil(p.at.y)+1;y++) for (let x=Math.floor(p.at.x)-1;x<=Math.ceil(p.at.x)+1;x++) {
+      if (this.tile(x,y)!==T.PATH) this.set(x,y,T.GROUND);
     }
     this.placeObjects();
   }
@@ -180,7 +253,7 @@ export class World {
   }
 
   private villageTile(x: number, y: number, seed: number, nearPath: boolean): number {
-    const edgeTree = (y < 4 || y > this.h - 5 || (x - V < 2 && !nearPath)) && hash2(x, y, seed + 21) < 0.55;
+    const edgeTree = (y < 4 || y > WORLD_H - 5 || (x - V < 2 && !nearPath)) && hash2(x, y, seed + 21) < 0.55;
     if (edgeTree) return T.OBST;
     if (hash2(x, y, seed + 22) < 0.12) return T.DECOR;
     return T.GROUND;
@@ -207,51 +280,116 @@ export class World {
     const gy = pathY(10) - 1;
     add({ kind: 'foe', flag: 'glade1', monster: 'slime', x: 10, y: gy, w: 1, h: 4, label: 'Fight', text: 'Slime' }, false);
     add({ kind: 'foe', flag: 'glade2', monster: 'bunny', x: 13, y: gy, w: 1, h: 4, label: 'Fight', text: 'Hopbun' }, false);
-    add({ kind: 'forge', x: V + 5, y: 7, w: 4, h: 3, label: 'Forge', text: 'The Forge' });
-    add({ kind: 'house', x: V + 13, y: 6.5, w: 3, h: 3, label: '' });
+    add({ kind: 'forge', ...TOWN_FORGE, label: 'Forge', text: 'The Forge' });
+    add({ kind: 'house', x: V + 13, y: 4.3, w: 3, h: 5.2, label: '' });
     add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
-    add({ kind: 'plot', project: 'home', x: V + 3, y: 17, w: 3, h: 3, label: 'Build', text: 'Home' });
-    add({ kind: 'plot', project: 'garden', x: V + 7.2, y: 18.4, w: 3, h: 1.6, label: 'Build', text: 'Garden' });
-    add({ kind: 'plot', project: 'training', x: V + 15.6, y: 17.6, w: 3, h: 1.6, label: 'Build', text: 'Training Yard' });
-    add({ kind: 'plot', project: 'warp', x: V + 18.3, y: 7.4, w: 1.4, h: 1.1, label: 'Build', text: 'Waystone' });
-    // Bram's corner, once he's moved in (his story): the Sawmill beside the Forge, and his cabin below it.
-    add({ kind: 'plot', project: 'sawmill', x: V + 1.1, y: 5.5, w: 3.4, h: 2, label: 'Build', text: 'Sawmill' });
-    add({ kind: 'prop', id: 'bramhut', x: V + 1.5, y: 9, w: 2, h: 1.3, label: '' });
+    add({ kind: 'plot', project: 'home', ...TOWN_HOME, label: 'Build', text: 'Home' });
+    add({ kind: 'plot', project: 'training', ...TOWN_TRAINING, label: 'Build', text: 'Hidden Training Clearing', shown: s => s.flags.includes('fox:trusted') || s.build.training > 0 });
+    add({kind:'prop',id:'fox:den',x:zoneById('hollow').x0+26.5,y:3.2,w:1.6,h:1.4,label:''},false);
+    add({ kind: 'plot', project: 'warp', ...TOWN_WAYSTONE, label: 'Build', text: 'Waystone' });
+    // Bram lives beside his mill, across the work yard from the Forge. His cabin
+    // stays behind the yard's path so it cannot block the mill's front door.
+    add({ kind: 'plot', project: 'sawmill', ...TOWN_SAWMILL, label: 'Build', text: 'Sawmill' });
+    add({ kind: 'prop', id: 'bramhut', ...TOWN_CABIN, label: '' });
+    this.placeField();
+    // The log traps Poppy at the entrance and stays closed until the bunny chase.
+    add({kind:'prop',id:'poppy:thicket',...POPPY_GROVE.barrier,x:zoneById('meadow').x0+POPPY_GROVE.barrier.x,
+      label:'Inspect log',hidden:true,shown:s=>!poppyTrailOpen(s)},false);
+    // The Guest Cottage, up in the north-east corner behind the Waystone: once Bram's settled in, for whoever comes next.
+    add({ kind: 'plot', project: 'cottage', ...RESIDENT_PLOTS.pip, label: 'Ask Bram', text: 'Guest Cottage' });
+    for (const home of ['rook', 'moss'] as const) add({ kind: 'residence', home, ...RESIDENT_PLOTS[home], label: 'Ask Bram' });
     // Bram's old logging camp, in the Woods' north-west corner: the stump with his axe in it, the caved-in mill, logs.
     const W = ZONES.find((z) => z.id === 'woods')!.x0;
     add({ kind: 'prop', id: 'prop_campmill', zone: 'woods', x: W + 3.8, y: 3.2, w: 2.6, h: 1, label: '' }, false);
     add({ kind: 'prop', id: 'prop_campstump', zone: 'woods', x: W + 8.6, y: 5.1, w: 1.2, h: 0.7, label: '' }, false);
     add({ kind: 'prop', id: 'prop_logs', zone: 'woods', x: W + 11, y: 4.1, w: 1, h: 0.6, label: '' }, false);
-    // Where Bram's Bridge goes: a stake by the creek, on the south bank of the narrow way up to the camp.
-    add({ kind: 'bridge', zone: 'woods', x: W + 8.1, y: 11.1, w: 0.6, h: 0.5, label: 'Build', text: "Bram's Bridge" }, false);
-    add({ kind: 'fountain', x: V + 12, y: 17, w: 2, h: 2, label: 'Rest', text: "Veyra's Spring" });
+    add({kind:'prop',id:'cavern:entry',...CAVE_WEST_MOUTH,label:'Enter Echo Cavern',walkable:true},false);
+    add({kind:'prop',id:'cavern:east',...CAVE_EAST_MOUTH,label:'Enter Echo Cavern',walkable:true},false);
+    // Local plans at physical crossing sites; the stake must not obstruct its bank approach.
+    for (const p of SHORTCUTS) add({ kind: 'bridge', id: p.id, flag: p.flag, zone: p.zone, x: zoneById(p.zone).x0 + p.marker.x, y: p.marker.y, w: .6, h: .5, label: 'Inspect crossing', text: p.name, walkable: true }, false);
+    add({ kind: 'fountain', ...TOWN_SPRING, label: 'Rest', text: "Veyra's Spring" });
+    for (const p of VILLAGE_PATHS) for (let y = p.y; y < p.y + p.h; y++)
+      for (let x = p.x; x < p.x + p.w; x++) this.set(x, y, T.PATH);
     // Veyra's shrine, where Elder Oswin prays: north of where he stands, between the forge and the blue house.
     add({
       kind: 'statue', id: 'veyra', zone: 'village', x: V + 10.1, y: 7.6, w: 0.8, h: 0.6, label: 'Look',
       text: 'Veyra, the Sower. A veiled goddess with a golden seed in one hand and a sickle in the other. Fresh flowers lie at her feet. The words on the plinth read: "All that is planted, I tend."',
     });
     add({
-      kind: 'sign', x: V + 18.6, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
-      text: 'East: Sunny Meadow. Walk through tall grass to find monsters. Bring back materials to the Forge!',
+      kind: 'sign', x: V + 29.4, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
+      text: 'East: East Road. Dry trails take the long way round; grass cuts are quicker. Sunny Meadow and Poppy’s grove lie off the southern trail.',
     });
     for (const z of ZONES) {
       for (const p of this.mark(z.id, 'S')) {
         add({
           kind: 'sign', x: p.x + 0.1, y: p.y + 0.2, w: 0.8, h: 0.6, label: 'Read',
-          text: `${z.name} — recommended Lv ${z.rec}+. Monsters here are Lv ${z.lv[0]}–${z.lv[1]}.`,
+          text: ROUTE_GUIDES[z.id] ?? `${z.name} — recommended Lv ${z.rec}+. Monsters here are Lv ${z.lv[0]}–${z.lv[1]}.`,
         }, false);
       }
       // Guardians block the road into their zone; a campfire checkpoint waits just past each gate.
-      if (z.guardian) add({ kind: 'gate', zone: z.id, x: z.x0, y: GATE_Y, w: 1, h: 4, label: 'Challenge', text: z.name }, false);
+      if (z.guardian) add({ kind: 'gate', zone: z.id, x: z.x0 - (z.id==='cave'?2:0), y: GATE_Y, w: z.id==='cave'?3:1, h: 4, label: 'Challenge', text: z.name }, false);
       for (const p of this.mark(z.id, 'C')) add({ kind: 'camp', zone: z.id, x: p.x + 0.1, y: p.y + 0.2, w: 0.8, h: 0.6, label: 'Rest', text: 'Campfire' }, false);
       for (const p of this.mark(z.id, 'L')) add({ kind: 'lair', x: p.x, y: p.y, w: 3, h: 2, label: 'Enter', text: "Emberwyrm's Lair" }, false);
       // Trees to chop and rocks to mine: by the path (safe) or out in the grass.
       for (const [c, kind, grass] of NODE_MARKS) {
-        this.mark(z.id, c).forEach((p, i) => this.objs.push({
-          kind: 'node', node: kind, id: `${z.id}:${kind}:${grass ? 'g' : 's'}${i}`, grass, x: p.x + 0.1, y: p.y + 0.35, w: 0.8, h: 0.6, label: 'Chop', text: kind,
-        }));
+        this.mark(z.id, c).forEach((p, i) => {
+          // Small deterministic offsets keep authored clusters from looking planted on a grid.
+          const jx=(hash2(p.x,p.y,812)-.5)*.16;
+          const jy=(hash2(p.x,p.y,813)-.5)*.18;
+          this.objs.push({
+            kind: 'node', node: kind, id: `${z.id}:${kind}:${grass ? 'g' : 's'}${i}`, grass, x: p.x + 0.1+jx, y: p.y + 0.35+jy, w: 0.8, h: 0.6, label: 'Chop', text: kind,
+          });
+        });
       }
     }
+    for (const p of LANDMARK_SIGNS) add({ kind: 'sign', zone: p.zone, x: zoneById(p.zone).x0 + p.x, y: p.y, w: .6, h: .5, label: 'Read', text: p.text }, false);
+    for (const p of SEAMS) {
+      if(p.id==='quarry') add({kind:'prop',id:'resource:mouth',...p.at,w:.9,h:.45,label:'Explore tunnel'},false);
+      else {
+        add({kind:'node',id:`boulder:${p.id}`,boulder:p.id,node:p.rock,x:p.at.x-.55,y:p.at.y-.6,w:1.1,h:.65,label:'Break boulder'},false);
+        add({kind:'door',id:`burrow:${p.id}`,tunnel:p.id,x:p.at.x-.5,y:p.at.y-.4,w:1,h:.5,label:'Tunnel to Sowerby',walkable:true,hidden:true},false);
+      }
+    }
+    add({kind:'door',id:'burrow:home',...TUNNEL_HOME,w:.65,h:.4,label:'Pip’s tunnels',walkable:true,hidden:true},false);
+    for(const d of HUNTS) add({kind:'foe',id:`hunt:${d.kind}`,hunt:d.kind,zone:d.zone,x:d.at.x-.45,y:d.at.y-.7,w:.9,h:.7,label:'Hunt',text:d.name,walkable:true,hidden:true},false);
+  }
+
+  /**
+   * Poppy's Garden, out at the village's east end south of the road: a fenced field of plots, one tile each (the Garden
+   * plot is the whole field; garden.ts says which tiles are tilled at each level). A path leads down from the road to
+   * the gate; inside, the water butt and her seed basket stand along the west fence and Poppy works from the east side.
+   */
+  private placeField() {
+    const fx = V + FIELD.x, fy = FIELD.y, x0 = fx - 1, x1 = fx + FIELD_COLS + 1, y0 = fy - 1, y1 = fy + FIELD_ROWS + 1, gate = fx + 2;
+    for (let y = MID + 2; y <= y0; y++) this.set(gate, y, T.PATH);
+    this.objs.push({ kind: 'plot', project: 'garden', x: fx, y: fy, w: FIELD_COLS, h: FIELD_ROWS, label: 'Build', text: 'Garden', walkable: true });
+    // The fence, once it's built: along the top either side of the gate, the bottom and both sides.
+    const t = 0.12, built = (s: SaveState) => s.build.garden >= 1;
+    const fence = (x: number, y: number, w: number, h: number) => ({ kind: 'fence' as const, x: x - t, y: y - t, w: w + 2 * t, h: h + 2 * t, label: '', shown: built });
+    for (const o of [fence(x0, y0, gate - x0, 0), fence(gate + 1, y0, x1 - gate - 1, 0), fence(x0, y1, x1 - x0, 0), fence(x0, y0, 0, y1 - y0), fence(x1, y0, 0, y1 - y0)]) this.objs.push(o);
+    // Clear the trees round it (but not the path).
+    for (let y = y0 - 1; y <= y1; y++) for (let x = x0 - 1; x <= x1; x++) if (this.tile(x, y) !== T.PATH) this.set(x, y, T.GROUND);
+    // Once Poppy tends it: the water butt you fill the watering can at, and her basket of seeds. Outside the gate, the sign.
+    this.objs.push({ kind: 'station', id: 'garden:butt', x: x0 + 0.2, y: fy - 0.1, w: 0.6, h: 0.5, label: 'Watering can', hidden: true });
+    this.objs.push({ kind: 'station', id: 'garden:seeds', x: x0 + 0.25, y: fy + 1.3, w: 0.5, h: 0.4, label: 'Seed basket', hidden: true });
+    this.objs.push({ kind: 'station', id: 'garden:sign', x: gate + 2.3, y: y0 - 0.75, w: 0.6, h: 0.4, label: 'Upgrade', hidden: true });
+  }
+
+  /** Recover an old position after a terrain edit, staying in its region and outside solid scenery. */
+  safePosition(p:{x:number;y:number}) {
+    if(Number.isFinite(p.x)&&Number.isFinite(p.y)&&!this.blocked(p.x,p.y,.28))return {...p};
+    const zone=Number.isFinite(p.x)?this.zoneAt(p.x):zoneById('village');
+    if(Number.isFinite(p.x)&&Number.isFinite(p.y))for(let radius=1;radius<=10;radius++) {
+      const candidates:{x:number;y:number;d:number}[]=[];
+      for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
+        if(Math.max(Math.abs(dx),Math.abs(dy))!==radius)continue;
+        const x=Math.floor(p.x)+dx+.5,y=Math.floor(p.y)+dy+.9;
+        if(x<zone.x0+1||x>=zone.x0+zone.w-1||this.blocked(x,y,.28))continue;
+        candidates.push({x,y,d:Math.hypot(x-p.x,y-p.y)});
+      }
+      candidates.sort((a,b)=>a.d-b.d);if(candidates.length)return {x:candidates[0].x,y:candidates[0].y};
+    }
+    return this.campPoint(zone.id);
   }
 
   /** Tiles you can walk to from the village (guardian gates count as open). */
@@ -267,8 +405,8 @@ export class World {
         const nx = x + dx, ny = y + dy, j = ny * this.w + nx;
         if (nx < 0 || ny < 0 || nx >= this.w || ny >= this.h || seen[j]) continue;
         const t = this.tile(nx, ny);
-        if (t === T.OBST || t === T.POOL) continue;
-        if (this.objs.some((o) => o.kind !== 'gate' && o.kind !== 'node' && nx + 0.5 >= o.x && nx + 0.5 < o.x + o.w && ny + 0.5 >= o.y && ny + 0.5 < o.y + o.h)) continue;
+        if (t === T.OBST || t === T.POOL || t === T.CHASM) continue;
+        if (this.objs.some((o) => !o.hidden && !o.walkable && o.kind !== 'gate' && o.kind !== 'node' && nx + 0.5 >= o.x && nx + 0.5 < o.x + o.w && ny + 0.5 >= o.y && ny + 0.5 < o.y + o.h)) continue;
         seen[j] = 1;
         q.push(j);
       }
@@ -276,38 +414,19 @@ export class World {
     return seen;
   }
 
-  /** Lays Bram's Bridge over the creek (or takes it away). */
+  /** Apply every saved local crossing; unbuilt sites retain their original impassable gap. */
+  setShortcuts(save: SaveState) {
+    for (const p of SHORTCUTS) {
+      const x0 = zoneById(p.zone).x0;
+      for (let y = p.deck.y; y < p.deck.y + p.deck.h; y++) for (let x = p.deck.x; x < p.deck.x + p.deck.w; x++)
+        this.set(x0 + x, y, shortcutBuilt(save, p) ? T.BRIDGE : p.gap === 'chasm' ? T.CHASM : T.POOL);
+    }
+  }
+
+  /** Compatibility for the original creek crossing and old route tests. */
   setBridge(built: boolean) {
     const W = ZONES.find((z) => z.id === 'woods')!.x0;
-    for (const [dx, y] of BRIDGE_TILES) this.set(W + dx, y, built ? T.BRIDGE : T.POOL);
-  }
-
-  solidAt(x: number, y: number): boolean {
-    const t = this.tile(Math.floor(x), Math.floor(y));
-    if (t === T.OBST || t === T.POOL) return true;
-    for (const o of this.objs) if (!o.hidden && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
-    return false;
-  }
-
-  /** Whether a feet-box of half-width `r` whose bottom edge is at y overlaps anything solid. */
-  blocked(x: number, y: number, r: number): boolean {
-    const top = y - r, bot = y - 0.02;
-    return this.solidAt(x - r, top) || this.solidAt(x + r, top) || this.solidAt(x - r, bot) || this.solidAt(x + r, bot);
-  }
-
-  nearestObj(x: number, y: number, maxDist: number): WorldObj | null {
-    let best: WorldObj | null = null;
-    let bestD = maxDist;
-    for (const o of this.objs) {
-      if (!o.label || o.hidden) continue;
-      const cx = Math.max(o.x, Math.min(x, o.x + o.w));
-      const cy = Math.max(o.y, Math.min(y, o.y + o.h));
-      const d = Math.hypot(cx - x, cy - y);
-      if (d < bestD) {
-        bestD = d;
-        best = o;
-      }
-    }
-    return best;
+    const d = SHORTCUTS.find((p) => p.id === 'woods-camp')!.deck;
+    for (let y = d.y; y < d.y + d.h; y++) for (let x = d.x; x < d.x + d.w; x++) this.set(W + x, y, built ? T.BRIDGE : T.POOL);
   }
 }

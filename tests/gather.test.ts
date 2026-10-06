@@ -79,11 +79,22 @@ describe('chopping minigame', () => {
 });
 
 describe('woodcutting rules', () => {
+  test('ground and grass give identical materials, skill XP, rare finds and regrowth for every resource', () => {
+    for (const kind of Object.keys(NODES) as (keyof typeof NODES)[]) {
+      for (const flawless of [false,true]) {
+        const ground=newState(), grass=newState();
+        const a=harvest(ground,kind,'test',false,flawless,()=>0,1000);
+        const b=harvest(grass,kind,'test',true,flawless,()=>0,1000);
+        expect(b).toEqual(a);
+        expect(grass.nodes.test).toBe(ground.nodes.test);
+      }
+    }
+  });
   test('trees need the right axe, pay out wood and XP, then regrow', () => {
     const s = newState();
     expect(canGather(s, 'oak', 'x', 0)).toBe('tool');
     s.flags.push('oldtools');
-    Object.assign(s.mats, { goo: 3, fluff: 2 });
+    Object.assign(s.mats, { goo: 9, fluff: 6 });
     expect(craftTool(s, 'axe1')).toBe('ok');
     expect(craftTool(s, 'axe1')).toBe('owned');
     expect(canGather(s, 'oak', 'x', 0)).toBe('ok');
@@ -91,17 +102,18 @@ describe('woodcutting rules', () => {
     expect(canGather(s, 'pine', 'y', 0)).toBe('ok');
     expect(toolPower(1, NODES.pine.tier)).toBeLessThan(toolPower(1, NODES.oak.tier));
     const r = harvest(s, 'oak', 'x', true, true, () => 1, 0);
-    expect(r.drops.bark).toBe(NODES.oak.grass.yield + 1);
-    expect(s.mats.bark).toBe(NODES.oak.grass.yield + 1);
+    // A flawless chop adds a handful (an open-ground oak's yield).
+    expect(r.drops.bark).toBe(NODES.oak.grass.yield + NODES.oak.safe.yield);
+    expect(s.mats.bark).toBe(NODES.oak.grass.yield + NODES.oak.safe.yield);
     expect(s.skills.wood.xp).toBe(NODES.oak.grass.xp);
     expect(canGather(s, 'oak', 'x', 1000)).toBe('regrowing');
     expect(canGather(s, 'oak', 'x', NODES.oak.grass.regrow * 1000)).toBe('ok');
   });
 
-  test('grass trees can turn up a rare find; safe ones never do', () => {
+  test('rare finds depend on the resource, not on grass', () => {
     const s = newState();
     expect(harvest(s, 'oak', 'a', true, false, () => 0, 0).drops.clover).toBe(1);
-    expect(harvest(s, 'oak', 'b', false, false, () => 0, 0).drops.clover).toBeUndefined();
+    expect(harvest(s, 'oak', 'b', false, false, () => 0, 0).drops.clover).toBe(1);
   });
 
   test('skill levels gate better axes and gatherer gear, and stop at the cap', () => {
@@ -120,7 +132,7 @@ describe('woodcutting rules', () => {
 
   test('each pick mines its own tier quickly and the next tier up slowly, and is made from the tier below it', () => {
     const s = newState();
-    Object.assign(s.mats, { goo: 9, fluff: 9, stone: 20, bark: 20, pine: 20, fang: 9, copper: 20, iron: 20, crystal: 20 });
+    Object.assign(s.mats, { goo: 27, fluff: 27, stone: 60, bark: 60, pine: 60, fang: 18, copper: 60, iron: 60, crystal: 40 });
     expect(canGather(s, 'rock', 'r', 0)).toBe('tool');
     s.flags.push('oldtools');
     expect(craftTool(s, 'pick1')).toBe('ok');
@@ -168,7 +180,7 @@ describe('trees and rocks on the map', () => {
     expect(new Set(nodes.map((o) => o.id)).size).toBe(nodes.length);
   });
 
-  test('you can walk up to every tree; safe ones without touching grass, grass ones only through it', () => {
+  test('every resource has a walkable approach and records its terrain correctly', () => {
     for (const o of nodes) {
       const tx = Math.floor(o.x), ty = Math.floor(o.y);
       const around = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => ({ x: tx + dx, y: ty + dy }));

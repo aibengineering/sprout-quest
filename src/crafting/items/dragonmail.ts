@@ -1,28 +1,26 @@
 import type { CraftPresentation } from '../types';
 
-const src = (part: string) => `assets/crafting/dragonmail-${part}.webp`;
 export default {
-  id: 'dragonmail', duration: 4200,
+  id: 'dragonmail', model: 'assets/crafting3d/dragonmail.glb', duration: 4200,
   layers: [
-    { id: 'iron-shell', src: src('iron-shell') },
-    { id: 'back-scales', src: src('back-scales') },
-    { id: 'front-scales', src: src('front-scales') },
-    { id: 'left-mantle', src: src('left-mantle') },
-    { id: 'right-mantle', src: src('right-mantle') },
-    { id: 'ember-seams', src: src('ember-seams') },
-    { id: 'crystal-clasps', src: src('crystal-clasps') },
+    { id: 'iron-shell' },
+    { id: 'back-scales' },
+    { id: 'front-scales' },
+    { id: 'left-mantle' },
+    { id: 'right-mantle' },
+    { id: 'ember-seams' },
+    { id: 'crystal-clasps' },
   ],
-  complete: src('complete'),
   roles: { iron: 'Inner shell, sleeves & crown rim', scale: 'Overlapping scale panels & crown',
     ember: 'Warm seams between the scales', crystal: 'Six bright finishing clasps' },
   targets: [
-    { material: 'iron', part: 'iron-shell', at: 180, duration: 480, x: .5, y: .46, contact: 'solid', sound: 'craftStitch' },
-    { material: 'scale', part: 'back-scales', at: 780, duration: 460, x: .5, y: .60, contact: 'solid', sound: 'craftFluff' },
-    { material: 'scale', part: 'front-scales', at: 990, duration: 470, x: .5, y: .71, contact: 'solid', sound: 'craftFluff' },
-    { material: 'scale', part: 'left-mantle', at: 1230, duration: 460, x: .260, y: .640, contact: 'solid', sound: 'craftFluff' },
-    { material: 'scale', part: 'right-mantle', at: 1460, duration: 460, x: .740, y: .640, contact: 'solid', sound: 'craftFluff' },
-    { material: 'ember', part: 'ember-seams', at: 2060, duration: 480, x: .5, y: .733, contact: 'energy', sound: 'craftGoo' },
-    { material: 'crystal', part: 'crystal-clasps', at: 2710, duration: 620, x: .615, y: .662, contact: 'solid', sound: 'craftStitch' },
+    { material: 'iron', part: 'iron-shell', at: 180, duration: 480, contact: 'solid', sound: 'craftStitch' },
+    { material: 'scale', part: 'back-scales', at: 780, duration: 460, contact: 'solid', sound: 'craftFluff' },
+    { material: 'scale', part: 'front-scales', at: 990, duration: 470, contact: 'solid', sound: 'craftFluff' },
+    { material: 'scale', part: 'left-mantle', at: 1230, duration: 460, contact: 'solid', sound: 'craftFluff' },
+    { material: 'scale', part: 'right-mantle', at: 1460, duration: 460, contact: 'solid', sound: 'craftFluff' },
+    { material: 'ember', part: 'ember-seams', at: 2060, duration: 480, contact: 'energy', sound: 'craftGoo' },
+    { material: 'crystal', part: 'crystal-clasps', at: 2710, duration: 620, contact: 'solid', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'shape', text: 'Iron, forming the shell and open crown…' },

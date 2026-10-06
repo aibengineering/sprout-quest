@@ -46,6 +46,7 @@ canvas#cv, #touch {
   height: 100%;
 }
 canvas#cv { display: block; }
+#map-fade { position: fixed; inset: 0; background: #000; z-index: 100; pointer-events: none; }
 
 button {
   font: inherit;
@@ -247,6 +248,11 @@ button {
 .btn.md { width: 64px; height: 64px; font-size: 24px; }
 #btn-skill { right: calc(34px + var(--safe-r)); bottom: calc(130px + var(--safe-b)); background: #c8b0ff; }
 #btn-dodge { right: calc(122px + var(--safe-r)); bottom: calc(18px + var(--safe-b)); background: #b0e8ff; }
+/* Dodge charges (the Echo Anklet gives two): a pip each on the rim, lit while it's ready. */
+#btn-dodge .dpips { position: absolute; top: -7px; right: -6px; display: flex; gap: 3px; padding: 3px 4px; border-radius: 9px; background: #fff; box-shadow: 0 0 0 1px rgba(74, 42, 90, 0.25); }
+#btn-dodge .dpips[hidden] { display: none; }
+#btn-dodge .dpips i { width: 9px; height: 9px; border-radius: 50%; background: #d8e8f0; box-shadow: inset 0 0 0 1.5px rgba(74, 42, 90, 0.3); }
+#btn-dodge .dpips i.on { background: #3aa8e0; box-shadow: inset 0 0 0 1.5px rgba(20, 70, 110, 0.5); }
 .btn.sm { width: 52px; height: 52px; font-size: 22px; right: calc(118px + var(--safe-r)); bottom: calc(100px + var(--safe-b)); overflow: visible; }
 .badge {
   position: absolute;
@@ -546,6 +552,7 @@ img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
 .quest-pill .qbar i { display: block; height: 100%; background: #7aee8a; border-radius: 3px; transition: width 0.3s; }
 /* Loot feed: right side, under the HUD, stacking upward-in / fading out. */
 #loot { position: fixed; right: calc(8px + var(--safe-r)); top: calc(80px + var(--safe-t)); z-index: 12; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; pointer-events: none; }
+#loot.in-room { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 16px - var(--safe-l) - var(--safe-r)); }
 #loot .lrow { display: flex; align-items: center; gap: 4px; background: rgba(74, 42, 90, 0.88); color: #fff; font-weight: 900; font-size: 13px; padding: 3px 10px 3px 4px; border-radius: 12px; animation: lootin 0.25s ease-out both; transition: opacity 0.4s, transform 0.4s; }
 #loot .lrow img.icon.sm { width: 22px; height: 22px; }
 #loot .lrow .emo { font-size: 16px; padding: 0 3px; }
@@ -928,6 +935,17 @@ body.kbd .drag-hint .keys { display: flex; }
 .tagcard .desc { font-size: 12.5px; font-weight: 700; opacity: 0.75; line-height: 1.35; }
 .tagcard .chips { margin-top: 5px; }
 .tagcard .tact { flex: none; }
+/* One item (or you) in live 3D over its icon, which shows until the model is drawn (src/itemview.ts). */
+.view3d { position: relative; display: inline-block; line-height: 0; }
+.tagcard .tart:has(.view3d) { width: 72px; height: 72px; }
+.tagcard .tart .view3d { width: 100%; height: 100%; }
+.tagcard .tart:has(.view3d.hero) { width: 80px; height: 100px; margin: -8px 0; }
+.view3d > canvas.live3d { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: pan-y; cursor: grab;
+  animation: pop3d 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) backwards; }
+.view3d.live > :not(canvas) { visibility: hidden; }
+@keyframes pop3d { from { transform: scale(0.4); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .view3d > canvas.live3d { animation: none; } }
+button.portrait { padding: 0; font: inherit; cursor: pointer; }
 
 /* ---------- The smithy's workbench (Forge) ---------- */
 .theme-forge .body {
@@ -1178,6 +1196,19 @@ body.kbd .drag-hint .keys { display: flex; }
   .rays, .stage-art, .sparkles i { animation: none; }
 }
 
+/* Bram's resident plans: header and dismissal stay visible while the homes scroll. */
+.sheet.house-plans { width: min(800px, 100%); max-height: calc(100dvh - 24px - var(--safe-t) - var(--safe-b)); }
+.sheet.house-plans .result { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 16px 12px 12px; }
+.house-plans-head, .house-plans .btns { flex: none; }
+.house-plans-head h2 { margin: 0; font-size: 23px; }
+.house-plans-head p { font-size: 14px; margin: 8px 0 12px; }
+.house-plans-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; display: grid; gap: 12px; text-align: left; padding: 0 4px 4px; }
+.house-plans-list .mcard { margin: 0; }
+.house-plans-list p { font-size: 14px; margin: 8px 0; }
+.house-plans .btns { flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.house-plans .btns .go { min-height: 44px; font-size: 14px; padding: 10px 12px; }
+@media (min-width: 700px) { .house-plans-list { grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; } }
+
 /* ================= Granny's Kitchen ================= */
 /* What you last ate, pinned to the corner of the health card. */
 #hud .meal {
@@ -1185,49 +1216,28 @@ body.kbd .drag-hint .keys { display: flex; }
   background: #fff4dc; border: 2px solid #e8c48a; font: 600 13px var(--display); color: var(--ink);
   box-shadow: 0 2px 0 rgba(74, 42, 90, 0.2); white-space: nowrap;
 }
+.sheet.kitchen { width: min(720px, 100%); max-height: calc(100dvh - 24px - var(--safe-t) - var(--safe-b)); }
 .sheet.kitchen .speaker { margin-top: 6px; }
-.sheet.kitchen .result { min-height: 0; overflow-y: auto; padding-top: 20px; }
-.sheet.kitchen .kitchen { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 14px; text-align: left; }
-.sheet.kitchen .mcard.row { align-items: center; }
+/* Keep the book's title and dismissal visible; only the recipes turn into a scroll area. */
+.sheet.kitchen .result { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 16px 12px 12px; }
+.sheet.kitchen .result > .big, .sheet.kitchen .result > p, .sheet.kitchen .btns { flex: none; }
+.sheet.kitchen .result > p { margin: 8px 0; font-size: 14px; }
+.sheet.kitchen .kitchen {
+  display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; gap: 12px;
+  margin: 8px 0 12px; padding: 0 4px 4px; text-align: left;
+  overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+}
+.sheet.kitchen .mcard.row { align-items: center; flex: none; margin-bottom: 0; }
+.sheet.kitchen .mcard .ico { width: 40px; }
+.sheet.kitchen .mcard .go { flex: none; min-height: 44px; padding: 10px 14px; font-size: 16px; }
+.sheet.kitchen .mcard .chips { justify-content: flex-start; margin: 6px 0 0; }
+@media (min-width: 700px) {
+  .sheet.kitchen .kitchen { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  .sheet.kitchen .mcard.row { display: grid; grid-template-columns: 40px minmax(0, 1fr); }
+  .sheet.kitchen .mcard .go { grid-column: 2; justify-self: start; }
+}
 .sheet.kitchen .mcard .emo { font-size: 34px; }
 .sheet.kitchen .note { margin: 8px 0 0; font-weight: 700; }
-
-/* ================= Bram's Sawmill ================= */
-/* A workbench: logs in, the saw, planks out; a slot per plank on the bench; a row per kind of log. */
-.sheet.sawmill .bench {
-  display: grid; grid-template-columns: 1fr 1.3fr 1fr; align-items: center; gap: 6px; margin: 12px 0 8px; padding: 12px 10px;
-  border-radius: 16px; background: linear-gradient(#c89a6a, #b0804e); border: 3px solid #7a5232; box-shadow: inset 0 -5px 0 rgba(58, 36, 20, 0.25);
-  color: #fff;
-}
-.sheet.sawmill .stock { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.sheet.sawmill .stock img.icon { width: 46px; height: 46px; filter: drop-shadow(0 3px 0 rgba(58, 36, 20, 0.35)); }
-.sheet.sawmill .stock b { font: 700 22px var(--display); line-height: 1; text-shadow: 0 2px 0 rgba(58, 36, 20, 0.5); }
-.sheet.sawmill .stock small { font-size: 11px; font-weight: 800; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; }
-.sheet.sawmill .tray b { color: #fff2a8; }
-.sheet.sawmill .saw { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.sheet.sawmill .blade { width: 64px; height: 64px; }
-.sheet.sawmill .blade svg { width: 100%; height: 100%; }
-.sheet.sawmill .blade path { stroke: #3a2448; stroke-width: 3; stroke-linejoin: round; }
-.sheet.sawmill .blade .hub { fill: #5a6070; stroke: #3a2448; stroke-width: 3; }
-.sheet.sawmill .blade.copper path { fill: #e8904a; }
-.sheet.sawmill .blade.iron path { fill: #c8d4e8; }
-.sheet.sawmill .bench.busy .blade { animation: sawspin 0.6s linear infinite; }
-@keyframes sawspin { to { transform: rotate(360deg); } }
-.sheet.sawmill .sawbar { width: 100%; height: 10px; border-radius: 99px; background: rgba(58, 36, 20, 0.35); overflow: hidden; }
-.sheet.sawmill .sawbar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(#fff2a8, #ffc23a); transition: width 0.25s linear; }
-.sheet.sawmill .next { font-size: 12px; font-weight: 800; text-shadow: 0 1px 0 rgba(58, 36, 20, 0.5); }
-.sheet.sawmill .slots { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; margin: 0 0 10px; }
-.sheet.sawmill .slots i { aspect-ratio: 1; border-radius: 6px; border: 2px dashed #d8c0a0; }
-.sheet.sawmill .slots i.wait { border: 2px solid #8a5a3a; background: #b98a5a; }
-.sheet.sawmill .slots i.now { border: 2px solid #8a5a3a; background: linear-gradient(90deg, #ffe07a, #b98a5a); animation: pulse 0.6s infinite alternate; }
-.sheet.sawmill .slots i.done { border: 2px solid #3a8a44; background: #fff2a8; box-shadow: inset 0 -3px 0 #e8c060; }
-.sheet.sawmill .sawrow { display: flex; align-items: center; gap: 8px; margin: 6px 0; padding: 6px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.7); text-align: left; }
-.sheet.sawmill .sawrow > span { flex: 1; font-weight: 800; display: flex; flex-direction: column; line-height: 1.15; }
-.sheet.sawmill .sawrow small { font-size: 12px; opacity: 0.65; }
-.sheet.sawmill .sawrow .go { padding: 6px 14px; font-size: 16px; min-width: 52px; }
-.sheet.sawmill .small { font-size: 13px; opacity: 0.75; margin: 6px 0 10px; }
-.sheet.sawmill .btns { flex-wrap: nowrap; }
-.sheet.sawmill .btns .go { padding: 12px 16px; font-size: 16px; flex: 1; }
 
 /* Weapon handling's path: ✨ skill ranks and ⚡ speed steps, lit up to your level. */
 .hpath { display: flex; gap: 3px; margin: 6px 0 4px; }
@@ -1295,12 +1305,17 @@ body.kbd .drag-hint .keys { display: flex; }
 .craft-bench i:nth-child(3) { left: 40%; top: 75%; width: 14%; }
 .craft-pattern { position: absolute; bottom: 15px; left: 19%; right: 19%; height: 75px; border: 1px dashed #987c6088; border-radius: 40%; color: #987c60; background: #fff3d8bb; transform: rotate(-3deg); font-size: 18px; }
 .craft-pattern span { display: block; font-size: 9px; letter-spacing: 1px; margin-top: 14px; }
-.craft-garment, .craft-fallback { position: absolute; width: 258px; height: 258px; max-width: 100%; left: 50%; top: -4px; margin-left: -129px; object-fit: contain; z-index: 2; }
-.craft-part { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; pointer-events: none; }
-.craft-part[data-part="goo-seams"] { z-index: 3; }
+.craft-garment, .craft-fallback { position: absolute; width: 258px; height: 258px; max-width: 100%; left: 50%; top: -4px; margin-left: -129px; z-index: 2; }
+.craft-fallback { object-fit: contain; }
+.craft-model { display: block; width: 100%; height: 100%; }
 .craft-flights { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .craft-flight { position: absolute; width: 48px; height: 48px; left: 0; top: 0; will-change: transform; filter: drop-shadow(0 3px 2px #4a2a5a30); }
 .craft-flight img { width: 100%; height: 100%; object-fit: contain; }
+/* A piece tumbling in 3D: its model's turn as a strip of --frames frames (src/itemview.ts TUMBLE_FRAMES), stepped through. */
+.craft-flight .piece { display: block; width: 100%; height: 100%; background-size: calc(var(--frames) * 100%) 100%; animation: tumble 0.6s steps(var(--frames)) infinite; }
+/* One whole strip along: a percentage moves the image by (its width - the box's), so n frames is n / (n - 1) of that. */
+@keyframes tumble { to { background-position: calc(100% * var(--frames) / (var(--frames) - 1)) 0; } }
+.craft-flight.trail { width: 40px; height: 40px; margin: 4px 0 0 4px; }
 .craft-flight b { position: absolute; bottom: -2px; right: -4px; color: #765365; background: #fffbed; border-radius: 8px; padding: 0 4px; font: 700 11px var(--display); }
 .craft-flight.goo b { background: #e4f6d1; color: #3a754e; }
 .crafting .craft-status { font-size: 13px; margin: 4px 0 16px; min-height: 19px; color: #896957; }
@@ -1327,17 +1342,17 @@ body.kbd .drag-hint .keys { display: flex; }
 .craft-details .chips { margin: 14px 0 !important; }
 .crafting .result .btns { flex-wrap: nowrap; gap: 8px; }
 .crafting .result .btns .go { flex: 1; padding: 12px 6px; font-size: 15px; }
-.crafting .result .btns .go:first-child { background: #ead7b9; box-shadow: inset 0 -3px 0 #ceb38c; }
+.crafting .result .btns .go:first-child:not(:last-child) { background: #ead7b9; box-shadow: inset 0 -3px 0 #ceb38c; color: #6b4a2b; }
 .craft-sparkles { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; }
 .craft-sparkles i { --a: calc(var(--i) * 51deg); position: absolute; left: calc(50% + cos(var(--a)) * 112px); top: calc(46% + sin(var(--a)) * 88px); color: #e7b64e; font-style: normal; font-size: 13px; }
-.craft-scene[data-stage="reveal"] .craft-garment { animation: craft-finish .65s cubic-bezier(.3,1.2,.4,1) both; }
+.craft-scene[data-stage="reveal"] .craft-garment { transform-origin: 50% 100%; animation: craft-finish .65s cubic-bezier(.3,1.2,.4,1) both; }
 .craft-scene[data-stage="reveal"] .craft-sparkles { animation: craft-glint .8s ease-out both; }
 .craft-scene[data-stage="reveal"] .craft-halo, .craft-scene[data-stage="ready"] .craft-halo { opacity: 1; }
-.craft-scene[data-stage="ready"] .craft-garment { transform: translateY(-10px); }
 .craft-ready .craft-bag { opacity: .75; }
 .craft-ready .craft-count small::after { content: ' used'; }
 .craft-ready .craft-status { color: #6f8062; }
-@keyframes craft-finish { 0% { transform: scale(1.03,.96); } 40% { transform: translateY(-15px) scale(.99,1.04); } 72% { transform: translateY(-8px) scale(1.015,.99); } 100% { transform: translateY(-10px); } }
+/* A bounce in place, from the bottom: lifting the piece ran it into the heading. */
+@keyframes craft-finish { 0% { transform: scale(1.03,.96); } 40% { transform: scale(.99,1.03); } 72% { transform: scale(1.01,.995); } 100% { transform: none; } }
 @keyframes craft-glint { 0% { opacity: 0; transform: scale(.7); } 35% { opacity: 1; } 100% { opacity: 0; transform: scale(1.14); } }
 @media (max-width: 350px), (max-height: 700px) {
   .crafting .result { padding: 14px 14px 12px; }
@@ -1354,9 +1369,20 @@ body.kbd .drag-hint .keys { display: flex; }
   .sheet.crafting, .crafting *, .crafting *::before, .crafting *::after { animation: none !important; transition: none !important; }
   .craft-scene[data-stage="ready"] .craft-garment { transform: none; }
 }
-.craft-complete { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; z-index: 4; transition: opacity .25s; }
-.craft-scene[data-stage="reveal"] .craft-complete, .craft-scene[data-stage="ready"] .craft-complete { opacity: 1; }
-
+/* Village buildings rise on a grassy plot from a blueprint, on a wider 4:3 canvas. */
+.craft-building { height: 262px; }
+.craft-building .craft-garment, .craft-building .craft-fallback { width: 344px; height: 258px; margin-left: -172px; top: -2px; }
+.craft-building .craft-bench { left: 3%; right: 3%; height: 96px; border-color: #6f8a4e; background: radial-gradient(ellipse at 50% 45%, #c9a57a 0 38%, #a8c878 40%, #93b866 100%); box-shadow: 0 8px 0 #7a9a58, 0 11px 0 #5e7a46, 0 20px 20px #71413b1a, inset 0 3px 0 #c8e0a0; transform: none; }
+.craft-building .craft-bench i { background: #6f8a4e55; }
+.craft-building .craft-pattern { bottom: 14px; left: 24%; right: 24%; height: 60px; border-color: #5a86b866; color: #5a86b8; background: #e6f0fa99; transform: none; }
+/* In 3D the building's plot is drawn in its scene (src/models.ts plot), lying at the scene's own angle; the flat one is for the icon. */
+.craft-building:has(.craft-garment:not([hidden])) :is(.craft-bench, .craft-pattern) { display: none; }
+.craft-perk { font-weight: 800; color: #6f8062; }
+@media (max-width: 380px), (max-height: 700px) {
+  .craft-building { height: 218px; }
+  .craft-building .craft-garment, .craft-building .craft-fallback { width: 288px; height: 216px; margin-left: -144px; top: -4px; }
+  .craft-building .craft-bench { height: 80px; }
+}
 /* A move's preview: its demo battle loops in a window, with what it does and what to press. */
 .sheet.preview .preview-head { text-align: center; margin-bottom: 8px; }
 .sheet.preview .preview-head small { display: block; font-weight: 800; font-size: 12px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1366,3 +1392,27 @@ body.kbd .drag-hint .keys { display: flex; }
 .sheet.preview .preview-how { margin: 0 0 6px; font-size: 14px; font-weight: 700; opacity: 0.8; text-align: center; }
 .sheet.preview kbd { display: inline-block; min-width: 1.4em; padding: 0 5px; border-radius: 6px; border: 2px solid var(--card-edge); background: #fff; font: inherit; font-weight: 900; text-align: center; }
 .hnode .hwatch { margin-top: 6px; padding: 4px 12px; font-size: 13px; }
+
+/* A construction conversation has one request; combat lessons may be browsed at Alder’s dojo. */
+.sheet.building-job, .sheet.dojo { width: min(620px, 100%); max-height: calc(100dvh - 24px - var(--safe-t) - var(--safe-b)); }
+.sheet.dojo .result { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.dojo-lessons { overflow-y: auto; min-height: 0; touch-action: pan-y; text-align: left; }
+.dojo-lessons .mcard { margin: 8px 0; }
+.dojo-lessons h3 { margin: 0; }
+.sheet.building-job .bp-costs { justify-content: center; }
+
+/* Rook's board stays inside the viewport on phones and wide screens. */
+.sheet.hunt-board { max-height: calc(100dvh - 24px - var(--safe-t) - var(--safe-b)); }
+.sheet.hunt-board .result { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 14px 12px 12px; }
+.hunt-board .result > h2, .hunt-board .result > p, .hunt-board .btns, .hunt-active { flex: none; }
+.hunt-board h2 { margin: 0; font-size: 22px; }
+.hunt-board .result > p { font-size: 13px; margin: 8px 0; }
+.hunt-board .hunt-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; align-content: start; }
+.hunt-board .btns { margin-top: 10px; }
+.hunt-list { display: grid; gap: 10px; margin: 14px 0; }
+.hunt-card { display: grid; gap: 4px; width: 100%; padding: 12px 14px; text-align: left; border: 2px solid #d9c7a6; border-radius: 16px; background: #fffaf0; color: #39253f; }
+.hunt-card span, .hunt-card small { font-size: .85em; }
+.hunt-card:disabled { opacity: .62; }
+.hunt-active { background: #e7efd7; border-radius: 14px; padding: 12px; }
+
+#btn-dash { right: calc(18px + var(--safe-r)); bottom: calc(152px + var(--safe-b)); background: #d3c7f4; }

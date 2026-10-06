@@ -1,3 +1,4 @@
+import type { HuntVariant } from '../hunts';
 // Shapes shared by the battle simulation, monster behaviours and the renderer, plus small math helpers.
 import type { MatId, MonsterDef, MonsterKind, Zone } from '../data';
 import type { Strike } from '../weapons';
@@ -5,6 +6,8 @@ import type { Strike } from '../weapons';
 export const TAU = Math.PI * 2;
 /** Seconds between weapon skills. */
 export const SKILL_CD = 4.5;
+/** Seconds for a dodge to come back. With the Echo Anklet you have two, each coming back on its own. */
+export const DODGE_CD = 0.7;
 /**
  * Attacks go the way you last moved. An enemy within this angle (radians) of that direction gets lined up
  * with, so thumbsticks don't whiff on something just off-line; anything wider you have to turn to face.
@@ -34,6 +37,7 @@ export interface Enemy {
   def: MonsterDef;
   lv: number;
   golden: boolean;
+  variant?: HuntVariant;
   hp: number;
   maxHp: number;
   atk: number;
@@ -82,8 +86,12 @@ export interface Proj {
   from?: MonsterKind;
   /** Bat bolts swerve toward foes. */
   homing?: boolean;
+  /** Player attack/cast identity, shared by all bolts in one cast for once-per-attack elemental effects. */
+  strikeId?: number;
   /** Sporecap spores: seconds of poison if it hits you. */
   poison?: number;
+  /** Practice special identity; used to count successful casts rather than individual bolts. */
+  dojoCast?: number;
 }
 
 /** Dragonfire left on the ground by the Wyrmbreaker's breath: burns foes that stand in it. */
@@ -127,7 +135,7 @@ export interface Swing {
 
 /** A hammer's traveling shockwave (or the Wyrmbreaker's dragonfire). */
 /**
- * A wave of rock spikes (or dragonfire) rolling out from a slam. The waves of one slam share `hit`: each foe is hit
+ * A wave of rock spikes (or dragonfire) rolling out from a slam. Fracture's impact and all its waves share `hit`: each foe is hit
  * by at most one of them, however many overlap it (a foe only remembers its last hit, so a big one standing in the
  * fan used to be hit by the waves in turn, over and over).
  */
@@ -136,7 +144,7 @@ export interface Spike { x: number; y: number; t: number; life: number; size: nu
 export interface Crack { pts: [number, number][]; t: number }
 export interface Spark { x: number; y: number; t: number; size: number; color: string; rot: number }
 
-export interface Foe { kind: MonsterKind; lv: number; golden: boolean; /** Prologue foe: hits softer (GENTLE_ATK). */ gentle?: boolean }
+export interface Foe { variant?: HuntVariant; kind: MonsterKind; lv: number; golden: boolean; /** Prologue foe: hits softer (GENTLE_ATK). */ gentle?: boolean }
 
 export interface BattleSetup {
   zone: Zone;
@@ -148,6 +156,10 @@ export interface BattleSetup {
   bystander?: { look: string; mood: string };
   /** A Battle Tower floor (its number): the fight ends at the tower's camp, and never touches the story. */
   tower?: number;
+  /** A safe practice challenge: no monster loot, story kills or death penalties. */
+  dojo?: string;
+  /** Persistent field commission; retries keep its accepted level. */
+  hunt?: string;
 }
 
 export interface BattleOutcome {

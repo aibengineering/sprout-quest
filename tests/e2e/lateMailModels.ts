@@ -31,11 +31,11 @@ try {
       const g = (window as any).game;
       g.save.equip.armor = armor;
       g.save.equip.weapon = 'emberblade';
-      g.over.teleport(47, 13);
+      g.over.teleport(56, 13);
       g.zoom = 3;
     }, armor);
     await page.waitForTimeout(3500);
-    if (!loaded.has(`hero_${armor}.glb`)) throw new Error(`${armor} model was not loaded`);
+    if (!loaded.has(`armor_${armor}.glb`)) throw new Error(`${armor} model was not loaded`);
     for (const [name, face] of [['front', Math.PI / 2], ['side', 0], ['back', -Math.PI / 2]] as const) {
       await page.evaluate((face) => { (window as any).game.over.face = face; }, face);
       await page.waitForTimeout(400);

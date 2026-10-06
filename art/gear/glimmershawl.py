@@ -1,11 +1,12 @@
-"""Glimmer Shawl: 16 Glimmer Jelly (soft glowing drape, hardened glass shards) + one Golem Core."""
+"""Glimmer Shawl: Glimmer Jelly with a soft cloth lining (soft glowing drape, hardened glass shards) + one Golem Core."""
 import math
 from lib import profile, sphere, toon, torus
 from gear._crystal_glimmer_detail import GLOW, GLOW_DEEP, GLOW_PINK, ICE, ICE_MID, SHINE, glow, shard
-from gear._woodland_shapes import add, pivots, vest
+from gear._woodland_shapes import add, pivots
 
-PARTS = ('jelly-drape', 'jelly-collar', 'shard-left', 'shard-right', 'core-brooch')
-CAMERA = dict(ppu=440, anchor=(0, 0.067111, 0.33), elevation=math.radians(12))
+from gear._garment import lining, binding
+
+PARTS = ('fluff-lining', 'goo-seams', 'jelly-drape', 'jelly-collar', 'shard-left', 'shard-right', 'core-brooch')
 
 
 def _hem(width, top, bottom, bumps):
@@ -24,7 +25,9 @@ def _hem(width, top, bottom, bumps):
 def build(body, arms=None, head=None):
     arms, _ = pivots(body, arms, head)
     parts = {key: [] for key in PARTS}
-    vest(parts, 'jelly-drape', body, arms, '#dcbcf4')
+    lining(parts, 'fluff-lining', body, arms)
+    binding(parts, 'goo-seams', body, arms)
+
     # Wide rounded glow cape behind: reads as one luminous jelly bell at phone size.
     add(parts, 'jelly-drape', profile(_hem(.42, .56, .10, 5), .07, glow(GLOW, emit=.2), body,
                                       loc=(0, .2, 0), bevel=.02, line=.012, name='glimmer_drape'))

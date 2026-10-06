@@ -1,16 +1,14 @@
 import type { CraftPresentation } from '../types';
-const src = (part: string) => `assets/crafting/jellywhip-${part}.webp`;
 
 export default {
-  id: 'jellywhip', duration: 3300,
-  layers: ['fluff-grip', 'goo-collar', 'goo-coils', 'goo-tip'].map((id) => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'jellywhip', model: 'assets/crafting3d/jellywhip.glb', duration: 3300,
+  layers: ['fluff-grip', 'goo-collar', 'goo-coils', 'goo-tip'].map((id) => ({ id })),
   roles: { fluff: 'Cloud-soft felted grip', goo: 'Springy collar, coiled lash & sticky tip' },
   targets: [
-    { material: 'fluff', part: 'fluff-grip', at: 180, duration: 510, x: .229, y: .400, contact: 'soft', sound: 'craftFluff' },
-    { material: 'goo', part: 'goo-collar', at: 850, duration: 440, x: .387, y: .400, contact: 'bind', sound: 'craftGoo' },
-    { material: 'goo', part: 'goo-coils', at: 1370, duration: 550, x: .639, y: .500, contact: 'bind', sound: 'craftGoo' },
-    { material: 'goo', part: 'goo-tip', at: 2020, duration: 460, x: .853, y: .618, contact: 'bind', sound: 'craftGoo' },
+    { material: 'fluff', part: 'fluff-grip', at: 180, duration: 510, contact: 'soft', sound: 'craftFluff' },
+    { material: 'goo', part: 'goo-collar', at: 850, duration: 440, contact: 'bind', sound: 'craftGoo' },
+    { material: 'goo', part: 'goo-coils', at: 1370, duration: 550, contact: 'bind', sound: 'craftGoo' },
+    { material: 'goo', part: 'goo-tip', at: 2020, duration: 460, contact: 'bind', sound: 'craftGoo' },
   ],
   phases: [
     { at: 0, stage: 'fluff', text: 'Bunny Fluff, pressed into a soft grip…' },

@@ -47,8 +47,18 @@ const TREES = {
     cut: 0.22, r: 0.15, trunkTop: 0.7, canopy: { z: 1.2, rx: 0.5, rz: 0.7 },
     leaves: ['#2f7a45', '#3d8f52', '#4a9a5a'], heart: '#f0dca0', heartDark: '#c8a070', bark: '#7a5238', barkDark: '#3e281c',
   },
+  glimwood: {
+    cut: 0.28, r: 0.16, trunkTop: 1.0, canopy: { z: 1.4, rx: 0.66, rz: 0.46 },
+    leaves: ['#9a82e8', '#b8a0ff', '#9ae6ff', '#d8c8ff'], heart: '#f6f2ff', heartDark: '#c0b0f0', bark: '#e4e0f0', barkDark: '#8a80a8',
+  },
+  emberwood: {
+    cut: 0.26, r: 0.19, trunkTop: 0.95, canopy: { z: 1.32, rx: 0.7, rz: 0.3 },
+    leaves: ['#8a2a26', '#c8402a', '#ff7a3a', '#ffb45a'], heart: '#ffb45a', heartDark: '#e0602a', bark: '#3a3238', barkDark: '#1e181c',
+  },
 } as const;
 export type TreeKind = keyof typeof TREES;
+/** Whether a gathering node is one of the trees (chopped) rather than a rock (mined). */
+export const isTreeKind = (kind: string): kind is TreeKind => kind in TREES;
 
 /** After it lands, how long it lies there before fading, and the fade. */
 const LIE_T = 0.45, FADE_T = 0.3;
@@ -288,7 +298,7 @@ export class TreeArt implements NodeArt {
 
 // ----------------------------------------------------------------------------------------------------------- rocks
 
-export type RockKind = 'rock' | 'copper' | 'iron' | 'crystal';
+export type RockKind = 'rock' | 'copper' | 'iron' | 'crystal' | 'obsidian';
 export interface RockColors { body: string; dark: string; fleck: string }
 
 interface Crack { pts: [number, number][]; width: number; branch: boolean }
@@ -320,7 +330,8 @@ export class RockArt implements NodeArt {
 
   constructor(readonly kind: RockKind, readonly colors: RockColors) {
     const crystal = kind === 'crystal';
-    this.crackColor = crystal ? 'rgba(255,255,255,0.9)' : 'rgba(46,32,56,0.82)';
+    // Obsidian is black glass: its cracks show as hot ember light rather than shadow.
+    this.crackColor = crystal ? 'rgba(255,255,255,0.9)' : kind === 'obsidian' ? 'rgba(255,138,58,0.9)' : 'rgba(46,32,56,0.82)';
     this.glow = kind === 'rock' ? '#fff6c8' : colors.fleck;
     this.prepare(frame(`gather/${kind}`));
   }

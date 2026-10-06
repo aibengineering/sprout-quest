@@ -4,9 +4,6 @@ from lib import empty, profile, sphere, toon, torus
 from gear._charm_shapes import collect, cord
 
 
-CAMERA = {'ppu': 445, 'anchor': (0, 0, 0), 'elevation': math.radians(12)}
-
-
 def build_item(root):
     parts = {}
     for strand, color in [('red-braid', '#e8505a'), ('cream-braid', '#f0d8ac')]:

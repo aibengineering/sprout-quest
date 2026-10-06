@@ -1,7 +1,10 @@
 // Pure game rules: stats, damage, leveling, drops and crafting. No DOM access, so it's unit-testable.
 import { GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MAX_POTIONS, NODES, POTION_RECIPES, PROJECTS, SKILL_MAX, SLOW_TOOL, TOOLS, forgeLevelFor, type Gear, type Tool, type MatId, type MonsterDef, type NodeKind, type ProjectId, type Recipe, type SkillId, type Style, type Zone } from './data';
 import type { SaveState } from './state';
+import { oreBoost, gatheringXpBoost } from './kitchen';
 import { has, type UnlockId } from './unlocks';
+import { gardenOpen } from './garden';
+import { hpBoost } from './kitchen';
 
 export type Rng = () => number;
 
@@ -28,7 +31,7 @@ export function playerStats(s: SaveState): PlayerStats {
   const home = s.build?.home ?? 1, training = s.build?.training ?? 0;
   return {
     lv: s.lv,
-    maxHp: Math.round((24 + 6 * s.lv + sum('hp')) * (1 + 0.1 * (home - 1))),
+    maxHp: Math.round((24 + 6 * s.lv + sum('hp')) * (1 + 0.1 * (home - 1)) * hpBoost(s)),
     atk: Math.round((Math.round(2 + 1.5 * s.lv) + sum('atk')) * (1 + 0.05 * training)),
     def: Math.floor(s.lv * 0.8) + sum('def'),
     spd: sum('spd'),
@@ -37,6 +40,10 @@ export function playerStats(s: SaveState): PlayerStats {
     style: GEAR[s.equip.weapon]?.style ?? 'sword',
   };
 }
+
+/** Dodges you can make back to back in a fight: two with the Pebblors' Echo Anklet (see game/stories/drums.ts). */
+export const dodgeMotion = (s: SaveState) => s.perks.includes('shadowscarf') ? 1.35 : 1;
+export const dodgeCharges = (s: SaveState) => (s.perks.includes('echoanklet') ? 2 : 1);
 
 /**
  * The level gap in a fight: each level the attacker has over the defender makes its hits land 8% harder, and each level
@@ -158,12 +165,18 @@ export function potionRefill(s: SaveState): number {
 }
 
 /** The unlock that opens a project's plot: the Garden and Training Yard after the Slime King, the Waystone after the Alpha Woolf. */
-export const PLOT_UNLOCK: Partial<Record<ProjectId, UnlockId>> = { garden: 'plots', training: 'plots', warp: 'warpplot', sawmill: 'sawmill' };
+export const PLOT_UNLOCK: Partial<Record<ProjectId, UnlockId>> = { garden: 'plots', training: 'plots', warp: 'warpplot', sawmill: 'sawmill', cottage: 'cottage' };
+
+/** Bram's settled in Sowerby (his Sawmill built, his cabin up): there are planks for a Guest Cottage. */
+export const cottageDue = (s: SaveState) => s.flags.includes('bram:hut') && s.build.sawmill > 0;
 
 /** Whether a project's plot is open (on the map and in the building plans). Anything already built stays open. */
 export const plotOpen = (s: SaveState, id: ProjectId) => {
   // Bram's Sawmill opens the moment he's moved in (the unlock card follows).
+  if (id === 'training') return s.flags.includes('fox:trusted') || s.build.training > 0;
   if (id === 'sawmill') return s.flags.includes('bram:home') || s.build.sawmill > 0;
+  // The Guest Cottage, once he's settled in: his Sawmill up and his cabin built.
+  if (id === 'cottage') return cottageDue(s) || s.build.cottage > 0;
   const u = PLOT_UNLOCK[id];
   return !u || has(s, u) || s.build[id] > 0;
 };
@@ -363,14 +376,23 @@ export function revealed(s: SaveState): Set<string> {
 
 export interface GatherReward { drops: Partial<Record<MatId, number>>; xp: number; levels: number }
 
-/** Fells a tree or breaks a rock: pays out its material (+1 for a flawless job), a grass node's rare find, skill XP, and starts regrowth. */
+/**
+ * Fells a tree or breaks a rock: pays out its material (a handful more for a flawless job, and on Rock Candy), a resource's
+ * rare find, maybe a seed for the Garden, skill XP, and starts regrowth.
+ */
 export function harvest(s: SaveState, kind: NodeKind, nodeId: string, grass: boolean, flawless: boolean, rng: Rng = Math.random, now = Date.now()): GatherReward {
   const n = NODES[kind];
   const spot = grass ? n.grass : n.safe;
-  const drops: Partial<Record<MatId, number>> = { [n.mat]: spot.yield + (flawless ? 1 : 0) };
-  if (grass && rng() < n.grass.rare.chance) drops[n.grass.rare.mat] = (drops[n.grass.rare.mat] ?? 0) + 1;
+  // Rock Candy (Pip's, from Granny's kitchen) gets an extra ore out of every rock.
+  // A flawless job, and Rock Candy on a rock, each add one more handful (a node on open ground's yield).
+  const handful = n.safe.yield;
+  const drops: Partial<Record<MatId, number>> = { [n.mat]: spot.yield + (flawless ? handful : 0) + (n.skill === 'mine' ? oreBoost(s) * handful : 0) };
+  if (rng() < spot.rare.chance) drops[spot.rare.mat] = (drops[spot.rare.mat] ?? 0) + spot.rare.n;
+  // Oaks and pines can drop a seed for Poppy's Garden, once it's hers.
+  if (n.seed && gardenOpen(s) && rng() < n.seed.chance) drops[n.seed.mat] = (drops[n.seed.mat] ?? 0) + 1;
   mergeDrops(s.mats, drops);
   s.nodes[nodeId] = now + spot.regrow * 1000;
-  const levels = gainSkillXp(s, n.skill, spot.xp);
-  return { drops, xp: spot.xp, levels };
+  const xp = Math.round(spot.xp * gatheringXpBoost(s));
+  const levels = gainSkillXp(s, n.skill, xp);
+  return { drops, xp, levels };
 }

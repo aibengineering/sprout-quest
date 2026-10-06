@@ -6,6 +6,7 @@ to match their collision boxes in world.ts.
 import math
 import random
 
+import buildings
 from lib import box, cone, crystal, cylinder, empty, lathe, profile, sphere, toon, torus
 
 TILE = 1.6
@@ -60,16 +61,106 @@ def pine_node():
     return root
 
 
-def stump(bark, heart):
+def stump(bark, heart, ring='#c8a070', sprout=('#4fae4f', '#62c060'), glow=0.0):
     root = empty('stump')
     cylinder((0, 0, 0.11), 0.2, 0.22, toon(bark), root, seg=16, r2=0.17)
-    cylinder((0, 0, 0.225), 0.165, 0.02, toon(heart), root, seg=16, line=0.012)
-    torus((0, 0, 0.237), 0.09, 0.012, toon('#c8a070'), root, seg=20, line=0)
+    cylinder((0, 0, 0.225), 0.165, 0.02, toon(heart, emit=glow), root, seg=16, line=0.012)
+    torus((0, 0, 0.237), 0.09, 0.012, toon(ring, emit=glow), root, seg=20, line=0)
     for a in (0.4, 2.3, 4.2):
         cylinder((math.cos(a) * 0.2, math.sin(a) * 0.2, 0.04), 0.05, 0.18, toon(bark), root, seg=8, rot=(math.pi / 2, 0, a + math.pi / 2), line=0.014)
     # A little sprout: it's growing back.
-    cylinder((0.06, -0.05, 0.3), 0.012, 0.12, toon('#4fae4f'), root, seg=6, line=0.008)
-    sphere((0.1, -0.05, 0.36), (0.06, 0.03, 0.035), toon('#62c060'), root, seg=10, rot=(0, -0.5, 0), line=0.01)
+    cylinder((0.06, -0.05, 0.3), 0.012, 0.12, toon(sprout[0]), root, seg=6, line=0.008)
+    sphere((0.1, -0.05, 0.36), (0.06, 0.03, 0.035), toon(sprout[1], emit=glow), root, seg=10, rot=(0, -0.5, 0), line=0.01)
+    return root
+
+
+# Palettes shared by the map sprites and the minigame close-ups (art/gather.py) for the tier 3 and 4 trees.
+GLIM = {'bark': '#e4e0f0', 'ridge': '#b4acd0', 'heart': '#f6f2ff', 'ring': '#c0b0f0',
+        'leaves': ('#9a82e8', '#b8a0ff', '#9ae6ff', '#d8c8ff')}
+EMBER = {'bark': '#3a3238', 'ridge': '#ff7a2a', 'heart': '#ffb45a', 'ring': '#e0602a',
+         'leaves': ('#8a2a26', '#c8402a', '#ff7a3a', '#ffb45a')}
+
+
+def _glow_line(root, pts, color, y, w=0.035, emit=0.9):
+    """A bright crack drawn along a polyline on the front face (ember grain, obsidian veins)."""
+    for a, b in zip(pts, pts[1:]):
+        profile([a, (a[0] + w, a[1]), (b[0] + w, b[1]), b], 0.03, toon(color, emit=emit), root, loc=(0, y, 0), bevel=0, line=0)
+
+
+def glimwood(seed=0):
+    """A Glimmerwood tree: a pale, silvery trunk that forks into two limbs, crowned with glowing lilac and cyan leaf
+    clusters and little crystal leaves poking out of them."""
+    root = empty('glimwood')
+    g = GLIM
+    cylinder((0, 0, 0.35), 0.13, 0.7, toon(g['bark'], rim=0.4), root, seg=12, r2=0.1)
+    for sx in (-1, 1):
+        cylinder((sx * 0.12, 0, 0.78), 0.06, 0.34, toon(g['bark'], rim=0.4), root, seg=8, r2=0.035, rot=(0, sx * 0.6, 0), line=0.016)
+    # Silver streaks up the bark.
+    for x in (-0.05, 0.05):
+        cylinder((x, -0.12, 0.36), 0.012, 0.5, toon(g['ridge']), root, seg=6, line=0)
+    dark, mid, cyan, pale = g['leaves']
+    # Leaf clusters back to front: deep lilac behind, lighter lilac, then small glowing cyan puffs in front.
+    for x, y, z, s, col in ((-0.36, 0.14, 1.04, 0.3, dark), (0.36, 0.14, 1.08, 0.3, dark), (0, 0.16, 1.42, 0.34, dark),
+                            (-0.22, -0.04, 1.26, 0.27, mid), (0.24, -0.04, 1.3, 0.26, mid), (0.02, -0.02, 1.02, 0.28, mid),
+                            (-0.3, -0.26, 1.02, 0.15, cyan), (0.28, -0.24, 1.14, 0.14, cyan), (0.0, -0.24, 1.46, 0.14, cyan)):
+        sphere((x, y, z), s, toon(col, rim=0.5, emit=0.22 if col != cyan else 0.4), root, seg=20)
+    # Little crystal leaves tucked into the clusters, leaning out toward you.
+    for x, z, tilt in ((-0.5, 1.2, -0.9), (0.5, 1.26, 0.9), (-0.16, 1.66, -0.5), (0.2, 1.68, 0.5)):
+        crystal((x, -0.1, z), 0.05, 0.18, toon(pale, rim=0.5, emit=0.35), root, rot=(-0.5, tilt, 0), sides=5, line=0.012)
+    for x, z in ((-0.12, 1.2), (0.14, 1.38), (-0.32, 1.3)):
+        sphere((x, -0.34, z), 0.035, toon('#ffffff', emit=0.6), root, line=0.008)
+    return root
+
+
+def emberwood(seed=0):
+    """An Emberwood tree: a gnarled, charcoal-black trunk split by glowing ember grain, bare twisting limbs and a few
+    smouldering red-orange tufts, flat-topped like it grew up in the heat."""
+    root = empty('emberwood')
+    e = EMBER
+    lathe([(0.0001, 0), (0.24, 0), (0.18, 0.1), (0.14, 0.4), (0.12, 0.72), (0.0001, 0.72)], toon(e['bark']), root, seg=14)
+    _glow_line(root, ((-0.06, 0.05), (-0.03, 0.22), (-0.07, 0.4), (-0.04, 0.6)), e['ridge'], -0.155)
+    _glow_line(root, ((0.05, 0.08), (0.03, 0.3), (0.06, 0.5)), e['ridge'], -0.15)
+    # Twisting bare limbs.
+    for x, z, tilt, l in ((-0.2, 0.86, -1.0, 0.46), (0.22, 0.9, 1.05, 0.5), (0.02, 0.98, 0.15, 0.4)):
+        cylinder((x, 0, z), 0.06, l, toon(e['bark']), root, seg=8, r2=0.03, rot=(0, tilt, 0), line=0.016)
+    dark, red, orange, hot = e['leaves']
+    # A smouldering tuft at the end of each limb: a dark red puff, a brighter one and a hot glowing heart.
+    for cx, cz, k in ((-0.42, 1.06, 1.0), (0.44, 1.12, 1.0), (0.04, 1.26, 1.15)):
+        for dx, dy, dz, s, col, glow in ((0, 0.06, 0.02, 0.2, dark, 0.2), (-0.1, -0.02, -0.02, 0.15, red, 0.35), (0.1, -0.02, 0.0, 0.14, red, 0.35),
+                                         (0, -0.1, 0.06, 0.13, orange, 0.6), (0.02, -0.18, 0.02, 0.07, hot, 0.8)):
+            sphere((cx + dx * k, dy * k, cz + dz * k), (s * k, s * k * 0.85, s * k * 0.8), toon(col, emit=glow), root, seg=16, line=0.016)
+    for x, z in ((-0.2, 1.42), (0.18, 1.5), (0.02, 1.62)):
+        sphere((x, -0.2, z), 0.04, toon('#ffd07a', emit=0.9), root, line=0.01)
+    return root
+
+
+def glimwood_node():
+    root = glimwood(0)
+    ribbon(root, 0.3, 0.12)
+    return root
+
+
+def emberwood_node():
+    root = emberwood(0)
+    ribbon(root, 0.3, 0.155)
+    return root
+
+
+def obsidian_node():
+    """An obsidian seam: a squat heap of glossy black glass shards, split by glowing ember veins."""
+    root = empty('obsidian')
+    glass, dark, vein = '#3a3248', '#241e2c', '#ff8a3a'
+    sphere((0, 0, 0.22), (0.5, 0.42, 0.28), toon(dark, rim=0.6), root, seg=12, rot=(0, 0, 0.4))
+    for x, y, h, tilt, r in ((-0.24, 0.04, 0.6, -0.45, 0.19), (0.1, 0.0, 0.74, 0.12, 0.21), (0.36, 0.06, 0.48, 0.6, 0.17)):
+        crystal((x, y, 0.16), r, h, toon(glass, rim=0.9), root, rot=(0, tilt, 0), sides=5)
+    # Glassy glints on the shards' faces.
+    for pts in (((-0.3, 0.42), (-0.24, 0.44), (-0.33, 0.62)), ((0.06, 0.5), (0.12, 0.52), (0.08, 0.74)), ((0.38, 0.36), (0.43, 0.38), (0.44, 0.5))):
+        profile(list(pts), 0.01, toon('#b8b0d8', emit=0.3), root, loc=(0, -0.24, 0), bevel=0, line=0)
+    # Glowing veins across the front of the heap, and a couple of hot nuggets.
+    for pts in (((-0.32, 0.12), (-0.2, 0.24), (-0.24, 0.36)), ((0.0, 0.1), (0.1, 0.26), (0.06, 0.4)), ((0.3, 0.1), (0.38, 0.26))):
+        _glow_line(root, pts, vein, -0.38)
+    for x, z, s in ((-0.1, 0.3, 0.05), (0.22, 0.34, 0.055)):
+        crystal((x, -0.4, z), s, s * 1.8, toon('#ffb45a', emit=0.6, rim=0.5), root, rot=(0.9, 0.2 * x, 0), sides=5, line=0.012)
     return root
 
 
@@ -165,62 +256,6 @@ def forge_ruins():
     box((0, 0, 0.12), (0.6, 0.28, 0.16), toon('#5a5a6a'), an, bevel=0.05, rot=(0.3, 0.2, 0.4))
     for x in (-2.3, 2.6):
         sphere((x, -d / 2 - 0.2, 0.2), (0.35, 0.25, 0.25), toon('#6ab85a'), root)
-    return root
-
-
-def forge(level=1):
-    root = empty('forge')
-    w = 4 * TILE * 0.9
-    d = 3 * TILE * 0.55
-    box((0, 0, 0.95), (w, d, 1.9), toon('#b8aca8'), root, bevel=0.1)
-    for i in range(6):
-        for j in range(3):
-            box((-w / 2 + 0.45 + i * (w - 0.9) / 5 + (j % 2) * 0.2, -d / 2 - 0.01, 0.35 + j * 0.55), (0.5, 0.04, 0.22), toon('#a89c98'), root, bevel=0.04, line=0.008)
-    profile([(-w / 2 - 0.35, 1.8), (0, 3.3), (w / 2 + 0.35, 1.8)], d + 0.5, toon('#d0583a'), root, bevel=0.1)
-    box((-0.6, -d / 2 - 0.02, 0.65), (0.8, 0.1, 1.15), toon('#6a4a3a'), root, bevel=0.3)
-    box((1.2, -d / 2 - 0.02, 1.05), (0.9, 0.1, 0.7), toon('#ffb03a', emit=0.8), root, bevel=0.15)
-    box((1.2, -d / 2 - 0.05, 1.05), (1.05, 0.06, 0.08), toon('#6a4a3a'), root, bevel=0.02, line=0.01)
-    box((1.8, 0.2, 3.0), (0.5, 0.5, 1.4), toon('#8a8090'), root, bevel=0.08)
-    # Anvil out front
-    an = empty('anvil', root, (1.9, -d / 2 - 0.55, 0))
-    box((0, 0, 0.18), (0.25, 0.25, 0.36), toon('#6a5a4a'), an, bevel=0.04)
-    box((0, 0, 0.42), (0.6, 0.28, 0.16), toon('#5a5a6a'), an, bevel=0.05)
-    cone((0.38, 0, 0.44), 0.08, 0.2, toon('#5a5a6a'), an, rot=(0, math.pi / 2, 0), seg=8)
-    # Sign with hammer
-    box((-1.9, -d / 2 - 0.1, 1.75), (0.7, 0.08, 0.45), toon('#c89a6a'), root, bevel=0.05)
-    cylinder((-1.9, -d / 2 - 0.16, 1.75), 0.03, 0.4, toon('#6a4a3a'), root, rot=(0, 0.8, 0), seg=8, line=0.01)
-    box((-1.78, -d / 2 - 0.16, 1.87), (0.16, 0.08, 0.1), toon('#9aa0b0'), root, bevel=0.02, line=0.01, rot=(0, 0.8, 0))
-    if level >= 2:
-        # Upgraded: a second chimney, bellows and a banner.
-        box((-1.2, 0.3, 3.0), (0.45, 0.45, 1.2), toon('#8a8090'), root, bevel=0.08)
-        profile([(0, 0), (0.55, 0), (0.55, -0.9), (0.27, -0.7), (0, -0.9)], 0.04, toon('#6a9ae0'), root, loc=(-2.6, -d / 2 - 0.1, 1.9), bevel=0.01)
-        sphere((-2.35, -d / 2 - 0.9, 0.35), (0.3, 0.22, 0.2), toon('#8a5a3a'), root)
-    if level >= 3:
-        # Iron Smithy: iron bands across the walls, an iron ridge on the roof and a quench barrel by the door.
-        for z in (0.5, 1.45):
-            box((0, -d / 2 - 0.03, z), (w + 0.04, 0.05, 0.1), toon('#5e6272'), root, bevel=0.02, line=0.01)
-        box((0, 0, 3.32), (0.34, d + 0.62, 0.16), toon('#5e6272'), root, bevel=0.04, line=0.012)
-        for x in (-w / 2 - 0.2, w / 2 + 0.2):
-            box((x, -d / 2 - 0.28, 1.83), (0.22, 0.12, 0.14), toon('#5e6272'), root, bevel=0.03, line=0.01)
-        barrel = empty('barrel', root, (-2.3, -d / 2 - 0.5, 0))
-        cylinder((0, 0, 0.3), 0.3, 0.6, toon('#7a5238'), barrel, seg=16)
-        for z in (0.12, 0.48):
-            torus((0, 0, z), 0.31, 0.025, toon('#4a4d5c'), barrel, seg=20, line=0)
-        cylinder((0, 0, 0.6), 0.26, 0.02, toon('#6ac8f0', rim=0.5), barrel, seg=16, line=0)
-    if level >= 4:
-        # Crystal Kiln: a domed kiln on the right, crystals growing from it and its mouth glowing blue.
-        kiln = empty('kiln', root, (w / 2 + 0.75, -0.3, 0))
-        kiln.scale = (1.35, 1.35, 1.35)
-        lathe([(0.0001, 0.0), (0.75, 0.0), (0.72, 0.6), (0.45, 1.15), (0.2, 1.3), (0.0001, 1.32)], toon('#8a8090'), kiln, seg=20)
-        box((0, -0.68, 0.4), (0.45, 0.1, 0.45), toon('#9ae6ff', emit=0.9), kiln, bevel=0.15, line=0.01)
-        for x, y, h, tilt, col in ((-0.2, 0, 0.55, -0.4, '#9ae6ff'), (0.1, 0.1, 0.7, 0.2, '#c8b0ff'), (0.3, -0.1, 0.45, 0.5, '#9ae6ff')):
-            crystal((x, y, 1.05), 0.09, h, toon(col, rim=0.5, emit=0.2), kiln, rot=(0, tilt, 0), sides=6)
-    if level >= 5:
-        # Master forge: golden anvil, glowing crucible and a crown banner.
-        box((1.9, -d / 2 - 0.55, 0.5), (0.62, 0.3, 0.18), toon('#ffd35a', rim=0.4), root, bevel=0.05)
-        lathe([(0.0001, 0.0), (0.35, 0.0), (0.4, 0.45), (0.3, 0.45), (0.0001, 0.3)], toon('#5a5a6a'), root, loc=(0.4, -d / 2 - 0.6, 0), seg=16)
-        cylinder((0.4, -d / 2 - 0.6, 0.42), 0.28, 0.04, toon('#ffb03a', emit=0.9), root, seg=16, line=0)
-        profile([(0, 0), (0.55, 0), (0.55, -0.9), (0.27, -0.7), (0, -0.9)], 0.04, toon('#ffd35a'), root, loc=(2.3, -d / 2 - 0.1, 1.9), bevel=0.01)
     return root
 
 
@@ -403,27 +438,6 @@ def tent():
     return root
 
 
-def manor():
-    root = empty('manor')
-    w, d = 3 * TILE * 0.95, 3 * TILE * 0.55
-    box((0, 0, 1.4), (w, d, 2.8), toon('#fff4e8'), root, bevel=0.12)
-    box((0, -d / 2 - 0.02, 1.45), (w + 0.1, 0.1, 0.14), toon('#c8b0a0'), root, bevel=0.03)
-    profile([(-w / 2 - 0.3, 2.7), (0, 4.0), (w / 2 + 0.3, 2.7)], d + 0.5, toon('#7a6ae0'), root, bevel=0.1)
-    box((0, -d / 2 - 0.02, 0.62), (0.7, 0.1, 1.1), toon('#8a5a3a'), root, bevel=0.25)
-    for s in (-1, 1):
-        for z in (0.95, 2.1):
-            box((1.3 * s, -d / 2 - 0.02, z), (0.5, 0.08, 0.5), toon('#bfe8ff', rim=0.4), root, bevel=0.06)
-    # Tower
-    cylinder((w / 2 - 0.2, -0.3, 2.0), 0.6, 4.0, toon('#fff4e8'), root, seg=20)
-    cone((w / 2 - 0.2, -0.3, 4.5), 0.78, 1.2, toon('#7a6ae0'), root, seg=20)
-    cylinder((w / 2 - 0.2, -0.3, 5.3), 0.03, 0.5, toon('#8a5a3a'), root, seg=6)
-    profile([(0, 0), (0.45, -0.12), (0, -0.25)], 0.03, toon('#7ad85a'), root, loc=(w / 2 - 0.17, -0.3, 5.5), bevel=0)
-    box((w / 2 - 0.2, -0.92, 2.9), (0.3, 0.08, 0.45), toon('#bfe8ff', rim=0.4), root, bevel=0.05)
-    for x in (-1.6, -0.9, 0.9):
-        sphere((x, -d / 2 - 0.3, 0.2), (0.25, 0.2, 0.2), toon('#5ab85a'), root)
-    return root
-
-
 def plot():
     """An empty building site: a fenced patch of dirt and a little sign."""
     root = empty('plot')
@@ -438,60 +452,144 @@ def plot():
     return root
 
 
-def garden(level):
-    root = empty('garden')
-    box((0, 0, 0.05), (3.4, 1.9, 0.1), toon('#8a6a4a'), root, bevel=0.04, line=0.012)
-    for x in (-1.7, -0.85, 0, 0.85, 1.7):
-        box((x, -1.0, 0.18), (0.08, 0.08, 0.36), toon('#fff0dc'), root, bevel=0.02, line=0.01)
-    box((0, -1.0, 0.28), (3.5, 0.06, 0.06), toon('#fff0dc'), root, bevel=0.01, line=0.01)
-    fruit = ['#7ad85a', '#ff6a8a', '#ffd35a'][level - 1]
-    for row in range(2):
-        for i in range(5):
-            x, y = -1.3 + i * 0.65, -0.35 + row * 0.7
-            h = 0.25 + level * 0.12
-            cylinder((x, y, 0.1 + h / 2), 0.03, h, toon('#4a9a3a'), root, seg=6, line=0.01)
-            for s in (-1, 1):
-                sphere((x + 0.1 * s, y, 0.1 + h * 0.6), (0.12, 0.05, 0.06), toon('#6ac85a'), root, rot=(0, -0.4 * s, 0), line=0.01)
-            if level >= 2:
-                sphere((x, y - 0.03, 0.12 + h), 0.09 + level * 0.02, toon(fruit), root, line=0.012)
-    if level >= 3:
-        cylinder((1.9, 0.6, 0.35), 0.25, 0.5, toon('#9aa0b0'), root, seg=12)
-        cylinder((1.9, 0.6, 0.6), 0.2, 0.03, toon('#6ac8f0'), root, seg=12, line=0)
+# Poppy's field: its soil colours (damp, and pale when thirsty).
+SOIL, SOIL_DRY = '#6a4630', '#c8a476'
+
+
+# Poppy's field on the map: a tile of tilled soil per plot, a picket fence round it and a sign at its gate. The map
+# shows depth at half scale, so a square tile on screen is twice as deep as it is wide on the ground: the soil patch is
+# laid out that way, from its front edge (the origin) back.
+def till(dry=False):
+    """One plot of the field: a tile of tilled earth in ridged rows, dark and damp, or pale and cracked when thirsty."""
+    root = empty('till')
+    w, d = TILE * 0.9, TILE * 2 * 0.9
+    earth, ridge = (SOIL_DRY, '#d8b888') if dry else (SOIL, '#7a5236')
+    box((0, d / 2 + 0.08, 0.04), (w, d, 0.08), toon(earth), root, bevel=0.12, line=0.012)
+    for k in range(4):
+        y = 0.08 + d * (k + 0.5) / 4
+        box((0, y, 0.1), (w * 0.86, 0.26, 0.07), toon(ridge), root, bevel=0.035, line=0)
+        box((0, y - 0.19, 0.085), (w * 0.84, 0.05, 0.02), toon('#b89060' if dry else '#4a2e1c'), root, bevel=0.01, line=0)
+    if dry:
+        for x, y, a in ((-0.38, 0.6, 0.6), (0.3, 1.3, -0.5), (0.05, 2.1, 1.3), (-0.2, 2.6, -1.1)):
+            box((x, y, 0.14), (0.3, 0.025, 0.02), toon('#8a6440'), root, rot=(0, 0, a), bevel=0, line=0)
     return root
 
 
-def training(level):
-    root = empty('training')
-    box((0, 0, 0.04), (3.4, 1.9, 0.08), toon('#d8b888'), root, bevel=0.04, line=0.012)
-    for k, x in enumerate([0, -1.1, 1.1][:level]):
-        d = empty('dummy', root, (x, 0, 0))
-        cylinder((0, 0, 0.5), 0.06, 1.0, toon('#8a5a3a'), d, seg=8)
-        sphere((0, 0, 0.9), (0.28, 0.24, 0.34), toon('#e8c890'), d)
-        sphere((0, 0, 1.38), 0.2, toon('#e8c890'), d)
-        cylinder((0, 0, 0.95), 0.05, 0.9, toon('#8a5a3a'), d, rot=(0, math.pi / 2, 0), seg=8)
-        sphere((0, -0.22, 0.92), 0.08, toon('#e8505a'), d, line=0.01)
-    if level >= 2:
-        box((-1.4, 0.55, 0.5), (0.9, 0.2, 1.0), toon('#9a6a44'), root, bevel=0.04)
-        for i in range(3):
-            cylinder((-1.7 + i * 0.3, 0.42, 0.75), 0.03, 0.9, toon('#dfe6f0'), root, seg=6, line=0.01)
-    if level >= 3:
-        cylinder((1.5, 0.6, 1.0), 0.05, 2.0, toon('#8a5a3a'), root, seg=8)
-        profile([(0, 0), (0.7, 0), (0.7, -1.0), (0.35, -0.8), (0, -1.0)], 0.04, toon('#e8505a'), root, loc=(1.53, 0.6, 1.95), bevel=0.01)
+PICKET = '#fff4e2'
+
+
+def _picket(root, x, y, h=0.5):
+    box((x, y, h / 2), (0.1, 0.07, h), toon(PICKET), root, bevel=0.02, line=0.01)
+    cone((x, y, h + 0.04), 0.07, 0.08, toon(PICKET), root, seg=4, line=0.008, rot=(0, 0, math.pi / 4))
+
+
+def fence():
+    """A tile's run of the field's white picket fence, seen from the front: pickets on two rails."""
+    root = empty('fence')
+    for i in range(4):
+        _picket(root, -0.6 + i * 0.4, 0)
+    for z in (0.16, 0.36):
+        box((0, 0, z), (TILE + 0.04, 0.05, 0.06), toon(PICKET), root, bevel=0.01, line=0.01)
     return root
 
 
-def warpstone(level):
+def fence_post():
+    """A post of the field's fence down its side, with its rails running back to the post behind (a tile up the map)."""
+    root = empty('fence_post')
+    box((0, 0, 0.3), (0.16, 0.12, 0.6), toon(PICKET), root, bevel=0.03, line=0.012)
+    cone((0, 0, 0.65), 0.11, 0.1, toon(PICKET), root, seg=4, line=0.01, rot=(0, 0, math.pi / 4))
+    for z in (0.18, 0.4):
+        box((0, TILE, z), (0.09, TILE * 2, 0.08), toon(PICKET), root, bevel=0.015, line=0.012)
+    return root
+
+
+def field_sign():
+    """The sign at the field's gate: a board with a sprout painted on it, and a little watering can hung on the post."""
+    root = sign()
+    stem = toon('#4a9a3a')
+    cylinder((0.22, -0.07, 0.75), 0.02, 0.2, stem, root, seg=6, line=0.006)
+    for sx in (-1, 1):
+        sphere((0.22 + 0.07 * sx, -0.07, 0.86), (0.08, 0.025, 0.045), toon('#6ac85a'), root, rot=(0, -0.4 * sx, 0), seg=10, line=0.006)
+    for x, col in ((-0.38, '#ff8ab0'), (0.4, '#ffd35a')):
+        for p in range(5):
+            a = p / 5 * math.tau
+            sphere((x + math.cos(a) * 0.05, -0.04, 0.04 + math.sin(a) * 0.05 + 0.08), 0.04, toon(col), root, seg=8, line=0.006)
+    return root
+
+
+def _leaf(parent, loc, size, col, yaw=0.0, tilt=0.5):
+    sphere(loc, (size, size * 0.35, size * 0.55), toon(col), parent, rot=(0, -tilt, yaw), seg=12, line=0.01)
+
+
+def crop(kind, stage):
+    """A plot's crop at a stage: 1 a sprout, 2 growing, 3 ready to pick. Chunky, so it reads at phone size."""
+    root = empty('crop')
+    if stage == 1:
+        col = {'berry': '#6ac85a', 'herb': '#8ad86a', 'flower': '#5ab85a'}[kind]
+        cylinder((0, 0, 0.2), 0.035, 0.32, toon('#4a9a3a'), root, seg=6, line=0.012)
+        for s in (-1, 1):
+            sphere((0.14 * s, 0, 0.37), (0.16, 0.07, 0.09), toon(col), root, rot=(0, -0.35 * s, 0), seg=12, line=0.014)
+        return root
+    if kind == 'berry':
+        big = stage == 3
+        leaf = toon('#4aa84a')
+        for x, y, z, r in ((-0.2, 0.05, 0.22, 0.2), (0.2, 0.05, 0.22, 0.2), (0, 0.12, 0.34, 0.22), (0, -0.08, 0.2, 0.2)):
+            k = 1.2 if big else 0.9
+            sphere((x * k, y, z * k), r * k, leaf, root, seg=16, line=0.014)
+        if big:
+            for x, z in ((-0.27, 0.27), (-0.1, 0.44), (0.13, 0.36), (0.29, 0.24), (-0.02, 0.22), (0.2, 0.5), (-0.22, 0.47)):
+                sphere((x, -0.3, z), 0.075, toon('#e8405a', rim=0.4), root, seg=12, line=0.01)
+                sphere((x - 0.02, -0.36, z + 0.03), 0.02, toon('#ffffff', rim=0), root, seg=6, line=0)
+        else:
+            for x, z in ((-0.15, 0.32), (0.12, 0.4), (0.18, 0.2)):
+                sphere((x, -0.2, z), 0.04, toon('#ffffff'), root, seg=8, line=0.006)
+    elif kind == 'herb':
+        h = 0.62 if stage == 3 else 0.36
+        n = 9 if stage == 3 else 5
+        for i in range(n):
+            a = (i / n) * math.tau
+            x, y = math.cos(a) * 0.14, math.sin(a) * 0.08
+            cylinder((x, y, h / 2), 0.02, h, toon('#3a8a3a'), root, seg=6, line=0.008, rot=(math.sin(a) * 0.3, -math.cos(a) * 0.3, 0))
+            _leaf(root, (x * 2.1, y * 2.1 - 0.02, h * 0.55), 0.18 if stage == 3 else 0.14, '#5ac86a', yaw=a, tilt=0.2)
+            _leaf(root, (x * 1.5, y * 1.5 - 0.02, h * 0.95), 0.16 if stage == 3 else 0.12, '#9ae88a' if stage == 3 else '#6ad87a', yaw=a + 0.5, tilt=-0.3)
+        if stage == 3:
+            sphere((0, 0, h + 0.05), (0.12, 0.08, 0.1), toon('#9ae88a'), root, seg=12, line=0.01)
+    else:
+        spots = ((-0.22, 0.02, '#ff8ab0'), (0.04, 0.1, '#ffd35a'), (0.26, -0.04, '#b08aff'))
+        for i, (x, y, col) in enumerate(spots):
+            h = (0.5 + (i == 1) * 0.12) if stage == 3 else 0.32 + (i == 1) * 0.06
+            cylinder((x, y, h / 2), 0.022, h, toon('#4a9a3a'), root, seg=6, line=0.008)
+            _leaf(root, (x + 0.08, y, h * 0.4), 0.1, '#6ac85a', tilt=0.6)
+            if stage == 3:
+                for p in range(5):
+                    a = p / 5 * math.tau
+                    sphere((x + math.cos(a) * 0.1, y - 0.06, h + math.sin(a) * 0.1), (0.085, 0.04, 0.085), toon(col), root, seg=12, line=0.01)
+                sphere((x, y - 0.1, h), 0.055, toon('#ffb03a'), root, seg=10, line=0.008)
+            else:
+                sphere((x, y, h + 0.04), (0.06, 0.06, 0.09), toon(col), root, seg=12, line=0.01)
+                for s in (-1, 1):
+                    sphere((x + 0.03 * s, y - 0.02, h + 0.0), (0.035, 0.03, 0.07), toon('#5ab85a'), root, rot=(0, 0.4 * s, 0), seg=8, line=0.006)
+    return root
+
+
+def weeds():
+    """Weeds crowding a plot's corners: spiky dark tufts and a dandelion, over whatever's growing."""
+    root = empty('weeds')
+    for cx, cy in ((-0.42, -0.12), (0.4, 0.14), (0.1, -0.3)):
+        for i in range(7):
+            a = (i - 3) * 0.3
+            cone((cx + (i - 3) * 0.04, cy, 0.17), 0.06, 0.38, toon('#2e6e34' if i % 2 else '#3e8a3a'), root, rot=(0, a, 0), seg=4, line=0.01)
+    cylinder((0.42, 0.12, 0.2), 0.012, 0.3, toon('#3e8a3a'), root, seg=6, line=0.006)
+    sphere((0.42, 0.1, 0.36), 0.07, toon('#ffd83a'), root, seg=12, line=0.01)
+    return root
+
+
+def warpstone():
+    """The Waystone's ruins: its broken stones on the old plinth (rebuilt, it's art/buildings/warp1.py)."""
     root = empty('warp')
     lathe([(0.0001, 0), (0.9, 0), (0.95, 0.15), (0.7, 0.25), (0.0001, 0.25)], toon('#9aa0b0'), root, seg=8)
-    if level == 0:
-        for x, y, h, r in ((-0.3, 0.1, 0.5, 0.3), (0.35, -0.1, 0.3, 0.4), (0.1, 0.35, 0.4, -0.2)):
-            box((x, y, 0.25 + h / 2), (0.3, 0.3, h), toon('#8a8098'), root, bevel=0.05, rot=(0, r, 0.4))
-        return root
-    crystal((0, 0, 0.2), 0.32, 2.4, toon('#9ae6ff', rim=0.5, emit=0.2), root)
-    for a in range(4):
-        ang = a / 4 * math.tau + 0.4
-        crystal((math.cos(ang) * 0.55, math.sin(ang) * 0.5, 0.15), 0.12, 0.7, toon('#c8b0ff', rim=0.5), root, rot=(math.sin(ang) * 0.4, -math.cos(ang) * 0.4, 0))
-    torus((0, 0, 1.3), 0.55, 0.04, toon('#ffd35a'), root, rot=(0.3, 0, 0))
+    for x, y, h, r in ((-0.3, 0.1, 0.5, 0.3), (0.35, -0.1, 0.3, 0.4), (0.1, 0.35, 0.4, -0.2)):
+        box((x, y, 0.25 + h / 2), (0.3, 0.3, h), toon('#8a8098'), root, bevel=0.05, rot=(0, r, 0.4))
     return root
 
 
@@ -620,50 +718,19 @@ def log_pile(root=None, n=3, bark='#8a5a3a', end='#e8c890'):
     return root
 
 
-def sawmill(level):
-    """Bram's Sawmill in Sowerby: at 0 a staked-out site with a pile of pine; built, an open timber shed with a big round
-    saw over its bench, a log ramp, and planks stacked beside it."""
+def sawmill():
+    """Where Bram's Sawmill will stand: a staked-out site with a pile of logs and some planks (built, it's
+    art/buildings/sawmill<level>.py)."""
     root = empty('sawmill')
     w, d = 3.4 * TILE * 0.92, 2.4 * TILE * 0.8
-    wood, dark, plank = toon('#b98a5a'), toon('#8a5a3a'), toon('#e8c890')
-    if level == 0:
-        box((0, 0, 0.03), (w, d, 0.06), toon('#c8a070'), root, bevel=0.03, line=0.012)
-        for x in (-w / 2, w / 2):
-            for y in (-d / 2, d / 2):
-                cylinder((x, y, 0.3), 0.06, 0.6, dark, root, seg=6)
-        log_pile(empty('pile', root, (-0.9, 0.2, 0)), 3)
-        for i in range(3):
-            box((1.1, -0.2 + i * 0.05, 0.06 + i * 0.09), (1.5, 0.35, 0.08), plank, root, bevel=0.02, rot=(0, 0, 0.1 * i))
-        return root
-    box((0, 0, 0.1), (w, d, 0.2), toon('#a88a6a'), root, bevel=0.04)
-    # A lean-to over the back half, open at the front so you can see the saw at work.
-    for x in (-w / 2 + 0.2, w / 2 - 0.2):
-        box((x, d / 2 - 0.2, 1.5), (0.22, 0.22, 3.0), dark, root, bevel=0.03)
-        box((x, -0.1, 1.2), (0.22, 0.22, 2.4), dark, root, bevel=0.03)
-    box((0, d / 2 - 0.1, 1.2), (w - 0.3, 0.12, 2.1), wood, root, bevel=0.03)  # back wall
-    roof = empty('roof', root, (0, d / 4, 2.75))
-    roof.rotation_euler = (0.4, 0, 0)
-    box((0, 0, 0), (w + 0.4, d * 0.7, 0.12), toon('#8aa06a'), roof, bevel=0.04)
-    for i in range(7):
-        box((-w / 2 + (i + 0.5) * (w + 0.4) / 7 - 0.2, 0, 0.07), (0.05, d * 0.7, 0.04), toon('#6a8a5a'), roof, bevel=0.01, line=0)
-    # The saw bench, a log on it, and the big blade standing up through it.
-    box((0.2, -0.35, 0.75), (2.6, 0.9, 0.12), wood, root, bevel=0.03)
-    for x in (-0.9, 1.3):
-        box((x, -0.35, 0.4), (0.15, 0.7, 0.7), dark, root, bevel=0.02)
-    cylinder((-0.3, -0.35, 1.02), 0.24, 1.6, toon('#8a5a3a'), root, seg=12, rot=(0, math.pi / 2, 0))
-    cylinder((-1.1, -0.35, 1.02), 0.21, 0.02, plank, root, seg=12, rot=(0, math.pi / 2, 0), line=0.01)
-    # The blade is what you paid for: copper at first, iron once upgraded (with iron bands on the posts).
-    _saw_blade(root, (0.95, -0.35, 1.25), 0.75, rot=(math.pi / 2, 0, 0), metal='#e8904a' if level == 1 else '#c8d4e8')
-    if level >= 2:
-        for x in (-w / 2 + 0.2, w / 2 - 0.2):
-            for z in (0.5, 1.6):
-                box((x, -0.1, z), (0.28, 0.28, 0.08), toon('#8a92a8'), root, bevel=0.01, line=0.008)
-        # Pine waiting its turn, beside the oak.
-        log_pile(empty('pines', root, (w / 2 + 0.7, 0.9, 0)), 2, '#7a5238', '#f0dca0')
-    # Planks stacked by the front corner, and logs waiting at the side.
-    for i in range(4):
-        box((w / 2 - 0.4, -d / 2 + 0.1, 0.26 + i * 0.1), (0.5, 1.2, 0.08), plank, root, bevel=0.02, rot=(0, 0, 0.05 * (i % 2)))
-    log_pile(empty('pile', root, (-w / 2 - 0.3, 0.1, 0)), 3)
+    dark, plank = toon('#8a5a3a'), toon('#e8c890')
+    box((0, 0, 0.03), (w, d, 0.06), toon('#c8a070'), root, bevel=0.03, line=0.012)
+    for x in (-w / 2, w / 2):
+        for y in (-d / 2, d / 2):
+            cylinder((x, y, 0.3), 0.06, 0.6, dark, root, seg=6)
+    log_pile(empty('pile', root, (-0.9, 0.2, 0)), 3)
+    for i in range(3):
+        box((1.1, -0.2 + i * 0.05, 0.06 + i * 0.09), (1.5, 0.35, 0.08), plank, root, bevel=0.02, rot=(0, 0, 0.1 * i))
     return root
 
 
@@ -723,6 +790,140 @@ def camp_mill():
     return root
 
 
+def _cairn(root, r=0.36, n=6, color='#8a8e9e'):
+    """A ring of rounded stones round a foot, with a little moss."""
+    for i in range(n):
+        a = i / n * math.tau + 0.3
+        sphere((math.cos(a) * r, math.sin(a) * r * 0.8, 0.07), (0.13, 0.11, 0.09), toon(color), root, seg=10, line=0.014)
+    sphere((-r * 0.7, -r * 0.5, 0.13), (0.1, 0.08, 0.03), toon('#7ab86a'), root, line=0.008)
+
+
+def _hand_drum(root, loc, r, h, wood='#c8704a', skin='#f8ead0'):
+    """A small drum hung on a totem, its skin facing out, laced round the side."""
+    d = empty('drum', root, loc)
+    # Its axis points at you, the skin on the near end.
+    d.rotation_euler = (math.pi / 2, 0, 0)
+    cylinder((0, 0, 0), r, h, toon(wood), d, seg=18, line=0.014)
+    cylinder((0, 0, h / 2 + 0.008), r * 0.96, 0.02, toon(skin), d, seg=18, line=0.01)
+    torus((0, 0, h / 2), r * 1.02, 0.018, toon('#6a3a2a'), d, seg=20, line=0)
+    torus((0, 0, -h / 2), r * 1.02, 0.018, toon('#6a3a2a'), d, seg=20, line=0)
+    for i in range(6):
+        a = i / 6 * math.tau
+        cylinder((math.cos(a) * r * 1.03, math.sin(a) * r * 1.03, 0), 0.012, h * 0.95, toon('#f0e0b8'), d, seg=4, line=0,
+                 rot=(0.4 * math.sin(a), -0.4 * math.cos(a), 0))
+    return d
+
+
+def _closed_eyes(root, loc, w=0.09, color='#4a3a4a'):
+    """Two little carved arcs: eyes shut, peaceful."""
+    for s in (-1, 1):
+        box((loc[0] + w * s, loc[1], loc[2]), (0.08, 0.02, 0.022), toon(color), root, rot=(0, 0.25 * s, 0), bevel=0.008, line=0)
+
+
+def flower_at(root, loc, color):
+    f = empty('flower', root, loc)
+    for i in range(5):
+        a = i / 5 * math.tau
+        sphere((math.cos(a) * 0.05, math.sin(a) * 0.05, 0.03), (0.045, 0.045, 0.015), toon(color), f, line=0.006)
+    sphere((0, 0, 0.04), 0.025, toon('#ffd35a'), f, line=0)
+    return f
+
+
+def totem(variant=0, fresh=False):
+    """A Pebblor bone totem in their chamber: a pole of carved bone on a stone foot, a small drum hung on it, a round
+    stone face with its eyes shut on top, moss, and little offerings at its foot. `fresh`: the new one, pale and clean,
+    with a garland of flowers instead of moss."""
+    root = empty('totem')
+    bone, ring = ('#f6f0e2', '#d8ccb0') if fresh else ('#e8dcc2', '#bfae8a')
+    stone = '#9ea2b2' if fresh else '#8a8e9e'
+    _cairn(root, color=stone)
+    cylinder((0, 0, 0.2), 0.22, 0.4, toon(stone), root, seg=14, r2=0.19)
+    # The pole: carved bone segments with rings between, tapering up.
+    z = 0.4
+    for h, r in ((0.42, 0.15), (0.36, 0.135), (0.3, 0.12)):
+        cylinder((0, 0, z + h / 2), r, h, toon(bone), root, seg=14, r2=r * 0.9)
+        torus((0, 0, z + h), r * 0.96, 0.03, toon(ring), root, seg=20, line=0.01)
+        z += h
+    # Its face: a round stone, eyes shut.
+    sphere((0, 0, z + 0.2), (0.24, 0.21, 0.22), toon(stone), root, seg=20)
+    _closed_eyes(root, (0, -0.2, z + 0.2))
+    if variant == 1:
+        # Two little bone horns, like a Pebblor's crystals, and two drums.
+        for s in (-1, 1):
+            cone((0.14 * s, 0, z + 0.38), 0.05, 0.22, toon(bone), root, rot=(0, 0.45 * s, 0), seg=10, line=0.012)
+        _hand_drum(root, (0.15, -0.2, 0.68), 0.15, 0.14)
+        _hand_drum(root, (-0.13, -0.19, 0.98), 0.12, 0.12)
+    else:
+        crystal((0.08, 0.02, z + 0.33), 0.05, 0.2, toon('#8ae8ff', rim=0.4, emit=0.2), root, rot=(0, 0.3, 0))
+        _hand_drum(root, (0, -0.22, 0.82), 0.18, 0.16)
+    if fresh:
+        # A garland of flowers round its neck, a little stack of pebbles and a flower at its foot.
+        for i in range(10):
+            a = i / 10 * math.tau
+            col = ('#ff9ac0', '#ffffff', '#ffd35a')[i % 3]
+            sphere((math.cos(a) * 0.19, math.sin(a) * 0.17, z - 0.05 - 0.04 * math.sin(a)), 0.05, toon(col), root, seg=10, line=0.008)
+        for zz, r in ((0.05, 0.07), (0.15, 0.055), (0.23, 0.04)):
+            sphere((0.36, -0.28, zz), (r, r * 0.9, r * 0.7), toon('#b0b4c4'), root, seg=10, line=0.01)
+        flower_at(root, (-0.3, -0.34, 0.02), '#ff9ac0')
+    else:
+        sphere((0.12, -0.08, 0.42), (0.13, 0.1, 0.04), toon('#7ab86a'), root, line=0.01)
+        sphere((-0.1, 0.06, 1.05), (0.1, 0.09, 0.03), toon('#6aa85a'), root, line=0.008)
+        # An offering: a small glowing pebble, like a Pebblor's eye.
+        sphere((0.3, -0.3, 0.06), (0.07, 0.06, 0.05), toon('#bfeeff', emit=0.5), root, seg=12, line=0.01)
+    return root
+
+
+def stone_figure():
+    """The one who didn't come back: a little Pebblor of plain stone, sitting still with its head bowed and its eyes
+    shut, no glow in them, moss on its shoulder and a white flower in its lap."""
+    root = empty('figure')
+    stone, dark = toon('#a8acba'), toon('#8a8e9e')
+    for s in (-1, 1):
+        box((0.14 * s, -0.12, 0.09), (0.17, 0.26, 0.16), dark, root, bevel=0.05)
+    box((0, 0, 0.36), (0.5, 0.38, 0.4), stone, root, bevel=0.1)
+    head = empty('head', root, (0, -0.03, 0.66))
+    head.rotation_euler = (0.32, 0, 0)
+    box((0, 0, 0), (0.34, 0.29, 0.25), stone, head, bevel=0.07)
+    _closed_eyes(head, (0, -0.15, -0.01), w=0.07)
+    for s in (-1, 1):
+        box((0.3 * s, -0.04, 0.3), (0.15, 0.17, 0.26), dark, root, bevel=0.05, rot=(0.25, 0, 0))
+    sphere((0.14, 0.04, 0.57), (0.13, 0.11, 0.035), toon('#7ab86a'), root, line=0.008)
+    crystal((-0.1, 0.06, 0.1), 0.04, 0.15, toon('#c8ccd8', rim=0.3), head, rot=(0, -0.3, 0))
+    flower_at(root, (0, -0.22, 0.2), '#ffffff')
+    return root
+
+
+def petals():
+    """A few petals dropped on the ground: Poppy's trail home."""
+    root = empty('petals')
+    r = random.Random(4)
+    for i in range(6):
+        a = r.uniform(0, math.tau)
+        col = ('#ff9ac0', '#ffc8dc', '#ffffff')[i % 3]
+        sphere((math.cos(a) * r.uniform(0.05, 0.28), math.sin(a) * r.uniform(0.05, 0.2), 0.015), (0.07, 0.04, 0.012), toon(col), root,
+               rot=(0, 0, r.uniform(0, math.pi)), seg=10, line=0.006)
+    return root
+
+
+def climb_slope():
+    """The way back up out of the tunnel below: a slope of rubble up to a crack of light, and an old root to hold."""
+    root = empty('climb')
+    r = random.Random(7)
+    for row in range(4):
+        for i in range(4 - row):
+            x = (i - (3 - row) / 2) * 0.32 + r.uniform(-0.05, 0.05)
+            sphere((x, 0.3 + row * 0.18, 0.08 + row * 0.2), (0.17, 0.14, 0.12), toon(('#8a8e9e', '#7a7e8e', '#9498a8')[(i + row) % 3]),
+                   root, seg=10, line=0.014)
+    # A thin crack of daylight at the top.
+    profile([(0, 0), (0.06, 0.12), (0.01, 0.22), (0.07, 0.36), (0.02, 0.46), (-0.03, 0.36), (0.02, 0.22), (-0.04, 0.12)], 0.04,
+            toon('#fff4c8', emit=0.9), root, loc=(0.0, 0.85, 0.8), line=0)
+    for i in range(6):
+        a = i / 6
+        cylinder((0.3 + math.sin(a * 5) * 0.05, 0.62 - a * 0.25, 1.1 - a * 0.95), 0.03, 0.22, toon('#8a5a3a'), root, seg=6,
+                 rot=(0.25, 0, 0), line=0.01)
+    return root
+
+
 SCENERY = {}
 for i in range(3):
     SCENERY[f'tree{i}'] = (lambda i=i: tree(i), 150, 190)
@@ -740,21 +941,23 @@ for i in range(3):
     SCENERY[f'boulder{i}'] = (lambda i=i: rock(i, ('#8a8e9e', '#7a7e8e', '#9498a8')), 130, 110)
 SCENERY['crystal_node'] = (lambda: crystal_node(), 130, 150)
 SCENERY['crystal_rubble'] = (lambda: rubble('#8e89ad', '#9ae6ff'), 80, 60)
+SCENERY['glimwood_node'] = (glimwood_node, 150, 200)
+SCENERY['glimwood_stump'] = (lambda: stump(GLIM['bark'], GLIM['heart'], GLIM['ring'], ('#b4acd0', '#b8a0ff'), 0.2), 80, 70)
+SCENERY['emberwood_node'] = (emberwood_node, 150, 190)
+SCENERY['emberwood_stump'] = (lambda: stump(EMBER['bark'], EMBER['heart'], EMBER['ring'], ('#3a3238', '#ff7a3a'), 0.4), 80, 70)
+SCENERY['obsidian_node'] = (obsidian_node, 130, 140)
+SCENERY['obsidian_rubble'] = (lambda: rubble('#2e2836', '#ff8a3a'), 80, 60)
 SCENERY['forge0'] = (forge_ruins, 480, 380)
-SCENERY['forge'] = (forge, 480, 420)
-SCENERY['forge2'] = (lambda: forge(2), 520, 420)
-SCENERY['forge3'] = (lambda: forge(3), 520, 420)
-SCENERY['forge4'] = (lambda: forge(4), 600, 420)
-SCENERY['forge5'] = (lambda: forge(5), 600, 420)
 SCENERY['home1'] = (tent, 300, 260)
-SCENERY['home2'] = (lambda: house('#6ac86a'), 380, 360)
-SCENERY['home3'] = (manor, 420, 480)
 SCENERY['plot'] = (plot, 260, 150)
-for lv in (1, 2, 3):
-    SCENERY[f'garden{lv}'] = (lambda lv=lv: garden(lv), 280, 160)
-    SCENERY[f'training{lv}'] = (lambda lv=lv: training(lv), 280, 220)
-SCENERY['warp0'] = (lambda: warpstone(0), 150, 110)
-SCENERY['warp1'] = (lambda: warpstone(1), 150, 230)
+SCENERY['warp0'] = (warpstone, 150, 110)
+# Every built level is its assembly scene's finished building (art/buildings), so the map shows what you watched rise.
+for name, w, h in (('home2', 380, 360), ('home3', 420, 520), ('forge1', 500, 440), ('forge2', 520, 440), ('forge3', 560, 440),
+                   ('forge4', 640, 440), ('forge5', 640, 460), ('warp1', 180, 230), ('sawmill1', 380, 340), ('sawmill2', 420, 340),
+                   ('sawmill3', 440, 360), ('sawmill4', 440, 360), ('cottage1', 260, 290), ('garden1', 300, 180), ('garden2', 300, 180),
+                   ('garden3', 300, 200), ('training1', 300, 240), ('training2', 300, 240), ('training3', 300, 240)):
+    # The map and the menus call the repaired Forge plain "forge".
+    SCENERY['forge' if name == 'forge1' else name] = (lambda name=name: buildings.whole(name), w, h)
 SCENERY['campfire'] = (campfire, 120, 110)
 for g in ('bramble', 'crystal', 'rock'):
     SCENERY[f'gate_{g}'] = (lambda g=g: gate(g), 130, 150)
@@ -767,13 +970,30 @@ SCENERY['statue_king'] = (crowned_king, 140, 220)
 SCENERY['waystone'] = (waystone, 70, 90)
 SCENERY['sign'] = (sign, 90, 90)
 SCENERY['lair'] = (lair, 400, 300)
-SCENERY['sawmill0'] = (lambda: sawmill(0), 320, 220)
-SCENERY['sawmill1'] = (lambda: sawmill(1), 360, 340)
-SCENERY['sawmill2'] = (lambda: sawmill(2), 380, 340)
+SCENERY['sawmill0'] = (sawmill, 320, 220)
 SCENERY['bramhut'] = (bramhut, 230, 260)
 SCENERY['prop_campstump'] = (camp_stump, 170, 150)
 SCENERY['prop_campmill'] = (camp_mill, 330, 230)
 SCENERY['prop_logs'] = (lambda: log_pile(None, 3), 150, 130)
+# The Pebblors' chamber in Echo Cavern (the drums in the dark): their bone totems, the new one, the stone figure laid
+# before it, Poppy's petals home, and the slope out of the tunnel below.
+SCENERY['prop_totem0'] = (lambda: totem(0), 90, 170)
+SCENERY['prop_totem1'] = (lambda: totem(1), 90, 170)
+SCENERY['prop_totem_new'] = (lambda: totem(0, fresh=True), 90, 170)
+SCENERY['prop_stonefigure'] = (stone_figure, 80, 90)
+SCENERY['prop_petals'] = (petals, 60, 40)
+SCENERY['prop_climb'] = (climb_slope, 110, 130)
+# Poppy's plots: each crop at each stage, and weeds to lay over them.
+for kind in ('berry', 'herb', 'flower'):
+    for st in (1, 2, 3):
+        SCENERY[f'crop_{kind}_{st}'] = (lambda k=kind, s=st: crop(k, s), 90, 90)
+SCENERY['weeds'] = (weeds, 90, 70)
+# Poppy's field: its tilled plots (damp or thirsty), the fence round it and the sign at its gate.
+SCENERY['till'] = (till, 110, 120)
+SCENERY['till_dry'] = (lambda: till(True), 110, 120)
+SCENERY['fence'] = (fence, 120, 70)
+SCENERY['fence_post'] = (fence_post, 50, 130)
+SCENERY['field_sign'] = (field_sign, 90, 90)
 for zone, (c, t) in GRASS.items():
     SCENERY[f'grass_{zone}'] = (lambda c=c, t=t: grass(c, t, 3), 70, 50)
 for i, col in enumerate(('#ff8ab0', '#ffd35a', '#ffffff', '#b08aff')):

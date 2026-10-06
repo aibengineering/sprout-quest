@@ -1,9 +1,6 @@
 // What happens when you press the action button next to something on the map: one handler per kind of object.
 import { MONSTERS, ZONES, zoneById } from '../data';
-import { hasMats, playerStats, potionRefill, spend } from '../rules';
-import { BRIDGE_COST } from '../data';
-import { logEvent } from '../stats';
-import { costChips } from '../ui';
+import { playerStats, potionRefill } from '../rules';
 import { has } from '../unlocks';
 import type { ObjKind, WorldObj } from '../world';
 import { G, menuCtx, paused, persist, syncWorld } from './context';
@@ -11,7 +8,18 @@ import { challengeFoe, startBattle } from './fights';
 import { travelTo } from './menu';
 import { tryGather } from './gathering';
 import { progressQuests, talkToElder } from './story';
-import { openSawmill, sawmillBuilt } from './stories/bram';
+import { sawmillBuilt } from './stories/bram';
+import { visitPip } from './stories/pip';
+import { gardenOpen } from '../garden';
+import { poppyAway } from '../procession';
+import { kitchenOpen } from '../kitchen';
+import { enterRoom, roomAct } from './rooms';
+import { enterMainCavern, enterEchoCave, leaveEchoCave, enterOreGallery, leaveOreGallery, useBurrow } from './underground';
+import { gardenAct, gardenStation, POPPY_AWAY } from './gardenWork';
+import { askBramForHome } from './housing';
+import { visitResident } from './stories/residents';
+import { visitDojo } from './dojo';
+import { constructShortcut } from './shortcuts';
 
 /** Opens the menu with the world waiting behind it. */
 function openMenu(...args: Parameters<typeof G.ui.openMenu>) {
@@ -62,11 +70,39 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     // Veyra's Waystone, once it's rebuilt: out to any campfire you've lit.
     if (o.project === 'warp' && G.save.build.warp > 0) return waystone();
     // Bram's Sawmill, once it's built: his bench, logs in and planks out.
-    if (o.project === 'sawmill' && sawmillBuilt()) return openSawmill();
+    if (o.project === 'sawmill' && sawmillBuilt()) return enterRoom('sawmill');
+    // The Guest Cottage, once Pip's moved in: a knock on his door.
+    if (o.project === 'cottage') return (G.save.stories.pip ?? 0) >= 1 ? visitPip() : askBramForHome();
+    // Poppy's Garden, once she tends it: her plots (not while she's off after the drums in Echo Cavern).
+    if (o.project === 'garden' && gardenOpen(G.save) && poppyAway(G.save)) return G.ui.toast(POPPY_AWAY);
+    // Worked by hand: the plot you're on (Poppy offers advice when you talk to her).
+    if (o.project === 'garden' && gardenOpen(G.save)) return gardenAct();
+    if (o.project === 'garden') return askBramForHome();
+    if (o.project === 'training') return G.save.build.training ? visitDojo() : askBramForHome();
     openMenu(menuCtx(), 'village', o.project);
   },
 
   elder: () => talkToElder(),
+  residence: (o) => o.home==='rook' && G.save.homes.rook ? enterRoom('hunter') : visitResident(o.home!),
+
+  /** Granny's blue house: her Kitchen, once she cooks. */
+  house() {
+    if (kitchenOpen(G.save) && !poppyAway(G.save)) enterRoom('kitchen');
+    else if ((G.save.stories.poppy ?? 0) >= 6 && !poppyAway(G.save)) askBramForHome();
+  },
+
+  /** Something to work at by hand in a room, or the way back out. */
+  // The Garden's sign by the field's gate: its next level, in the village plans.
+  station: (o) => (o.id === 'garden:sign' ? askBramForHome() : o.id?.startsWith('garden:') ? gardenStation(o) : roomAct(o)),
+  door: (o) => o.id?.startsWith('burrow:') ? useBurrow(o.id.slice(7)) : o.id==='resource:exit' ? leaveOreGallery() : o.id === 'echo:exit' ? leaveEchoCave() : roomAct(o),
+  prop: (o) => {
+    if(o.id==='poppy:thicket') {
+      // Old saves may already be inside the grove: always permit a way back out.
+      if(G.over.x<o.x+o.w) { G.over.teleport(o.x+o.w+.6,o.y+o.h-.5); persist(); G.ui.toast('You clamber back over the fallen log onto the trail.'); }
+      else G.ui.toast('A heavy fallen log blocks the grove trail. Small pawprints disappear underneath…');
+    } else if (o.id==='cavern:entry'||o.id==='cavern:east') enterMainCavern(o.id==='cavern:east'?'east':'west');
+    else if (o.id === 'prop_cavemouth') enterEchoCave(); else if(o.id==='resource:mouth')enterOreGallery();
+  },
 
   async pickup() {
     await paused(() => G.ui.itemFound('twig', 'Twig Sword', "It's just a stick… but it feels right in your hand.", '🗡️', 'You found', true));
@@ -129,36 +165,11 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
 
   node: (o) => tryGather(o),
 
-  /** Bram's Bridge over the Woods creek: a shortcut up to the old camp, built from planks. */
-  async bridge() {
-    const s = G.save;
-    if (s.flags.includes('bridge:woods')) return;
-    if (s.build.sawmill < 1) {
-      await paused(() => G.ui.message('🌊 A little creek', 'It cuts right across the old way up to the logging camp. A few planks would bridge it, if only someone in the valley could saw them.'));
-      return;
-    }
-    G.mode = 'dialog';
-    const r = await G.ui.dialog(
-      `<div class="big" style="font-size:24px">🌉 Bram's Bridge</div>
-       <p>Bridge the creek: a shortcut from the west gate straight up to the old logging camp.</p>
-       <div class="chips">${costChips(s, BRIDGE_COST)}</div>`,
-      [['no', 'Not yet'], ['yes', 'Build it!', 'alt']],
-    );
-    G.input.reset();
-    G.mode = 'world';
-    if (r !== 'yes' || !hasMats(s, BRIDGE_COST)) return;
-    spend(s, BRIDGE_COST);
-    s.flags.push('bridge:woods');
-    logEvent(s, { kind: 'build', id: 'bridge', lv: 1 });
-    syncWorld();
-    persist();
-    G.audio.play('craft');
-    G.ui.toast("🌉 Bram's Bridge is built! A shortcut to the old camp.", 3200);
-  },
+  bridge: (o) => constructShortcut(o.id!),
 
   /** A story character: whatever they have to say. */
   async npc(o) {
-    await G.over.actors.get(o.id!)?.talk?.();
+    await G.over.cast.get(o.id!)?.talk?.();
   },
 
   async lair() {

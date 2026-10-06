@@ -2,9 +2,9 @@
 // Space between gestures leaves room for hit/dodge sounds; these are not guardian fanfares.
 import type { Score } from './orchestra';
 
-/** A playful chase: a short clarinet question and flute answer over springy plucks. */
+/** A cheerful scrap: the clarinet and flute still trade the tune, over driving spiccato strings and drums. */
 export const BATTLE_MEADOW: Score = {
-  bpm: 136, beatsPerBar: 4,
+  bpm: 140, beatsPerBar: 4,
   chords: 'D:4 G:4 Em:4 A:4 D:4 Bm:4 G:4 A:4 Bm:4 G:4 D:4 A:4 G:4 Em:4 A7:4 D:4',
   lines: {
     theme: `D5:.5 F#5:.5 A5:.5 -:.5 F#5:.5 E5:.5 D5:1 | B4:.5 D5:.5 G5:1 F#5:.5 E5:.5 D5:1 | E5:.5 G5:.5 G5:.5 -:.5 G5:1 E5:1 | C#5:.5 E5:.5 A5:1 -:2 |
@@ -13,14 +13,20 @@ export const BATTLE_MEADOW: Score = {
             G5:.5 G5:.5 A5:1 G5:.5 F#5:.5 E5:1 | G5:.5 E5:.5 B4:1 E5:1 -:1 | E5:.5 G5:.5 A5:1 G5:.5 E5:.5 C#5:1 | D5:1 F#5:.5 E5:.5 D5:1 -:1`,
   },
   parts: [
-    { inst: 'clarinet', from: 'theme', short: 'clarinet_stac', vel: .64, bars: [1, 4] },
-    { inst: 'flute', from: 'theme', vel: .48, bars: [5, 8] },
-    { inst: 'clarinet', from: 'theme', short: 'clarinet_stac', vel: .68, bars: [9, 12] },
-    { inst: 'flute', from: 'theme', vel: .52, bars: [13, 16] },
-    { inst: 'basses_pizz', ostinato: 'R - 5 -', rate: 1, centre: 40, vel: .58 },
-    { inst: 'violins_pizz', ostinato: '- 3 - 5 - 3 5 -', rate: .5, centre: 67, vel: .46 },
-    { inst: 'harp', ostinato: 'R - 8 -', rate: 1, centre: 53, vel: .4, bars: [9, 16] },
-    { inst: 'claves', hits: '....x.......x...', vel: .3 },
+    { inst: 'clarinet', from: 'theme', short: 'clarinet_stac', vel: .7, bars: [1, 4] },
+    { inst: 'flute', from: 'theme', vel: .56, bars: [5, 8] },
+    { inst: 'clarinet', from: 'theme', short: 'clarinet_stac', vel: .72, bars: [9, 12] },
+    { inst: 'flute', from: 'theme', vel: .58, bars: [13, 16] },
+    { inst: 'violins', from: 'theme', vel: .34, bars: [13, 16] },
+    // The engine: bouncing strings in eighths that never stop, so it always sounds like a fight, just a cheerful one.
+    // (No brass or drums: those belong to the guardians and the later regions.)
+    { inst: 'violins_spic', ostinato: 'R 3 5 3 R 3 5 3', accents: '>...>...', rate: .5, centre: 76, vel: .42 },
+    { inst: 'violas_spic', ostinato: '- 3 - 5 - 3 5 -', rate: .5, centre: 62, vel: .34, bars: [5, 16] },
+    { inst: 'celli_spic', ostinato: 'R R 5 R R R 5 R', accents: '>..>..>.', rate: .5, centre: 48, vel: .56 },
+    { inst: 'basses_spic', ostinato: 'R - R - R - 5 -', rate: .5, centre: 36, vel: .5 },
+    { inst: 'harp', ostinato: 'R - 8 -', rate: 1, centre: 53, vel: .36, bars: [9, 16] },
+    { inst: 'claves', hits: '..x...x...x...x.', vel: .3 },
+    { inst: 'triangle', hits: 'x.......x.......', vel: .22, bars: [9, 16] },
   ],
 };
 

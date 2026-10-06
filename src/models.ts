@@ -11,10 +11,11 @@ import {
   Matrix4, Mesh, Object3D, OrthographicCamera, PCFShadowMap, Quaternion, Scene, ShaderMaterial, UniformsLib, UniformsUtils, Vector2, Vector3, WebGLRenderer,
   type AnimationAction, type AnimationClip,
 } from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { DrawOpts, Frame } from './assets';
+import type { CraftContact } from './crafting/types';
 import { GEAR } from './data';
 import { MODEL_ELEVATION, carriedMount, weaponDirection, weaponRotation, type Held } from './weaponPose';
 export type { Held } from './weaponPose';
@@ -154,8 +155,7 @@ function indexed(g: BufferGeometry) {
  * Merges every mesh into one per moving part (the nodes the animations move), with its toon settings as vertex
  * attributes, plus a matching outline shell: a character draws in a couple of calls per part instead of one per sphere.
  */
-function mergeParts(root: Object3D, clips: AnimationClip[]) {
-  const moving = new Set(clips.flatMap((c) => c.tracks.map((t) => t.name.slice(0, t.name.lastIndexOf('.')))));
+function mergeParts(root: Object3D, moving: Set<string>) {
   root.updateMatrixWorld(true);
   // Preserve the hand as a joint so thrusts move both the weapon and the hand, without stretching the shoulder.
   const arm = root.getObjectByName('arm1');
@@ -198,15 +198,17 @@ function mergeParts(root: Object3D, clips: AnimationClip[]) {
     const entry = groups.get(part) ?? { toon: [], outline: [] };
     groups.set(part, entry);
     entry.toon.push(g);
-    const width = p.getZ(0);
-    if (width > 0) {
-      // Smooth normals across hard edges so the shell has no gaps, then the width per vertex.
+    // The outline shell, over the faces that have one (a mesh can join pieces of different widths). Normals are
+    // smoothed across hard edges so the shell has no gaps.
+    const ids = g.index ? Array.from(g.index.array) : [...Array(p.count).keys()], lined: number[] = [];
+    for (let i = 0; i < ids.length; i += 3) if (p.getZ(ids[i]) > 0) lined.push(ids[i], ids[i + 1], ids[i + 2]);
+    if (lined.length) {
       const shell = new BufferGeometry();
       shell.setAttribute('position', g.getAttribute('position').clone());
-      if (g.index) shell.setIndex(g.index.clone());
+      shell.setAttribute('thickness', new Float32BufferAttribute(Array.from({ length: p.count }, (_, i) => p.getZ(i)), 1));
+      shell.setIndex(lined);
       const smooth = mergeVertices(shell, 1e-4);
       smooth.computeVertexNormals();
-      smooth.setAttribute('thickness', new Float32BufferAttribute(new Float32Array(smooth.attributes.position.count).fill(width), 1));
       entry.outline.push(smooth);
     }
     m.removeFromParent();
@@ -270,6 +272,44 @@ function measure(root: Object3D, clips: Record<string, AnimationClip>) {
   return { radius: r, height: box.max.y };
 }
 
+/** The hero's moving parts (art/hero.py), which armour hangs on. */
+export const HERO_PIVOTS = ['hero', 'bodyPivot', 'arm-1', 'arm1', 'head', 'foot-1', 'foot1'];
+
+/** The base hero and the armours, kept as loaded: every armour's hero is put together from them. */
+const heroParts = new Map<string, Promise<GLTF>>();
+function gltf(name: string, url = `assets/models/${name}.glb`): Promise<GLTF> {
+  loader ??= new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  return loader.loadAsync(url);
+}
+function heroPart(name: string): Promise<GLTF> {
+  let p = heroParts.get(name);
+  if (!p) heroParts.set(name, (p = gltf(name)));
+  p.catch(() => heroParts.delete(name));
+  return p;
+}
+
+/**
+ * The hero in an armour: a copy of the base hero (art/hero.py build_base, `hero_base`) with each piece of the armour
+ * (`armor_<id>`) hung on the pivot it's named after, as the weapons hang in the hand. A helmet hides the bangs and the
+ * leaf sprout. Neither model is changed.
+ */
+export function dress(base: Object3D, armour: Object3D): Object3D {
+  const hero = base.clone(true), worn = armour.clone(true);
+  if (worn.getObjectByName('helmet')) for (const hair of ['bangs', 'sprout']) hero.getObjectByName(hair)?.removeFromParent();
+  // The pieces under each armour pivot sit where they would on the hero's pivot of the same name.
+  for (const name of HERO_PIVOTS) {
+    const from = worn.getObjectByName(name), to = hero.getObjectByName(name);
+    if (from && to) for (const piece of [...from.children]) if (!HERO_PIVOTS.includes(piece.name)) to.add(piece);
+  }
+  return hero;
+}
+
+/** The hero in an armour (`hero_<armor>`), with the base hero's animations. */
+async function dressedHero(armor: string): Promise<{ scene: Object3D; animations: AnimationClip[] }> {
+  const [base, worn] = await Promise.all([heroPart('hero_base'), heroPart(`armor_${armor}`)]);
+  return { scene: dress(base.scene, worn.scene), animations: base.animations };
+}
+
 /** Loads a model (once); resolves null if it can't be (the caller keeps its sprite or drawing). */
 export function loadModel(id: string): Promise<Model | null> {
   const have = models.get(id);
@@ -277,13 +317,13 @@ export function loadModel(id: string): Promise<Model | null> {
   let p = loading.get(id);
   if (!p && (retryAt.get(id) ?? 0) > performance.now()) return Promise.resolve(null);
   if (!p) {
-    loader ??= new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-    p = loader.loadAsync(`assets/models/${id}.glb`).then((gltf) => {
-      const clips = Object.fromEntries(gltf.animations.map((c) => [c.name, c]));
-      mergeParts(gltf.scene, gltf.animations);
+    const armor = /^hero_(.+)$/.exec(id)?.[1];
+    p = (armor ? dressedHero(armor) : gltf(id)).then(({ scene, animations }) => {
+      const clips = Object.fromEntries(animations.map((c) => [c.name, c]));
+      mergeParts(scene, new Set(animations.flatMap((c) => c.tracks.map((t) => t.name.slice(0, t.name.lastIndexOf('.'))))));
       const gear = GEAR[id.replace(/^wpn_/, '')];
-      const grip = gear?.style === 'whip' ? whipGrip(gltf.scene, gear.id === 'dragontail' ? '#c83a3a' : gear.color!) : undefined;
-      const m: Model = { root: gltf.scene, grip, clips, ...measure(gltf.scene, clips) };
+      const grip = gear?.style === 'whip' ? whipGrip(scene, gear.id === 'dragontail' ? '#c83a3a' : gear.color!) : undefined;
+      const m: Model = { root: scene, grip, clips, ...measure(scene, clips) };
       models.set(id, m);
       return m;
     }).catch((e) => {
@@ -321,13 +361,18 @@ const sun = new DirectionalLight(0xffffff, 1);
  * Can this browser do WebGL at all? Checked quietly first, since three.js logs errors when it can't. The game needs it:
  * every character is a 3D model (their sprites aren't shipped).
  */
+let canWebgl: boolean | undefined;
 export function webglAvailable() {
-  try {
-    const c = document.createElement('canvas');
-    return !!(c.getContext('webgl2') ?? c.getContext('webgl'));
-  } catch {
-    return false;
+  // Checked once: each check makes a context, and phones only allow a few.
+  if (canWebgl === undefined) {
+    try {
+      const c = document.createElement('canvas');
+      canWebgl = !!(c.getContext('webgl2') ?? c.getContext('webgl'));
+    } catch {
+      canWebgl = false;
+    }
   }
+  return canWebgl;
 }
 
 function gl(): WebGLRenderer | null {
@@ -341,7 +386,7 @@ function gl(): WebGLRenderer | null {
     renderer.setClearColor(0x000000, 0);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = PCFShadowMap;
-    renderer.setSize(256, 256, false);
+    renderer.setSize(charNeed.w, charNeed.h, false);
     sun.position.copy(LIGHT).multiplyScalar(8);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -520,7 +565,7 @@ export function drawModel(ctx: CanvasRenderingContext2D, slot: string, id: strin
     s.key = key;
     gold.value = pose.gold ? 1 : 0;
     outlineScale.value = pose.bold ? 1 : OUTLINE_SCALE;
-    render(r, s, clip, step / 24, (yaw * Math.PI) / 36, ppu, heldKey ? h : undefined);
+    render(r, s, clip, step / 24, (yaw * Math.PI) / 36, ppu, heldKey ? h : undefined, heldSlots.has(slot));
   }
   draw(s.frame);
   return true;
@@ -529,7 +574,7 @@ export function drawModel(ctx: CanvasRenderingContext2D, slot: string, id: strin
 /** Rendering counters, for tuning (window.game.modelStats). */
 export const modelStats = { renders: 0, ms: 0, copyMs: 0, shadowMs: 0 };
 
-function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, yaw: number, ppu: number, held?: Held) {
+function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, yaw: number, ppu: number, held?: Held, view = false) {
   const t0 = performance.now();
   modelStats.renders++;
   // A weapon in hand or on the back reaches further than the character does: grow the image to fit it.
@@ -541,8 +586,12 @@ function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, ya
   const w = Math.ceil(radius * 2 * ppu) + pad * 2;
   const up = (height * cos + radius * sin) * ppu, down = radius * sin * ppu;
   const h = Math.ceil(up + down) + pad * 2;
-  const size = r.getSize(new Vector2());
-  if (size.x < w || size.y < h) r.setSize(Math.max(size.x, w, 256), Math.max(size.y, h, 256), false);
+  // (A held slot is a view in a menu, not the map: it may grow the renderer only for a while.)
+  if (!view) {
+    charNeed.w = Math.max(charNeed.w, w);
+    charNeed.h = Math.max(charNeed.h, h);
+  }
+  fit(r, w, h);
   const ch = r.domElement.height;
   // Pose it.
   for (const [name, a] of Object.entries(s.actions)) {
@@ -559,6 +608,7 @@ function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, ya
   const ax = w / 2, ay = pad + up;
   Object.assign(camera, { left: -ax / ppu, right: (w - ax) / ppu, top: ay / ppu, bottom: -(h - ay) / ppu });
   camera.updateProjectionMatrix();
+  lightDir.value.copy(LIGHT).transformDirection(camera.matrixWorldInverse);
   const reach = Math.max(radius, height) + 0.3;
   Object.assign(sun.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach, near: 0.5, far: 20 });
   sun.shadow.camera.updateProjectionMatrix();
@@ -589,8 +639,411 @@ function render(r: WebGLRenderer, s: Slot, clip: AnimationClip, time: number, ya
   s.frame = { img: s.canvas, x: 0, y: 0, w, h, ax, ay, ppu };
 }
 
-/** Call once a frame: forgets characters that haven't been drawn for a while. */
+/**
+ * Everything renders into the shared renderer's bottom-left corner, which grows to fit. The characters keep it at the
+ * most they've needed; a crafting scene or an item view can need more, but only while it's drawing.
+ */
+const charNeed = { w: 256, h: 256 };
+let bigAt = -1;
+function fit(r: WebGLRenderer, w: number, h: number) {
+  const have = r.getSize(new Vector2());
+  if (have.x < w || have.y < h) r.setSize(Math.max(have.x, w), Math.max(have.y, h), false);
+  if (w > charNeed.w || h > charNeed.h) bigAt = clock;
+}
+
+/** Slots kept while unseen: a view that's only drawn now and then (the Bag's hero, between drags). */
+const heldSlots = new Set<string>();
+export const holdSlot = (name: string, keep: boolean) => void (keep ? heldSlots.add(name) : heldSlots.delete(name));
+
+/**
+ * Call once a frame: forgets characters that haven't been drawn for a while, and shrinks the renderer back to what the
+ * characters need a second after anything bigger last drew.
+ */
 export function tickModels() {
   clock++;
-  for (const [name, s] of slots) if (clock - s.seen > 120) slots.delete(name);
+  for (const [name, s] of slots) if (clock - s.seen > 120 && !heldSlots.has(name)) slots.delete(name);
+  if (renderer && bigAt >= 0 && clock - bigAt > 60) {
+    bigAt = -1;
+    const have = renderer.getSize(new Vector2());
+    if (have.x > charNeed.w || have.y > charNeed.h) renderer.setSize(charNeed.w, charNeed.h, false);
+  }
 }
+
+/** The shared renderer's drawing size, if there is one (for tests: window.game.rendererSize). */
+export const rendererSize = () => (renderer ? renderer.getSize(new Vector2()).toArray() : null);
+
+// ------------------------------------------------------------------------------------------------ crafting scenes
+
+/**
+ * Crafting and building scenes (assets/crafting3d, see src/crafting.ts): an item or building whose layers appear one
+ * by one as their ingredients land, drawn with the characters' toon look and outlines. Each top-level node of the
+ * model is a layer named after its id.
+ */
+const craftScenes = new Map<string, Object3D>(), craftFetched = new Map<string, Object3D>(), craftFetching = new Map<string, Promise<void>>();
+
+/** Fetches a crafting scene once; one that fails is fetched again the next time it's wanted. */
+function fetchCraftScene(url: string): Promise<void> {
+  if (craftScenes.has(url) || craftFetched.has(url)) return Promise.resolve();
+  let p = craftFetching.get(url);
+  if (!p) {
+    p = gltf(url, url).then(({ scene }) => { craftFetched.set(url, scene); }, (e) => console.warn(`crafting scene ${url}:`, e))
+      .finally(() => craftFetching.delete(url));
+    craftFetching.set(url, p);
+  }
+  return p;
+}
+
+/** Fetches every crafting scene on the title (reporting progress), so a scene never waits for its download. */
+export async function loadCraftScenes(urls: string[], onProgress?: (done: number, total: number) => void) {
+  let done = 0;
+  await Promise.all(urls.map((url) => fetchCraftScene(url).then(() => onProgress?.(++done, urls.length))));
+}
+
+/** Readies a fetched scene for drawing the first time it's shown: the costly part, so it isn't done on the title. */
+function craftScene(url: string): Object3D | undefined {
+  let scene = craftScenes.get(url);
+  if (scene) return scene;
+  scene = craftFetched.get(url);
+  if (!scene) {
+    void fetchCraftScene(url);
+    return undefined;
+  }
+  craftFetched.delete(url);
+  scene.updateMatrixWorld(true);
+  // Each layer becomes a plain node holding its meshes, so its meshes merge under it.
+  for (const node of [...scene.children]) {
+    const layer = new Object3D();
+    layer.name = node.name;
+    node.name = '';
+    scene.add(layer);
+    layer.attach(node);
+  }
+  mergeParts(scene, new Set(scene.children.map((c) => c.name)));
+  craftScenes.set(url, scene);
+  return scene;
+}
+
+/** A crafting scene playing on a canvas. */
+export interface CraftView {
+  /** Where a layer's middle is on the canvas, in CSS pixels from its top-left (where its ingredients land). */
+  at(layer: string): { x: number; y: number };
+  /** Shows a layer: at once, or arriving with a contact's motion. */
+  show(layer: string, contact?: CraftContact): void;
+  /** The finished piece: every layer but `gone`, then a slow sway. */
+  reveal(gone: string[]): void;
+  /** Draws the scene as it is at `now` (a frame time). */
+  frame(now: number): void;
+}
+
+/** How each contact moves the layer that lands: [time 0–1, scale across, scale up, rise (× the scene's size)]. */
+const ARRIVE: Record<CraftContact, { ms: number; keys: number[][] }> = {
+  soft: { ms: 370, keys: [[0, 0.4, 0.28, 0], [0.45, 1.11, 0.85, 0], [0.72, 0.96, 1.04, 0], [1, 1, 1, 0]] },
+  bind: { ms: 240, keys: [[0, 0.9, 1.06, 0], [1, 1, 1, 0]] },
+  solid: { ms: 280, keys: [[0, 0.94, 0.94, 0.03], [0.65, 1.02, 0.98, -0.008], [1, 1, 1, 0]] },
+  energy: { ms: 340, keys: [[0, 0.7, 0.7, 0], [0.65, 1.07, 1.07, 0], [1, 1, 1, 0]] },
+};
+/** …and the whole piece answers some of them: a squeeze as goo binds, a little dip as something solid sets. */
+const ANSWER: Partial<Record<CraftContact, { ms: number; keys: number[][] }>> = {
+  bind: { ms: 220, keys: [[0, 1, 1, 0], [0.5, 1.025, 0.975, 0], [1, 1, 1, 0]] },
+  solid: { ms: 180, keys: [[0, 1, 1, 0], [0.5, 1, 1, -0.008], [1, 1, 1, 0]] },
+};
+
+/** Eases out over the whole motion, then steps linearly through its keys. */
+function motion(keys: number[][], t: number): number[] {
+  const e = 1 - (1 - Math.min(1, Math.max(0, t))) ** 2;
+  let i = 1;
+  while (i < keys.length - 1 && keys[i][0] < e) i++;
+  const [a, b] = [keys[i - 1], keys[i]], k = (e - a[0]) / (b[0] - a[0] || 1);
+  return [1, 2, 3].map((j) => a[j] + (b[j] - a[j]) * k);
+}
+
+/**
+ * The fixed 3/4 views the scenes are seen from (a little from above for gear on the bench, the map's angle for
+ * buildings), and how far a finished piece sways either side of it.
+ */
+const CRAFT_VIEW = { gear: { yaw: -0.42, elevation: 0.36 }, building: { yaw: -0.49, elevation: MODEL_ELEVATION } };
+const CRAFT_SWAY = { gear: 0.28, building: 0.1 };
+
+/** A camera looking down at the model from `elevation` (radians), straight ahead, like the Blender scenes'. */
+function eyeAt(elevation: number) {
+  const eye = new OrthographicCamera(-1, 1, 1, -1, 0.1, 50);
+  eye.position.set(0, Math.sin(elevation) * 20, Math.cos(elevation) * 20);
+  eye.lookAt(0, 0, 0);
+  eye.updateMatrixWorld();
+  return eye;
+}
+
+/**
+ * A low oval of ground, `rx` by `rz` across and `h` deep with its top at y 0, in the toon look: grass, with a patch of
+ * dug earth in the middle and an outline round its rim. A building rises on it, so it sits in the scene's own view.
+ */
+function plot(rx: number, rz: number, h: number, line: number): Object3D {
+  const slab = (r: number, depth: number, top: string, side: string, y: number) => {
+    const g = new CylinderGeometry(r, r, depth, 48).toNonIndexed();
+    g.scale(rx, 1, rz);
+    g.translate(0, y - depth / 2, 0);
+    g.computeVertexNormals();
+    const n = g.getAttribute('normal'), c = [new Color(top), new Color(side)];
+    const base = new Float32Array(n.count * 3), params = new Float32Array(n.count * 3);
+    for (let i = 0; i < n.count; i++) {
+      base.set(c[n.getY(i) > 0.5 ? 0 : 1].toArray(), i * 3);
+      params.set([0.12, 0, line], i * 3);
+    }
+    g.setAttribute('toonBase', new Float32BufferAttribute(base, 3));
+    g.setAttribute('toonParams', new Float32BufferAttribute(params, 3));
+    const m = new Mesh(g, toonMaterial);
+    m.receiveShadow = true;
+    return m;
+  };
+  const ground = new Object3D(), grass = slab(1, h, '#a8c878', '#7a9a58', 0);
+  const shell = new BufferGeometry();
+  shell.setAttribute('position', grass.geometry.getAttribute('position').clone());
+  const smooth = mergeVertices(shell, 1e-4);
+  smooth.computeVertexNormals();
+  smooth.setAttribute('thickness', new Float32BufferAttribute(new Float32Array(smooth.attributes.position.count).fill(line), 1));
+  ground.add(grass, slab(0.6, h * 0.1, '#c9a57a', '#b08d64', h * 0.05), new Mesh(smooth, outlineMaterial));
+  return ground;
+}
+
+/** A loaded scene's own copy, its middle at the origin of `turn` (what spins), with its size across. */
+function placed(prepared: Object3D) {
+  const model = prepared.clone(true), turn = new Object3D();
+  turn.add(model);
+  model.updateMatrixWorld(true);
+  const box = new Box3().setFromObject(model, true), centre = box.getCenter(new Vector3());
+  model.position.copy(centre).negate();
+  model.updateMatrixWorld(true);
+  return { model, turn, size: box.getSize(new Vector3()).length() };
+}
+
+/** A turn of the model: its yaw (about the up axis), and a tip toward or away from you before it (`x`). */
+export interface Turn { x: number; y: number }
+
+/**
+ * Points `eye` so what it sees of `turn` at every one of `turns` fills a `w`×`h` view (any units), with `room` to spare
+ * (1.12 is 12% more than the model). Returns the scene units per view unit.
+ */
+function frameTurn(eye: OrthographicCamera, turn: Object3D, turns: Turn[], w: number, h: number, room: number) {
+  const view = new Box3(), seen = new Object3D();
+  seen.matrixAutoUpdate = false;
+  seen.matrix.copy(eye.matrixWorldInverse);
+  const parent = turn.parent, rest = turn.rotation.clone();
+  seen.add(turn);
+  for (const { x, y } of turns) {
+    turn.rotation.set(x, y, 0);
+    seen.updateMatrixWorld(true);
+    view.union(new Box3().setFromObject(seen, true));
+  }
+  seen.remove(turn);
+  parent?.add(turn);
+  turn.rotation.copy(rest);
+  const mid = view.getCenter(new Vector3()), span = view.getSize(new Vector3());
+  const unit = Math.max((span.x * room) / w, (span.y * room) / h);
+  Object.assign(eye, { left: mid.x - (w / 2) * unit, right: mid.x + (w / 2) * unit, top: mid.y + (h / 2) * unit, bottom: mid.y - (h / 2) * unit });
+  eye.updateProjectionMatrix();
+  return unit;
+}
+
+/** Renders `turn` through `eye` with the characters' toon look into the 2D `canvas` (its full pixel size). */
+function drawTurn(r: WebGLRenderer, canvas: HTMLCanvasElement, turn: Object3D, eye: OrthographicCamera, size: number) {
+  const w = canvas.width, h = canvas.height;
+  fit(r, w, h);
+  lightDir.value.copy(LIGHT).transformDirection(eye.matrixWorldInverse);
+  Object.assign(sun.shadow.camera, { left: -size, right: size, top: size, bottom: -size, near: 0.5, far: 20 + size });
+  sun.shadow.camera.updateProjectionMatrix();
+  gold.value = 0;
+  outlineScale.value = 1;
+  scene.add(turn);
+  r.setViewport(0, 0, w, h);
+  r.setScissor(0, 0, w, h);
+  r.setScissorTest(true);
+  r.clear();
+  r.render(scene, eye);
+  scene.remove(turn);
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(r.domElement, 0, r.domElement.height - h, w, h, 0, 0, w, h);
+}
+
+/**
+ * Starts a crafting scene on `canvas` with the `shown` layers already in place, or null if it can't be drawn (no
+ * WebGL, or its model didn't load). The whole model is framed to fill the canvas, however it sways.
+ */
+/** How long a finished piece's one sway takes. */
+const SWAY_MS = 8800;
+
+export function craftView(canvas: HTMLCanvasElement, url: string, shown: string[], kind: 'gear' | 'building' = 'gear'): CraftView | null {
+  const prepared = craftScene(url);
+  const r = prepared && gl();
+  if (!prepared || !r) return null;
+  const { yaw, elevation } = CRAFT_VIEW[kind], sway = CRAFT_SWAY[kind];
+  const eye = eyeAt(elevation);
+  const { model, turn, size } = placed(prepared);
+  // Each layer turns and squashes about its own middle (where its ingredients land).
+  const layers = new Map<string, { pivot: Object3D; rest: Vector3; arrive?: { contact: CraftContact; start: number } }>();
+  for (const node of [...model.children]) {
+    const pivot = new Object3D();
+    pivot.position.copy(model.worldToLocal(new Box3().setFromObject(node, true).getCenter(new Vector3())));
+    model.add(pivot);
+    pivot.attach(node);
+    pivot.visible = shown.includes(node.name);
+    layers.set(node.name, { pivot, rest: pivot.position.clone() });
+  }
+  // A building rises on its plot, drawn in the scene so its ground lies flat under it at the scene's own angle.
+  if (kind === 'building') {
+    const box = new Box3().setFromObject(model, true), mid = box.getCenter(new Vector3()), span = box.getSize(new Vector3());
+    const ground = plot(span.x * 0.66, span.z * 0.66, size * 0.02, size * 0.004);
+    ground.position.set(mid.x, box.min.y, mid.z);
+    turn.add(ground);
+  }
+  // Frame what the camera sees of the model over its whole sway, with a little room for the layers' overshoot.
+  const css = { w: canvas.clientWidth || 258, h: canvas.clientHeight || 258 };
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.round(css.w * dpr);
+  canvas.height = Math.round(css.h * dpr);
+  const unit = frameTurn(eye, turn, [-1, 0, 1].map((k) => ({ x: 0, y: yaw + k * sway })), css.w, css.h, 1.12);
+  let answer: { contact: CraftContact; start: number } | undefined, swayFrom: number | null = null, drawn = false;
+
+  const pose = (now: number) => {
+    let moving = false;
+    for (const layer of layers.values()) {
+      const a = layer.arrive;
+      if (!a) continue;
+      const t = (now - a.start) / ARRIVE[a.contact].ms;
+      const [across, up, rise] = motion(ARRIVE[a.contact].keys, t);
+      layer.pivot.scale.set(across, up, across);
+      layer.pivot.position.copy(layer.rest).y += rise * size;
+      if (t >= 1) layer.arrive = undefined;
+      moving = true;
+    }
+    if (answer) {
+      const spec = ANSWER[answer.contact]!, t = (now - answer.start) / spec.ms;
+      const [across, up, rise] = motion(spec.keys, t);
+      turn.scale.set(across, up, across);
+      turn.position.y = rise * size;
+      if (t >= 1) answer = undefined;
+      moving = true;
+    }
+    // One slow sway there and back, then it rests: no drawing every frame while you read the popup.
+    if (swayFrom !== null && now - swayFrom >= SWAY_MS) swayFrom = null, moving = true;
+    turn.rotation.y = yaw + (swayFrom === null ? 0 : sway * Math.sin(((now - swayFrom) / SWAY_MS) * Math.PI * 2));
+    return moving || swayFrom !== null;
+  };
+
+  return {
+    at(name) {
+      const pivot = layers.get(name)?.pivot;
+      if (!pivot) return { x: css.w / 2, y: css.h / 2 };
+      turn.updateMatrixWorld(true);
+      const p = pivot.getWorldPosition(new Vector3()).applyMatrix4(eye.matrixWorldInverse);
+      return { x: (p.x - eye.left) / unit, y: (eye.top - p.y) / unit };
+    },
+    show(name, contact) {
+      const layer = layers.get(name);
+      if (!layer) return;
+      layer.pivot.visible = true;
+      if (contact) {
+        layer.arrive = { contact, start: performance.now() };
+        if (ANSWER[contact]) answer = { contact, start: performance.now() };
+      }
+      drawn = false;
+    },
+    reveal(gone) {
+      for (const [name, layer] of layers) {
+        layer.pivot.visible = !gone.includes(name);
+        layer.arrive = undefined;
+        layer.pivot.scale.setScalar(1);
+        layer.pivot.position.copy(layer.rest);
+      }
+      answer = undefined;
+      turn.scale.setScalar(1);
+      turn.position.y = 0;
+      swayFrom = performance.now();
+      drawn = false;
+    },
+    frame(now) {
+      if (pose(now) || !drawn) render();
+      drawn = true;
+    },
+  };
+  function render() { drawTurn(r!, canvas, turn, eye, size); }
+}
+
+// ------------------------------------------------------------------------------------------------- one item, live
+
+/** How a single item is shown: its model (a crafting scene, or the model worn or held), and how to stand it. */
+export interface ItemModel {
+  url: string;
+  /** Layers that aren't part of the finished piece (fuel, supports). */
+  gone?: string[];
+  /** How far from above it's seen (radians). */
+  elevation: number;
+  /** A held weapon's model lies along the ground: tilt it up the diagonal, as weapon icons and scenes stand. */
+  tilt?: boolean;
+}
+
+/** Loads an item's model if it isn't already (crafting scenes all are, from the title screen). */
+export function loadItemModel(url: string): Promise<boolean> {
+  return fetchCraftScene(url).then(() => itemModelReady(url));
+}
+export const itemModelReady = (url: string) => craftScenes.has(url) || craftFetched.has(url);
+
+const FULL_TURN: Turn[] = Array.from({ length: 16 }, (_, i) => ({ x: 0, y: (i / 16) * Math.PI * 2 }));
+
+/**
+ * One item on `canvas` (sized by the caller, in pixels), turned however each frame asks, framed so it fits at every
+ * one of `turns` (a full turn about the up axis by default). Null without WebGL or before its model has loaded.
+ */
+export function itemView(canvas: HTMLCanvasElement, item: ItemModel, turns = FULL_TURN, room = 1.06) {
+  const prepared = craftScene(item.url);
+  const r = prepared && gl();
+  if (!prepared || !r) return null;
+  const eye = eyeAt(item.elevation);
+  const { model, turn, size } = placed(prepared);
+  for (const node of model.children) node.visible = !item.gone?.includes(node.name);
+  // Stood up the diagonal (Blender's preview turn of -45° about its Y axis, which is -Z here), then re-centred.
+  if (item.tilt) {
+    model.removeFromParent();
+    const tilt = new Object3D();
+    tilt.rotation.z = Math.PI / 4;
+    tilt.add(model);
+    model.position.set(0, 0, 0);
+    tilt.updateMatrixWorld(true);
+    const c = new Box3().setFromObject(tilt, true).getCenter(new Vector3());
+    tilt.position.copy(c).negate();
+    turn.add(tilt);
+  }
+  frameTurn(eye, turn, turns, canvas.width, canvas.height, room);
+  return {
+    /** Draws it turned `yaw` about the up axis, after tipping it `tip` toward or away from you. */
+    frame(yaw: number, tip = 0) {
+      turn.rotation.set(tip, yaw, 0);
+      drawTurn(r, canvas, turn, eye, size);
+    },
+  };
+}
+
+/**
+ * An item's inventory icon, rendered from its model (scripts/icons3d.ts): square, `px` across, seen straight on at its
+ * elevation, drawn 4× over and scaled down for smooth edges. Null if it can't be drawn.
+ */
+export function renderIcon(item: ItemModel, px = 128, room = 1.16): HTMLCanvasElement | null {
+  let big = document.createElement('canvas');
+  big.width = big.height = px * 4;
+  const view = itemView(big, item, [{ x: 0, y: 0 }], room);
+  if (!view) return null;
+  view.frame(0);
+  // Halve twice: each step averages 2×2 pixels, as a box filter would.
+  for (let n = px * 2; n >= px; n /= 2) {
+    const c = document.createElement('canvas');
+    c.width = c.height = n;
+    const ctx = c.getContext('2d')!;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(big, 0, 0, n, n);
+    big = c;
+  }
+  return big;
+}
+
+/** The turns of a material tumbling through one full turn in `n` frames (and tipping as it goes). */
+export const tumbleTurns = (n: number) => Array.from({ length: n }, (_, i): Turn => ({ x: 0.55 * Math.sin((i / n) * Math.PI * 2), y: (i / n) * Math.PI * 2 }));

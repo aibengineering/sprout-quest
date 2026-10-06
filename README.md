@@ -83,8 +83,11 @@ Every push to `main` runs the typecheck and tests, builds the site and deploys i
 Work happens on `dev`; `main` is what's live. `main` only takes pull requests, and CI (`.github/workflows/ci.yml`)
 must pass first:
 
-- **Typecheck, tests and build**, and the **browser smoke test**, on every pull request and every push to `dev` that
-  touches the game (documentation and CI-only changes skip them)
+- **Typecheck, tests and build**, fast balance contracts, and the **six-scenario browser smoke test**, on every pull
+  request and every push to `dev` that touches the game (documentation and CI-only changes skip them)
+- **Full browser regression and balance**, only on game-changing release pull requests into `main`, or manually
+  through Actions → CI → Run workflow (select `dev` for a batch checkpoint). Routine `dev` pushes and non-release
+  pull requests do not run the exhaustive suite
 - **Version bump and patch notes**, on pull requests into `main`: the `version` in `package.json` must be newer than
   `main`'s, and the top entry of `PATCH_NOTES` in `src/version.ts` must describe it (`scripts/check-release.ts`); pull
   requests that only change documentation (Markdown, `docs/`) or CI tooling (`.github/`) skip it, since they don't
@@ -100,13 +103,49 @@ see a dot on the patch notes until they've read the new ones.
 ```sh
 bun run build          # static site in dist/: host anywhere (GitHub Pages, Netlify, itch.io…)
 bun run build --dev    # the same, with the dev tools (save slots and presets, see below) for a test server
-bun test               # rules, balance, story, routes and map tests
+bun run test           # rules, balance, story, routes and map tests (isolated mocks)
 bun run typecheck
-bun run balance        # prints the balance model: fights, pacing, the material economy, every weapon
+bun run balance        # one HTML/JSON/CSV report: real combat for every weapon/stage, plus pacing and economy estimates
+bun run balance:check  # fail if the native combat behavior contracts are broken
+bun run balance:estimate # the older ideal-hit/pacing/economy table, for comparison
 bun run sim            # a simulated playthrough (test tooling, see sim/README.md)
 bun run sim:compare -- <report.json>   # a real play report against the simulated playthroughs
-bun run e2e            # plays the real game in headless Chromium (add --shots for screenshots in tests/e2e/out/)
+bun run e2e            # fast browser smoke (same as e2e:fast); six representative flows
+bun run e2e:full       # exhaustive browser regression; checkpoint/release only (add --shots for screenshots)
 ```
+
+### Verification policy: keep iteration fast
+
+The full browser suite earns its place by checking whole stories, every weapon and monster, crafting transactions,
+room/route transitions, saves and presentation edge cases that unit tests cannot reach. It is **not a per-edit
+gate**. The October 2026 local audit measured 73 scenarios at about **10½ minutes**, versus a **0.2-second build**,
+**6.8-second typecheck** and **5.9-second unit suite**. CI also runs extra crafting and playtest checks; its exhaustive
+regression can take longer. The six-scenario fast suite passed locally in **45 seconds with four workers**, and
+**56 seconds with two workers** (CI's default concurrency on a four-core runner). Browser installation and CI setup
+are additional overhead. These timings depend on hardware and load, not promised limits.
+
+- **Small map/art/content edit:** playtest the affected area on `bun run dev`, plus relevant unit tests, e.g.
+  `bun test --isolate tests/routes.test.ts tests/village-layout.test.ts`. Do not run the full browser suite or
+  balance report for every edit.
+- **Normal code checkpoint:** `bun run typecheck`, `bun run test`, `bun run build`; use `bun run e2e` for a browser
+  sanity check. Routine CI runs these fast checks, not exhaustive regression.
+- **Changed a particular browser flow:** `bun run e2e:full --only '<scenario name fragment>'`. Run the affected
+  scenarios even when they are outside the fast subset.
+- **Batch checkpoint:** run the full regression after roughly **ten gameplay commits since the last successful
+  full run**, or sooner for broad combat, save, story or navigation changes. This is a developer checkpoint, not an
+  automatic every-ten-commits CI trigger. Consult the last successful full Actions run rather than counting docs-only
+  commits. Run CI manually on `dev` to include all auxiliary browser checks and the balance report.
+- **Release:** every game-changing PR into `main` runs the full regression automatically, including 0.3.x patches;
+  require a green full job on the release head before merging. Major releases are not the only ones worth checking.
+  If a full run fails, fix it and rerun the affected checks, then obtain a complete green run before release.
+- **Balance tuning:** run `bun run balance` when changing combat/progression/economy; do not generate its 37–59-second
+  simulation report for unrelated edits. Routine CI keeps the inexpensive `balance:check` contracts.
+
+The fast browser suite reuses six existing scenarios and all their assertions: new-game prologue, fight/level-up,
+campfire/Waystone travel, tree/rock gathering, Forge recipe visibility and preset save isolation. It deliberately
+does not cover whole side stories, all weapons/monsters or software-WebGL crafting. Passing it is a sanity check,
+not evidence that full regression passed. `bun run e2e` now defaults to this subset; use `e2e:full` explicitly for
+the old exhaustive behavior.
 
 ### Dev tools: save slots and preset saves
 
@@ -118,12 +157,32 @@ balance checkpoints. Presets also work as links: `?preset=poppy-chase`, and `?sl
 slot a small badge at the bottom of the screen shows which slot you're in. None of this is in the published build
 (`__DEV__` is compiled out).
 
-The end-to-end smoke test (`tests/e2e/smoke.ts`) needs Playwright's Chromium once:
-`bunx playwright-core install chromium-headless-shell`. It plays a new game through the prologue, wins a fight
+For agent playthroughs, dev builds also have an opt-in controller with no player-facing controls. Open
+`http://localhost:3000/?autoplay=1` to automate combat and gathering, or use `?autoplay=combat` / `?autoplay=gather`
+for just one. It also works with slot/preset URLs. From the browser console, `window.sproutPlaytest.enable()` turns
+both on; `enable({ combat: true, gather: false })` selects modes, `disable()` stops, and `status` shows what is active.
+It steers and uses normal attacks, dodges, unlocked skills, available potions and timed chopping/mining strikes.
+Navigation, dialogue and choosing a node stay manual. Stats, cooldowns, rewards and defeat rules apply normally;
+automated play reports describe a bot's performance. It is off by default, never stored in the save, and the
+production build fails if its console API appears in the bundle. GitHub Pages builds without `--dev`.
+
+The browser tests (`tests/e2e/smoke.ts`) need Playwright's Chromium once:
+`bunx playwright-core install chromium-headless-shell`. The full suite plays a new game through the prologue, wins a fight
 through its level-up screens, mashes every weapon class, fights every monster, mines crystal, checks the Forge's
 mystery cards, exports a play report, plays Poppy's side story start to finish and starts a preset save in its own
 slot, failing on any page error.
-`bun run e2e --only <name>` runs just the scenarios whose name contains it.
+`bun run e2e:full --only <name>` runs just the scenarios whose name contains it (including those outside the fast subset).
+
+On a minimal Linux installation, screenshots also need an emoji font for the HUD, menu buttons and speech bubbles.
+Install `fonts-noto-color-emoji`, or give the test browser an existing font without installing it globally:
+`SPROUT_EMOJI_FONT=/path/to/NotoColorEmoji.ttf bun run e2e --shots` (also works with `bun run e2e:playtest`).
+Screenshot runs check for the font before launching; the local font configuration stays in test tooling and is not
+part of the production build. Visual playthrough captures should keep WebGL enabled and use a device scale factor
+of 2 for phone screenshots; the default smoke runner disables WebGL for most logic checks.
+
+Two visual tools for the 3D art, in the same headless Chromium: `bun run tests/e2e/hero-armors.ts [out.png]` draws the
+hero in every armour (idle, walking, from behind, sword in hand) to check worn armour after re-exporting it, and
+`bun run tests/e2e/icons3d.ts` checks the model-drawn inventory icons.
 
 ## Play report
 
@@ -157,7 +216,7 @@ for the materials it needs.
   own attack patterns and summon helpers. Beating one opens the road, lights a 🔥 **campfire checkpoint** (heal, respawn,
   warp point) and drops a **trophy** needed for the next village upgrade.
 - **Village construction**: Home (Tent → Cottage → Manor, +max HP), Forge (Forge → Smithy → Iron Smithy → Crystal Kiln → Master
-  Forge, one level per star tier of gear), Garden (more free potions), Training Yard (+attack) and Waystone (fast travel). Buildings
+  Forge, one level per star tier of gear), Garden (Poppy's fenced field of plots, 6 → 12 → 20, and more free potions), Training Yard (+attack) and Waystone (fast travel). Buildings
   visibly change in the village.
 - **Levels you can feel**: a combat level-up pauses the game on its own screen with your stat changes and what you're
   now ready for (a guardian, a new area). Woodcutting, Mining and weapon handling levels get a screen too, listing what
@@ -175,14 +234,14 @@ one, and in the Journal.
 ## Areas
 
 Each area past the village is a hand-drawn route (`src/routes.ts`), Pokémon style: a path that winds through the
-area, tall-grass crossings you can't avoid, optional grassy pockets off the path (where the best nodes grow),
-ponds or lava, and signs. Tests check every route can be walked end to end, can't be done without wading through
-grass, and that every tree, rock, sign and campfire can be reached. Each area is one material tier.
+area, shorter grassy crossings and longer dry detours, deliberate gathering stops, ponds or lava, and signs.
+Resources follow named groves and workings; Poppy’s grove and Pip’s gallery are discoveries opened through their
+quests. Tests check route choices, shortcut value, gathering clearance and quest gates. Each area has its own material tier.
 
 | Area | Lv | Monsters | Materials |
 | --- | --- | --- | --- |
 | 🌳 Quiet Glade | – | Prologue only | Where your story begins |
-| 🏡 Sowerby | – | – | Forge, Veyra's Spring and shrine, Elder Oswin, building plots |
+| 🏡 Sowerby | – | – | Forge, Veyra's Spring and shrine, Elder Oswin, building plots, Poppy's field at the east end |
 | 🌼 Sunny Meadow | 1–3 | Slime, Hopbun | Goo, Fluff, Clover · 🪵 oak, 🪨 stone |
 | 🌲 Whisper Woods | 4–7 | Sporecap, Woolf, Hopbun | Shroom Cap, Fang · 🌲 pine, 🟠 copper |
 | 🪨 Echo Cavern | 8–11 | Flapper, Pebblor, Sporecap | Bat Wing, Golem Core · ⚙️ iron |
@@ -242,8 +301,9 @@ you hit), and a weapon at every tier from ★ to ★★★★★:
   its stump and lands in a shower of leaves, or the rock splits along its cracks and tumbles apart, and the materials
   you earned pop out and fly to your bag. Clean hits build a streak that speeds things up; a flawless job gives one
   extra.
-  Nodes by the path are safe but slow to come back; ones out in the tall grass give more and can hold a rare find, but
-  monsters roam there. Skill levels widen the sweet spot and unlock the better tools.
+  The same resource gives the same materials, skill XP and rare finds on any terrain, and regrows in two minutes.
+  Rich gathering destinations offer more nodes together; monsters affect the journey, not the contents of a tree.
+  Skill levels widen the sweet spot and unlock the better tools.
 - **The Forge**: 20 weapons, 10 armors (each changes how your hero looks), 4 charms and 3 potions. Gear you haven't
   reached the level for (Forge, gathering skill or weapon handling) stays a mystery: a silhouette, its class and tier,
   and the level that reveals it. The 🗺️ Map lets you warp home from anywhere and hop to discovered areas.
@@ -260,6 +320,7 @@ outlines, posed per frame and rendered with EEVEE. It runs headless, with no Ble
 ```sh
 bun run art              # re-render everything (~30 min on CPU), then pack into public/assets/
 bun run art monsters     # re-render one group: hero | monsters | weapons | env | icons | icons2 | npc | gather
+bun run art icons3d      # gear, tool, potion, meal and material icons, from their 3D models (no Blender needed)
 BLENDER=/path/to/blender bun run art
 ```
 
@@ -272,12 +333,32 @@ BLENDER=/path/to/blender bun run art
   buildings, menu icons
 - `art/pack.py`: trims frames and packs them into WebP atlases plus `atlas.json`
 
-Characters (the hero in every armor, the villagers and every monster) and every weapon are real-time 3D (the weapon rides in the hero's hand, the arm following each swing, or on the back or hip on the map): `art/models.py` exports each
+Commit the final runtime assets in `public/assets/` (compressed GLB models, WebP atlases/icons and their metadata),
+along with their source builders in `art/`. Normal builds copy these ready-made assets; they do not run Blender.
+Regenerate and commit the affected assets only when their art changes. Intermediate `.raw.glb` exports, `art/out/`,
+build/test output and local `work/` playtest captures and map previews are ignored; they are not release content.
+
+Characters (the hero, the villagers and every monster) and every weapon are real-time 3D (the weapon rides in the hero's hand, the arm following each swing, or on the back or hip on the map): `art/models.py` exports each
 one with its animations to `public/assets/models/*.glb` (compressed with gltfpack; `bun run art models`), and
 `src/models.ts` draws them with a cel shader and inverted-hull outlines that match the Blender material. Each character
 is rendered into a small image at its on-screen size and drawn like a sprite, so the 2D world, depth sorting and every
 effect work unchanged. Without WebGL the game falls back to the characters' sprites, and to procedural canvas drawings
 if the atlas can't load either. Dev builds show a performance readout (fps, frame time, 3D renders, GPU).
+
+The hero is one base model (`hero_base`: head, face, hands, feet and hair) and one small model per armour
+(`armor_<id>`), whose pieces hang on the base's pivots when it's worn; only what you wear loads at startup. Crafting and
+building scenes are 3D too: each item or building is a model of its layers (`public/assets/crafting3d/<id>.glb`, from
+the same Blender builders the game wears and holds; `bun run art crafting` and `bun run art buildings`), all loaded on
+the title screen, and played live with the same toon look as the ingredients fly in from the bag.
+
+Every material has a small 3D model too (`crafting3d/mat_<id>.glb`, `bun run art materials`, from the builders in
+`art/icons.py`), loaded in the background once the title is up: its pieces tumble into crafting scenes. Wherever one
+item is shown on its own (the "You found" card, the Forge's and the Bag's tags) it pops in and turns once round in live
+3D from its model, then rests until you drag it round; the Bag opens on you in what you're wearing (`src/itemview.ts`).
+One view is live at a time, on the same shared renderer. The inventory icons of gear, tools, potions, meals and materials are rendered from those
+same models (`bun run art icons3d [id,...]`, scripts/icons3d.ts, in headless Chromium with the game's own renderer;
+`--sheet out.png` writes a before/after contact sheet, `--check` lists icons out of date with their models), so changing
+a model changes its icon. Without WebGL, items show their icons.
 
 ## Code map
 
@@ -302,6 +383,9 @@ if the atlas can't load either. Dev builds show a performance readout (fps, fram
   grass encounters, rendering
 - `src/routes.ts`: the hand-drawn route maps, one character per tile (legend at the top)
 - `src/roamers.ts`: monsters wandering the grass: noticing, chasing, surprise attacks
+- `src/echoCave.ts` and `src/game/underground.ts`: the separate cave map, entrance, exit and save restoration
+- `src/procession.ts`: the Pebblors' underground procession you tail (who sees what,
+  where you fall to, the way back up), for the side story in `src/game/stories/drums.ts`
 - `src/actors.ts`, `src/bubble.ts`: story characters on the map (walking paths, following you, moods, talking) and
   their emoji speech bubbles
 - `src/weapons.ts`: each class's moveset (combo timings, hitbox shapes, stamina) and the damage model

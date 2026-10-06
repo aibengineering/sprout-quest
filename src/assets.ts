@@ -1,7 +1,7 @@
 // Loads the Blender-rendered sprite atlas and draws frames. If loading fails the game falls back to the
 // procedural canvas drawings in sprites.ts, so it always stays playable. Characters are drawn in 3D (models.ts) once
 // their models are in, with their sprites as the fallback.
-import { drawModel, hasModel, type Held } from './models';
+import { drawModel, hasModel, loadModel, type Held } from './models';
 
 export interface Frame {
   img: HTMLImageElement | HTMLCanvasElement;
@@ -48,15 +48,17 @@ async function fetchWithProgress(url: string, onBytes: (got: number, total: numb
  * Loads the sprite atlas with byte-level progress. Images are fully decoded before this resolves, so the first frame
  * that draws a monster or a gathering node already has it (a loaded-but-undecoded image can draw nothing on phones).
  */
-export async function loadAssets(onProgress?: (p: LoadProgress) => void, base = 'assets/'): Promise<boolean> {
-  try {
+export async function loadAssets(onProgress?: (p: LoadProgress) => void): Promise<boolean> {
+  const got: number[] = [], size: number[] = [];
+  const report = () => onProgress?.({ stage: 'sprites', done: got.reduce((a, b) => a + b, 0), total: size.reduce((a, b) => a + b, 0) });
+  const load = async (base: string) => {
     const res = await fetch(`${base}atlas.json`);
-    if (!res.ok) return false;
+    if (!res.ok) throw new Error(`${base}atlas.json: ${res.status}`);
     const data = (await res.json()) as { pages: string[]; frames: Record<string, number[]> };
-    const got = data.pages.map(() => 0), size = data.pages.map(() => 0);
-    const report = () => onProgress?.({ stage: 'sprites', done: got.reduce((a, b) => a + b, 0), total: size.reduce((a, b) => a + b, 0) });
     const imgs = await Promise.all(
-      data.pages.map(async (p, i) => {
+      data.pages.map(async (p) => {
+        const i = got.push(0) - 1;
+        size.push(0);
         const blob = await fetchWithProgress(base + p, (n, t) => {
           got[i] = n;
           size[i] = t || n;
@@ -71,11 +73,12 @@ export async function loadAssets(onProgress?: (p: LoadProgress) => void, base = 
     for (const [name, [page, x, y, w, h, ax, ay, ppu]] of Object.entries(data.frames)) {
       frames.set(name, { img: imgs[page], x, y, w, h, ax, ay, ppu });
     }
-    ready = true;
-    return true;
-  } catch {
-    return false;
-  }
+  };
+  // The main atlas, and alongside it the rooms' props (Granny's Kitchen, Bram's Sawmill) and the Garden's tools: a
+  // small atlas of their own, which can go missing without taking the rest down.
+  const [main] = await Promise.allSettled([load('assets/'), load('assets/rooms/'), load('assets/echo/'), load('assets/homes/')]);
+  ready = main.status === 'fulfilled';
+  return ready;
 }
 
 /** Warms the browser cache with the menu icons so bags and forges open with every picture already there. */
@@ -85,7 +88,7 @@ export async function loadAssets(onProgress?: (p: LoadProgress) => void, base = 
  * first frame instead of each one being fetched (or re-fetched, on a server that says not to cache) and popping in.
  */
 const iconBlobs = new Map<string, string>();
-const decodedIcons: HTMLImageElement[] = [];
+const decodedIcons = new Map<string, HTMLImageElement>();
 
 export async function preloadIcons(ids: string[], onProgress?: (p: LoadProgress) => void): Promise<void> {
   let done = 0;
@@ -98,7 +101,7 @@ export async function preloadIcons(ids: string[], onProgress?: (p: LoadProgress)
         img.src = url;
         await img.decode();
         iconBlobs.set(id, url);
-        decodedIcons.push(img);
+        decodedIcons.set(id, img);
       }
     } catch {
       // Missing or broken: that icon falls back to its emoji.
@@ -137,7 +140,9 @@ function flashed(f: Frame, color: string, amount: number): HTMLCanvasElement {
     scratch.height = Math.max(scratch.height, f.h);
   }
   const c = scratch.getContext('2d')!;
-  c.clearRect(0, 0, f.w, f.h);
+  // Scaling can sample just outside the source rectangle. Clear the whole buffer so a larger sprite's old
+  // flash can't bleed into a smaller one's bottom/right edges as faint rectangular lines.
+  c.clearRect(0, 0, scratch.width, scratch.height);
   c.globalCompositeOperation = 'source-over';
   c.globalAlpha = 1;
   c.drawImage(f.img, f.x, f.y, f.w, f.h, 0, 0, f.w, f.h);
@@ -244,19 +249,27 @@ export function drawWalker(ctx: CanvasRenderingContext2D, prefix: string, x: num
   if (drawModel(ctx, slot, prefix.replace('/', '_'), pose, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, { ...o, outline: undefined }))) return 'model';
   const { dir, flip } = heroDir(face);
   const n = moving ? 1 + (Math.floor(t * 9) % 4) : 0;
-  const f = frame(`${prefix}/${dir}/${n}`) ?? frame(`${prefix}/${dir}/0`) ?? frame(`${prefix}/0/0`);
+  const f = frame(`${prefix}/${dir}/${n}`) ?? frame(`${prefix}/${dir}/0`) ?? frame(`${prefix}/0/0`)
+    ?? (prefix.startsWith('npc/') ? frame(`${prefix.replace('npc/', 'env/')}/${dir}/0`) : undefined);
   if (!f) return false;
   const breathe = moving ? 1 : 1 + Math.sin(t * 3) * 0.015;
   drawFrame(ctx, f, x, y, unit, { ...o, flip, sy: (o.sy ?? 1) * breathe, sx: (o.sx ?? 1) / breathe });
   return 'sprite';
 }
 
+let shownArmor = 'tunic';
+/** Is the hero drawn in 3D? While new armour downloads, the last armour shown stands in, weapon and all. */
+export const heroIn3d = (armor: string) => hasModel(`hero_${armor}`) || hasModel(`hero_${shownArmor}`);
+
 /**
  * Draws the hero, with `held` in hand or carried if drawn in 3D. Returns what drew it ('model' or 'sprite'), or false
  * if neither is available so callers can fall back.
  */
 export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number, y: number, unit: number, face: number, moving: boolean, t: number, o: DrawOpts = {}, slot = 'hero', held?: Held): 'model' | 'sprite' | false {
-  const prefix = frame(`hero/${armor}/0/0`) || hasModel(`hero_${armor}`) ? `hero/${armor}` : 'hero/tunic';
+  // Armour loads when first worn: until it's in, the hero keeps the last armour drawn.
+  if (hasModel(`hero_${armor}`)) shownArmor = armor;
+  else void loadModel(`hero_${armor}`);
+  const prefix = frame(`hero/${armor}/0/0`) ? `hero/${armor}` : `hero/${shownArmor}`;
   return drawWalker(ctx, prefix, x, y, unit, face, moving, t, { outline: HERO_OUTLINE, ...o }, slot, held);
 }
 
@@ -264,8 +277,8 @@ export function drawHero(ctx: CanvasRenderingContext2D, armor: string, x: number
  * Draws a monster with its feet at (x, y): a 3D model once it's loaded, else its sprite. `phase` runs through its idle
  * loop (1 = once round), `left` turns it to face left. Returns false if neither is available.
  */
-export function drawMonsterAt(ctx: CanvasRenderingContext2D, slot: string, kind: string, golden: boolean, phase: number, left: boolean, x: number, y: number, unit: number, o: DrawOpts = {}): boolean {
-  const pose = { anim: 'idle', phase, yaw: left ? -MONSTER_YAW : MONSTER_YAW, gold: golden };
+export function drawMonsterAt(ctx: CanvasRenderingContext2D, slot: string, kind: string, golden: boolean, phase: number, left: boolean, x: number, y: number, unit: number, o: DrawOpts = {}, face?: number): boolean {
+  const pose = { anim: 'idle', phase, yaw: face === undefined ? (left ? -MONSTER_YAW : MONSTER_YAW) : Math.PI / 2 - face, gold: golden };
   if (drawModel(ctx, slot, `mon_${kind}`, pose, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, o))) return true;
   const f = frame(`mon/${kind}${golden ? '_gold' : ''}/${Math.floor((((phase % 1) + 1) % 1) * 6)}`) ?? frame(`mon/${kind}/0`);
   if (!f) return false;
@@ -287,6 +300,11 @@ export function drawIdler(ctx: CanvasRenderingContext2D, slot: string, name: str
   if (!f) return false;
   drawFrame(ctx, f, x, y, unit, o);
   return true;
+}
+
+/** A menu icon, decoded and ready to draw on the canvas (undefined if it never loaded: draw its emoji instead). */
+export function iconImage(id: string): HTMLImageElement | undefined {
+  return decodedIcons.get(id);
 }
 
 export function iconUrl(id: string) {

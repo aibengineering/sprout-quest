@@ -1,14 +1,16 @@
-"""Pine grip, three articulated Dragon Scale coils, Imp Horn tip and Ember seams.
+"""Emberwood grip, three articulated Dragon Scale coils, Imp Horn tip and Ember seams.
 
-Pine grip and horn ferrules stay at X<=.225 so whipGrip retains them when
+Emberwood grip and horn ferrules stay at X<=.225 so whipGrip retains them when
 the renderer removes the stowed coils during a lash. No iron/gold fittings.
 """
 import math
 import lib
 
 LENGTH = .95
-CAMERA = dict(ppu=680, anchor=(0.15, 0, -0.14), elevation=0)
-PARTS = ('pine', 'horn', 'scale', 'ember')
+# The shipped assembly art is framed flat and unscaled (the lash hangs below the grip), not in the tilted weapon view.
+PREVIEW_ROTATION = (0, 0, 0)
+PREVIEW_SCALE = (1, 1, 1)
+PARTS = ('emberwood', 'horn', 'scale', 'ember')
 
 
 def build_weapon(root):
@@ -18,12 +20,12 @@ def build_weapon(root):
         before = set(bpy.data.objects)
         fn()
         parts[key] = list(set(bpy.data.objects)-before)
-    def pine():
-        lib.cylinder((.04,0,0),.044,.34,lib.toon('#885e43'),root,rot=(0,math.pi/2,0),seg=12,line=.013)
-        # Large grain marks read on the equipped grip, without busy noise.
+    def emberwood():
+        lib.cylinder((.04,0,0),.044,.34,lib.toon('#3a3238'),root,rot=(0,math.pi/2,0),seg=12,line=.013)
+        # Glowing ember grain reads on the equipped grip, without busy noise.
         for z in (-.021,.021):
-            lib.box((.02,-.043,z),(.2,.012,.006),lib.toon('#d7a971'),root,bevel=.003,line=0)
-    group('pine',pine)
+            lib.box((.02,-.043,z),(.2,.012,.006),lib.toon('#ff7a2a',emit=.9),root,bevel=.003,line=0)
+    group('emberwood',emberwood)
     def horn():
         for x in (-.09,.13):
             lib.torus((x,0,0),.048,.015,lib.toon('#f4dec2'),root,rot=(0,math.pi/2,0),seg=12,line=.006)

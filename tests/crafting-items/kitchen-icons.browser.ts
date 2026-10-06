@@ -27,7 +27,7 @@ try {
       Object.assign(s, { flags: ['sword', 'glade1', 'glade2', 'village', 'bram:stew'], quest: g.quests.findIndex((q: any) => q.id === 'cottage'), lv: 4, tips: ['moved', 'chopped', 'mined'] });
       s.stories.poppy = 6;
       s.pos = { x: 31.8, y: 11.2 };
-      Object.assign(s.mats, { goo: 50, fluff: 50, clover: 50, pine: 50, cap: 50 });
+      Object.assign(s.mats, { goo: 150, fluff: 150, clover: 50, pine: 150, cap: 150 });
       localStorage.setItem('sprout-quest-save', JSON.stringify(s));
     });
     await page.reload();

@@ -27,21 +27,6 @@ try {
     page.on('console', m => { if (m.type() === 'error' || (m.type() === 'warning' && /model/.test(m.text()) && !/Failed to fetch/.test(m.text()))) errors.push(m.text()); });
     await page.goto(`http://localhost:${server.port}/?preset=sandbox`);
     await page.waitForFunction(() => (window as any).game?.mode === 'world', { timeout: 60000 });
-    if (width === 390) {
-      const emptyContacts = await page.evaluate(async presentations => {
-        const empty: string[] = [];
-        for (const p of presentations) for (const t of p.targets) {
-          const layer = p.layers.find(l => l.id === t.part)!;
-          const image = new Image(); image.src = layer.src; await image.decode();
-          const canvas = document.createElement('canvas'); canvas.width = canvas.height = 512;
-          const ctx = canvas.getContext('2d')!; ctx.drawImage(image, 0, 0);
-          if (ctx.getImageData(Math.round(t.x * 512), Math.round(t.y * 512), 1, 1).data[3] < 10) empty.push(`${p.id}:${t.part}`);
-        }
-        return empty;
-      }, [barkvest, shroomhood, batcloak, glimmershawl]);
-      if (emptyContacts.length) throw new Error(`ingredient contacts miss visible geometry: ${emptyContacts.join(', ')}`);
-      results.push({ registeredContacts: 'all targets land on visible registered geometry' });
-    }
     await page.evaluate(() => {
       const g = (window as any).game;
       g.over.teleport(26.5, 13.5);
@@ -59,7 +44,7 @@ try {
       }, id);
       await page.waitForFunction(({ renders }) => (window as any).game.modelStats.renders > renders, { renders }, { timeout: 30000 });
       await page.waitForTimeout(900);
-      if (!fetched.has(`hero_${id}.glb`)) throw new Error(`${id}: equipped model was not fetched`);
+      if (!fetched.has(`armor_${id}.glb`)) throw new Error(`${id}: equipped model was not fetched`);
       await page.screenshot({ path: `${out}/${id}-${width}-map.png` });
       await page.keyboard.down('ArrowRight');
       await page.waitForTimeout(180);

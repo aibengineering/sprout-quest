@@ -4,7 +4,6 @@ from lib import sphere, toon, torus
 from ._stone_jelly import component, felt_grip, shine, GOO
 
 LENGTH = .9
-CAMERA = dict(ppu=529.43613567671, anchor=(0.2688320428133011, 0, -0.09599998965859413), elevation=0)
 PARTS = ('fluff-grip', 'goo-collar', 'goo-coils', 'goo-tip')
 
 

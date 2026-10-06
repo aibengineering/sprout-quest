@@ -3,7 +3,6 @@ from lib import box, profile, toon
 from ._stone_jelly import component, oak, OAK, OAK_DARK
 
 LENGTH = 1.3
-CAMERA = dict(ppu=360.01251428116, anchor=(0.4773125648498535, 0, 0.016062483191490173), elevation=0)
 PARTS = ('oak-shaft', 'stone-head', 'oak-clamp')
 
 

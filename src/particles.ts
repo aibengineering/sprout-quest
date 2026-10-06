@@ -63,6 +63,14 @@ export class Particles {
     return this.list.length > 0;
   }
 
+  get count() {
+    return this.list.length;
+  }
+
+  clear() {
+    this.list = [];
+  }
+
   /** Chips of wood, bark or stone: little irregular pieces that spin, bounce and settle. */
   chips(x: number, y: number, n: number, colors: readonly string[], s: Spray, size: [number, number] = [2.5, 5]) {
     for (let i = 0; i < n; i++) {

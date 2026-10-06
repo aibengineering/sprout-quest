@@ -1,10 +1,8 @@
 """Stone blade held in a split oak hilt; exactly Stone + Oak Logs."""
-import math
 from lib import box, profile, toon
 from ._stone_jelly import component, oak, OAK, OAK_DARK
 
 LENGTH = 1.3
-CAMERA = dict(ppu=385.53893428845, anchor=(0.4377646744251251, 0, 0), elevation=0)
 PARTS = ('oak-hilt', 'stone-blade', 'oak-splints')
 
 

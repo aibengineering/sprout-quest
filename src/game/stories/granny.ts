@@ -1,8 +1,9 @@
-// Granny Clover: in the blue house in Sowerby from the day you arrive, worrying about her granddaughter Poppy. Once
-// Mr. Floppers is home (Poppy's story), she cooks for you: her Kitchen (see kitchen.ts).
-import { cook, kitchenOpen, MEALS, type MealId } from '../../kitchen';
-import { craftPresentation } from '../../crafting';
+// Granny Clover: by the blue house in Sowerby from the day you arrive, worrying about her granddaughter Poppy. Once
+// Mr. Floppers is home (Poppy's story), she welcomes you into her Kitchen to cook together (see kitchen.ts).
+import { kitchenOpen } from '../../kitchen';
+import { poppyAway } from '../../procession';
 import { G, paused, persist } from '../context';
+import { offerVillageUpgrade } from '../housing';
 import { say, type Speaker } from '../scenes';
 import type { Story } from '../stories';
 
@@ -18,37 +19,26 @@ const poppyDue = () => G.save.lv >= 3;
 
 function lines(): [string, string?][] {
   const step = poppyStep();
+  // Poppy's off after the drums in Echo Cavern (drums.ts).
+  if (poppyAway(G.save)) return [["Echo Cavern, dear. Please, bring my Poppy home.", 'worried']];
   // Before the rescue can start, she only frets; once it can, Poppy's properly overdue (and she says where).
   if (step === 0 && !poppyDue()) return [["Oh! You must be the traveler everyone's talking about. My granddaughter Poppy's off picking flowers in the Sunny Meadow again. She wanders so far… I do worry.", 'worried']];
   if (step <= 1) return [["Poppy went to pick flowers this morning, down in the meadow's far south-east corner. She should have been home by now…", 'worried']];
   if (step <= 4) return [['Poor Poppy. That bunny is her best friend in the whole world.', 'worried']];
   if (step === 5) return [["You found him? Oh, go on, give him to her, dear!"]];
-  return [["Those boots holding up? Poppy hasn't stopped talking about you. And that grove of hers has lovely timber and stone, now the bullies are gone."]];
-}
-
-const GREETINGS = ["Sit down, sit down! What'll it be, dear?", 'Hungry? Of course you are. Look at you, all skin and leaves.', "There's always something on the stove for our hero."];
-let greet = 0;
-
-/** Her kitchen table: pick a meal, and she cooks it while you wait. */
-function kitchen() {
-  return paused(async () => {
-    const r = await G.ui.kitchen(G.save, GREETINGS[greet++ % GREETINGS.length]);
-    if (!r.startsWith('cook:')) return;
-    const id = r.slice(5) as MealId;
-    const before = { ...G.save.mats };
-    if (cook(G.save, id) !== 'ok') return;
-    const meal = MEALS[id];
-    if (!craftPresentation(meal)) G.audio.play('craft');
-    persist();
-    if (craftPresentation(meal)) await G.ui.madeItem({ ...meal, iconId: `meal_${id}` }, before, meal.desc, meal.icon, 'Granny made', 'Enjoy!');
-    await say(GRANNY, `${MEALS[id].icon} There you go: ${MEALS[id].name}. Mind the crumbs!`);
-  });
+  if (!kitchenOpen(G.save)) return [["Thank you for bringing Mr. Floppers home, dear. I’d love to cook something with you, but this little kitchen barely fits me."], [G.save.flags.includes('bram:hut') ? "Bram’s putting a kitchen beside the house. Grow some flowers with Poppy, then bring him the timber and oven stone." : "Once Bram’s home, I’ll ask about a kitchen with proper benches. Poppy wants flowers in every window."]];
+  const neighbours = G.save.flags.includes('moss:recipe') && G.save.flags.includes('rook:lodge')
+    ? 'Moss knows bread. Rook knows prices. I’d rather nobody put a price on Poppy’s friends.'
+    : G.save.flags.includes('moss:recipe') ? 'Moss has been baking beside me. It’s lovely to have someone at the oven again.'
+    : G.save.flags.includes('rook:lodge') ? 'Rook’s charming, dear. I wish he’d stop talking about what everything is worth.'
+    : "Those boots holding up? Poppy hasn't stopped talking about you. And that grove of hers has lovely timber and stone, now the bullies are gone.";
+  return [[neighbours], ["Look at all this room! Come inside and have some food, dear. I'll join you by the recipe book, and we'll find something lovely to make."]];
 }
 
 /** Bram's story starts with her: once the Woods are open and Poppy's safe home, she asks you to take him a pie. */
-const bramDue = () => G.save.bosses.includes('kingslime') && poppyStep() >= 6 && !G.save.flags.includes('bram:pie');
+export const bramDue = () => G.save.bosses.includes('kingslime') && poppyStep() >= 6 && !G.save.flags.includes('bram:pie');
 
-function askFavour() {
+export function askFavour() {
   return paused(async () => {
     await say(GRANNY, "Oh, dear, would you do an old woman a favour? My old friend Bram is a lumberjack, out in Whisper Woods.");
     await say(GRANNY, "He used to bring me firewood every week. I haven't seen him in years, and I do worry.", 'worried');
@@ -66,12 +56,13 @@ export const GRANNY_STORY: Story = {
   available: () => G.save.flags.includes('village'),
   steps: [],
   objs: [],
+  // She joins you in the kitchen when you enter; outdoors she remains available for chats and quests.
   cast: () => [{
-    id: GRANNY_ID, look: { kind: 'idle', name: 'granny' }, ...GRANNY_AT,
-    label: kitchenOpen(G.save) ? 'Cook' : 'Talk',
-    mood: poppyStep() <= 4 ? '😟' : undefined,
-    talk: () => (bramDue() ? askFavour() : kitchenOpen(G.save) ? kitchen() : paused(async () => {
+    id: GRANNY_ID, look: { kind: 'idle', name: 'granny' }, ...GRANNY_AT, label: 'Talk',
+    mood: poppyAway(G.save) ? '😰' : poppyStep() <= 4 ? '😟' : undefined,
+    talk: () => (bramDue() ? askFavour() : paused(async () => {
       for (const [text, mood] of lines()) await say(GRANNY, text, mood);
+      if(kitchenOpen(G.save)) await offerVillageUpgrade('Granny Clover');
     })),
   }],
 };

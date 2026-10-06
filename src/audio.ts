@@ -18,7 +18,10 @@ export type Sfx =
   // A regular win: a quick bright bell, leaving room for the XP fill right after it (guardians keep the full jingle).
   | 'win'
   // Hand-making: an ingredient leaving the bag, soft wool contact, sticky binding, then a final seam settling.
-  | 'craftPull' | 'craftFluff' | 'craftGoo' | 'craftStitch';
+  | 'craftPull' | 'craftFluff' | 'craftGoo' | 'craftStitch'
+  // Echo Cavern's side tunnels: a Pebblor's heavy footfall echoing back off the rock, and a stamp that cracks the
+  // floor under you.
+  | 'stomp' | 'cave-in';
 
 /** How many bubbles an XP fill of `dur` seconds plays, evenly spaced (the HUD pops a notch onto the bar with each). */
 export const xpBloops = (dur: number) => Math.max(2, Math.round(dur / 0.075));
@@ -32,6 +35,8 @@ const FANFARES: Partial<Record<Sfx, number>> = { victory: 1.4, lose: 1.2, levelu
 export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  /** Where effects play into: the master, or a quieter bus for one played at less than full volume. */
+  private out: GainNode | null = null;
   private level = 1;
   muted = false;
   /** Called when a fanfare plays, with how long it rings (the music ducks under it). */
@@ -64,6 +69,18 @@ export class Audio {
     if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
 
+  /**
+   * Silences everything (music and effects) while the game isn't on screen: the phone's home screen, another app, a
+   * closed tab still running in the background. `wake` brings it back.
+   */
+  sleep() {
+    if (this.ctx?.state === 'running') void this.ctx.suspend();
+  }
+
+  wake() {
+    if (this.ctx?.state === 'suspended') void this.ctx.resume();
+  }
+
   private tone(freq: number, dur: number, type: OscillatorType, vol: number, slideTo?: number, delay = 0) {
     const ctx = this.ctx!;
     const t0 = ctx.currentTime + delay;
@@ -75,7 +92,7 @@ export class Audio {
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g).connect(this.master!);
+    o.connect(g).connect(this.out ?? this.master!);
     o.start(t0);
     o.stop(t0 + dur + 0.02);
   }
@@ -94,7 +111,7 @@ export class Audio {
     f.frequency.value = freq;
     const g = ctx.createGain();
     g.gain.value = vol;
-    src.connect(f).connect(g).connect(this.master!);
+    src.connect(f).connect(g).connect(this.out ?? this.master!);
     src.start(t0);
   }
 
@@ -127,7 +144,7 @@ export class Audio {
     g.gain.exponentialRampToValueAtTime(vol, t0 + 0.004);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol * tail), t0 + dur);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.012);
-    o.connect(g).connect(this.master!);
+    o.connect(g).connect(this.out ?? this.master!);
     o.start(t0);
     o.stop(t0 + dur + 0.03);
   }
@@ -147,9 +164,18 @@ export class Audio {
     this.chirp(4186 * pitch, 4186 * pitch, 0.25, 'sine', 0.025, t0 + 0.06);
   }
 
-  play(s: Sfx) {
-    if (this.muted || !this.level || !this.ctx || this.ctx.state !== 'running') return;
-    this.effect(s);
+  /** `vol` below 1 plays it quieter (something heard from further away). */
+  play(s: Sfx, vol = 1) {
+    if (this.muted || !this.level || !this.ctx || this.ctx.state !== 'running' || vol <= 0) return;
+    if (vol >= 1) return this.effect(s);
+    this.out = this.ctx.createGain();
+    this.out.gain.value = vol;
+    this.out.connect(this.master!);
+    try {
+      this.effect(s);
+    } finally {
+      this.out = null;
+    }
   }
 
   private effect(s: Sfx) {
@@ -201,6 +227,20 @@ export class Audio {
         [2960, 3951].forEach((f, i) => this.tone(f, 0.35, 'sine', 0.035, undefined, 0.62 + i * 0.12));
         break;
       }
+      case 'stomp':
+        // A heavy stone foot coming down, and the tunnel throwing it back twice, softer and duller each time.
+        [0, 0.22, 0.46].forEach((d, i) => {
+          this.tone(110 - i * 12, 0.24, 'sine', 0.34 / (1 + i * 1.6), 52, d);
+          this.noise(0.12, 0.2 / (1 + i * 1.8), 420 - i * 110, d);
+        });
+        break;
+      case 'cave-in':
+        // A stamp, the floor cracking open, and rubble going down with you.
+        this.tone(90, 0.3, 'sine', 0.4, 40);
+        this.noise(0.05, 0.5, 6000, 0.12);
+        this.noise(0.6, 0.4, 700, 0.16);
+        this.tone(180, 0.5, 'triangle', 0.12, 60, 0.18);
+        break;
       case 'kindle':
         // The flame catching: a soft rushing whoosh…
         this.noise(0.35, 0.18, 900);

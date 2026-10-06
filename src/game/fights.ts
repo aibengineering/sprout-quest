@@ -1,3 +1,4 @@
+import { recordHuntWin, hunting, huntDef, huntLock, VARIANTS } from '../hunts';
 // Starting and finishing fights: field encounters, guardians and scripted prologue fights, rewards, the swoop in and
 // out, and the in-battle coaching.
 import { Battle, type BattleOutcome, type BattleSetup, type Foe } from '../battle/battle';
@@ -16,6 +17,7 @@ import { celebrate, handlingGain, leveledUp, lootLines, markLevels, type LevelMa
 import { progressQuests } from './story';
 import { storyFightExtras } from './stories';
 import { faint } from './death';
+import { dojoCoach, finishDojo } from './dojo';
 import { floorSupplies, towerEnd } from './tower';
 
 /** HP when the current fight began, for the play report. */
@@ -24,7 +26,7 @@ let fightHp = 0;
 let battleFlag: string | undefined;
 
 /** Regular fights let you run; guardians and scripted fights don't. Battle Tower fights always let you back to the camp. */
-export const canRun = (b: Battle) => !!b.setup.tower || (!b.setup.boss && !battleFlag && G.save.flags.includes('village'));
+export const canRun = (b: Battle) => !!b.setup.dojo || !!b.setup.tower || (!b.setup.boss && !battleFlag && G.save.flags.includes('village'));
 
 /** A random set of monsters from a zone: `n` of them, or 1–3 (for ambushes in the grass). */
 function rollFoes(z: Zone, n?: number): Foe[] {
@@ -37,10 +39,12 @@ function rollFoes(z: Zone, n?: number): Foe[] {
 }
 
 function begin(zone: Zone, foes: Foe[], boss: boolean, ambush = false, extra: Partial<BattleSetup> = {}) {
-  G.battle = new Battle({ zone, foes, boss, ambush, ...extra }, G.save, G.input, G.audio, onBattleEnd);
+  const save = extra.dojo ? structuredClone(G.save) : G.save;
+  if (extra.dojo) { save.hp = playerStats(save).maxHp; save.potions = 0; }
+  G.battle = new Battle({ zone, foes, boss, ambush, ...extra }, save, G.input, G.audio, onBattleEnd);
   // Regular and story fights: loot, the XP fill and any level-ups come the moment the last foe falls, then the swoop
   // out. (Guardians keep their fanfare, and the Battle Tower's fights end on a result screen before the next floor.)
-  if (!boss && !extra.tower) G.battle.onWin = quickWin;
+  if (!boss && !extra.tower && !extra.dojo) G.battle.onWin = quickWin;
   G.mode = 'battle';
   G.ui.setMode('battle');
   G.input.reset();
@@ -82,6 +86,7 @@ export function startBattle(zone: Zone, foes: Foe[], boss: boolean, flag?: strin
  * pair are gentle level-1 foes; a story's group brings its own lineup.
  */
 export function challengeFoe(o: WorldObj) {
+  if(o.hunt)return challengeHunt(o.hunt);
   if (!G.save.flags.includes('sword')) {
     G.ui.toast('😰 You need something to fight with! Something was glinting back in the clearing…');
     return;
@@ -120,6 +125,7 @@ function grantWin(o: BattleOutcome, b: Battle): LevelMark {
   gainXp(s, o.xp);
   mergeDrops(s.mats, o.drops);
   gainMastery(s, mark.style, o.xp);
+  if(!b.setup.tower&&!b.setup.dojo) {recordHuntWin(s,b.enemies.filter(e=>e.dead&&!e.minion).map(e=>e.kind),b.setup.hunt);syncWorld();}
   if (!b.setup.boss && !b.setup.tower) recordKills(s, b.setup.zone.id, o.defeated.length);
   return mark;
 }
@@ -143,6 +149,7 @@ async function quickWin(o: BattleOutcome) {
 
 async function onBattleEnd(o: BattleOutcome) {
   const b = G.battle!, s = G.save;
+  if (b.setup.dojo) { G.mode = 'dialog'; return finishDojo(o, b); }
   const boss = b.setup.boss;
   // Regular and story fights swoop straight back out to the map; guardians and the dragon keep their fanfare.
   const quick = !boss && !b.setup.tower;
@@ -225,6 +232,7 @@ const press = (key: string, emoji: string) => (usingKeyboard() ? `Press ${key}` 
 /** Gentle in-battle tutorial: attack first, then dodge, later skills and potions. */
 export function coachBattle(b: Battle) {
   const s = G.save, ui = G.ui;
+  if (b.setup.dojo) return ui.coach(dojoCoach(b));
   if (b.intro > 0) return ui.coach(null);
   if (s.wins === 0) {
     if (coachStep === 0) {
@@ -236,7 +244,7 @@ export function coachBattle(b: Battle) {
   if (s.wins === 1) {
     // The Hopbun fight: its charge is the perfect thing to dodge.
     if (coachStep === 0) {
-      if (b.dodgeFrac > 0) { coachStep = 1; return ui.coach(null); }
+      if (b.log.dodges > 0) { coachStep = 1; return ui.coach(null); }
       const winding = b.enemies.some((e) => !e.dead && e.windup > 0.2);
       return ui.coach(winding ? `It's winding up! ${press('K', '💨')} NOW!` : `Hopbuns wiggle, then charge. ${press('K', '💨')} to dodge through them!`, 'btn-dodge');
     }
@@ -247,4 +255,11 @@ export function coachBattle(b: Battle) {
     return ui.coach(`Low HP! ${press('H', '🧪')} to drink a potion.`, 'btn-potion');
   }
   ui.coach(null);
+}
+
+function challengeHunt(kind:string){
+ const a=hunting(G.save).active,d=a&&huntDef(a.id);
+ if(!a||!d||a.kind!==kind||a.status!=='tracking'||huntLock(G.save,d,a.rank))return;
+ startBattle(zoneById(d.zone),[{kind:d.kind,lv:a.lv,golden:false,variant:d.variant}],false,undefined,{hunt:a.id});
+ G.ui.toast(`${d.name} · Lv ${a.lv} · ${VARIANTS[d.variant].label}`,4000);
 }

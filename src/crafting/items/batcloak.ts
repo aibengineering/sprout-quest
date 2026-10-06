@@ -1,27 +1,29 @@
 import type { CraftPresentation } from '../types';
 
-const src = (part: string) => `assets/crafting/batcloak-${part}.webp`;
-
 export default {
-  id: 'batcloak', duration: 3400,
-  layers: [
-    ...['wing-back-left', 'wing-back-right', 'wing-lapels', 'wing-collar', 'fang-clasps'].map(id => ({ id, src: src(id) })),
-  ],
-  complete: src('complete'),
-  roles: { wing: 'Scalloped membranes, raised ribs & collar', fang: 'Six ivory cloak clasps' },
+  id: 'batcloak', model: 'assets/crafting3d/batcloak.glb', duration: 3650,
+  layers: ['fluff-lining', 'goo-seams', 'wing-back-left', 'wing-back-right', 'wing-lapels', 'wing-collar', 'copper-clasp', 'fang-ornaments'].map(id => ({ id })),
+  roles: { fluff: 'Soft lining, sleeves & cloth hem', goo: 'Bound hems & cuffs',
+    wing: 'Scalloped cape, diagonal folds & shoulder collar', copper: 'Round shoulder clasp', fang: 'Small hanging shoulder ornaments' },
   targets: [
-    { material: 'wing', part: 'wing-back-left', at: 200, duration: 540, x: .295, y: .469, contact: 'soft', sound: 'craftPull' },
-    { material: 'wing', part: 'wing-back-right', at: 400, duration: 540, x: .705, y: .469, contact: 'soft', sound: 'craftPull' },
-    { material: 'wing', part: 'wing-lapels', at: 600, duration: 520, x: .5, y: .503, contact: 'soft', sound: 'craftFluff' },
-    { material: 'wing', part: 'wing-collar', at: 780, duration: 500, x: .34, y: .312, contact: 'soft', sound: 'craftPull' },
-    { material: 'fang', part: 'fang-clasps', at: 1450, duration: 700, x: .535, y: .48, contact: 'solid', sound: 'craftStitch' },
+    { material: 'fluff', part: 'fluff-lining', at: 120, duration: 480, contact: 'soft', sound: 'craftFluff' },
+    { material: 'goo', part: 'goo-seams', at: 620, duration: 450, contact: 'bind', sound: 'craftGoo' },
+    { material: 'wing', part: 'wing-back-left', at: 780, duration: 500, contact: 'soft', sound: 'craftPull' },
+    { material: 'wing', part: 'wing-back-right', at: 960, duration: 500, contact: 'soft', sound: 'craftPull' },
+    { material: 'wing', part: 'wing-lapels', at: 1140, duration: 480, contact: 'soft', sound: 'craftPull' },
+    { material: 'wing', part: 'wing-collar', at: 1320, duration: 480, contact: 'soft', sound: 'craftFluff' },
+    { material: 'copper', part: 'copper-clasp', at: 1870, duration: 440, contact: 'solid', sound: 'craftStitch' },
+    { material: 'fang', part: 'fang-ornaments', at: 2220, duration: 440, contact: 'solid', sound: 'craftStitch' },
   ],
   phases: [
-    { at: 0, stage: 'shape', text: 'Bat Wings, unfolding into a scalloped cloak…' },
-    { at: 1450, stage: 'binding', text: 'Wolf Fangs, clasping the soft folds…' },
-    { at: 2600, stage: 'reveal', text: 'A wing-soft swoosh, fastened for the road.', sound: 'craftPull' },
+    { at: 0, stage: 'line', text: 'Bunny Fluff, stitched into a soft cloak lining…' },
+    { at: 620, stage: 'binding', text: 'Slime Goo, binding hems and cuffs…' },
+    { at: 780, stage: 'drape', text: 'Bat Wings, folded into a sweeping cape…' },
+    { at: 1870, stage: 'fasten', text: 'Copper, shaped into a round shoulder clasp…' },
+    { at: 2220, stage: 'adorn', text: 'Wolf Fangs, tied on as little shoulder ornaments…' },
+    { at: 2880, stage: 'reveal', text: 'A soft lining. A wing-light swoosh.', sound: 'craftPull' },
   ],
-  sceneLabel: 'Bat Wings form a ribbed cloak with scalloped hems and a folded collar. Six Wolf Fangs clasp the front.',
-  pattern: 'wings that wrap, fangs that fasten', intro: 'Fold a wing. Catch a soft little swoosh.',
-  finished: 'Bat membranes for movement. Fang clasps for a snug fit.',
+  sceneLabel: 'Fluff lines the cloak and goo binds the seams. Bat Wings form scalloped drapes, an overlapping front fold and a collar. A copper shoulder clasp holds the cloak; small fangs hang beside it as ornaments.',
+  pattern: 'lined for comfort, clasped for travel', intro: 'Soft cloth, sweeping wings and a little copper shine.',
+  finished: 'A lined wing cloak with a copper shoulder clasp and small fang ornaments.',
 } satisfies CraftPresentation;

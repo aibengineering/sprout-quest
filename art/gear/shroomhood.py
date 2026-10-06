@@ -1,17 +1,19 @@
-"""Shroom Hood: thick spotted cap canopy, layered cap mantle, Wolf Fang toggles."""
-import math
+"""Shroom Hood: thick spotted cap canopy, layered cap mantle, soft lining and hip charms."""
 from lib import lathe, profile, sphere, toon
-from gear._woodland_shapes import add, fang, pivots, vest
+from gear._woodland_shapes import add, fang, pivots
 
-PARTS = ('cap-mantle', 'cap-left', 'cap-right', 'cap-canopy', 'fang-toggles')
+from gear._garment import lining, binding
+
+PARTS = ('fluff-lining', 'goo-seams', 'cap-mantle', 'cap-left', 'cap-right', 'cap-canopy', 'fang-ornaments')
 HELMET = True
-CAMERA = dict(ppu=324.443804, anchor=(0, 0.142039, 0.66824), elevation=math.radians(12))
 
 
 def build(body, arms=None, head=None):
     arms, head = pivots(body, arms, head)
     parts = {key: [] for key in PARTS}
-    vest(parts, 'cap-mantle', body, arms, '#a63a49')
+    lining(parts, 'fluff-lining', body, arms)
+    binding(parts, 'goo-seams', body, arms)
+
     red, cream = toon('#e8505a'), toon('#fff0d8', rim=.12)
     # Hood underside has a lip and radial gills instead of floating polka-dot balls.
     add(parts, 'cap-canopy', lathe([(.001, .46), (.15, .45), (.32, .36), (.45, .22),
@@ -35,10 +37,15 @@ def build(body, arms=None, head=None):
                                seg=20, rot=(0, side * .3, 0), line=.012, name='folded_cap_mantle'))
         add(parts, key, sphere((side * .2, -.16, .515), (.053, .03, .011), cream, body,
                                seg=12, line=.003))
-        add(parts, key, sphere((side * .16, -.245, .285), (.116, .037, .13), red, body,
-                               seg=20, line=.01, name='cap_panel'))
-        for z in (.33, .475):
-            fang(parts, 'fang-toggles', body, (side * .07, -.315, z), .135, side * .3)
+        add(parts, key, profile([(side * x, z) for x, z in
+                     ((.045, .46), (.22, .46), (.265, .30), (.225, .15), (.09, .12), (.055, .23))],
+                     .045, red, body, loc=(0, -.235, 0), bevel=.024, line=.009,
+                     name='tailored_cap_panel'))
+    # A small charm hangs at one hip, clear of the front opening.
+    for x in (.20, .25):
+        fang(parts, 'fang-ornaments', body, (x, -.29, .22), .06, .06)
+    add(parts, 'cap-mantle', sphere((0, -.265, .455), (.032, .016, .027), red, body,
+                                  seg=12, line=.005, name='cap_cloth_button'))
     return parts
 
 

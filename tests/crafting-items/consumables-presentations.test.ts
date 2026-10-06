@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { sceneModel } from '../sceneModel';
 import { readFileSync } from 'node:fs';
 import type { CraftPresentation } from '../../src/crafting/types';
 import { POTION_RECIPES, type MatId } from '../../src/data';
@@ -12,30 +13,28 @@ import pancakes from '../../src/crafting/items/pancakes';
 import tea from '../../src/crafting/items/tea';
 import goojelly from '../../src/crafting/items/goojelly';
 import stew from '../../src/crafting/items/stew';
+import rockcandy from '../../src/crafting/items/rockcandy';
+import herbtonic from '../../src/crafting/items/herbtonic';
+import tart from '../../src/crafting/items/tart';
+import meadowtea from '../../src/crafting/items/meadowtea';
+import trailbuns from '../../src/crafting/items/trailbuns';
 
-const presentations: CraftPresentation[] = [jellypot, shroombrew, embertonic, pancakes, tea, goojelly, stew];
+const presentations: CraftPresentation[] = [jellypot, shroombrew, embertonic, herbtonic, pancakes, tea, goojelly, stew, rockcandy, tart, meadowtea, trailbuns];
 const recipes = Object.fromEntries([...POTION_RECIPES, ...Object.values(MEALS)].map((item) => [item.id, item.recipe]));
 
 describe('recipe-faithful potion and Kitchen timelines', () => {
-  test('the contribution covers exactly the three potions and four meals', () => {
+  test('the contribution covers exactly every potion and meal', () => {
     expect(presentations.map((p) => p.id).sort()).toEqual([...POTION_RECIPES.map((p) => p.id), ...MEAL_ORDER].sort());
   });
 
   for (const presentation of presentations) {
     test(`${presentation.id}: ingredient destinations match actual recipes and registered geometry`, () => {
       const recipe = recipes[presentation.id];
-      const data = JSON.parse(readFileSync(`public/assets/crafting/${presentation.id}.json`, 'utf8'));
+      const data = { stack: Object.keys(sceneModel(`assets/crafting3d/${presentation.id}.glb`).layers) };
       expect(Object.keys(presentation.roles).sort()).toEqual((Object.keys(recipe) as MatId[]).sort());
       expect([...new Set(presentation.targets.map((t) => t.material))].sort()).toEqual((Object.keys(recipe) as MatId[]).sort());
-      expect(presentation.layers.map((p) => p.id).sort()).toEqual(data.stack.toSorted());
+      expect(presentation.layers.map((p) => p.id).sort()).toEqual([...data.stack].sort());
       for (const target of presentation.targets) {
-        expect(data.ingredientRoles[target.material]).toContain(target.part);
-        expect(presentation.layers.find((p) => p.id === target.part)?.src).toBe(data.parts[target.part].src);
-        const [x0, y0, x1, y1] = data.parts[target.part].bounds;
-        expect(target.x * 512).toBeGreaterThanOrEqual(x0);
-        expect(target.x * 512).toBeLessThanOrEqual(x1);
-        expect(target.y * 512).toBeGreaterThanOrEqual(y0);
-        expect(target.y * 512).toBeLessThanOrEqual(y1);
         expect(['soft', 'bind', 'solid', 'energy']).toContain(target.contact);
         expect(target).not.toHaveProperty('count');
       }
@@ -43,7 +42,6 @@ describe('recipe-faithful potion and Kitchen timelines', () => {
       for (const material of Object.keys(recipe) as MatId[]) {
         expect(presentation.targets.filter((t) => t.material === material).length).toBeLessThanOrEqual(recipe[material]!);
       }
-      expect(presentation.complete).toBe(data.parts.complete.src);
     });
 
     test(`${presentation.id}: all physical contacts finish before reveal, with time to settle`, () => {
@@ -61,13 +59,11 @@ describe('recipe-faithful potion and Kitchen timelines', () => {
     });
   }
 
-  test('pine lands below the pot and never flies into the broth', () => {
+  test('pine goes on before the caps, as fuel', () => {
     const wood = stew.targets.find((t) => t.material === 'pine')!;
     const caps = stew.targets.filter((t) => t.material === 'cap');
-    expect(wood.y).toBeGreaterThan(.75);
     for (const cap of caps) {
       expect(wood.at + wood.duration).toBeLessThan(cap.at);
-      expect(cap.y).toBeLessThan(.5);
     }
     expect(stew.layers[0].id).toBe('pine-fuel');
     expect(stew.sceneLabel).toContain('fuel');
@@ -77,7 +73,7 @@ describe('recipe-faithful potion and Kitchen timelines', () => {
     for (const item of POTION_RECIPES) {
       const save = newState();
       save.potions = 0;
-      Object.assign(save.mats, { goo: 50, fluff: 50, cap: 50, ember: 50 });
+      Object.assign(save.mats, { goo: 150, fluff: 150, cap: 150, ember: 150, herb: 100 });
       const before = { ...save.mats };
       expect(craftPotion(save, item.id)).toBe('ok');
       expect(save.potions).toBe(1);
@@ -85,9 +81,9 @@ describe('recipe-faithful potion and Kitchen timelines', () => {
     }
     for (const id of MEAL_ORDER) {
       const save = newState();
-      save.stories.poppy = 6;
-      save.flags.push('bram:stew');
-      Object.assign(save.mats, { goo: 50, fluff: 50, clover: 50, pine: 50, cap: 50 });
+      save.stories.poppy = 6; save.flags.push('granny:extension');
+      save.flags.push('bram:stew', 'pip:candy', 'garden:berries', 'hazel:recipe', 'moss:recipe');
+      Object.assign(save.mats, { goo: 150, fluff: 150, clover: 50, pine: 150, cap: 150, stone: 150, copper: 150, berry: 100, herb: 50, flower: 50 });
       const before = { ...save.mats };
       expect(cook(save, id)).toBe('ok');
       expect(save.meal).toEqual({ id, left: MEALS[id].seconds });

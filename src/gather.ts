@@ -49,12 +49,13 @@ export class Chop {
     readonly power: number,
     readonly width: number,
     private rng: Rng = Math.random,
+    readonly requiredStreak = 0,
   ) {
     this.moveSpot();
   }
 
   get done() {
-    return this.dealt >= this.hp;
+    return this.requiredStreak ? this.streak >= this.requiredStreak : this.dealt >= this.hp;
   }
 
   get flawless() {
@@ -81,6 +82,7 @@ export class Chop {
       r = off <= (this.width * PERFECT_CORE) / 2 ? 'perfect' : 'hit';
       this.dealt += this.power * (1 + 0.25 * this.streak) * (r === 'perfect' ? 1.5 : 1);
       this.streak++;
+      if (this.requiredStreak) this.dealt = this.hp * Math.min(1, this.streak / this.requiredStreak);
       this.speed = Math.min(MAX_SPEED, this.speed * SPEED_UP);
       this.lock = HIT_LOCK;
     } else {
@@ -88,12 +90,13 @@ export class Chop {
       this.dealt += this.power * MISS_DAMAGE;
       this.misses++;
       this.streak = 0;
+      if (this.requiredStreak) this.dealt = 0;
       this.speed = BASE_SPEED;
       this.lock = MISS_LOCK;
     }
     this.last = r;
     this.lastT = 0;
-    this.lastAmount = this.dealt - before;
+    this.lastAmount = Math.max(0, this.dealt - before);
     this.strikes++;
     if (r === 'perfect') this.perfects++;
     if (!this.done) this.moveSpot();
@@ -138,7 +141,7 @@ const WORDS: Record<Look['kind'], Record<Strike, string>> = {
  * chops down and in at the notch; the pick comes down point-first on the rock.
  */
 const SWINGS = {
-  wood: { ready: 0.35, strike: -0.75, tip: { x: -29, y: -65 }, sprite: 'axe', tiers: 2 },
+  wood: { ready: 0.35, strike: -0.75, tip: { x: -29, y: -65 }, sprite: 'axe', tiers: 4 },
   mine: { ready: 0.3, strike: -0.85, tip: { x: -40, y: -57 }, sprite: 'pick', tiers: 4 },
 } as const;
 /** Illustration pixels per Blender unit for the tool sprites (see art/gather.py), and the illustration's scale. */
@@ -228,6 +231,7 @@ export class GatherView {
   /** A strike: the tool starts its swing now, and the blow shows when it connects (see connect). */
   private onStrike(c: Chop) {
     if (this.pending) this.connect();
+    if(c.requiredStreak && c.last==='miss') this.blows=[];
     this.pending = { at: c.hitPos, share: c.lastAmount / c.hp, kind: c.last!, seed: Math.random() * 100 };
     this.target = this.art.target(c.hitPos, this.progress + this.pending.share);
     this.swing = 0;
@@ -266,7 +270,7 @@ export class GatherView {
     ctx.fillStyle = '#fff';
     ctx.font = `900 18px ${FONT}`;
     ctx.fillText(title, vw / 2, top + 22);
-    if (c.streak > 1) {
+    if (c.streak > 1 && !c.requiredStreak) {
       ctx.textAlign = 'right';
       ctx.fillStyle = '#ffd35a';
       ctx.fillText(`🔥 ×${c.streak}`, x + w, top + 22);

@@ -1,14 +1,12 @@
 import type { CraftPresentation } from '../types';
 
-const src = (part: string) => `assets/crafting/shroombrew-${part}.webp`;
 export default {
-  id: 'shroombrew', duration: 2800,
-  layers: ['bottle', 'cap-infusion', 'spotted-caps'].map((id) => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'shroombrew', model: 'assets/crafting3d/shroombrew.glb', duration: 2800,
+  layers: ['bottle', 'cap-infusion', 'spotted-caps'].map((id) => ({ id })),
   roles: { cap: 'Rose-red brew & spotted cap pieces' },
   targets: [
-    { material: 'cap', part: 'cap-infusion', at: 220, duration: 520, x: .5, y: .52, contact: 'bind', sound: 'craftGoo' },
-    { material: 'cap', part: 'spotted-caps', at: 1040, duration: 500, x: .4844, y: .4072, contact: 'soft', sound: 'craftFluff' },
+    { material: 'cap', part: 'cap-infusion', at: 220, duration: 520, contact: 'bind', sound: 'craftGoo' },
+    { material: 'cap', part: 'spotted-caps', at: 1040, duration: 500, contact: 'soft', sound: 'craftFluff' },
   ],
   phases: [
     { at: 0, stage: 'steep', text: 'Shroom Caps, steeping into a rosy brew…' },

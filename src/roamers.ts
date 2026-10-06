@@ -3,6 +3,7 @@
 import { ZONES, type MonsterKind, type Zone, type ZoneId } from './data';
 import { groupSize, weightedPick, type Rng } from './rules';
 import { T, type World } from './world';
+import { CAVE_WEST_EDGE, CAVE_EAST_EDGE, surfaceBounds } from './caveEntrance';
 
 /** How many monsters roam each zone's grass at once. */
 export const ROAMERS_PER_ZONE = 6;
@@ -69,9 +70,12 @@ export class Roamers {
   private spawn(z: Zone, px: number, py: number, firstFight: boolean, minDist = SPAWN_MIN_DIST): boolean {
     const tiles = this.grass.get(z.id);
     if (!tiles?.length) return false;
-    for (let i = 0; i < 20; i++) {
-      const g = tiles[Math.floor(this.rng() * tiles.length)];
+    // Smaller, intentional grass pockets need a full fallback scan: bad random luck must not leave a region empty.
+    const scanStart=Math.floor(this.rng()*tiles.length);
+    for (let i = 0; i < 20+tiles.length; i++) {
+      const g = tiles[i<20?Math.floor(this.rng()*tiles.length):(scanStart+i-20)%tiles.length];
       const x = g.x + 0.5, y = g.y + 0.8;
+      if (this.world.blocked(x,y,.2)) continue;
       if (Math.hypot(x - px, y - py) < minDist || this.list.some((r) => Math.hypot(r.x - x, r.y - y) < 3)) continue;
       const size = firstFight ? 1 : groupSize(z, this.rng);
       this.list.push({
@@ -92,6 +96,7 @@ export class Roamers {
   unaware(px: number, py: number, reach = 1.5): Roamer | null {
     let best: Roamer | null = null, bd = reach;
     for (const r of this.list) {
+      if ((r.zone==='cave') !== (this.world.zoneAt(px).id==='cave')) continue;
       if (r.state === 'notice' || r.state === 'chase') continue;
       const d = Math.hypot(r.x - px, r.y - py);
       if (d < bd) { bd = d; best = r; }
@@ -123,7 +128,7 @@ export class Roamers {
     let caught: Roamer | null = null;
     for (const r of this.list) {
       // Only monsters near you are worth simulating.
-      if (Math.abs(r.x - px) > 16) continue;
+      if (Math.abs(r.x - px) > 16 || (r.zone==='cave') !== (this.world.zoneAt(px).id==='cave')) continue;
       r.t -= dt;
       const d = Math.hypot(px - r.x, py - r.y);
       const home = Math.hypot(r.x - r.hx, r.y - r.hy);
@@ -179,7 +184,8 @@ export class Roamers {
     if (d < 1e-3) return true;
     const s = Math.min(d, dist);
     const nx = r.x + (dx / d) * s, ny = r.y + (dy / d) * s;
-    const ok = (x: number, y: number) => !this.world.blocked(x, y, 0.25) && (!grassOnly || this.world.tile(Math.floor(x), Math.floor(y - 0.1)) === T.GRASS);
+    const bounds=r.zone==='cave'?{x0:CAVE_WEST_EDGE,w:CAVE_EAST_EDGE-CAVE_WEST_EDGE}:surfaceBounds(r.hx);
+    const ok = (x: number, y: number) => x-.25>=bounds.x0&&x+.25<bounds.x0+bounds.w&&!this.world.blocked(x, y, 0.25) && (!grassOnly || this.world.tile(Math.floor(x), Math.floor(y - 0.1)) === T.GRASS);
     let moved = false;
     if (ok(nx, r.y)) { r.x = nx; moved = true; }
     if (ok(r.x, ny)) { r.y = ny; moved = true; }

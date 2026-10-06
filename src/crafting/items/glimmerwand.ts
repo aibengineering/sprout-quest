@@ -1,15 +1,13 @@
 import type { CraftPresentation } from '../types';
-const src = (part: string) => `assets/crafting/glimmerwand-${part}.webp`;
 export default {
-  id: 'glimmerwand', duration: 3400,
-  layers: ['glass-shaft', 'shard-crown', 'core-heart', 'jelly-orb'].map(id => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'glimmerwand', model: 'assets/crafting3d/glimmerwand.glb', duration: 3400,
+  layers: ['glass-shaft', 'shard-crown', 'core-heart', 'jelly-orb'].map(id => ({ id })),
   roles: { glimmer: 'Hardened glass shaft, icy shard cradle & glowing jelly orb', core: 'Golem Core heart inside the orb' },
   targets: [
-    { material: 'glimmer', part: 'glass-shaft', at: 180, duration: 450, x: .386, y: .622, contact: 'solid', sound: 'tick' },
-    { material: 'glimmer', part: 'shard-crown', at: 700, duration: 450, x: .62, y: .40, contact: 'solid', sound: 'tick' },
-    { material: 'core', part: 'core-heart', at: 1230, duration: 430, x: .727, y: .282, contact: 'solid', sound: 'craftStitch' },
-    { material: 'glimmer', part: 'jelly-orb', at: 1750, duration: 500, x: .726, y: .282, contact: 'bind', sound: 'craftGoo' },
+    { material: 'glimmer', part: 'glass-shaft', at: 180, duration: 450, contact: 'solid', sound: 'tick' },
+    { material: 'glimmer', part: 'shard-crown', at: 700, duration: 450, contact: 'solid', sound: 'tick' },
+    { material: 'core', part: 'core-heart', at: 1230, duration: 430, contact: 'solid', sound: 'craftStitch' },
+    { material: 'glimmer', part: 'jelly-orb', at: 1750, duration: 500, contact: 'bind', sound: 'craftGoo' },
   ],
   phases: [
     { at: 0, stage: 'harden', text: 'Glimmer Jelly, setting into clear glassy facets…' },

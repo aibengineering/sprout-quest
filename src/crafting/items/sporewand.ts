@@ -1,16 +1,14 @@
 import type { CraftPresentation } from '../types';
-const src = (part: string) => `assets/crafting/sporewand-${part}.webp`;
 
 export default {
-  id: 'sporewand', duration: 3200,
-  layers: ['cap-stem', 'cap-crown', 'cap-gills', 'fang-braces'].map(id => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'sporewand', model: 'assets/crafting3d/sporewand.glb', duration: 3200,
+  layers: ['cap-stem', 'cap-crown', 'cap-gills', 'fang-braces'].map(id => ({ id })),
   roles: { cap: 'Rolled cap-flesh shaft, crown & gills', fang: 'Three ivory crown braces' },
   targets: [
-    { material: 'cap', part: 'cap-stem', at: 180, duration: 520, x: .3906, y: .6201, contact: 'soft', sound: 'craftFluff' },
-    { material: 'cap', part: 'cap-crown', at: 800, duration: 520, x: .6924, y: .3242, contact: 'soft', sound: 'craftFluff' },
-    { material: 'cap', part: 'cap-gills', at: 1420, duration: 460, x: .6797, y: .3379, contact: 'bind', sound: 'craftGoo' },
-    { material: 'fang', part: 'fang-braces', at: 2020, duration: 420, x: .6494, y: .3516, contact: 'solid', sound: 'tick' },
+    { material: 'cap', part: 'cap-stem', at: 180, duration: 520, contact: 'soft', sound: 'craftFluff' },
+    { material: 'cap', part: 'cap-crown', at: 800, duration: 520, contact: 'soft', sound: 'craftFluff' },
+    { material: 'cap', part: 'cap-gills', at: 1420, duration: 460, contact: 'bind', sound: 'craftGoo' },
+    { material: 'fang', part: 'fang-braces', at: 2020, duration: 420, contact: 'solid', sound: 'tick' },
   ],
   phases: [
     { at: 0, stage: 'shaft', text: 'Soft cap flesh, rolling into a pale shaft…' },

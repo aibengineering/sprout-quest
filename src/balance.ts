@@ -1,12 +1,15 @@
-// Balance model: where we expect the player to be at each point in the story, and how fights should feel there.
-// tests/balance.test.ts enforces the targets; `bun run balance` prints the full table while tuning.
+// Progression/economy targets and ideal-hit combat estimates. Combat behavior is measured through Battle.update
+// by `bun run balance` (scripts/balance.ts); `bun run balance:estimate` prints this reference table.
 import { ARENA_RX, ARENA_RY } from './arena';
 import { BRAM_CABIN_PLANKS, BRIDGE_COST, GEAR, MASTERY_FOR_TIER, MONSTERS, STYLE_NAMES, NODES, NODE_SPAWNS, PROJECTS, SKILL_MAX, SKILL_NAMES, TOOLS, ZONES, zoneAtX, type Gear, type MatId, type MonsterKind, type NodeKind, type Recipe, type SkillId, type Style, type ZoneId } from './data';
 import { MOVESETS, comboDps, openingBurst, skillRank, skillShape, stepTime, strikeDamage, strikeShape, tierScale } from './weapons';
 import { GENTLE_ATK, MONSTER_HP, calcDamage, CATCH_UP, MASTERY_MAX, levelEdge, masteryXpToNext, playerStats, scaleMonster, skillXpToNext, toolPower, xpToNext, xpEdge, type PlayerStats } from './rules';
 import { World, type WorldObj } from './world';
 import { newState } from './state';
-import { LOGS_PER_PLANK } from './sawmill';
+import { PLANKS_PER_LOG, SAW, type SawLog } from './sawmill';
+import { HOMES } from './housing';
+import { KITCHEN_PLANS } from './kitchenUpgrades';
+import { CROPS, FLOWER_GIFT, GIFT_SECONDS, PLOTS_BY_LEVEL, THIRST_CHANCE, WEED_CHANCE, WEED_SLOW, type Crop } from './garden';
 
 export type Range = [min: number, max: number];
 
@@ -180,7 +183,7 @@ export function killsPerLevel(c: Checkpoint): number | null {
 
 // ----------------------------------------------------------------------------- material economy
 
-/** Everything that needs it (every building level, gear and tool recipe), farmed in its best spot, in ≤ this many minutes. */
+/** Main-track workshops, gear and tools, farmed in their best spot within this budget. Optional village jobs are reported separately. */
 export const MAX_FARM_MINUTES = 14;
 /** Emberwyrm rematches (it levels up each time) to collect every Dragon Scale. */
 export const MAX_DRAGON_FIGHTS = 4;
@@ -196,7 +199,7 @@ export function chopSeconds(kind: NodeKind, toolTier: number): number {
 const SAFE_TRIP = 8;
 /** Wading out to a tree in the grass and back, including about half a fight on the way. */
 const GRASS_TRIP = 20;
-/** Share of chops that are flawless (+1 wood). */
+/** Share of chops that are flawless (each adds a handful: a safe node's yield). */
 const FLAWLESS = 0.5;
 
 export interface Farm {
@@ -204,24 +207,31 @@ export interface Farm {
   need: number;
   /** Guaranteed from one-time guardian fights along the story. */
   fromGuardians: number;
-  source: 'monsters' | 'gathering' | 'bosses';
+  source: 'monsters' | 'gathering' | 'bosses' | 'garden';
   zone?: ZoneId;
   perMinute: number;
-  /** Minutes in the best zone to cover what the guardians don't; 0 if the guardians cover it all. */
+  /** Minutes in the best zone to cover what the guardians don't; 0 if the guardians cover it all. Crops: real minutes of growing. */
   minutes: number;
 }
 
-export function totalDemand(): Partial<Record<MatId, number>> {
+export function totalDemand(includeVillage = true): Partial<Record<MatId, number>> {
   const out: Partial<Record<MatId, number>> = {};
-  // Planks are sawn from logs at Bram's Sawmill (the sawing itself happens while you're away): Oak at first, and Pine once
-  // it's the Iron Sawmill, which is how the third-level buildings (Bloom Garden, Dojo, Manor) are paid for.
-  const add = (r: Recipe, log: 'bark' | 'pine' = 'bark') => {
-    for (const [m, n] of Object.entries(r)) {
-      if (m === 'plank') out[log] = (out[log] ?? 0) + (n ?? 0) * LOGS_PER_PLANK;
-      else out[m as MatId] = (out[m as MatId] ?? 0) + (n ?? 0);
+  // Planks are sawn from logs at Bram's Sawmill (the sawing itself happens while you're away): a couple from each log of
+  // their own wood.
+  const logOf = Object.fromEntries((Object.entries(SAW) as [SawLog, { plank: MatId }][]).map(([log, v]) => [v.plank, log])) as Partial<Record<MatId, SawLog>>;
+  const add = (r: Recipe) => {
+    for (const [m, n] of Object.entries(r) as [MatId, number][]) {
+      const log = logOf[m];
+      if (log) out[log] = (out[log] ?? 0) + n / PLANKS_PER_LOG;
+      else out[m] = (out[m] ?? 0) + n;
     }
   };
-  for (const p of Object.values(PROJECTS)) p.levels.forEach((l, i) => add(l.cost, i >= 2 ? 'pine' : 'bark'));
+  for (const [id, p] of Object.entries(PROJECTS)) if (includeVillage || !['garden', 'training', 'cottage'].includes(id)) p.levels.forEach((l) => add(l.cost));
+  if (includeVillage) {
+    // Pip's first cottage is already counted in PROJECTS; all other homes and the kitchen are independent jobs.
+    for (const [id, h] of Object.entries(HOMES)) h.plans.forEach((p, i) => { if (id !== 'pip' || i > 0) add(p.cost); });
+    KITCHEN_PLANS.forEach((p)=>add(p.cost));
+  }
   for (const g of Object.values(GEAR)) if (g.recipe) add(g.recipe);
   for (const t of TOOLS) add(t.recipe);
   add({ plank: BRAM_CABIN_PLANKS });
@@ -245,8 +255,8 @@ let trees: WorldObj[] | null = null;
 const worldTrees = () => (trees ??= new World().objs.filter((o) => o.kind === 'node'));
 
 /**
- * Per second, from chopping the zone's trees of one kind: grass trees first (they pay best), then safe ones with the
- * time left over. Each tree can only be felled once per regrowth. `per` picks what to count (wood, XP…).
+ * Per second, from chopping the zone's trees of one kind: easier ground nodes first, then grass nodes with the
+ * time left over; terrain does not change the reward. Each tree can only be felled once per regrowth. `per` picks what to count (wood, XP…).
  */
 function chopRate(zone: ZoneId, kind: NodeKind, per: (spot: { yield: number; xp: number }) => number, toolTier = NODES[kind].tier): number {
   const n = NODES[kind];
@@ -254,9 +264,9 @@ function chopRate(zone: ZoneId, kind: NodeKind, per: (spot: { yield: number; xp:
   const g = here.filter((o) => o.grass).length, sf = here.length - g;
   const secs = chopSeconds(kind, toolTier);
   const gCycle = secs + GRASS_TRIP, sCycle = secs + SAFE_TRIP;
-  const gChops = Math.min(g / n.grass.regrow, 1 / gCycle);
-  const busy = gChops * gCycle;
-  const sChops = Math.min(sf / n.safe.regrow, (1 - busy) / sCycle);
+  const sChops = Math.min(sf / n.safe.regrow, 1 / sCycle);
+  const busy = sChops * sCycle;
+  const gChops = Math.min(g / n.grass.regrow, (1 - busy) / gCycle);
   return gChops * per(n.grass) + sChops * per(n.safe);
 }
 
@@ -266,16 +276,78 @@ export function gatherPerSecond(mat: MatId): Partial<Record<ZoneId, number>> {
   for (const [kind, n] of Object.entries(NODES) as [NodeKind, (typeof NODES)[NodeKind]][]) {
     if (n.mat !== mat) continue;
     for (const [zone, spawns] of Object.entries(NODE_SPAWNS) as [ZoneId, { kind: NodeKind }[]][]) {
-      if (spawns.some((sp) => sp.kind === kind)) out[zone] = (out[zone] ?? 0) + chopRate(zone, kind, (sp) => sp.yield + FLAWLESS);
+      if (spawns.some((sp) => sp.kind === kind)) out[zone] = (out[zone] ?? 0) + chopRate(zone, kind, (sp) => sp.yield + FLAWLESS * NODES[kind].safe.yield);
     }
   }
   return out;
 }
 
-export function farmTable(): Farm[] {
+// ----------------------------------------------------------------------------- Poppy's Garden
+
+/**
+ * A plot that gets thirsty waits this long for you to notice and water it (you check in between trips). Weeds are
+ * modelled as coming up halfway through, and left until the crop's ready: the worst case for someone who never pulls
+ * them.
+ */
+export const THIRSTY_WAIT = 60;
+
+/** Real seconds one planting takes, on average, with the tending the model assumes. */
+export function tendedSeconds(crop: Crop): number {
+  const grow = CROPS[crop].seconds;
+  return grow + WEED_CHANCE * (1 / WEED_SLOW - 1) * grow * 0.5 + THIRST_CHANCE * THIRSTY_WAIT;
+}
+
+/** Plots you'd have when you first need a crop: the level below the first Garden upgrade that costs it (else the full Garden). */
+export function gardenPlotsFor(crop: Crop): number {
+  const lv = PROJECTS.garden.levels.findIndex((l) => (l.cost[crop] ?? 0) > 0);
+  return PLOTS_BY_LEVEL[lv < 0 ? PLOTS_BY_LEVEL.length - 1 : Math.max(1, lv)];
+}
+
+/** When the k-th seed (from 0) is in your bag: Poppy's handfuls of Flower Seeds, or a tree seed every so many seconds of chopping. */
+function seedAt(crop: Crop, k: number): number {
+  if (crop === 'flower') return Math.floor(k / FLOWER_GIFT) * GIFT_SECONDS;
+  const tree = Object.values(NODES).find((n) => n.seed?.mat === CROPS[crop].seed)!;
+  const rate = Math.max(...Object.values(gatherPerSecond(tree.mat))) / (tree.grass.yield + FLAWLESS * tree.safe.yield) * tree.seed!.chance;
+  return (k + 1) / rate;
+}
+
+/**
+ * Real minutes to grow `need` of a crop on the plots you'd have: each seed goes in the first free plot once you have
+ * it, and grows for its tended time. It all happens while you're off doing other things, but it's held to the same
+ * budget as farming.
+ */
+export function gardenMinutes(crop: Crop, need: number): number {
+  const seeds = Math.ceil(need / CROPS[crop].yield), free = Array<number>(gardenPlotsFor(crop)).fill(0);
+  let done = 0;
+  for (let k = 0; k < seeds; k++) {
+    const i = free.indexOf(Math.min(...free)), start = Math.max(free[i], seedAt(crop, k));
+    free[i] = start + tendedSeconds(crop);
+    done = Math.max(done, free[i]);
+  }
+  return done / 60;
+}
+
+/**
+ * What a felled tree's seed grows into, on average: the crops you get for chopping. The field's size doesn't change it
+ * (more plots only let you plant more at once), so it's what keeps the Garden from flooding the crop recipes.
+ */
+export function cropsPerTree(crop: Crop): number {
+  const tree = Object.values(NODES).find((n) => n.seed?.mat === CROPS[crop].seed);
+  return tree ? tree.seed!.chance * CROPS[crop].yield : 0;
+}
+
+/** A whole field of one crop, picked at each Garden level: per planting, and per hour if you kept it full. */
+export const fieldHarvest = (crop: Crop) => PLOTS_BY_LEVEL.slice(1).map((n) => ({ plots: n, picked: n * CROPS[crop].yield, perHour: (n * CROPS[crop].yield * 3600) / tendedSeconds(crop) }));
+
+export function farmTable(includeVillage = true): Farm[] {
   const guardians = ZONES.flatMap((z) => (z.guardian ? [MONSTERS[z.guardian.kind]] : []));
-  return Object.entries(totalDemand()).map(([k, need]) => {
+  return Object.entries(totalDemand(includeVillage)).map(([k, need]) => {
     const mat = k as MatId;
+    // Crops grow in Poppy's Garden, in Sowerby.
+    if (mat in CROPS) {
+      const minutes = gardenMinutes(mat as Crop, need!);
+      return { mat, need: need!, fromGuardians: 0, source: 'garden' as const, zone: 'village' as const, perMinute: need! / minutes, minutes };
+    }
     const fromGuardians = guardians.reduce((a, g) => a + g.drops.filter((d) => d.mat === mat && d.chance === 1).reduce((b, d) => b + d.min, 0), 0);
     const rest = Math.max(0, need! - fromGuardians);
     const best = (rates: Partial<Record<ZoneId, number>>) => (Object.entries(rates) as [ZoneId, number][]).sort((a, b) => b[1] - a[1])[0];
@@ -317,10 +389,14 @@ export function minutesToSkillLevel(skill: SkillId, target: number): number {
 const gathered = (m: string) => Object.values(NODES).some((n) => n.mat === m);
 
 /**
- * Gear tracks: hunter gear is made only from monster drops; gatherer gear only from wood, stone and ore (and needs a
- * gathering skill level); the strongest top-tier pieces need both.
+ * Weapons follow their ingredient sources. Armour below tier 5 follows its main material: cloth linings, bindings
+ * and small fittings can come from either source. The strongest top-tier pieces need both.
  */
 export function gearTrack(g: Gear): 'hunter' | 'gatherer' | 'both' {
+  if (g.slot === 'armor' && (g.tier ?? 0) < 5) {
+    const primary = Object.entries(g.recipe ?? {}).sort((a, b) => b[1]! - a[1]!)[0]?.[0];
+    return primary && gathered(primary) ? 'gatherer' : 'hunter';
+  }
   const mats = Object.keys(g.recipe ?? {});
   const wild = mats.some(gathered), hunted = mats.some((m) => !gathered(m));
   return wild && hunted ? 'both' : wild ? 'gatherer' : 'hunter';
@@ -338,7 +414,7 @@ export const MAX_STRIKE_AREA = 0.1;
 export const MAX_SKILL_AREA = 0.3;
 /** A mastered skill (handling Lv 10) can be much bigger, but still never fills the arena. */
 export const MAX_MASTERED_SKILL_AREA = 0.5;
-/** Hunter weapons hit for this share of their tier's gatherer damage: less raw power, but they carry monster effects. */
+/** Hunter weapons hit for this share of their tier's best gatherer damage; they also carry monster effects. */
 export const HUNTER_DPS: Range = [0.75, 0.95];
 /**
  * Magic aims lower still: it hits from across the arena, so it never pays the walk-in and the risk a melee weapon does.
@@ -348,7 +424,7 @@ export const RANGED_DPS: Range = [0.6, 0.8];
 /** No hunter weapon out-damages its tier's gatherer weapons in a fight's opening second. */
 export const MAX_HUNTER_BURST = 1;
 export const dpsBand = (w: { style: Style }): Range => (w.style === 'wand' ? RANGED_DPS : HUNTER_DPS);
-/** Weapons in the same track and tier stay within this much of each other. */
+/** Non-hammer weapons in the same track and tier stay within this much of each other. Hammers trade normal DPS for control. */
 export const TRACK_SPREAD = 0.15;
 /** The ★★★★★ legendaries beat the best ★★★★ weapon by at least this much. */
 export const LEGENDARY_EDGE = 1.25;
@@ -376,12 +452,12 @@ export function weaponStats(): WeaponStats[] {
   });
 }
 
-/** Each weapon's damage per second (or opening burst) relative to its tier's gatherer weapons. */
+/** Each weapon's damage per second (or opening burst) relative to its tier's strongest gatherer for that measure. */
 export function dpsVsGatherers(key: 'dps' | 'burst' = 'dps'): Record<string, number> {
   const ws = weaponStats(), out: Record<string, number> = {};
   for (const w of ws) {
     const base = ws.filter((o) => o.tier === w.tier && o.track === 'gatherer');
-    out[w.id] = base.length ? w[key] / (base.reduce((a, o) => a + o[key], 0) / base.length) : 1;
+    out[w.id] = base.length ? w[key] / Math.max(...base.map((o) => o[key])) : 1;
   }
   return out;
 }
@@ -483,14 +559,17 @@ export function report(): string {
       out.push(`  ${(b.name + ' (boss)').padEnd(18)} ${String(b.lv).padStart(3)} ${String(b.hp).padStart(5)}  ${flag(b.hitsToKill, c.boss.hitsToKill).padStart(10)}  ${flag(b.hitsToDie, c.boss.hitsToDie).padStart(8)}   targets ${c.boss.hitsToKill.join('–')} / ${c.boss.hitsToDie.join('–')}`);
     }
   }
-  out.push(`\nMaterials for every building, gear piece and tool  (target: ≤${MAX_FARM_MINUTES} min in the best spot)`);
+  out.push(`\nMain-track workshops, gear and tools  (target: ≤${MAX_FARM_MINUTES} min in the best spot)`);
   out.push(`  ${'material'.padEnd(12)} ${'need'.padStart(4)} ${'boss'.padStart(5)}  ${'from'.padEnd(9)} ${'zone'.padEnd(7)} ${'/min'.padStart(5)}  minutes`);
-  for (const f of farmTable()) {
+  for (const f of farmTable(false)) {
     if (f.mat === 'scale') continue;
     const mins = f.minutes === Infinity ? 'none!' : flag(Math.round(f.minutes * 10) / 10, [0, MAX_FARM_MINUTES]);
     out.push(`  ${f.mat.padEnd(12)} ${String(f.need).padStart(4)} ${String(f.fromGuardians).padStart(5)}  ${f.source.padEnd(9)} ${(f.zone ?? '-').padEnd(7)} ${f.perMinute.toFixed(1).padStart(5)}  ${mins.padStart(7)}`);
   }
   out.push(`  scale: ${totalDemand().scale ?? 0} needed, ${flag(dragonFights(), [0, MAX_DRAGON_FIGHTS])} Emberwyrm fights`);
+  out.push(`Poppy's Garden (per planting, tended): ${(Object.keys(CROPS) as Crop[]).map((c) => `${c} ${CROPS[c].yield} in ~${(tendedSeconds(c) / 60).toFixed(1)} min`).join(', ')}`);
+  out.push(`  a full field (${PLOTS_BY_LEVEL.slice(1).join(' / ')} plots) picks ${(Object.keys(CROPS) as Crop[]).map((c) => `${c} ${fieldHarvest(c).map((f) => f.picked).join('/')}`).join(', ')}`);
+  out.push(`  seeds: ${(['berry', 'herb'] as Crop[]).map((c) => `${cropsPerTree(c).toFixed(1)} ${c} per tree felled`).join(', ')}; Poppy's ${FLOWER_GIFT} Flower Seeds every ${GIFT_SECONDS / 60} min (${FLOWER_GIFT * CROPS.flower.yield} flowers)`);
   for (const sk of Object.keys(SKILL_NAMES) as SkillId[]) {
     const tools = TOOLS.filter((t) => t.skill === sk && t.level > 1).map((t) => `Lv ${t.level} (${t.name}) in ~${minutesToSkillLevel(sk, t.level).toFixed(1)} min`);
     out.push(`${SKILL_NAMES[sk]}: ${tools.join(', ')}, Lv ${SKILL_MAX} in ~${minutesToSkillLevel(sk, SKILL_MAX).toFixed(1)} min`);

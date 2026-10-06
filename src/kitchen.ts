@@ -2,10 +2,12 @@
 // fights, chopping; not in menus). They're a quick, repeatable way to spend the materials you pile up, not something
 // to make last (see the story bible, Side quests).
 import type { Recipe } from './data';
-import { hasMats, spend } from './rules';
+import { kitchenLevel } from './kitchenUpgrades';
+import { hasMats, playerStats, spend } from './rules';
 import type { SaveState } from './state';
+import { homeLevel } from './housing';
 
-export type MealId = 'pancakes' | 'tea' | 'goojelly' | 'stew';
+export type MealId = 'pancakes' | 'tea' | 'goojelly' | 'stew' | 'rockcandy' | 'tart' | 'meadowtea' | 'trailbuns';
 
 export interface Meal {
   id: MealId;
@@ -21,8 +23,12 @@ export interface Meal {
 }
 
 export const MEALS: Record<MealId, Meal> = {
+  meadowtea: { id: 'meadowtea', name: 'Meadow Tea', icon: '🍵', recipe: { herb: 6, flower: 2 },
+    desc: 'A wider sweet spot when mining, for 4 minutes.', seconds: 240, from: 'Granny Clover' },
+  trailbuns: { id: 'trailbuns', name: 'Trail Buns', icon: '🥖', recipe: { berry: 8, fluff: 6 },
+    desc: '+20% woodcutting and mining XP for 4 minutes.', seconds: 240, from: 'Moss' },
   pancakes: {
-    id: 'pancakes', name: 'Fluff Pancakes', icon: '🥞', recipe: { fluff: 5, goo: 3 },
+    id: 'pancakes', name: 'Fluff Pancakes', icon: '🥞', recipe: { fluff: 15, goo: 9 },
     desc: '+15% XP from fights for 5 minutes.', seconds: 300,
   },
   tea: {
@@ -30,25 +36,40 @@ export const MEALS: Record<MealId, Meal> = {
     desc: 'Heal a little after every win, for 5 minutes.', seconds: 300,
   },
   goojelly: {
-    id: 'goojelly', name: 'Goo Jelly', icon: '🍮', recipe: { goo: 8 },
+    id: 'goojelly', name: 'Goo Jelly', icon: '🍮', recipe: { goo: 24 },
     desc: 'Monsters well below your level keep away, for 3 minutes.', seconds: 180,
   },
   stew: {
-    id: 'stew', name: "Woodcutter's Stew", icon: '🍲', recipe: { pine: 3, cap: 2 },
+    id: 'stew', name: "Woodcutter's Stew", icon: '🍲', recipe: { pine: 9, cap: 6 },
     desc: 'A wider sweet spot when chopping, for 4 minutes.', seconds: 240, from: 'Bram',
+  },
+  rockcandy: {
+    id: 'rockcandy', name: 'Rock Candy', icon: '🍬', recipe: { stone: 12, copper: 6 },
+    desc: 'An extra handful of ore from every rock you mine, for 4 minutes.', seconds: 240, from: 'Pip',
+  },
+  tart: {
+    id: 'tart', name: 'Berry Tart', icon: '🥧', recipe: { berry: 8, fluff: 6 },
+    desc: '+10% max HP for 5 minutes.', seconds: 300, from: 'the Garden',
   },
 };
 
-export const MEAL_ORDER: MealId[] = ['pancakes', 'tea', 'goojelly', 'stew'];
+export const MEAL_ORDER: MealId[] = ['pancakes', 'tea', 'goojelly', 'stew', 'rockcandy', 'tart', 'meadowtea', 'trailbuns'];
 
-/** The flag that teaches Granny a newcomer's recipe. */
-const TAUGHT: Partial<Record<MealId, string>> = { stew: 'bram:stew' };
+/** The flag that teaches Granny a newcomer's recipe (or, for her tart, the Garden's first berries). */
+const TAUGHT: Partial<Record<MealId, string>> = { stew: 'bram:stew', rockcandy: 'pip:candy', tart: 'garden:berries', meadowtea: 'garden:herbs', trailbuns: 'moss:recipe' };
+
+/** A better home gives the resident room to improve their own recipe, without adding a permanent combat bonus. */
+export function mealSeconds(s: SaveState, id: MealId) {
+  const resident = id === 'rockcandy' ? 'pip' : id === 'trailbuns' ? 'moss' : null;
+  return MEALS[id].seconds + (id==='meadowtea' && s.legacyHerbLevel ? Math.max(0,s.legacyHerbLevel-1)*60 : resident ? Math.max(0, homeLevel(s, resident) - 1) * 60 : Math.max(0, kitchenLevel(s) - 1) * 30);
+}
+export const mealDescription = (s: SaveState, id: MealId) => MEALS[id].desc.replace(`${MEALS[id].seconds / 60} minutes`, `${mealSeconds(s, id) / 60} minutes`);
 
 /** The kitchen opens once Mr. Floppers is home (Poppy's story finished). */
-export const kitchenOpen = (s: SaveState) => (s.stories.poppy ?? 0) >= 6;
+export const kitchenOpen = (s: SaveState) => (s.stories.poppy ?? 0) >= 6 && (!s.villageJobs || s.flags.includes('granny:extension'));
 
 /** Recipes Granny can make: her own, plus whatever newcomers have taught her. */
-export const knownMeals = (s: SaveState) => MEAL_ORDER.filter((id) => !TAUGHT[id] || s.flags.includes(TAUGHT[id]!));
+export const knownMeals = (s: SaveState) => MEAL_ORDER.filter((id) => !TAUGHT[id] || s.flags.includes(TAUGHT[id]!) || (id==='meadowtea' && s.flags.includes('hazel:recipe')));
 
 /** Cooks a meal and eats it, replacing whatever you'd eaten before. */
 export function cook(s: SaveState, id: MealId): 'ok' | 'missing' | 'unknown' {
@@ -56,7 +77,9 @@ export function cook(s: SaveState, id: MealId): 'ok' | 'missing' | 'unknown' {
   if (!m || !kitchenOpen(s) || !knownMeals(s).includes(id)) return 'unknown';
   if (!hasMats(s, m.recipe)) return 'missing';
   spend(s, m.recipe);
-  s.meal = { id, left: m.seconds };
+  const before = playerStats(s).maxHp;
+  s.meal = { id, left: mealSeconds(s, id) };
+  fitHp(s, before);
   return 'ok';
 }
 
@@ -82,11 +105,42 @@ export const repelBelow = (s: SaveState) => (eating(s, 'goojelly') ? s.lv - 2 : 
 export function mealTick(s: SaveState, dt: number) {
   if (!s.meal) return;
   s.meal.left -= dt;
-  if (s.meal.left <= 0) s.meal = null;
+  if (s.meal.left > 0) return;
+  const before = playerStats(s).maxHp;
+  s.meal = null;
+  fitHp(s, before);
+}
+
+/** A Berry Tart's extra max HP comes with the health to fill it, and goes again when it wears off. */
+function fitHp(s: SaveState, before: number) {
+  const after = playerStats(s).maxHp;
+  s.hp = Math.min(after, s.hp + Math.max(0, after - before));
 }
 
 /** Woodcutter's Stew widens the sweet spot on trees. */
 export const sweetBoost = (s: SaveState) => (eating(s, 'stew') ? 1.3 : 1);
+export const miningSweetBoost = (s: SaveState) => (eating(s, 'meadowtea') ? 1.3 : 1);
+export const gatheringXpBoost = (s: SaveState) => (eating(s, 'trailbuns') ? 1.2 : 1);
+
+/** Rock Candy: extra ore from every rock you break (see rules.ts, harvest). */
+export const oreBoost = (s: SaveState) => (eating(s, 'rockcandy') ? 1 : 0);
+/** Berry Tart: max HP multiplier. */
+export const hpBoost = (s: SaveState) => (eating(s, 'tart') ? 1.1 : 1);
+
+// ---------------------------------------------------------------- a prepared plate, carried to the stove
+
+export interface MealTray {
+  dish: MealId;
+  /** The whole recipe, gathered together without spending it yet. */
+  ingredients: Recipe;
+}
+
+/** Pick up all ingredients in one trip. The stove commits the recipe through cook(). */
+export function prepareMeal(s: SaveState, id: MealId): MealTray | 'missing' | 'unknown' {
+  if (!kitchenOpen(s) || !knownMeals(s).includes(id)) return 'unknown';
+  if (!hasMats(s, MEALS[id].recipe)) return 'missing';
+  return { dish: id, ingredients: { ...MEALS[id].recipe } };
+}
 
 /** What's left of your meal, for the HUD ("🥞 3"). */
 export function mealLeft(s: SaveState): { icon: string; name: string; left: string } | null {

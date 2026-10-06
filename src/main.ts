@@ -1,6 +1,7 @@
 // Entry point: the canvas, the frame loop, and wiring the page's buttons to the game. The flows themselves live in
 // game/: fights, gathering, story, interactions, the menu's actions and the title screen, sharing state through `G`.
-import { modelStats, tickModels } from './models';
+import { modelStats, rendererSize, tickModels } from './models';
+import { liveView } from './itemview';
 import type { Battle } from './battle/battle';
 import { drawBattle } from './battle/render';
 import { MAX_POTIONS, MONSTERS, QUESTS, ZONES, zoneById, type MonsterKind, type ZoneId } from './data';
@@ -9,9 +10,15 @@ import { canRun, challengeFoe, coachBattle, startBattle, startFieldBattle } from
 import { revive, spirit } from './game/death';
 import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/gathering';
 import { interact } from './game/interact';
+import { doorwayTick, drawRoomHud, enterRoom, leaveRoom, roomTick } from './game/rooms';
+import { enterEchoCave, leaveEchoCave, enterOreGallery, leaveOreGallery, useBurrow, undergroundTick } from './game/underground';
+import { kitchenDebug } from './game/kitchenRoom';
+import { drawGardenHud, gardenDebug, gardenTick, inGarden } from './game/gardenWork';
+import { sawmillDebug } from './game/sawmillRoom';
 import { menuHooks } from './game/menu';
 import { arriveAtVillage, maybeAutoTalk, progressQuests } from './game/story';
-import { checkStories, tickStories } from './game/stories';
+import { checkStories, storyLayers, tickStories } from './game/stories';
+import { drumsDebug } from './game/stories/drums';
 import { boot, setUpTitle } from './game/title';
 import { objective } from './game/waypoint';
 import { trackInputDevice, usingKeyboard, type Input } from './input';
@@ -23,6 +30,7 @@ import { battleTheme, zoneTheme } from './music/scores';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
+const mapFade = document.getElementById('map-fade')!;
 let vw = 0, vh = 0;
 
 function resize() {
@@ -40,7 +48,8 @@ trackInputDevice();
 G.ui = new UI(menuHooks);
 setUpTitle();
 // Save slots and preset saves for testing; compiled out of the published game.
-if (__DEV__) void import('./dev/devtools').then((m) => m.install());
+let devTick: ((dt: number) => void) | null = null;
+if (__DEV__) void import('./dev/devtools').then((m) => { m.install(); devTick = m.tickPlaytest; });
 
 // ------------------------------------------------------------------ page buttons
 
@@ -58,6 +67,7 @@ const bind = (id: string, a: Parameters<Input['bindButton']>[1]) => G.input.bind
 bind('btn-attack', 'attack');
 bind('btn-skill', 'skill');
 bind('btn-dodge', 'dodge');
+bind('btn-dash', 'dodge');
 bind('btn-potion', 'potion');
 bind('btn-run', 'run');
 bind('btn-act', 'act');
@@ -67,10 +77,17 @@ applySound(false);
 // lands: listen for both (and keys), so the very first tap unlocks it.
 for (const ev of ['pointerdown', 'pointerup', 'touchend', 'keydown']) window.addEventListener(ev, () => G.audio.unlock(), { passive: true });
 document.addEventListener('visibilitychange', () => {
+  // Off screen (home screen, another app, the browser closed but still running): no music or sound playing on. The
+  // game itself already waits, since the browser stops drawing frames for a hidden page.
+  if (document.hidden) G.audio.sleep();
+  else G.audio.wake();
   if (!document.hidden || G.mode === 'title') return;
   persist();
   flushTime();
 });
+// Some phone browsers only say "pagehide" when a tab is closed or swapped out, and "pageshow" when it's restored.
+window.addEventListener('pagehide', () => G.audio.sleep());
+window.addEventListener('pageshow', () => { if (!document.hidden) G.audio.wake(); });
 
 // ------------------------------------------------------------------ loop
 
@@ -93,7 +110,7 @@ function battleFrame(b: Battle, dt: number) {
   ui.battleButtons(!!b.skillNow, has(s, 'bag') && s.flags.includes('village'));
   if (G.mode === 'battle') {
     coachBattle(b);
-    ui.battleHud(s.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac);
+    ui.battleHud(b.save.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac, [b.dodgesReady, b.p.dodgeCds.length]);
   }
 }
 
@@ -106,7 +123,12 @@ function worldFrame(dt: number) {
     nodeSync = 0;
     syncNodes();
   }
-  const canAct = G.mode === 'world' && !busy();
+  const canPlay = () => G.mode === 'world' && !busy();
+  const canAct = canPlay();
+  // Inside a room: its station labels, guidance, and ongoing work.
+  const room = over.room;
+  const roomHeld = !!room && canAct && roomTick(dt);
+  over.busyHands = roomHeld;
   if (canAct && input.consume('bag') && has(s, 'bag')) openFromHud('items');
   if (canAct && input.consume('journal') && has(s, 'journal')) openFromHud('journey');
   if (canAct && input.consume('menu') && (has(s, 'bag') || has(s, 'journal'))) {
@@ -119,33 +141,44 @@ function worldFrame(dt: number) {
   // Strike a monster that hasn't spotted you yet for a surprise attack.
   // A spirit (after fainting) can only walk back to its body: nothing to fight, talk to or use on the way.
   const ghost = spirit();
-  const prey = canAct && !ghost ? over.roamers.unaware(over.x, over.y) : null;
-  if (prey && (input.consume('act') || input.consume('attack'))) startFieldBattle(prey, true);
-  else if (canAct && !ghost && input.consume('act')) void interact();
+  const freeWorld = () => canPlay() && !ghost && !over.room;
+  // Poppy's Garden, worked by hand on the map (the view leans in, taps on beds, holding the button).
+  gardenTick(dt, freeWorld() && !over.underground);
+  // People and entrances own the action button even when a monster is nearby. Attack still starts a surprise fight.
+  const actionTarget = freeWorld() ? over.nearbyObject() : null;
+  const priorityAction = actionTarget?.kind === 'npc' || actionTarget?.kind === 'door'
+    || ['prop_cavemouth', 'resource:mouth', 'cavern:entry', 'cavern:east'].includes(actionTarget?.id ?? '');
+  const prey = freeWorld() && over.fieldMap
+    ? over.roamers.unaware(over.x, over.y) : null;
+  if (prey && (input.consume('attack') || (!priorityAction && input.consume('act')))) startFieldBattle(prey, true);
+  else if (canPlay() && !ghost && !roomHeld && input.consume('act')) void interact();
   if (G.mode === 'title') over.t += dt;
   else {
     const px = over.x, py = over.y;
-    const ev = over.update(dt, input, !canAct, !busy() && (G.mode === 'world' || G.mode === 'gather'));
+    const ev = over.update(dt, input, !canPlay(), !busy() && (G.mode === 'world' || G.mode === 'gather'));
     if (!s.tips.includes('moved')) {
       movedDist += Math.hypot(over.x - px, over.y - py);
       if (movedDist > 2) s.tips.push('moved');
     }
-    if (canAct && !ghost) maybeAutoTalk();
+    if (freeWorld() && !over.underground) maybeAutoTalk();
+    if (freeWorld()) doorwayTick();
+    if (freeWorld()) undergroundTick();
     if (ev?.type === 'zone') {
       showZoneBanner(ev.zone);
       if (ev.zone.id === 'village' && !s.flags.includes('village')) void arriveAtVillage();
     }
     if (canAct && ghost && s.spirit && Math.hypot(over.x - s.spirit.x, over.y - s.spirit.y) < 0.8) revive();
-    if (canAct && !ghost && s.flags.includes('sword')) {
+    if (freeWorld() && s.flags.includes('sword')) {
       // Walking into monsters blocking the way starts the fight.
       const gap = (o: { x: number; y: number; w: number; h: number }) =>
         Math.hypot(Math.max(o.x - over.x, 0, over.x - (o.x + o.w)), Math.max(o.y - over.y, 0, over.y - (o.y + o.h + 0.3)));
-      const foe = G.world.objs.find((o) => o.kind === 'foe' && !o.hidden && gap(o) < 0.75);
+      const foe = over.map.objs.find((o) => o.kind === 'foe' && !o.hidden && gap(o) < 0.75);
       if (foe) challengeFoe(foe);
     }
     tickStories();
-    if (canAct && !ghost) void checkStories();
-    if (ev?.type === 'encounter') startFieldBattle(ev.roamer, false);
+    // Stories wait until you're back outside (their scenes happen on the map).
+    if (freeWorld()) void checkStories();
+    if (ev?.type === 'encounter' && freeWorld() && over.fieldMap) startFieldBattle(ev.roamer, false);
   }
   const near = canAct && !ghost ? over.nearbyObject() : null;
   // The play report notes when you first walk up to a guardian you haven't beaten.
@@ -153,8 +186,11 @@ function worldFrame(dt: number) {
     const g = ZONES.find((z) => z.id === near.zone)?.guardian;
     if (g && !s.bosses.includes(g.kind)) noteReached(s, g.kind);
   }
-  ui.setAction(G.mode === 'gather' && chop ? gatherVerb() : prey ? 'Attack!' : near ? near.label : null);
+  ui.setAction(G.mode === 'gather' && chop ? gatherVerb() : prey && !priorityAction ? 'Attack!' : near ? near.label : null);
+  const dash=document.getElementById('btn-dash')!;dash.hidden=!freeWorld()||!over.fieldMap||!s.perks.includes('shadowscarf');
+  dash.querySelector<HTMLElement>('.cd')!.style.setProperty('--p',over.dashFrac.toFixed(2));
   over.objective = G.mode === 'world' ? objective() : null;
+  over.layers = storyLayers;
   over.keyHints = usingKeyboard();
   ui.dragHint(G.mode === 'world' && !G.trans && !s.tips.includes('moved'));
   ui.dock(G.mode === 'world');
@@ -170,13 +206,17 @@ function worldFrame(dt: number) {
     ctx.fillRect(0, 0, vw, vh);
   }
   if (G.mode === 'gather') drawGather(ctx, vw, vh);
+  const roomHudBottom = over.room && G.mode === 'world' ? drawRoomHud(ctx, vw, vh) : null;
+  ui.lootBelow(roomHudBottom ?? null);
+  if (!over.room && G.mode === 'world') drawGardenHud(ctx, vw);
   if (G.mode === 'title') {
     // Soft overlay so the title text pops over the live world behind it.
     ctx.fillStyle = 'rgba(42,26,48,0.15)';
     ctx.fillRect(0, 0, vw, vh);
   } else {
-    ui.hud(s.hp, over.currentZone.name);
-    ui.questPill(G.mode === 'world' || G.mode === 'dialog');
+    ui.hud(s.hp, over.underground?.name ?? over.room?.spec.name ?? over.currentZone.name);
+    // In a room, its own hint takes the quest's place at the top.
+    ui.questPill(!over.room && !inGarden() && (G.mode === 'world' || G.mode === 'dialog'));
   }
   saveTimer += dt;
   if (saveTimer > 5 && G.mode === 'world') {
@@ -215,10 +255,11 @@ function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   updateTransitions(dt);
+  if (__DEV__) devTick?.(dt);
   if (G.mode !== 'title') {
     G.save.playtime += dt;
     // Granny's meals count down while you play (on the map, fighting, chopping), not while you're in a menu.
-    if (G.mode === 'world' || G.mode === 'battle' || G.mode === 'gather') mealTick(G.save, dt);
+    if ((G.mode === 'world' || G.mode === 'battle' || G.mode === 'gather') && !G.battle?.setup.dojo) mealTick(G.save, dt);
     trackTime(G.battle?.setup.zone.id ?? G.over.currentZone.id, ACTIVITY[G.mode], dt);
     // Which menu screen (or other popup) the menu time went to.
     if (G.mode === 'dialog') trackTime(SCREENS, G.ui.openTab ? `menu:${G.ui.openTab}` : 'dialogs', dt);
@@ -227,11 +268,21 @@ function frame(now: number) {
   const b = G.battle;
   // The music follows along: the fight's theme in a fight (a guardian's for a boss), otherwise the area's.
   G.music.want(b ? battleTheme(b.setup.zone.id, b.setup.boss) : zoneTheme(G.over.currentZone.id));
-  if (b) battleFrame(b, dt);
+  if (b) { G.ui.lootBelow(null); battleFrame(b, dt); }
   else worldFrame(dt);
   tickModels();
   G.input.flush();
-  if (G.trans) drawIris(G.trans.t / G.trans.dur);
+  mapFade.hidden=G.trans?.style!=='fade';
+  if (G.trans) {
+    const q=G.trans.t/G.trans.dur;
+    if(G.trans.style==='fade') {
+      // Hold full black around the midpoint: the map and camera change while completely hidden.
+      const opacity=Math.max(0,Math.min(1,q<.42?q/.42:(1-q)/.42));
+      mapFade.style.opacity=String(opacity);
+      ctx.save();ctx.globalAlpha=opacity;
+      ctx.fillStyle='#000';ctx.fillRect(0,0,vw,vh);ctx.restore();
+    } else drawIris(q);
+  }
   requestAnimationFrame(frame);
 }
 
@@ -260,10 +311,33 @@ requestAnimationFrame(frame);
   get over() { return G.over; },
   get chop() { return chop; },
   get modelStats() { return modelStats; },
+  /** The shared WebGL renderer's drawing size (src/models.ts). */
+  get rendererSize() { return rendererSize(); },
+  /** Which item (or 'hero') is live in 3D in the open card, if any (src/itemview.ts). */
+  get itemView() { return liveView(); },
   get xpRate() { return G.xpRate; },
   get music() { return G.music; },
   get audio() { return G.audio; },
+  /** The Pebblors' procession in Echo Cavern (game/stories/drums.ts). */
+  get drums() { return drumsDebug(); },
   get sound() { return G.sound; },
+  /** The room you're in ('kitchen', 'sawmill') or null, and ways in and out of them (game/rooms.ts). */
+  get room() { return G.over.room?.id ?? null; },
+  /** The iris (into or out of a room, a fight) while it's closing or opening. */
+  get trans() { return G.trans; },
+  enterRoom,
+  leaveRoom,
+  enterEchoCave,
+  leaveEchoCave,
+  enterOreGallery,
+  leaveOreGallery,
+  useBurrow,
+  /** What's going on in Granny's Kitchen (the ingredient plate and creation animation). */
+  get kitchen() { return kitchenDebug(); },
+  /** What's going on in Bram's Sawmill (what you're carrying, what's on the bench). */
+  get sawmill() { return sawmillDebug(); },
+  /** What you're holding at Poppy's Garden, and the plot you'd work on. */
+  get garden() { return gardenDebug(); },
   set zoom(z: number) { debugZoom = z; },
   /** A regular grass encounter right here (or in `zone`). */
   encounter(zone?: ZoneId) {

@@ -1,14 +1,12 @@
 import type { CraftPresentation } from '../types';
 
-const src = (part: string) => `assets/crafting/jellypot-${part}.webp`;
 export default {
-  id: 'jellypot', duration: 2800,
-  layers: ['bottle', 'goo-infusion', 'fluff-foam'].map((id) => ({ id, src: src(id) })),
-  complete: src('complete'),
+  id: 'jellypot', model: 'assets/crafting3d/jellypot.glb', duration: 2800,
+  layers: ['bottle', 'goo-infusion', 'fluff-foam'].map((id) => ({ id })),
   roles: { goo: 'Springy green infusion', fluff: 'Cloud-soft foam cap' },
   targets: [
-    { material: 'goo', part: 'goo-infusion', at: 220, duration: 560, x: .5, y: .53, contact: 'bind', sound: 'craftGoo' },
-    { material: 'fluff', part: 'fluff-foam', at: 1120, duration: 500, x: .5, y: .17, contact: 'soft', sound: 'craftFluff' },
+    { material: 'goo', part: 'goo-infusion', at: 220, duration: 560, contact: 'bind', sound: 'craftGoo' },
+    { material: 'fluff', part: 'fluff-foam', at: 1120, duration: 500, contact: 'soft', sound: 'craftFluff' },
   ],
   phases: [
     { at: 0, stage: 'pour', text: 'Slime Goo, pouring into a springy green base…' },

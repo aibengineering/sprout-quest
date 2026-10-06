@@ -11,7 +11,7 @@ import {
   type Gear, type MatId, type MonsterKind, type ProjectId, type Recipe, type Style, type ZoneId,
 } from '../src/data';
 import { calcDamage, equip, gainMastery, gainSkillXp, gainXp, groupSize, hasMats, levelEdge, masteryShort, mergeDrops, missingSkill, playerStats, rollDrops, scaleMonster, spend, toolPower, xpEdge } from '../src/rules';
-import { LOGS_PER_PLANK } from '../src/sawmill';
+import { PLANKS_PER_LOG } from '../src/sawmill';
 import { newState, type SaveState } from '../src/state';
 import type { Stamped, TimeLog } from '../src/stats';
 
@@ -253,7 +253,7 @@ export function simulate(style: Style, seed = 1, cal = CAL): SimResult {
   function acquire(recipe: Recipe): boolean {
     const need: Partial<Record<MatId, number>> = {};
     for (const [m, n] of Object.entries(recipe) as [MatId, number][]) {
-      if (m === 'plank') need.bark = (need.bark ?? 0) + n * LOGS_PER_PLANK;
+      if (m === 'plank') need.bark = (need.bark ?? 0) + Math.ceil(n / PLANKS_PER_LOG);
       else need[m] = (need[m] ?? 0) + n;
     }
     for (const [m, n] of Object.entries(need) as [MatId, number][]) {
@@ -264,7 +264,7 @@ export function simulate(style: Style, seed = 1, cal = CAL): SimResult {
     // Saw the planks.
     const planks = recipe.plank ?? 0;
     if (planks) {
-      s.mats.bark -= planks * LOGS_PER_PLANK;
+      s.mats.bark -= Math.ceil(planks / PLANKS_PER_LOG);
       s.mats.plank += planks;
     }
     return hasMats(s, recipe);

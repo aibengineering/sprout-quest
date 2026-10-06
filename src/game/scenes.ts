@@ -36,22 +36,22 @@ export async function pan(x: number, y: number, ms = 900) {
 
 /** Keeps the camera on an actor as they move. */
 export function follow(id: string) {
-  G.over.camTarget = () => G.over.actors.get(id) ?? { x: G.over.x, y: G.over.y };
+  G.over.camTarget = () => G.over.cast.get(id) ?? { x: G.over.x, y: G.over.y };
 }
 
 /** A feeling over someone's head. */
 export function bubble(id: string, emoji: string, secs = 1.8) {
-  G.over.actors.bubble(id, emoji, secs);
+  G.over.cast.bubble(id, emoji, secs);
 }
 
 /** Walks an actor along a path (tiles); resolves when they arrive. */
 export function walk(id: string, path: { x: number; y: number }[], speed?: number) {
-  return G.over.actors.walk(id, path, speed);
+  return G.over.cast.walk(id, path, speed);
 }
 
 /** Turns an actor to face someone (another actor's id, or the hero by default). */
 export function lookAt(id: string, at?: string) {
-  const a = G.over.actors.get(id), b = (at && G.over.actors.get(at)) || { x: G.over.x, y: G.over.y };
+  const a = G.over.cast.get(id), b = (at && G.over.cast.get(at)) || { x: G.over.x, y: G.over.y };
   if (a) a.face = Math.atan2(b.y - a.y, b.x - a.x);
 }
 

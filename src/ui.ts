@@ -1,7 +1,8 @@
+import { KITCHEN_PLANS } from './kitchenUpgrades';
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
 import { xpBloops, type Sfx } from './audio';
-import { craftMarkup, craftPresentation, playCraft } from './crafting';
+import { buildPresentation, craftMarkup, craftPresentation, playCraft } from './crafting';
 import type { CraftItem, CraftPresentation } from './crafting/types';
 import {
   GEAR, GEAR_ORDER, MASTERY_FOR_TIER, MATS, MAT_ORDER, MAX_POTIONS, MONSTERS, POTION_HEAL, POTION_RECIPES, PROJECTS, PROJECT_ORDER, QUESTS, SKILL_MAX, SKILL_NAMES,
@@ -13,9 +14,11 @@ import type { SaveState } from './state';
 import type { SoundSettings } from './sound';
 import type { Unlock, UnlockId } from './unlocks';
 import { CLASS_NOTES, MOVESETS, SKILL_LEVELS, TRICKS, TRICK_LEVEL, comboTime, handlingStep, skillAt } from './weapons';
-import { MEALS, knownMeals, mealLeft, type MealId } from './kitchen';
-import { LOGS_PER_PLANK, SAW_MAX, canOrder, nextPlankIn, sawLogs, sawSeconds, sawUpdate } from './sawmill';
+import { MEALS, mealLeft } from './kitchen';
+import { HOMES, HOME_ORDER, homeLevel, type HomeId } from './housing';
+import { housePresentation } from './crafting/houses';
 import { usingKeyboard } from './input';
+import { heroView, mountItemView, stopItemView, view3d } from './itemview';
 import { canShareFiles } from './share';
 import { reportInfo } from './stats';
 import { newerThan } from './semver';
@@ -159,7 +162,7 @@ const bossIcon = (k: MonsterKind, cls = 'icon') => icon(`boss_${k}`, MONSTERS[k]
 function goalIcon(q: Quest): string {
   const g = q.goal;
   if (g.type === 'boss') return bossIcon(g.kind, 'icon xl');
-  if (g.type === 'build') return icon(`b_${g.project === 'forge' ? forgeArt(g.level) : g.project + g.level}`, PROJECTS[g.project].icon, 'icon xl');
+  if (g.type === 'build') return icon(`b_${buildingArt(g.project, g.level)}`, PROJECTS[g.project].icon, 'icon xl');
   if (g.type === 'kills') return icon('goo', '⚔️', 'icon xl');
   if (g.type === 'craft') return icon('stonehammer', '⚒', 'icon xl');
   if (g.type === 'mend') return icon('axe1', '🪓', 'icon xl');
@@ -168,16 +171,16 @@ function goalIcon(q: Quest): string {
 
 /** Every icon the menus can show (materials, gear, tools, guardians, buildings, the Elder), for preloading. */
 export function allIconIds(): string[] {
-  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'sawmill0', 'sawmill1', 'bramhut',
-    ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`))];
+  const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'bramhut', 'cottage1',
+    ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`)), ...[0, 1, 2, 3, 4].map((l) => `sawmill${l}`)];
   return [
     ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
     ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
-    ...buildings.map((b) => `b_${b}`), 'npc_elder',
+    ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_rook', 'npc_moss', 'npc_fox', ...KITCHEN_PLANS.map((p)=>`b_${p.art}`),
     // Story portraits and keepsakes.
-    'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots',
-    'npc_bram', 'npc_bram_happy', 'npc_bram_hurt', 'pie', ...Object.keys(MEALS).map((m) => `meal_${m}`),
+    'npc_poppy', 'npc_poppy_hug', 'npc_poppy_sad', 'npc_poppy_scared', 'npc_granny', 'npc_granny_worried', 'floppers', 'trailboots', 'echoanklet',
+    'npc_bram', 'npc_bram_happy', 'npc_bram_hurt', 'pie', 'npc_pip', 'npc_pip_wow', ...Object.keys(MEALS).map((m) => `meal_${m}`),
   ];
 }
 
@@ -279,20 +282,17 @@ function handlingPace(style: Style, lv: number): string {
 const PLOT_OPENS: Partial<Record<UnlockId, string>> = {
   plots: 'The plot opens once you beat the Slime King', warpplot: 'The ruins open up once you beat the Alpha Woolf',
   sawmill: 'Someone who knows timber could build one. Granny might know who.',
+  cottage: 'It needs timber, and someone to saw it. Once Bram is settled in…',
 };
+
+/** A building's art (icon `b_<name>`, map sprite `env/<name>`) at a level. */
+const buildingArt = (id: ProjectId, level: number) => (id === 'forge' ? forgeArt(level) : `${id}${level}`);
 
 function buildingIcon(id: ProjectId, level: number): string {
   // Before it's built: the old forge's ruins, the Waystone's broken stones, or an empty plot.
   if (level === 0) return icon(id === 'warp' ? 'b_warp0' : id === 'forge' ? 'b_forge0' : id === 'sawmill' ? 'b_sawmill0' : 'b_plot', PROJECTS[id].icon, 'icon lg');
-  const name = id === 'forge' ? forgeArt(level) : `${id}${level}`;
-  return icon(`b_${name}`, PROJECTS[id].icon, 'icon lg');
+  return icon(`b_${buildingArt(id, level)}`, PROJECTS[id].icon, 'icon lg');
 }
-
-/** A round saw blade, spun by CSS while the Sawmill is working (tinted copper or iron). */
-const SAW_BLADE = `<svg viewBox="-50 -50 100 100" aria-hidden="true"><path d="${Array.from({ length: 16 }, (_, i) => {
-  const a = (i / 16) * Math.PI * 2, b = a + Math.PI / 16, r = 46, t = 36;
-  return `${i ? 'L' : 'M'}${(Math.cos(a) * t).toFixed(1)},${(Math.sin(a) * t).toFixed(1)}L${(Math.cos(b) * r).toFixed(1)},${(Math.sin(b) * r).toFixed(1)}`;
-}).join('')}Z"/><circle r="11" class="hub"/></svg>`;
 
 /** A volume as the sound card shows it. */
 const volText = (v: number) => (v ? `${Math.round(v * 100)}%` : 'Off');
@@ -614,7 +614,8 @@ export class UI {
     });
   }
 
-  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0) {
+  /** `dodges`: how many dodge charges are ready, of how many (pips on the button once there's more than one). */
+  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0, dodges: [number, number] = [1, 1]) {
     const at = attackFrac.toFixed(2);
     this.set('atk', at, () => ($('btn-attack').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', at)));
     this.set('pot', String(potions), () => {
@@ -624,6 +625,11 @@ export class UI {
     const sk = skillFrac.toFixed(2), dg = dodgeFrac.toFixed(2);
     this.set('skill', sk, () => ($('btn-skill').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', sk)));
     this.set('dodge', dg, () => ($('btn-dodge').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', dg)));
+    this.set('dpips', dodges.join('/'), () => {
+      const el = $('btn-dodge').querySelector<HTMLElement>('.dpips')!, [ready, of] = dodges;
+      el.hidden = of < 2;
+      el.innerHTML = Array.from({ length: of }, (_, i) => `<i class="${i < ready ? 'on' : ''}"></i>`).join('');
+    });
     this.set('skname', skillName, () => ($('skill-name').textContent = skillName));
     this.set('run', String(canRun), () => ($('btn-run').hidden = !canRun));
   }
@@ -648,9 +654,9 @@ export class UI {
   }
 
   /** The tab each unlock opens when you tap its card (the weapon skill lives in fights, so it has none). */
-  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', trick: 'items', sawmill: 'village', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
+  private static UNLOCK_TAB: Partial<Record<UnlockId, Tab>> = { journal: 'journey', bag: 'items', mend: 'items', trick: 'items', sawmill: 'village', cottage: 'village', forge: 'forge', village: 'village', plots: 'village', warpplot: 'village' };
   /** The corner button that leads there, which bounces while its card is up. */
-  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', trick: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag' };
+  private static UNLOCK_BUTTON: Partial<Record<UnlockId, string>> = { journal: 'btn-journal', bag: 'btn-bag', mend: 'btn-bag', trick: 'btn-bag', forge: 'btn-bag', village: 'btn-bag', plots: 'btn-bag', warpplot: 'btn-bag', sawmill: 'btn-bag', cottage: 'btn-bag' };
 
   /**
    * You've been to a menu tab: any unlock card pointing there (showing, or waiting its turn) has done its job, so it
@@ -795,7 +801,8 @@ export class UI {
         return;
       }
       const btns = [...this.sheet.querySelectorAll<HTMLButtonElement>('[data-dialog]')];
-      const primary = btns[btns.length - 1], secondary = btns.length > 1 ? btns[0] : null;
+      const primary = btns[btns.length - 1], secondary = this.sheet.classList.contains('house-plans') ? btns.find((b) => b.dataset.dialog === 'close')
+        : this.sheet.classList.contains('shortcut-plan') ? btns.find((b) => b.dataset.dialog === 'no') : btns.length > 1 ? btns[0] : null;
       if (k === 'Enter' || k === 'Space' || k === 'KeyE' || k === 'NumpadEnter') {
         swallow();
         this.armed = true;
@@ -844,8 +851,16 @@ export class UI {
     }
   }
 
-  /** Loot and XP stacked on the right ("+2 Slime Goo", "+12 XP"), clear of the quest tracker on the left. */
-  /** `name` is dropped on narrow screens, where the icon alone says what it is. */
+  /** Room guidance spans the screen; keep pickups below its caption or hint. Null restores the map position. */
+  lootBelow(bottom: number | null) {
+    const top = bottom === null ? '' : `calc(${Math.ceil(bottom + 6)}px + var(--safe-t))`;
+    this.set('lootTop', top, () => {
+      $('loot').style.top = top;
+      $('loot').classList.toggle('in-room', bottom !== null);
+    });
+  }
+
+  /** Loot and XP stacked on the right, clear of guidance. `name` is dropped on narrow screens. */
   loot(entries: { icon: string; text: string; name?: string; suffix?: string }[]) {
     const feed = $('loot');
     entries.forEach((e, i) => {
@@ -909,6 +924,7 @@ export class UI {
     this.menuOpen = false;
     this.lastTab = null;
     this.modal.hidden = true;
+    stopItemView();
     if (!silent) this.hooks.menuClosed();
   }
 
@@ -944,7 +960,7 @@ export class UI {
     this.sheet.innerHTML = `
       <div class="grab" aria-hidden="true"></div>
       <header class="mhead">
-        <div class="portrait">${icon(s.equip.armor, '🌱')}</div>
+        ${this.tab === 'items' ? `<button class="portrait" data-pick="items:you" aria-label="You">${icon(s.equip.armor, '🌱')}</button>` : `<div class="portrait">${icon(s.equip.armor, '🌱')}</div>`}
         <div class="who">
           <div class="name">Sprout <span class="lvl">Lv ${s.lv}</span></div>
           <div class="mini hp"><i style="width:${(100 * s.hp) / st.maxHp}%"></i><span>${Math.ceil(s.hp)} / ${st.maxHp} HP</span></div>
@@ -962,6 +978,7 @@ export class UI {
       el?.scrollIntoView({ block: 'center' });
       el?.classList.add('flash');
     }
+    mountItemView(this.sheet);
   }
 
   private seg(tab: string, options: [string, string][]) {
@@ -1045,9 +1062,9 @@ export class UI {
     let detail = '';
     if (pocket === 'gear') {
       const owned = GEAR_ORDER.filter((id) => s.owned.includes(id));
-      const chosen = pick && (GEAR[pick] || pick === 'potion') ? pick : s.equip.weapon;
+      const chosen = pick && (GEAR[pick] || pick === 'potion') ? pick : 'you';
       body = `<div class="slotgrid">${owned.map((id) => slotTile('items', id, icon(id, GEAR[id].icon), GEAR[id].name, { sel: chosen === id, worn: s.equip[GEAR[id].slot] === id, cls: `tier${GEAR[id].tier ?? 0}` })).join('')}${emptySlots(owned.length)}</div>`;
-      detail = chosen === 'potion' ? this.potionTag(s, st.maxHp) : this.gearTag(s, GEAR[chosen]);
+      detail = chosen === 'potion' ? this.potionTag(s, st.maxHp) : chosen === 'you' ? this.youTag(s) : this.gearTag(s, GEAR[chosen]);
       if (owned.length <= 2 && s.unlocked.includes('forge')) body += `<div class="note">⚒ Craft new gear at the Forge, then equip it here.</div>`;
     } else if (pocket === 'stuff') {
       const mats = MAT_ORDER.filter((m) => s.mats[m] > 0);
@@ -1055,7 +1072,7 @@ export class UI {
       body = mats.length
         ? `<div class="slotgrid">${mats.map((m) => slotTile('items', m, icon(m, MATS[m].icon), MATS[m].name, { sel: chosen === m, count: s.mats[m] })).join('')}${emptySlots(mats.length)}</div>`
         : '<p class="sub">Defeat monsters and gather to collect materials.</p>';
-      if (chosen) detail = tagCard(icon(chosen, MATS[chosen].icon), `${esc(MATS[chosen].name)} <span class="lvl">×${s.mats[chosen]}</span>`, `<div class="desc">${esc(MATS[chosen].where)}</div>`);
+      if (chosen) detail = tagCard(view3d(chosen, icon(chosen, MATS[chosen].icon)), `${esc(MATS[chosen].name)} <span class="lvl">×${s.mats[chosen]}</span>`, `<div class="desc">${esc(MATS[chosen].where)}</div>`);
       if (pick === 'potion') detail = this.potionTag(s, st.maxHp);
     } else {
       body = this.skills(s) || '<p class="sub">Craft a tool at the Forge to start woodcutting and mining.</p>';
@@ -1066,6 +1083,13 @@ export class UI {
     return `<div class="satchel"><div class="worn">${sockets}${flask}</div>${pockets}${above}${body}${below}</div>`;
   }
 
+  /** You, in what you're wearing (live in 3D, turning). */
+  private youTag(s: SaveState): string {
+    const worn = (['weapon', 'armor', 'charm'] as Slot[]).map((k) => s.equip[k] && GEAR[s.equip[k]!]).filter((g): g is Gear => !!g);
+    return tagCard(heroView(s.equip.armor, s.equip.weapon, icon(s.equip.armor, '🌱')), `Sprout <span class="lvl">Lv ${s.lv}</span>`,
+      `<div class="desc">${worn.map((g) => esc(g.name)).join(' · ')}</div>`);
+  }
+
   /** A piece of gear's tag: stats, what it's like, and wearing it. */
   private gearTag(s: SaveState, g: Gear | undefined): string {
     if (!g) return '';
@@ -1073,7 +1097,7 @@ export class UI {
     const action = on
       ? g.slot === 'charm' ? `<button class="go ghost" data-equip="${g.id}">Take off</button>` : '<span class="tag">✓ Worn</span>'
       : `<button class="go" data-equip="${g.id}">Wear</button>`;
-    return tagCard(icon(g.id, g.icon), `${esc(g.name)} ${stars(g)}`, `<div class="stats">${gearStats(g)}</div><div class="desc">${esc(g.desc)}</div>`, action);
+    return tagCard(view3d(g.id, icon(g.id, g.icon)), `${esc(g.name)} ${stars(g)}`, `<div class="stats">${gearStats(g)}</div><div class="desc">${esc(g.desc)}</div>`, action);
   }
 
   private potionTag(s: SaveState, maxHp: number): string {
@@ -1119,10 +1143,14 @@ export class UI {
         <div class="pbar"><i style="width:${max ? 100 : (100 * m.xp) / need}%"></i></div></div>
         <button class="go ghost hopen" data-pick="hpath:${k}">Path ›</button></div>`;
     }).join('');
-    const PERKS: Record<string, [string, string, string]> = { trailboots: ['trailboots', 'Trail Boots', 'From Granny Clover: walk 25% faster outside of fights.'] };
+    const PERKS: Record<string, [string, string, string, string]> = {
+      trailboots: ['trailboots', 'Trail Boots', 'From Granny Clover: walk 25% faster outside of fights.', '👢'],
+      shadowscarf: ['glimmershawl', 'Shadow Scarf', 'A gift from the masked fox: farther, faster dodges and a dash along paths.', '🧣'],
+      echoanklet: ['echoanklet', 'Echo Anklet', 'From the Pebblors: in a fight, dodge twice in a row.', '🪘'],
+    };
     const perks = s.perks.filter((p) => PERKS[p]).map((p) => {
-      const [id, name, desc] = PERKS[p];
-      return `<div class="mcard row"><div class="ico">${icon(id, '👢')}</div><div class="info"><div class="name">${esc(name)}</div><div class="desc">${esc(desc)}</div></div></div>`;
+      const [id, name, desc, emoji] = PERKS[p];
+      return `<div class="mcard row"><div class="ico">${icon(id, emoji)}</div><div class="info"><div class="name">${esc(name)}</div><div class="desc">${esc(desc)}</div></div></div>`;
     }).join('');
     return `${mend ? `<h3>Old tools</h3>${mend}` : ''}${rows ? `<h3>Skills</h3>${rows}` : ''}${handling ? `<h3>Weapon handling</h3>${handling}` : ''}${perks ? `<h3>Perks</h3>${perks}` : ''}`;
   }
@@ -1143,7 +1171,7 @@ export class UI {
         const owned = s.tools[t.skill] >= t.tier, lock = owned ? null : levelLock(s, t), can = !owned && at && hasMats(s, t.recipe);
         return {
           id: t.id, art: icon(t.id, t.icon), name: t.name, tier: t.tier, owned, lock, can,
-          tag: () => tagCard(icon(t.id, t.icon), `${esc(t.name)} <span class="stars">${'★'.repeat(t.tier)}</span>`,
+          tag: () => tagCard(view3d(t.id, icon(t.id, t.icon)), `${esc(t.name)} <span class="stars">${'★'.repeat(t.tier)}</span>`,
             `<div class="desc">${esc(t.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, t.recipe)}</div>`}`,
             owned ? '<span class="tag">✓ Owned</span>' : `<button class="go" data-tool="${t.id}" ${can ? '' : 'disabled'}>Craft</button>`),
         };
@@ -1153,7 +1181,7 @@ export class UI {
         const can = at && hasMats(s, p.recipe) && s.potions < MAX_POTIONS;
         return {
           id: p.id, art: icon(p.id, '🧪'), name: p.name, tier: 0, owned: false, lock: null, can,
-          tag: () => tagCard(icon(p.id, '🧪'), esc(p.name), `<div class="desc">You carry ${s.potions}/${MAX_POTIONS}.</div><div class="chips">${costChips(s, p.recipe)}</div>`,
+          tag: () => tagCard(view3d(p.id, icon(p.id, '🧪')), esc(p.name), `<div class="desc">You carry ${s.potions}/${MAX_POTIONS}.</div><div class="chips">${costChips(s, p.recipe)}</div>`,
             `<button class="go" data-potion="${p.id}" ${can ? '' : 'disabled'}>${s.potions >= MAX_POTIONS ? 'Full' : 'Brew'}</button>`),
         };
       });
@@ -1165,7 +1193,7 @@ export class UI {
           : `<button class="go" data-craft="${id}" ${can ? '' : 'disabled'}>Craft</button>`;
         return {
           id, art: icon(g.id, g.icon), name: g.name, tier: g.tier ?? 0, owned, lock, can,
-          tag: () => tagCard(icon(g.id, g.icon), `${esc(g.name)} ${stars(g)}`,
+          tag: () => tagCard(view3d(g.id, icon(g.id, g.icon)), `${esc(g.name)} ${stars(g)}`,
             `<div class="stats">${gearStats(g)}</div><div class="desc">${esc(g.desc)}</div>${owned ? '' : `<div class="chips">${costChips(s, g.recipe!)}</div>`}`, action),
         };
       });
@@ -1198,7 +1226,7 @@ export class UI {
       : `<div class="note">📍 You can plan here. Head back to Sowerby to build.</div>`;
     // Ready to build first, then what's still missing something, then what's finished, then plots not open yet.
     const order = (id: ProjectId) => (!plotOpen(s, id) ? 3 : s.build[id] >= PROJECTS[id].levels.length ? 2 : canBuild(s, id) === 'ok' ? 0 : 1);
-    const cards = [...PROJECT_ORDER].sort((a, b) => order(a) - order(b)).map((id) => {
+    const cards = PROJECT_ORDER.filter((id) => !['cottage', 'garden', 'training'].includes(id)).sort((a, b) => order(a) - order(b)).map((id) => {
       const p = PROJECTS[id];
       const lv = s.build[id];
       const max = p.levels.length;
@@ -1236,7 +1264,8 @@ export class UI {
         ${costs ? `<div class="bp-costs">${costs}</div>` : ''}
         <button class="go wide bp-go" data-build="${id}" ${ok && here ? '' : 'disabled'}>${label}</button></div>`;
     }).join('');
-    return `<div class="board">${note}<div class="blueprints">${cards}</div></div>`;
+    const neighbours = HOME_ORDER.map((id) => `${HOMES[id].icon} ${HOMES[id].name}: ${homeLevel(s, id) ? HOMES[id].plans[homeLevel(s, id) - 1].name : 'a home to build'}`).join('<br>');
+    return `<div class="board">${note}<div class="note">🧔 Bram has the next building job for Poppy, Clover and our neighbours. Bring its materials to him outside the Sawmill.<br>${neighbours}</div><div class="blueprints">${cards}</div></div>`;
   }
 
   /** Dev builds add their own row to the More tab (save slots and presets; see src/dev/devtools.ts). */
@@ -1288,6 +1317,7 @@ export class UI {
       const r = this.resolveDialog;
       this.resolveDialog = null;
       this.modal.hidden = true;
+      stopItemView();
       r?.(d.dialog);
       return;
     }
@@ -1302,6 +1332,7 @@ export class UI {
     if (d.pick) {
       const k = d.pick.indexOf(':');
       this.pick[d.pick.slice(0, k)] = d.pick.slice(k + 1);
+      if (d.pick === 'items:you') this.sub.items = 'gear';
       this.renderMenu(false);
       return;
     }
@@ -1355,92 +1386,16 @@ export class UI {
     this.modal.hidden = false;
     this.sheet.className = `sheet ${cls}`;
     const btns = buttons.map(([value, label, c], i) => {
-      const cap = i === buttons.length - 1 ? 'Enter' : i === 0 ? 'Esc' : '';
+      const cap = i === buttons.length - 1 ? 'Enter' : i === 0 && cls !== 'house-plans' ? 'Esc' : '';
       return `<button class="go ${c ?? ''}" data-dialog="${value}">${label}${cap ? `<kbd class="key">${cap}</kbd>` : ''}</button>`;
     }).join('');
     this.sheet.innerHTML = `<div class="result">${html}<div class="btns">${btns}</div></div>`;
+    mountItemView(this.sheet);
     return new Promise((res) => (this.resolveDialog = res));
   }
 
   message(title: string, text: string) {
     return this.dialog(`<div class="big" style="font-size:24px">${esc(title)}</div><p>${esc(text)}</p>`, [['ok', 'OK']]);
-  }
-
-  /**
-   * Granny's Kitchen: every recipe she knows, what it does and costs, and an Eat button for the ones you can afford.
-   * Resolves 'cook:<meal>' or 'close'.
-   */
-  kitchen(s: SaveState, greeting: string): Promise<string> {
-    const now = mealLeft(s);
-    const rows = knownMeals(s).map((id: MealId) => {
-      const m = MEALS[id], can = hasMats(s, m.recipe);
-      return `<div class="mcard row"><div class="ico">${icon(`meal_${id}`, m.icon)}</div><div class="info">
-        <div class="name">${esc(m.name)}${m.from ? ` <span class="tag">from ${esc(m.from)}</span>` : ''}</div>
-        <div class="desc">${esc(m.desc)}</div><div class="chips">${costChips(s, m.recipe)}</div></div>
-        <button class="go" data-dialog="cook:${id}" ${can ? '' : 'disabled'}>Eat</button></div>`;
-    }).join('');
-    return this.dialog(
-      `${ribbon("Granny's Kitchen")}
-       <div class="speaker small">${icon('npc_granny', '👵', 'icon sm')}<b>Granny Clover</b></div>
-       <div class="bubble">${esc(greeting)}</div>
-       ${now ? `<p class="note">You're full of ${esc(now.name)} (${now.left} left). A new meal replaces it.</p>` : ''}
-       <div class="kitchen">${rows}</div>`,
-      [['close', 'Thanks, Granny']],
-      'celebrate quest kitchen',
-    );
-  }
-
-  /**
-   * Bram's Sawmill as a workbench: your logs, the saw (spinning while it works, with a bar filling for the plank on the
-   * blade), the planks on the tray, a slot per plank on the bench, and buttons to hand over logs or take the planks.
-   * It keeps itself up to date while open. Resolves 'saw:<n>:<log>', 'collect' or 'close'.
-   */
-  sawmill(s: SaveState, line: string): Promise<string> {
-    const logs = sawLogs(s), iron = s.build.sawmill >= 2;
-    const rows = logs.map((l) => `<div class="sawrow" data-log="${l}">${icon(l, MATS[l].icon, 'icon sm')}
-        <span><span><b class="n">${s.mats[l]}</b> ${esc(MATS[l].name)}s</span><small>${LOGS_PER_PLANK} logs a plank</small></span>
-        <button class="go ghost" data-dialog="saw:1:${l}">+1</button><button class="go ghost" data-dialog="saw:5:${l}">+5</button></div>`).join('');
-    const p = this.dialog(
-      `${ribbon(iron ? 'Iron Sawmill' : "Bram's Sawmill")}
-       <div class="speaker small">${icon('npc_bram_happy', '🧔', 'icon sm')}<b>Bram</b></div>
-       <div class="bubble">${esc(line)}</div>
-       <div class="bench">
-         <div class="stock">${icon('bark', MATS.bark.icon)}<b class="logs">0</b><small>logs in</small></div>
-         <div class="saw"><div class="blade ${iron ? 'iron' : 'copper'}">${SAW_BLADE}</div><div class="sawbar"><i></i></div><small class="next"></small></div>
-         <div class="stock tray">${icon('plank', MATS.plank.icon)}<b class="ready">0</b><small>ready</small></div>
-       </div>
-       <div class="slots">${Array.from({ length: SAW_MAX }, () => '<i></i>').join('')}</div>
-       <div class="sawrows">${rows}</div>
-       <p class="small">Bram saws even while you're away: one plank every ${sawSeconds(s)} seconds.${iron ? '' : ' An iron blade would cut Pine too, and faster.'}</p>`,
-      [['close', 'Bye, Bram'], ['collect', 'Take planks']],
-      'celebrate quest sawmill',
-    );
-    // Live: the bar, the countdown, the slots, the counts and the Take button follow the saw while this is open.
-    const sheet = this.sheet;
-    const tick = () => {
-      if (!sheet.classList.contains('sawmill') || this.modal.hidden) return window.clearInterval(timer);
-      const w = sawUpdate(s), next = nextPlankIn(s), each = sawSeconds(s);
-      const q = (sel: string) => sheet.querySelector<HTMLElement>(sel);
-      q('.bench .logs')!.textContent = String(w.queued * LOGS_PER_PLANK);
-      q('.bench .ready')!.textContent = String(w.ready);
-      q('.bench')!.classList.toggle('busy', w.queued > 0);
-      q('.sawbar i')!.style.width = `${w.queued ? (100 * (each - next)) / each : 0}%`;
-      q('.next')!.textContent = w.queued ? `Next plank in ${next}s` : 'Idle: hand Bram some logs';
-      sheet.querySelectorAll<HTMLElement>('.slots i').forEach((el, k) => {
-        el.className = k < w.ready ? 'done' : k === w.ready && w.queued ? 'now' : k < w.ready + w.queued ? 'wait' : '';
-      });
-      for (const r of sheet.querySelectorAll<HTMLElement>('.sawrow')) {
-        const l = r.dataset.log as 'bark' | 'pine', room = canOrder(s, l);
-        r.querySelector('.n')!.textContent = String(s.mats[l]);
-        r.querySelectorAll<HTMLButtonElement>('button').forEach((b, k) => (b.disabled = room < (k ? 5 : 1)));
-      }
-      const take = sheet.querySelector<HTMLButtonElement>('[data-dialog="collect"]')!;
-      take.disabled = !w.ready;
-      take.firstChild!.textContent = w.ready ? `Take ${w.ready} plank${w.ready > 1 ? 's' : ''}` : 'Take planks';
-    };
-    const timer = window.setInterval(tick, 250);
-    tick();
-    return p;
   }
 
   elderSays(text: string, hint?: string) {
@@ -1517,7 +1472,7 @@ export class UI {
   itemFound(id: string, name: string, text: string, emoji = '🗡️', heading = 'You found', key = false) {
     this.hooks.sound(key ? 'keyItem' : 'treasure');
     return this.dialog(
-      `${ribbon(heading)}${stage(icon(id, emoji, 'icon xxl'))}
+      `${ribbon(heading)}${stage(view3d(id, icon(id, emoji, 'icon xxl')))}
        <div class="big">${esc(name)}!</div><p>${esc(text)}</p>`,
       [['ok', 'Take it!']],
       'celebrate',
@@ -1578,7 +1533,7 @@ export class UI {
     }
     this.hooks.sound('treasure');
     return this.dialog(
-      `${ribbon(`New ${g.slot}!`)}${stage(icon(g.id, g.icon, 'icon xxl'))}
+      `${ribbon(`New ${g.slot}!`)}${stage(view3d(g.id, icon(g.id, g.icon, 'icon xxl')))}
        <div class="big">${esc(g.name)}</div>
        <p>${esc(g.desc)}</p>
        <div class="chips">${cmp('atk')}${cmp('def')}${cmp('hp')}</div><br>`,
@@ -1594,6 +1549,18 @@ export class UI {
     return this.showCraft(item, presentation, before, `<p>${esc(text)}</p>`, [['ok', label]]);
   }
 
+  /**
+   * Shown right after building a village project level (already paid for and saved): the building rises from its
+   * materials. Resolves false straight away if this level has no scene yet, for the old toast instead.
+   */
+  async built(id: ProjectId, level: number, before: Recipe, text: string): Promise<boolean> {
+    const presentation = buildPresentation(id, level), lvl = PROJECTS[id].levels[level - 1];
+    if (!presentation) return false;
+    const item: CraftItem = { id: presentation.id, name: lvl.name, recipe: lvl.cost, iconId: `b_${buildingArt(id, level)}` };
+    await this.showCraft(item, presentation, before, `<p class="craft-perk">⬆ ${esc(text)}</p>`, [['ok', 'Wonderful!']]);
+    return true;
+  }
+
   private async showCraft(item: CraftItem, presentation: CraftPresentation, before: Recipe, details: string, choices: [string, string, string?][]) {
     const choice = this.dialog(`${craftMarkup(item, presentation, before)}<div class="craft-details" hidden>${details}</div>`, choices, 'crafting');
     const buttons = this.sheet.querySelector<HTMLElement>('.btns')!;
@@ -1604,6 +1571,19 @@ export class UI {
     });
     try { return await choice; }
     finally { craft.dispose(); }
+  }
+
+  /** Bram has already saved the home and spent its planks. Presentation cannot repeat the transaction. */
+  async builtHome(id: HomeId, level: number, before: Recipe) {
+    const plan = HOMES[id].plans[level - 1], presentation = housePresentation(id, level);
+    await this.showCraft({ id: presentation.id, name: plan.name, recipe: plan.cost, iconId: `b_${plan.art}` }, presentation, before,
+      `<p class="craft-perk">${esc(plan.perk)}</p>`, [['ok', 'Wonderful!']]);
+  }
+
+  builtKitchen(before: Recipe, presentation: CraftPresentation, level = 1) {
+    const plan=KITCHEN_PLANS[level-1];
+    return this.showCraft({ id: plan.art, name: plan.name, recipe: plan.cost, iconId: `b_${plan.art}` }, presentation, before,
+      `<p>${esc(plan.perk)}</p>`, [['ok', 'Wonderful!']]);
   }
 
   challenge(kind: MonsterKind, name: string, title: string, lv: number, playerLv: number, zoneName: string) {

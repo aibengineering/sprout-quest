@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { sceneModel } from '../sceneModel';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { TOOLS } from '../../src/data';
 import axe1 from '../../src/crafting/items/axe1';
@@ -10,9 +11,8 @@ import pick4 from '../../src/crafting/items/pick4';
 import type { CraftPresentation } from '../../src/crafting/types';
 const presentations: CraftPresentation[] = [axe1, axe2, pick1, pick2, pick3, pick4];
 
-type ArtManifest = { size: number[]; stack: string[]; existing: string[]; parts: Record<string, { src: string; center: number[]; bounds: number[] }> };
-const ids = ['axe1', 'axe2', 'pick1', 'pick2', 'pick3', 'pick4'];
-const recipes = [{ goo: 2, fluff: 1 }, { copper: 3, bark: 4 }, { goo: 2, fluff: 2 }, { copper: 4, bark: 3 }, { iron: 4, pine: 3 }, { crystal: 4, iron: 3 }];
+const ids = ['axe1', 'axe2', 'axe3', 'axe4', 'pick1', 'pick2', 'pick3', 'pick4'];
+const recipes = [{ goo: 6, fluff: 3 }, { copper: 9, bark: 12 }, { iron: 9, pine: 9 }, { crystal: 6, glimwood: 9 }, { goo: 6, fluff: 6 }, { copper: 12, bark: 9 }, { iron: 12, pine: 9 }, { crystal: 8, iron: 9 }];
 const dimensions = (path: string): [number, number] => {
   const b = readFileSync(path);
   expect(b.toString('ascii', 0, 4)).toBe('RIFF');
@@ -30,7 +30,7 @@ describe('recipe-led gathering tool art', () => {
   test('assembly definitions cover every real ingredient with registered destinations and ordered contacts', () => {
     for (const p of presentations) {
       const tool = TOOLS.find((t) => t.id === p.id)!;
-      const art = JSON.parse(readFileSync(`public/assets/crafting/${p.id}.json`, 'utf8')) as ArtManifest;
+      const art = { stack: Object.keys(sceneModel(`assets/crafting3d/${p.id}.glb`).layers) };
       expect(p.layers.map((l) => l.id)).toEqual(art.stack);
       expect(Object.keys(p.roles).sort()).toEqual(Object.keys(tool.recipe).sort());
       for (const [material, count] of Object.entries(tool.recipe)) {
@@ -43,14 +43,10 @@ describe('recipe-led gathering tool art', () => {
       for (const t of p.targets) {
         expect(t.at).toBeGreaterThanOrEqual(0); expect(t.duration).toBeGreaterThan(0);
         expect(p.layers.some((l) => l.id === t.part)).toBe(true);
-        const [x0, y0, x1, y1] = art.parts[t.part].bounds;
-        expect(t.x * 512).toBeGreaterThanOrEqual(x0); expect(t.x * 512).toBeLessThanOrEqual(x1);
-        expect(t.y * 512).toBeGreaterThanOrEqual(y0); expect(t.y * 512).toBeLessThanOrEqual(y1);
         expect(tool.recipe[t.material]).toBeGreaterThan(0);
       }
       for (const layer of p.layers) {
-        expect(layer.src).toBe(art.parts[layer.id].src);
-        if (!art.existing.includes(layer.id)) expect(p.targets.some((t) => t.part === layer.id)).toBe(true);
+        if (layer.id !== 'existing-tool') expect(p.targets.some((t) => t.part === layer.id)).toBe(true);
       }
       expect(p.phases[0].at).toBe(0);
       expect(p.phases.map((f) => f.at)).toEqual(p.phases.map((f) => f.at).sort((a, b) => a - b));
@@ -60,32 +56,14 @@ describe('recipe-led gathering tool art', () => {
       expect(p.duration).toBeGreaterThanOrEqual(reveal.at + 600);
     }
   });
-  test('all six original recipe costs stay intact', () => {
-    expect(TOOLS.map((t) => t.id)).toEqual(ids);
-    expect(TOOLS.map((t) => t.recipe)).toEqual(recipes);
-  });
-  test('every assembly layer stays on its registered 512-square canvas', () => {
-    for (const id of ids) {
-      const manifest = JSON.parse(readFileSync(`public/assets/crafting/${id}.json`, 'utf8')) as ArtManifest;
-      expect(manifest.size).toEqual([512, 512]);
-      expect(new Set(manifest.stack).size).toBe(manifest.stack.length);
-      for (const part of [...manifest.stack, 'complete']) {
-        const layer = manifest.parts[part];
-        expect(layer).toBeDefined();
-        expect(dimensions(`public/${layer.src}`)).toEqual([512, 512]);
-        const [x0, y0, x1, y1] = layer.bounds;
-        expect(x0).toBeGreaterThan(0); expect(y0).toBeGreaterThan(0);
-        expect(x1).toBeLessThan(512); expect(y1).toBeLessThan(512);
-        expect(layer.center[0]).toBeCloseTo((x0 + x1) / 1024, 3);
-        expect(layer.center[1]).toBeCloseTo((y0 + y1) / 1024, 3);
-      }
-      expect(dimensions(`public/assets/icons/${id}.webp`)).toEqual([128, 128]);
-    }
+  test('every gathering tool keeps its recipe', () => {
+    expect(ids.filter((id) => !TOOLS.some((t) => t.id === id))).toEqual([]);
+    expect(ids.map((id) => TOOLS.find((t) => t.id === id)!.recipe)).toEqual(recipes);
   });
   test('stone recipes show pre-existing tools; crystal uses iron, without an unlisted wood shaft', () => {
     for (const id of ids) {
-      const manifest = JSON.parse(readFileSync(`public/assets/crafting/${id}.json`, 'utf8')) as ArtManifest;
-      expect(manifest.existing).toEqual(id.endsWith('1') ? ['existing-tool'] : []);
+      const manifest = { stack: Object.keys(sceneModel(`assets/crafting3d/${id}.glb`).layers) };
+      expect(manifest.stack.includes('existing-tool')).toBe(id.endsWith('1'));
       if (id.endsWith('1')) expect(manifest.stack).toEqual(['existing-tool', 'goo-joint', 'fluff-wrap']);
       if (id === 'pick4') expect(manifest.stack).toEqual(['iron-haft', 'crystal-head', 'iron-socket']);
     }
@@ -101,18 +79,5 @@ describe('recipe-led gathering tool art', () => {
       expect(f.tip).toEqual(id.startsWith('axe') ? [-.29, 0, .65] : [-.4, 0, .57]);
       expect(existsSync(`art/gear/${id}.py`)).toBe(true);
     }
-  });
-  test('new art fits a 300 KiB total family budget and 40 KiB per layer budget', () => {
-    let total = 0;
-    for (const id of ids) {
-      const manifest = JSON.parse(readFileSync(`public/assets/crafting/${id}.json`, 'utf8')) as ArtManifest;
-      for (const part of [...manifest.stack, 'complete']) {
-        const bytes = statSync(`public/${manifest.parts[part].src}`).size;
-        expect(bytes).toBeLessThan(40 * 1024);
-        total += bytes;
-      }
-      total += statSync(`public/assets/gather/${id}.webp`).size + statSync(`public/assets/icons/${id}.webp`).size;
-    }
-    expect(total).toBeLessThan(300 * 1024);
   });
 });

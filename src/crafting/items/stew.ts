@@ -1,16 +1,14 @@
 import type { CraftPresentation } from '../types';
 
-const src = (part: string) => `assets/crafting/stew-${part}.webp`;
 export default {
-  id: 'stew', eyebrow: 'Granny’s Kitchen', duration: 3400,
-  // Fuel draws under the cookware. It is excluded from the finished complete image.
-  layers: ['pine-fuel', 'pot', 'cap-broth', 'shroom-caps', 'steam'].map((id) => ({ id, src: src(id), ...(id === 'steam' ? { showAt: 1510 } : {}), ...(id === 'pine-fuel' ? { finished: false } : {}) })),
-  complete: src('complete'),
+  id: 'stew', model: 'assets/crafting3d/stew.glb', eyebrow: 'Granny’s Kitchen', duration: 3400,
+  // The fuel burns under the pot, and leaves (as does its icon) once the stew is served.
+  layers: ['pine-fuel', 'pot', 'cap-broth', 'shroom-caps', 'steam'].map((id) => ({ id, ...(id === 'steam' ? { showAt: 1510 } : {}), ...(id === 'pine-fuel' ? { finished: false } : {}) })),
   roles: { pine: 'Cooking fuel below the pot', cap: 'Warm mushroom broth & spotted caps' },
   targets: [
-    { material: 'pine', part: 'pine-fuel', at: 220, duration: 480, x: .4922, y: .8008, contact: 'solid', sound: 'craftFluff' },
-    { material: 'cap', part: 'cap-broth', at: 960, duration: 500, x: .5, y: .4043, contact: 'bind', sound: 'craftGoo' },
-    { material: 'cap', part: 'shroom-caps', at: 1600, duration: 500, x: .4922, y: .3887, contact: 'soft', sound: 'craftFluff' },
+    { material: 'pine', part: 'pine-fuel', at: 220, duration: 480, contact: 'solid', sound: 'craftFluff' },
+    { material: 'cap', part: 'cap-broth', at: 960, duration: 500, contact: 'bind', sound: 'craftGoo' },
+    { material: 'cap', part: 'shroom-caps', at: 1600, duration: 500, contact: 'soft', sound: 'craftFluff' },
   ],
   phases: [
     { at: 0, stage: 'warm', text: 'Pine Logs, tucked beneath the pot as fuel…' },

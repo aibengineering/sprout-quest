@@ -4,13 +4,13 @@
 // teaches Granny his stew. See the story bible (Side quests).
 import type { ActorSpec } from '../../actors';
 import { BRAM_CABIN_PLANKS, ZONES, zoneById, type MonsterKind } from '../../data';
-import { sawCollect, sawOrder } from '../../sawmill';
 import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { challengeFoe, startBattle } from '../fights';
 import { bubble, narrate, pan, say, scene, walk, wait, type Speaker } from '../scenes';
 import { stopWaiting, waitAt, type Story } from '../stories';
 import { GRANNY, GRANNY_AT, GRANNY_ID } from './granny';
+import { bramHousePlans } from '../housing';
 
 export const BRAM: Speaker = { name: 'Bram', emoji: '🧔', portrait: (m) => (m === 'happy' ? 'npc_bram_happy' : m === 'hurt' ? 'npc_bram_hurt' : 'npc_bram') };
 const ID = 'bram:bram';
@@ -19,7 +19,8 @@ const W = ZONES.find((z) => z.id === 'woods')!.x0;
 const V = ZONES.find((z) => z.id === 'village')!.x0;
 /** Where he sits at his camp, by the stump with his axe in it, and his place in Sowerby once he's moved in. */
 const CAMP = { x: W + 8.1, y: 6.3 };
-const MILL = { x: V + 4.2, y: 8.6 };
+export const BRAM_AT = { x: V + 4.2, y: 8.6 };
+const MILL = BRAM_AT;
 /** Where the pack comes in: the clearing's east mouth. */
 const MOUTH = { x: W + 13.5, y: 5.6 };
 
@@ -54,32 +55,7 @@ const chat = (lines: [Speaker, string, string?][]) => paused(async () => {
 });
 
 const ROAD = ["Easy. Easy on the leg.", "Clover's going to fuss. She always fussed.", "You're stronger than you look, kid.", "Mind the grass. Fangs in the grass."];
-const MILL_LINES = ["Two logs, one plank. I'll saw while you're out.", 'Good wood in the meadow. Oak, straight grain.', "Clover's stew's coming along. Don't tell her I said so."];
 let line = 0;
-
-/** Bram's Sawmill: hand him logs, take your planks. */
-export function openSawmill(greeting = MILL_LINES[line++ % MILL_LINES.length]) {
-  return paused(async () => {
-    for (;;) {
-      const r = await G.ui.sawmill(G.save, greeting);
-      if (r.startsWith('saw:')) {
-        const [, count, log] = r.split(':');
-        const n = sawOrder(G.save, Number(count), log === 'pine' ? 'pine' : 'bark');
-        if (n) G.audio.play('chop');
-        greeting = n ? `Right. ${n} plank${n > 1 ? 's' : ''} coming up.` : "You'll need more logs than that.";
-      } else if (r === 'collect') {
-        const n = sawCollect(G.save);
-        if (n) {
-          G.audio.play('pickup');
-          G.ui.toast(`🪵 +${n} Plank${n > 1 ? 's' : ''}`);
-        }
-        greeting = 'There you go. Straight and true.';
-      } else break;
-      persist();
-    }
-    persist();
-  });
-}
 
 /** The pack comes early: a couple of Woolves, with Bram watching from his stump. */
 function tooLoud() {
@@ -245,19 +221,21 @@ export const BRAM_STORY: Story = {
           await pan(MILL.x - 1.5, MILL.y - 1.2, 700);
           bubble(ID, '😊', 2.5);
           await say(BRAM, "Now that's a mill.", 'happy');
-          await say(BRAM, "Bring me Oak Logs. Two logs make a plank, and I'll saw while you're out adventuring.");
-          await say(BRAM, 'First job, though: a roof over my head. Six planks will do it.');
+          await say(BRAM, "Bring Oak Logs inside: onto the bench, pull the lever, then take your planks. Two from every log.");
+          await say(BRAM, 'Plans by the broken crossings, partner. Better blades, better timber, better ways home.', 'happy');
+          await say(BRAM, `First job, though: a roof over my head. ${BRAM_CABIN_PLANKS} planks will do it.`);
         });
       },
     },
     {
-      id: 'hut', label: "Saw six planks for Bram's cabin",
+      id: 'hut', label: `Saw ${BRAM_CABIN_PLANKS} planks for Bram's cabin`,
       target: () => ({ x: MILL.x + 0.2, y: MILL.y + 0.8 }),
       done: () => has('bram:hut'),
       async then() {
         syncWorld();
         await scene(async () => {
-          await pan(MILL.x - 1.4, MILL.y, 700);
+          const cabin = G.world.objs.find((o) => o.id === 'bramhut')!;
+          await pan(cabin.x + cabin.w / 2, cabin.y + cabin.h - 0.6, 700);
           await narrate('Hammering, sawing, and a good deal of grumbling later, Bram has a cabin.');
           bubble(ID, '😊', 3);
           await say(BRAM, 'Home.', 'happy');
@@ -303,10 +281,11 @@ export const BRAM_STORY: Story = {
           persist();
           return;
         }
-        return openSawmill(`Six planks for the cabin, when you have them. You've got ${G.save.mats.plank}.`);
+        return chat([[BRAM, `${BRAM_CABIN_PLANKS} planks for the cabin. You've got ${G.save.mats.plank}. Inside the mill: logs on the bench, pull the lever, then take the planks by the door.`]]);
       })];
     }
-    return [at(MILL, '😊', () => openSawmill())];
+    // Settled in: chat outside, and he joins you at the bench when you enter his Sawmill.
+    return [at(MILL, undefined, bramHousePlans)];
   },
 
   fainted() {

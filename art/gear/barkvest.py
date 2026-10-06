@@ -1,16 +1,19 @@
-"""Timber Vest: Oak Log lamellae, end grain shoulders, six Stone fasteners."""
+"""Timber Vest: Oak Log lamellae, end grain shoulders, padded lining and Stone belt fasteners."""
 import math
 from lib import box, cylinder, sphere, toon
-from gear._woodland_shapes import add, pivots, vest
+from gear._woodland_shapes import add, pivots
 
-PARTS = ('oak-back', 'oak-left', 'oak-right', 'oak-shoulders', 'stone-fasteners')
-CAMERA = dict(ppu=532.792128, anchor=(0, 0.067111, 0.315734), elevation=math.radians(12))
+from gear._garment import lining, binding
+
+PARTS = ('fluff-lining', 'goo-seams', 'oak-back', 'oak-left', 'oak-right', 'shoulder-left', 'shoulder-right', 'stone-fasteners')
 
 
 def build(body, arms=None, head=None):
     arms, _ = pivots(body, arms, head)
     parts = {key: [] for key in PARTS}
-    vest(parts, 'oak-back', body, arms, '#68472f')
+    lining(parts, 'fluff-lining', body, arms)
+    binding(parts, 'goo-seams', body, arms)
+
     wood, cut, grain = toon('#a66f45'), toon('#d9ae73'), toon('#6e472f')
     # Rounded shingles overlap across the front; warm narrow channels read as oak grain.
     for side, key in ((-1, 'oak-left'), (1, 'oak-right')):
@@ -25,18 +28,19 @@ def build(body, arms=None, head=None):
         for y in (.04, .17):
             add(parts, 'oak-back', box((side * .227, y, .31), (.063, .16, .29), wood,
                                        body, rot=(0, 0, side * -.25), bevel=.025, line=.01))
-        shoulder = add(parts, 'oak-shoulders', cylinder((side * .05, 0, .022), .106, .072,
+        shoulder_key = 'shoulder-left' if side < 0 else 'shoulder-right'
+        shoulder = add(parts, shoulder_key, cylinder((side * .05, 0, .022), .106, .072,
                            cut, arms[side], seg=12, rot=(0, math.pi / 2, 0), line=.011,
                            name='oak_end_grain'))
         # Dark concentric cross-section marks explicitly preserve the log ingredient.
         for radius in (.04, .075):
             from lib import torus
-            add(parts, 'oak-shoulders', torus((side * .09, 0, .022), radius, .0045, grain,
+            add(parts, shoulder_key, torus((side * .09, 0, .022), radius, .0045, grain,
                                               arms[side], rot=(0, math.pi / 2, 0), line=0, seg=16))
     stone = toon('#a4a8b0', rim=.13)
     for side in (-1, 1):
-        for z in (.22, .355, .49):
-            add(parts, 'stone-fasteners', sphere((side * .056, -.272, z), (.047, .028, .043),
+        for z in (.18,):
+            add(parts, 'stone-fasteners', sphere((side * .18, -.272, z), (.028, .018, .025),
                                                  stone, body, seg=14, line=.009, name='stone_button'))
     return parts
 

@@ -23,4 +23,3 @@ def build_weapon(root):
 LENGTH = .9
 
 # Assembly camera after standard diagonal weapon presentation (root Y=-pi/4, scale=(1,1.25,1.25)).
-CAMERA = dict(ppu=513.0434782608695, anchor=(0.24744999999999998, 0, 0.24744999999999998), elevation=0)

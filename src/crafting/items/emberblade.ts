@@ -1,15 +1,14 @@
 import type { CraftPresentation } from '../types';
 
 export default {
-  id: 'emberblade', duration: 3300,
-  layers: ['iron', 'horn', 'crystal', 'ember'].map(id => ({ id, src: `assets/crafting/emberblade-${id}.webp` })),
-  complete: 'assets/crafting/emberblade-complete.webp',
+  id: 'emberblade', model: 'assets/crafting3d/emberblade.glb', duration: 3300,
+  layers: ['iron', 'horn', 'crystal', 'ember'].map(id => ({ id })),
   roles: { iron: 'Forged blade & grip', horn: 'Swept guard & grip rings', crystal: 'Four faceted blade channels', ember: 'Warm edge inlays & pommel' },
   targets: [
-    { material: 'iron', part: 'iron', at: 160, duration: 420, x: .54, y: .5, contact: 'solid', sound: 'clink' },
-    { material: 'horn', part: 'horn', at: 850, duration: 400, x: .24, y: .38, contact: 'solid', sound: 'tick' },
-    { material: 'crystal', part: 'crystal', at: 1450, duration: 430, x: .507, y: .5, contact: 'solid', sound: 'tick' },
-    { material: 'ember', part: 'ember', at: 2100, duration: 430, x: .59, y: .44, contact: 'energy', sound: 'craftStitch' },
+    { material: 'iron', part: 'iron', at: 160, duration: 420, contact: 'solid', sound: 'clink' },
+    { material: 'horn', part: 'horn', at: 850, duration: 400, contact: 'solid', sound: 'tick' },
+    { material: 'crystal', part: 'crystal', at: 1450, duration: 430, contact: 'solid', sound: 'tick' },
+    { material: 'ember', part: 'ember', at: 2100, duration: 430, contact: 'energy', sound: 'craftStitch' },
   ],
   phases: [
     { at: 0, stage: 'forge', text: 'Iron settles into a broad, keen blade…' },
