@@ -49,6 +49,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "🌱 Seed finds pop up while trees fall, without interrupting gathering",
       "🏷️ World labels have smoother outlines without dark spikes",
       "🌉 Repair cards at both banks show costs and locks before you confirm",
+      "🍄 Spore Wands get pine handles, fang braces and a Lucky Clover finishing charm",
     ],
   },
   {

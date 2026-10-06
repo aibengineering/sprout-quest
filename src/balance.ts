@@ -389,11 +389,11 @@ export function minutesToSkillLevel(skill: SkillId, target: number): number {
 const gathered = (m: string) => Object.values(NODES).some((n) => n.mat === m);
 
 /**
- * Weapons follow their ingredient sources. Armour below tier 5 follows its main material: cloth linings, bindings
- * and small fittings can come from either source. The strongest top-tier pieces need both.
+ * Weapons and armour below tier 5 follow their main material: handles, cloth linings, bindings and small fittings
+ * can come from either source. The strongest top-tier pieces need both.
  */
 export function gearTrack(g: Gear): 'hunter' | 'gatherer' | 'both' {
-  if (g.slot === 'armor' && (g.tier ?? 0) < 5) {
+  if ((g.slot === 'armor' || g.slot === 'weapon') && (g.tier ?? 0) < 5) {
     const primary = Object.entries(g.recipe ?? {}).sort((a, b) => b[1]! - a[1]!)[0]?.[0];
     return primary && gathered(primary) ? 'gatherer' : 'hunter';
   }

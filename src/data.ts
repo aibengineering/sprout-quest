@@ -198,7 +198,7 @@ const GEAR_LIST: Gear[] = [
   W('coppersword', 'Copper Sword', 'sword', 2, 14, 'metal', '#e8904a', '#ffd0a0', 'Bright and keen.', { copper: 12, bark: 9 }, { mine: 4 }),
   W('copperhammer', 'Copper Hammer', 'hammer', 2, 18, 'metal', '#d8783a', '#ffc890', 'Rings like a bell on every slam.', { copper: 15, pine: 9 }, { mine: 4 }),
   W('sporewhip', 'Spore Whip', 'whip', 2, 16, 'spore', '#e8505a', '#ffb4b4', 'Every lash leaves a puff of poison spores.', { cap: 18, fang: 4 }),
-  W('sporewand', 'Spore Wand', 'wand', 2, 13, 'spore', '#e8505a', '#ffb4b4', 'Shoots spore pods that poison.', { cap: 15, fang: 6 }),
+  W('sporewand', 'Spore Wand', 'wand', 2, 13, 'spore', '#e8505a', '#ffb4b4', 'A pine handle, fang-braced mushroom head, and a lucky clover to wake its magic. Shoots poisonous spore pods.', { cap: 15, fang: 6, pine: 6, clover: 1 }),
   W('ironsword', 'Iron Sword', 'sword', 3, 22, 'metal', '#c8d4e8', '#ffffff', 'Heavy, true, dependable.', { iron: 15, pine: 9 }, { mine: 6 }),
   W('ironhammer', 'Iron Hammer', 'hammer', 3, 28, 'metal', '#9aa4b8', '#e8eef8', 'Every slam shakes the ground.', { iron: 18, pine: 9 }, { mine: 6 }),
   W('batwhip', 'Batwing Whip', 'whip', 3, 24, 'bat', '#7a5ab8', '#c8a8ff', 'Hungry lashes: each hit heals you a little.', { wing: 12, core: 1, fang: 4 }),

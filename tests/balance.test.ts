@@ -68,11 +68,14 @@ describe('balance', () => {
     for (const sk of ['wood', 'mine'] as const) expect(minutesToSkillLevel(sk, SKILL_MAX)).toBeLessThanOrEqual(20);
   });
 
-  test('gear tracks follow primary armour materials and gathering skill requirements', () => {
+  test('gear tracks follow primary materials and gathering skill requirements', () => {
     for (const g of Object.values(GEAR).filter((g) => g.recipe)) {
       const track = gearTrack(g);
       expect({ id: g.id, needsSkill: !!g.needs }).toEqual({ id: g.id, needsSkill: track !== 'hunter' });
     }
+    expect(gearTrack(GEAR.sporewand)).toBe('hunter'); // A wooden handle does not make it legendary hybrid gear.
+    expect(gearTrack({ ...GEAR.sporewand, recipe: { pine: 18, cap: 3, fang: 1 } })).toBe('gatherer');
+    expect(gearTrack(GEAR.wyrmfire)).toBe('both');
   });
 
   test('every weapon tier and forge level has a hunter and a gatherer option, and the "both" gear beats them all', () => {
