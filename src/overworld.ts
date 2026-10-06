@@ -1326,14 +1326,17 @@ export class Overworld {
 
   /** A white name tag centered over an object whose top is at `top`. */
   private nameTag(ctx: CanvasRenderingContext2D, text: string, cx: number, top: number, ts: number) {
+    ctx.save();
     ctx.font = `900 ${Math.round(ts * 0.34)}px ui-rounded, "Nunito", system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineWidth = ts * 0.1;
+    ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(60,30,60,0.8)';
     ctx.strokeText(text, cx, top - ts * 0.25);
     ctx.fillStyle = '#fff';
     ctx.fillText(text, cx, top - ts * 0.25);
+    ctx.restore();
   }
 
   /** Elder Oswin, with a bouncing "!" when she has something new to say. False if her sprite isn't loaded. */
