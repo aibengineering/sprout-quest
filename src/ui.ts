@@ -465,7 +465,8 @@ export class UI {
     let lv = f.from.lv, frac = fracOf(lv, f.from.xp);
     const end = fracOf(to.lv, to.xp);
     // The count goes up with the bubbles: each one adds its share of the whole fill, level-ups included.
-    const units = Math.max(0.001, to.lv - lv + end - frac);
+    // At the cap the full bar represents the previous level, not another level to fill.
+    const units = Math.max(0.001, to.lv - lv + end - frac - (f.max && to.lv >= f.max ? 1 : 0));
     let done = 0;
     tag.textContent = `+0 ${f.unit}`;
     const notch = (at: number, big = false) => {
@@ -530,10 +531,51 @@ export class UI {
     bar.style.transition = '';
   }
 
-  hud(hp: number, zoneName: string) {
+  private gatherAnim = false;
+
+  /** Gathering uses the same fill and rollover as combat, before its level-up screen opens. */
+  async skillXpGain(skill: SkillId, from: { lv: number; xp: number }, gained: number) {
+    const card = $('hud').querySelector('.stat') as HTMLElement;
+    if ($('hud').hidden || gained <= 0 || from.lv >= SKILL_MAX) return;
+    const to = { ...this.hooks.save().skills[skill] };
+    this.gatherAnim = true;
+    card.classList.add('skill-gain');
+    const tag = document.createElement('div');
+    tag.className = 'xp-float hand';
+    card.append(tag);
+    await this.fillTrack(card, tag, {
+      bar: $('hud-gxp'), track: $('hud-gxp').parentElement!, need: skillXpToNext, from, to, gained,
+      unit: 'XP', voice: 'handling', ding: 'handlingDing', max: SKILL_MAX,
+      onLevel: (lv) => ($('hud-glv').textContent = lv >= SKILL_MAX ? 'MAX' : `Lv ${lv}`),
+    });
+    await new Promise((r) => setTimeout(r, 350));
+    tag.remove();
+    card.classList.remove('skill-gain');
+    this.gatherAnim = false;
+    delete this.last.gather;
+  }
+
+  hud(hp: number, zoneName: string, gathering: SkillId | null = null) {
     this.watchUnlocks();
     const s = this.hooks.save();
     const st = playerStats(s);
+    $('hud-gather').hidden = !gathering;
+    ($('hud').querySelector('.hand-row') as HTMLElement).hidden = !!gathering;
+    if (gathering && !this.gatherAnim) {
+      const sk = s.skills[gathering], max = sk.lv >= SKILL_MAX, need = skillXpToNext(sk.lv);
+      this.set('gather', `${gathering}:${sk.lv}:${sk.xp}`, () => {
+        $('hud-gather').dataset.skill = gathering;
+        $('hud-gname').textContent = `${gathering === 'wood' ? '🪓' : '⛏️'} ${SKILL_NAMES[gathering]}`;
+        $('hud-glv').textContent = max ? 'MAX' : `Lv ${sk.lv}`;
+        $('hud-gxp').style.width = `${max ? 100 : Math.min(100, (100 * sk.xp) / need)}%`;
+        const track = $('hud-gxp').parentElement!;
+        track.setAttribute('aria-label', `${SKILL_NAMES[gathering]} XP`);
+        track.setAttribute('aria-valuemin', '0');
+        track.setAttribute('aria-valuemax', String(max ? 1 : need));
+        track.setAttribute('aria-valuenow', String(max ? 1 : sk.xp));
+        track.setAttribute('aria-valuetext', max ? 'Mastered' : `Level ${sk.lv}, ${sk.xp} of ${need} XP`);
+      });
+    }
     // Your handling with the weapon in hand, under your XP.
     const style = GEAR[s.equip.weapon]?.style ?? 'sword', m = s.mastery[style];
     const handKey = `${style}:${m.lv}:${m.xp}`;

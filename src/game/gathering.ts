@@ -15,7 +15,7 @@ import { seamById, seamOpen, openSeam } from '../seams';
 import { syncWorld } from './context';
 
 /** The minigame in progress, if any, and what it paid out once the node gave way. */
-export let chop: { game: Chop; obj: WorldObj; view: GatherView; reward?: GatherReward; fromLv?: number; shown?: ReturnType<typeof revealed>; noise?: number } | null = null;
+export let chop: { game: Chop; obj: WorldObj; view: GatherView; reward?: GatherReward; fromLv?: number; xpFinished?: boolean; shown?: ReturnType<typeof revealed>; noise?: number } | null = null;
 
 /** How much noise each kind of strike makes, where a story is listening (Bram's camp): 1 brings trouble. */
 const NOISE: Record<'perfect' | 'hit' | 'miss', number> = { perfect: 0, hit: 0.12, miss: 0.4 };
@@ -92,7 +92,7 @@ export function updateGather(dt: number) {
   if (c.game.done) {
     input.flush();
     if (!c.reward) collect(c);
-    if (c.view.finished) finishGather();
+    if (c.view.finished && c.xpFinished) finishGather();
     return;
   }
   const a = input.axis();
@@ -129,9 +129,11 @@ export function updateGather(dt: number) {
 /** Pays out the moment the node gives way: materials, skill XP, and the regrowth timer. */
 function collect(c: NonNullable<typeof chop>) {
   const s = G.save, n = NODES[c.obj.node!];
+  const from = { ...s.skills[n.skill] };
   c.fromLv = s.skills[n.skill].lv;
   c.shown = revealed(s);
   c.reward = harvest(s, c.obj.node!, c.obj.id!, !!c.obj.grass, c.game.flawless);
+  void G.ui.skillXpGain(n.skill, from, c.reward.xp).then(() => { c.xpFinished = true; });
   if(c.obj.boulder && openSeam(s,c.obj.boulder,c.game.streak)) {
     syncWorld();
     G.ui.toast(c.obj.boulder==='quarry' ? '⛏️ The boulder gives way! An ore gallery—and a tunnel home.' : '⛏️ A hidden burrow! You can take this tunnel home.',4200);
