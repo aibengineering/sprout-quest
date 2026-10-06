@@ -14,9 +14,10 @@ import { startServer } from '../../server';
 import { GEAR, MONSTERS, NODES } from '../../src/data';
 import { MEALS, type MealId } from '../../src/kitchen';
 import { MOVESETS, comboTime } from '../../src/weapons';
-import { masteryXpToNext } from '../../src/rules';
+import { masteryXpToNext, playerStats } from '../../src/rules';
 import { browserEnv } from './browser-env';
 import { SHORTCUTS, shortcutWorldPoint } from '../../src/shortcuts';
+import { NEIGHBOURS } from '../../src/neighbours';
 
 const SHOTS = process.argv.includes('--shots');
 const env = browserEnv(SHOTS);
@@ -154,7 +155,8 @@ async function handInJob(page: Page, id: string) {
   }, 20000);
 }
 
-async function waitFor(page: Page, what: string, cond: () => Promise<boolean>, ms = 6000) {
+// Readiness is not a speed assertion: software WebGL can stretch a transition's capped game clock under parallel load.
+async function waitFor(page: Page, what: string, cond: () => Promise<boolean>, ms = 15000) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
     // Not there yet (the game object is created once its code has downloaded and started) counts as not yet.
@@ -217,6 +219,7 @@ async function runScenario(name: string, seed: Seed | null, body: (page: Page) =
     failures.push(`${name}: ${(e as Error).message}`);
     if (errors.length) console.log(`    page errors: ${errors.join(' | ')}`);
     console.log(`  ✗ ${name}: ${(e as Error).message}`);
+    console.log('    game state:', JSON.stringify(await game(page, `({mode:g.mode,room:g.room,x:g.over.x,y:g.over.y,underground:g.save.underground,transition:g.trans&&{t:g.trans.t,dur:g.trans.dur,fired:g.trans.fired},modelStats:g.modelStats,near:g.over.nearbyObject(),dialog:document.querySelector('#modal:not([hidden]) .sheet')?.textContent})`)));
   } finally {
     if (SHOTS) await page.screenshot({ path: `${OUT}${name.replace(/\W+/g, '-')}.png` }).catch(() => {});
     await close();
@@ -693,17 +696,23 @@ scenario('an iron pick mines Glimmer Hollow crystal, slowly', (g) => {
   await run(page, `g.warp('hollow'); g.over.roamers.calm = 999`);
   await page.waitForTimeout(800);
   const placed = await game<boolean>(page, `(() => {
-    const o = g.over, r = o.world.objs.find((x) => x.kind === 'node' && x.node === 'crystal' && !x.grass);
-    for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1]]) {
-      const x = r.x + 0.4 + dx * 0.95, y = r.y + 0.6 + dy * 0.95;
-      if (!o.world.blocked(x, y, 0.28)) { o.teleport(x, y); o.roamers.calm = 999; return true; }
+    const o = g.over;
+    for (const r of o.world.objs.filter((x) => x.kind === 'node' && x.node === 'crystal' && !x.grass && x.id.startsWith('hollow:'))) {
+      for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1]]) {
+        const x = r.x + 0.4 + dx * 0.95, y = r.y + 0.6 + dy * 0.95;
+        if (o.world.blocked(x, y, 0.28)) continue;
+        o.teleport(x, y); o.roamers.calm = 999;
+        if (o.nearbyObject() === r) return true;
+      }
     }
     return false;
   })()`);
   check(placed, 'no open spot next to a crystal cluster');
   await page.waitForTimeout(500);
+  check(await game<boolean>(page, `g.over.nearbyObject()?.node === 'crystal'`), 'the action button does not select crystal');
   await page.keyboard.press('KeyE');
   await waitFor(page, 'the mining minigame', async () => (await game<string>(page, 'g.mode')) === 'gather');
+  check(await game<boolean>(page, `g.chop.obj.node === 'crystal' && g.chop.obj.id.startsWith('hollow:')`), 'mining started on the wrong resource');
   const power = await game<number>(page, 'g.chop.game.power');
   check(power > 0 && power < 1, `iron pick on crystal should be slow, got power ${power}`);
   await page.waitForTimeout(600); // a few frames of the minigame drawing
@@ -1910,12 +1919,14 @@ scenario('The rooms fit a phone whole, and what Bram and Granny say never covers
       await run(page, `g.over.room.actors.say('${who}', ${JSON.stringify(line)}, 5); g.over.room.actors.bubble('${who}', '😅', 5)`);
       await run(page, `g.ui.loot([{ icon: '🪵', text: '+2', name: 'Planks' }, { icon: '🌲', text: '+4', name: 'Pine Planks' }, { icon: '💎', text: '+6', name: 'Glimmerwood Planks' }, { icon: '🌋', text: '+8', name: 'Emberwood Planks' }])`);
       await page.waitForTimeout(400);
-      const r = await game<{ stations: (R & { id: string })[]; hero: R; bubbles: R[]; caption: R | null; label: R | null }>(page, 'g.over.roomRects');
+      // Loot rows expire and shift their indices. Snapshot their rectangles with the canvas geometry in one call.
+      const r = await game<{ stations: (R & { id: string })[]; hero: R; bubbles: R[]; caption: R | null; label: R | null; loot: R[] }>(page, `({ ...g.over.roomRects, loot: [...document.querySelectorAll('#loot .lrow')].map(el => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; }) })`);
       check(r.caption, `${where} at ${vw}×${vh}: no line shown`);
-      for (const loot of await page.locator('#loot .lrow').all()) {
-        const b = await loot.boundingBox();
-        check(b && !meets(r.caption!, { x: b.x, y: b.y, w: b.width, h: b.height }), `${where} at ${vw}×${vh}: a pickup covers the speech caption`);
-        if (b) for (const st of r.stations) check(!meets(st, { x: b.x, y: b.y, w: b.width, h: b.height }), `${where} at ${vw}×${vh}: a pickup covers the ${st.id}`);
+      check(r.loot.length >= 4, `${where} at ${vw}×${vh}: the test pickups are missing`);
+      for (const b of r.loot) {
+        check(b.w > 0 && b.h > 0, `${where} at ${vw}×${vh}: a pickup is not visible`);
+        check(!meets(r.caption!, b), `${where} at ${vw}×${vh}: a pickup covers the speech caption`);
+        for (const st of r.stations) check(!meets(st, b), `${where} at ${vw}×${vh}: a pickup covers the ${st.id}`);
       }
       for (const st of r.stations) {
         check(st.x >= 0 && st.x + st.w <= vw && st.y >= 0 && st.y + st.h <= vh - 120, `${where} at ${vw}×${vh}: the ${st.id} is cut off or under the buttons (${JSON.stringify(st)})`);
@@ -2029,10 +2040,14 @@ scenario("Poppy's field by hand: while Poppy's away in Echo Cavern, the basket, 
   check(await game<boolean>(page, `g.save.mats.berryseed === 2 && !(g.save.garden?.plots ?? []).some(Boolean)`), 'the Garden was worked while Poppy was away');
 });
 
-scenario('fainting: back as a spirit at the checkpoint, walk to your body to wake, never onto a story fight', null, async (page) => {
+scenario('fainting: back as a spirit at the checkpoint, walk to your body to wake, never onto a story fight', (g) => {
+  g.save.stories.poppy = 4;
+  g.save.flags.push('poppy:rescue');
+}, async (page) => {
   // A story fight's monsters blocking a spot (Poppy's first pack), with you right up against them.
   const foe = `g.over.world.objs.find((o) => o.flag === 'poppy:pack1')`;
-  await run(page, `const o = ${foe}; o.hidden = false; g.over.teleport(o.x + o.w + 0.4, o.y + o.h / 2)`);
+  check(await game<boolean>(page, `!(${foe}).hidden`), 'Poppy’s chase pack is not active');
+  await run(page, `const o = ${foe}; g.over.teleport(o.x + o.w + 0.4, o.y + o.h / 2)`);
   await run(page, `g.fight('wolf', 12, 2)`);
   await waitFor(page, 'the fight', async () => game<boolean>(page, `g.mode === 'battle' && !!g.battle`));
   await page.waitForTimeout(1500);
@@ -2053,9 +2068,11 @@ scenario('fainting: back as a spirit at the checkpoint, walk to your body to wak
   // Your body: you wake at half health, and nothing starts.
   await run(page, `const b = g.save.spirit; g.over.teleport(b.x, b.y)`);
   await waitFor(page, 'waking up', async () => game<boolean>(page, `!g.save.spirit`), 5000);
-  check(await game<boolean>(page, `Math.abs(g.save.hp - Math.round(g.battle ? 0 : g.save.hp)) === 0 && g.save.hp > 0`), 'you woke with no health');
+  const expectedHp = Math.max(1, Math.round(playerStats(await game<any>(page, 'g.save')).maxHp / 2));
+  check(await game<number>(page, 'g.save.hp') === expectedHp, 'you did not wake at half health');
   await page.waitForTimeout(1000);
   check(await game<boolean>(page, `g.mode === 'world' && !g.battle`), 'waking up dropped you straight into the fight');
+  check(await game<boolean>(page, `g.save.stories.poppy === 4 && !(${foe}).hidden && !g.save.flags.includes('poppy:pack1')`), 'fainting changed the chase or removed its enemies');
 });
 
 scenario('fainting on the walk home leaves Bram waiting at the last checkpoint, and the ambushes still count', (g) => {
@@ -2489,7 +2506,7 @@ scenario("Pip's interrupted welcome: his doorstep conversation still teaches Roc
   check(await game<boolean>(page,`g.save.meal?.id==='rockcandy' && g.save.mats.stone===18 && g.save.mats.copper===12`),'recovered recipe cannot cook');
 },{webgl:true});
 
-scenario('New neighbours: meet on the road, resume the journey, return together, then build their places', (g) => {
+scenario('New neighbours: resume Pip, meet Rook and Moss, return together, then build their places', (g) => {
   const s=g.save;s.lv=12;s.quest=g.quests.length;s.villageJobs=true;
   s.stories={...s.stories,poppy:6,bram:9,drums:4,granny:99};
   s.flags=s.flags.filter((f:string)=>!f.endsWith(':returned'));
@@ -2501,12 +2518,21 @@ scenario('New neighbours: meet on the road, resume the journey, return together,
   await bramJob(page,'garden2');
   check(!await page.$('[data-dialog="job:pip1"]'),'Bram offers a home before meeting Pip');
   await page.click('.building-job [data-dialog="close"]');
-  for(const [id,job] of [['pip','pip1'],['rook','rook1'],['moss','moss1']]){
+  for(const [id,job] of [['pip','pip1'],['rook','rook1'],['moss','moss1']] as const){
     const aid=`journey-${id}:${id}`;
     await waitFor(page, `${id} on the road`,()=>game<boolean>(page,`!!g.over.actors.get('${aid}')`));
-    await run(page,`const a=g.over.actors.get('${aid}');g.over.teleport(a.x,a.y+.6);g.over.face=-Math.PI/2`);
-    await page.waitForTimeout(300);await page.keyboard.press('KeyE');
-    await waitFor(page, `${id} joins the walk`,async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('${id}:journey:met') && !!g.over.actors.get('${aid}')?.follow && g.mode==='world'`);});
+    // Pip has already seen the opened gallery in this fixture; his discovery has its own scenario.
+    if(id!=='pip'){
+      await run(page,`const a=g.over.actors.get('${aid}');g.over.teleport(a.x,a.y+.6);g.over.face=-Math.PI/2`);
+      await waitFor(page, `${id} ready to talk`,()=>game<boolean>(page,`g.mode==='world' && !g.trans && !g.ui.isOpen && g.over.nearbyObject()?.id==='${aid}'`));
+      await page.keyboard.press('KeyE');
+      // Wait for each declared line, rather than putting a whole conversation under one six-second deadline.
+      for(const text of NEIGHBOURS[id].meet){
+        await page.locator('#modal:not([hidden]) .caption .caption-text').filter({hasText:text}).waitFor();
+        await page.locator('#modal:not([hidden]) .caption [data-dialog="ok"]').click();
+      }
+    }
+    await waitFor(page, `${id} joins the walk`,()=>game<boolean>(page,`g.save.flags.includes('${id}:journey:met') && !!g.over.actors.get('${aid}')?.follow && g.mode==='world'`));
     check(!await game<boolean>(page,`g.save.flags.includes('${id}:returned')`),'meeting immediately credited the return');
     if(id==='pip'){
       await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(2200);await closeDialogs(page);
@@ -2515,9 +2541,14 @@ scenario('New neighbours: meet on the road, resume the journey, return together,
     // Fast travel regroups followers; the last approach is walked with real input.
     await run(page,`g.over.teleport(38,14.5);g.over.roamers.calm=999`);
     await page.keyboard.down('KeyA');
-    try{await waitFor(page,'walking west along the village road',()=>game<boolean>(page,'g.over.x<=31.8'),12000);}finally{await page.keyboard.up('KeyA');}
+    try{
+      await page.waitForFunction(()=>{
+        if((window as any).game.over.x>31.8)return false;
+        window.dispatchEvent(new KeyboardEvent('keyup',{code:'KeyA'}));return true;
+      },undefined,{timeout:30000});
+    }finally{await page.keyboard.up('KeyA');}
     await page.keyboard.down('KeyW');
-    try{await waitFor(page, `${id} reaches Clover`,async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('${id}:returned') && g.mode==='world'`);},12000);}finally{await page.keyboard.up('KeyW');}
+    try{await waitFor(page, `${id} reaches Clover`,async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('${id}:returned') && g.mode==='world'`);},30000);}finally{await page.keyboard.up('KeyW');}
     check(await game<boolean>(page,`!g.over.actors.get('${aid}')?.follow`),'returned neighbour still follows');
     await bramJob(page,job);check(await page.locator('[data-dialog^="job:"]').count()===1,'multiple places offered at once');
     await handInJob(page,job);
@@ -2735,7 +2766,12 @@ scenario('Sowerby layout: clear empty plots, upgraded homes, Bram’s work yard 
     const from = await game<number>(page, `g.over.${axis}`), positive = target > from;
     await page.keyboard.down(key);
     try {
-      await waitFor(page, `walking to ${axis}=${target}`, () => game<boolean>(page, `g.over.${axis} ${positive ? '>=' : '<='} ${target}`), 30000);
+      // Stop on the browser's frame, before host polling/keyup latency can carry us past a narrow doorway.
+      await page.waitForFunction(({axis,target,positive,key})=>{
+        const value=(window as any).game.over[axis];
+        if(positive ? value<target : value>target)return false;
+        window.dispatchEvent(new KeyboardEvent('keyup',{code:key}));return true;
+      },{axis,target,positive,key},{timeout:30000});
     } finally { await page.keyboard.up(key); }
     check(await game<boolean>(page, `g.mode === 'world' && !g.over.map.blocked(g.over.x, g.over.y, .28)`), 'walk ended inside a building or dialogue');
   };
