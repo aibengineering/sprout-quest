@@ -3040,7 +3040,10 @@ scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel an
  check(await game<boolean>(page,`g.chop.game.streak===0&&!g.chop.game.done&&!g.save.flags.includes('seam:quarry')`),'a miss cleared the boulder or retained its streak');
  await page.waitForTimeout(200);
  for(let i=0;i<10;i++){await run(page,`const c=g.chop.game;c.lock=0;c.pos=c.center;c.strike()`);await page.waitForTimeout(180);}
- await waitFor(page,'the boulder opens',async()=>{await closeDialogs(page);return game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('seam:quarry')`);},10000);
+ // Discovery is durable before the scatter/loot animation finishes. Check it separately from readiness:
+ // CI software WebGL can stretch the capped animation clock beyond the old ten-second wall-clock deadline.
+ await waitFor(page,'the boulder discovery saved',()=>game<boolean>(page,`g.save.flags.includes('seam:quarry')&&JSON.parse(localStorage.getItem('sprout-quest-save')).flags.includes('seam:quarry')&&g.over.oreGallery.objs.find(o=>o.boulder==='quarry').hidden`));
+ await waitFor(page,'the boulder animation finishes',async()=>{await closeDialogs(page);return game<boolean>(page,`g.mode==='world'&&!g.chop`);},30000);
  await run(page,`const a=g.over.oreGallery.actors.get('journey-pip:pip');g.over.x=a.x;g.over.y=a.y+.6;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
  await waitFor(page,'Pip joins the walk',async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('pip:journey:met')&&g.over.oreGallery.actors.get('journey-pip:pip')?.follow`);});
  await run(page,`g.over.x=g.over.oreGallery.x0+7;g.over.y=8.7;g.over.roamers.calm=999`);await page.keyboard.down('KeyW');
