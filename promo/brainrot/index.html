@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Sprout Quest Brainrot</title>
+  <style>
+    @font-face { font-family: 'Fredoka'; src: url('fredoka.woff2') format('woff2'); font-weight: 300 700; }
+    html, body { margin: 0; height: 100%; background: #120a18; overflow: hidden; font-family: Fredoka, sans-serif; }
+    #stage { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+    .cover { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+      background: rgba(18, 10, 24, .55); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .cover[hidden] { display: none; }
+    .btn { font: 700 clamp(26px, 6vw, 44px) Fredoka, sans-serif; color: #3a2448; background: #ffd23f; border: 6px solid #3a2448;
+      border-radius: 999px; padding: .45em 1.2em; box-shadow: 0 8px 0 #3a2448; animation: bob .75s ease-in-out infinite; cursor: pointer; }
+    .hint { color: #fff; font: 600 clamp(14px, 3.4vw, 20px) Fredoka, sans-serif; opacity: .85; text-shadow: 0 2px 0 #3a2448; }
+    @keyframes bob { 50% { transform: translateY(-6px) scale(1.04); } }
+    #replay { position: fixed; left: 50%; bottom: 3.5vh; transform: translateX(-50%); animation: none; font-size: clamp(18px, 4vw, 28px); }
+    #replay[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <svg id="stage" viewBox="0 0 1080 1920" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="start" class="cover" hidden><button class="btn">▶ tap to play</button><div class="hint">sound on!</div></div>
+  <button id="replay" class="btn" hidden>↻ replay</button>
+  <script type="module">
+    import { init, renderAt } from './edit.js';
+    import { scheduleSong } from './music.js';
+    import { END } from './score.js';
+
+    const q = new URLSearchParams(location.search);
+    const svg = document.getElementById('stage');
+    const ready = init(svg);
+    window.__ready = ready;
+    // Step mode, for screenshots and the video capture: ?t=12.3 draws one frame, ?step exposes __seek(t).
+    window.__seek = async (t) => { await ready; renderAt(t); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); };
+
+    await ready;
+    if (q.has('t')) renderAt(+q.get('t'));
+    else if (!q.has('step')) {
+      const start = document.getElementById('start'), replay = document.getElementById('replay');
+      renderAt(29.2);
+      start.hidden = false;
+      let ctx = null;
+      const play = async () => {
+        start.hidden = true; replay.hidden = true;
+        if (ctx) ctx.close();
+        ctx = new AudioContext({ latencyHint: 'interactive' });
+        await ctx.resume();
+        const t0 = ctx.currentTime + 0.35;
+        scheduleSong(ctx, t0);
+        const mine = ctx;
+        const frame = () => {
+          if (mine !== ctx) return;
+          // The picture follows the audio clock, corrected for output latency so cuts land with the sound.
+          const t = ctx.currentTime - t0 - (ctx.outputLatency || ctx.baseLatency || 0);
+          renderAt(Math.max(0, t));
+          if (t > END - 2) replay.hidden = false;
+          if (t < END) requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      };
+      start.addEventListener('click', play);
+      replay.addEventListener('click', play);
+    }
+  </script>
+</body>
+</html>
