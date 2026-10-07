@@ -23,7 +23,10 @@ import { hash2, T, type TileMap, type World, type WorldObj } from './world';
 import { WALL_RISE, type Room } from './room';
 import { EchoCave, ECHO_OUTSIDE } from './echoCave';
 import { Cavern } from './cavern';
-import { surfaceBounds, caveApproachStone, CAVE_WEST_EDGE } from './caveEntrance';
+import { surfaceBounds, caveApproachStone, CAVE_WEST_EDGE, CAVE_EAST_EDGE } from './caveEntrance';
+
+/** Tiles of cliff the camera may show past the surface's edge, beside a cave mouth. */
+const CLIFF_VIEW = 3;
 import { dodgeCharges, dodgeMotion } from './rules';
 import { ResourceCave } from './resourceCave';
 import { HUNTS, VARIANTS } from './hunts';
@@ -175,6 +178,14 @@ export class Overworld {
   get sceneBounds() {
     const m=this.map;
     return m===this.world ? surfaceBounds(this.x) : {x0:m.x0,w:m.w};
+  }
+
+  /** What the camera can show: on the surface, a few tiles of cliff past the walkable land, so a cave mouth at the
+   * land's edge sits in the middle of the screen rather than squashed against its side. */
+  get viewBounds() {
+    const b=this.sceneBounds;
+    if(this.map!==this.world)return b;
+    return b.x0===0 ? {x0:0,w:b.w+CLIFF_VIEW} : {x0:b.x0-CLIFF_VIEW,w:b.w+CLIFF_VIEW};
   }
 
   /** Who's around you: the room's people, or the map's. */
@@ -445,7 +456,7 @@ export class Overworld {
     const ts = (this.ts = R
       ? Math.round(Math.min(Overworld.tileSize(vw, vh) * 1.25, vw / (R.w - 0.3), (vh - ROOM_BAND.top - ROOM_BAND.bottom) / roomRows) * this.zoom)
       : Math.round(Overworld.tileSize(vw, vh) * this.zoom));
-    const bounds=this.sceneBounds;
+    const bounds=this.viewBounds;
     const mapW = bounds.w * ts, mapH = (this.fieldMap ? ROUTES[this.zone.id]?.length ?? WORLD_H : W.h) * ts;
     let camX = this.camX * ts - vw / 2;
     let camY = (this.camY - 0.5) * ts - vh / 2;
@@ -496,8 +507,14 @@ export class Overworld {
 
   /** The map itself: ground, scenery, buildings, monsters and the hero. `left`/`top` are the camera's corner in tiles. */
   private sceneryTile(x:number,y:number) {
-    // The logical graph retains gate coordinates for old saves; the outdoor view ends in a cliff behind its mouth.
-    return !this.underground&&!this.room&&x===CAVE_WEST_EDGE-1 ? T.OBST : this.map.tile(x,y);
+    // Above ground, the cavern's own tiles are solid cliff: you only see its tunnels once you're inside.
+    return !this.underground&&!this.room&&x>=CAVE_WEST_EDGE&&x<CAVE_EAST_EDGE ? T.OBST : this.map.tile(x,y);
+  }
+
+  /** Whether an obstacle tile is drawn as rock (cave walls and the cliff around a cave mouth) rather than a tree. */
+  private isRock(x: number, y: number) {
+    if (this.underground) return true;
+    return (x >= CAVE_WEST_EDGE && x < CAVE_EAST_EDGE) || zoneAtX(x).id === 'cave' || caveApproachStone(x, y) >= .85;
   }
 
   private drawScene(ctx: CanvasRenderingContext2D, left: number, top: number, ts: number, vw: number, vh: number) {
@@ -508,7 +525,7 @@ export class Overworld {
     ctx.save();
     ctx.translate(-camX, -camY);
 
-    const bounds=this.sceneBounds;
+    const bounds=this.viewBounds;
     ctx.beginPath();ctx.rect(bounds.x0*ts,camY,bounds.w*ts,vh);ctx.clip();
 
     const x0 = Math.max(bounds.x0, Math.floor(camX / ts) - 1), x1 = Math.min(bounds.x0 + bounds.w - 1, Math.ceil((camX + vw) / ts) + 1);
@@ -520,7 +537,9 @@ export class Overworld {
     // Ground layer
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
-        const th = zoneAtX(x).theme;
+        // Above ground, the ground under the cliff past a cave mouth is the neighbouring land's, not the cavern's.
+        const inCave = !this.underground && x >= CAVE_WEST_EDGE && x < CAVE_EAST_EDGE;
+        const th = zoneAtX(inCave ? (x < (CAVE_WEST_EDGE + CAVE_EAST_EDGE) / 2 ? CAVE_WEST_EDGE - 1 : CAVE_EAST_EDGE) : x).theme;
         const t = this.sceneryTile(x, y);
         const px = x * ts, py = y * ts;
         // Broad, soft colour patches replace the conspicuous checkerboard of individual tiles.
@@ -1133,62 +1152,79 @@ export class Overworld {
   }
 
   private drawObstacle(ctx: CanvasRenderingContext2D, x: number, y: number, ts: number, th: Theme) {
-    const stone=!this.underground?caveApproachStone(x,y):0;
+    const stone=this.underground?0:x>=CAVE_WEST_EDGE&&x<CAVE_EAST_EDGE?1:caveApproachStone(x,y);
     if (zoneAtX(x).id === 'cave' || stone>=.85) {
-      // Joined rock faces enclose the tunnels; individual boulders still mark mineable cover.
-      // The rock's top is a soft mottle of stones, low in contrast so it reads as one mass; where it meets open floor it
-      // has a lit rim, and where the floor is below it, a cliff face that darkens towards its foot.
+      // Rock is one mass whose edges wander: wherever it meets open ground or trees its outline follows a smooth wobble
+      // set by world position (so neighbouring tiles join with no grid lines), corners between two open sides are
+      // rounded, and the edge is inked. Inside it's calm stone with now and then a faint flat slab; where the floor is
+      // below it, a darkening cliff face shows.
       const px = x * ts, py = y * ts, out = stone >= .85;
-      const c = out ? { base: '#646c61', stone: '#6b7266', dent: '#5a6056', rim: '#8e9584', face: '#565c53', foot: '#3f443c' }
-        : { base: '#303247', stone: '#35374d', dent: '#2a2b3e', rim: '#4b4e69', face: '#2a2c3f', foot: '#1d1e2c' };
-      ctx.fillStyle = c.base;
-      ctx.fillRect(px, py - ts * .28, ts + 1, ts * 1.28 + 1);
-      // One low, irregular stone on most tiles: a rounded polygon, a shade lighter than the rock, with a soft dent below.
-      if (hash2(x, y, 20) < .7) {
-        const sx = px + ts * (.25 + .5 * hash2(x, y, 21)), sy = py + ts * (.12 + .4 * hash2(x, y, 22)), r = ts * (.16 + .1 * hash2(x, y, 23));
-        const pts = Array.from({ length: 6 }, (_, i) => {
-          const a = (i / 6) * TAU + hash2(x, y, 24) * 2, k = .78 + .3 * hash2(x + i, y, 25);
-          return [Math.cos(a) * r * k, Math.sin(a) * r * k * .62] as const;
+      const c = out ? { base: '#6b7266', slab: '#737b6e', slabShade: '#61685b', lip: '#8d9482', face: '#565d51', foot: '#383d34', ink: '#3a3f36' }
+        : { base: '#2e3045', slab: '#35384f', slabShade: '#292b3e', lip: '#45486a', face: '#26283a', foot: '#17181f', ink: '#121319' };
+      const rock = (dx: number, dy: number) => this.sceneryTile(x + dx, y + dy) === T.OBST && this.isRock(x + dx, y + dy);
+      const [L, R, U, D] = [!rock(-1, 0), !rock(1, 0), !rock(0, -1), !rock(0, 1)];
+      const wob = (t: number) => (.5 * Math.sin(t * 2.1 + 1.3) + .3 * Math.sin(t * 4.7 + .7) + .2 * Math.sin(t * 9.3 + 2.1)) * ts * .09;
+      const e = ts * .12, rc = ts * .38, n = 6;
+      const X0 = px, X1 = px + ts + .5, Y0 = py - ts * .22, Y1 = py + ts + .5;
+      // Each side as points, inset and wobbling where it's open (corners between two open sides cut for the rounding).
+      const top = (): [number, number][] => Array.from({ length: n + 1 }, (_, i) => { const xx = X0 + (L ? rc : 0) + (X1 - X0 - (L ? rc : 0) - (R ? rc : 0)) * i / n; return [xx, Y0 + e + wob(xx / ts + y * 3.1)]; });
+      const right = (): [number, number][] => Array.from({ length: n + 1 }, (_, i) => { const yy = Y0 + (U ? rc : 0) + (Y1 - Y0 - (U ? rc : 0) - (D ? rc : 0)) * i / n; return [X1 - e + wob(yy / ts + (x + 1) * 2.3), yy]; });
+      const bottom = (): [number, number][] => Array.from({ length: n + 1 }, (_, i) => { const xx = X1 - (R ? rc : 0) - (X1 - X0 - (L ? rc : 0) - (R ? rc : 0)) * i / n; return [xx, Y1 - e + wob(xx / ts + (y + 1) * 3.1)]; });
+      const left = (): [number, number][] => Array.from({ length: n + 1 }, (_, i) => { const yy = Y1 - (D ? rc : 0) - (Y1 - Y0 - (U ? rc : 0) - (D ? rc : 0)) * i / n; return [X0 + e + wob(yy / ts + x * 2.3), yy]; });
+      const sides: { open: boolean; pts: [number, number][] }[] = [
+        { open: U, pts: U ? top() : [[X0, Y0], [X1, Y0]] }, { open: R, pts: R ? right() : [[X1, Y0], [X1, Y1]] },
+        { open: D, pts: D ? bottom() : [[X1, Y1], [X0, Y1]] }, { open: L, pts: L ? left() : [[X0, Y1], [X0, Y0]] },
+      ];
+      const trace = (strokeOnly: boolean) => {
+        ctx.beginPath();
+        sides.forEach((sd, i) => {
+          const next = sides[(i + 1) % 4], corner = sd.open && next.open;
+          if (strokeOnly && !sd.open) return;
+          sd.pts.forEach(([a, b], j) => (j === 0 && (strokeOnly || i === 0) ? ctx.moveTo(a, b) : ctx.lineTo(a, b)));
+          if (corner) {
+            const [ex, ey] = sd.pts[sd.pts.length - 1], [nx, ny] = next.pts[0];
+            ctx.quadraticCurveTo(i === 0 || i === 2 ? nx : ex, i === 0 || i === 2 ? ey : ny, nx, ny);
+          }
         });
-        const stoneAt = (ox: number, oy: number, fill: string) => {
-          ctx.fillStyle = fill; ctx.beginPath();
-          pts.forEach(([dx, dy], i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, sx + ox + dx, sy + oy + dy));
-          ctx.closePath(); ctx.fill();
-        };
-        stoneAt(r * .1, r * .22, c.dent);
-        stoneAt(0, 0, c.stone);
+        if (!strokeOnly) ctx.closePath();
+      };
+      ctx.save();
+      trace(false); ctx.fillStyle = c.base; ctx.fill(); ctx.clip();
+      if (hash2(x, y, 20) < .45) {
+        const sx = px + ts * (.3 + .4 * hash2(x, y, 21)), sy = py + ts * (.05 + .35 * hash2(x, y, 22)), rr = ts * (.2 + .12 * hash2(x, y, 23));
+        ctx.fillStyle = c.slabShade; ctx.beginPath(); ctx.ellipse(sx + rr * .08, sy + rr * .14, rr, rr * .48, 0, 0, TAU); ctx.fill();
+        ctx.fillStyle = c.slab; ctx.beginPath(); ctx.ellipse(sx, sy, rr * .92, rr * .42, 0, 0, TAU); ctx.fill();
       }
-      const open = (dx: number, dy: number) => this.sceneryTile(x + dx, y + dy) !== T.OBST;
-      if (open(0, 1)) {
-        const face = ctx.createLinearGradient(0, py + ts * .55, 0, py + ts);
+      if (D) {
+        const faceTop = py + ts * .5;
+        const face = ctx.createLinearGradient(0, faceTop, 0, Y1);
         face.addColorStop(0, c.face); face.addColorStop(1, c.foot);
         ctx.fillStyle = face;
-        ctx.fillRect(px, py + ts * .58, ts + 1, ts * .42 + 1);
-        ctx.strokeStyle = c.foot; ctx.lineWidth = ts * .03; ctx.globalAlpha = .6;
+        ctx.beginPath(); ctx.moveTo(X0 - 1, Y1 + 1);
+        for (let i = 0; i <= n; i++) { const xx = X0 + (X1 - X0) * i / n; ctx.lineTo(xx, faceTop + wob(xx / ts + y * 5.7) * .6); }
+        ctx.lineTo(X1 + 1, Y1 + 1); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = c.lip; ctx.lineWidth = ts * .05; ctx.lineCap = 'round';
         ctx.beginPath();
-        for (const f of [.28, .63]) {
-          const fx = px + ts * (f + (hash2(x, y, 50) - .5) * .12);
-          ctx.moveTo(fx, py + ts * .66); ctx.lineTo(fx - ts * .03, py + ts * .92);
-        }
-        ctx.stroke(); ctx.globalAlpha = 1;
+        for (let i = 0; i <= n; i++) { const xx = X0 + (X1 - X0) * i / n; (i ? ctx.lineTo : ctx.moveTo).call(ctx, xx, faceTop + wob(xx / ts + y * 5.7) * .6); }
+        ctx.stroke();
       }
-      ctx.strokeStyle = c.rim; ctx.lineWidth = ts * .06; ctx.lineCap = 'round';
-      ctx.beginPath();
-      if (open(-1, 0)) { ctx.moveTo(px + ts * .04, py - ts * .2); ctx.lineTo(px + ts * .04, py + ts * .56); }
-      if (open(1, 0)) { ctx.moveTo(px + ts * .96, py - ts * .2); ctx.lineTo(px + ts * .96, py + ts * .56); }
-      if (open(0, 1)) { ctx.moveTo(px + ts * .02, py + ts * .58); ctx.lineTo(px + ts * .98, py + ts * .58); }
-      if (open(0, -1)) { ctx.moveTo(px + ts * .02, py - ts * .26); ctx.lineTo(px + ts * .98, py - ts * .26); }
-      ctx.stroke(); ctx.lineCap = 'butt';
+      ctx.restore();
+      ctx.strokeStyle = c.ink; ctx.lineWidth = ts * .05; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      trace(true); ctx.stroke();
+      ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
       return;
     }
     if(stone>=.4)th={...th,obstacle:'boulder'};
-    const cx = (x + 0.5) * ts + (hash2(x, y, 12) - 0.5) * ts * 0.15;
-    const by = (y + 0.92) * ts;
+    // Scattered boulders on the approach to a cliff wander and vary in size, so they don't line up in a grid.
+    const loose = th.obstacle === 'boulder';
+    const cx = (x + 0.5) * ts + (hash2(x, y, 12) - 0.5) * ts * (loose ? 0.45 : 0.15);
+    const by = (y + 0.92 + (loose ? (hash2(x, y, 14) - 0.5) * 0.3 : 0)) * ts;
     const v = hash2(x, y, 13);
     const sprite = frame(`env/${th.obstacle}${Math.floor(v * 3)}`);
     if (sprite) {
       shadow(ctx, cx, by - ts * 0.05, ts * 0.42);
-      drawFrame(ctx, sprite, cx, by - ts * 0.05, ts / TILE_BU, { flip: v > 0.5, rot: th.obstacle === 'tree' || th.obstacle === 'pine' ? Math.sin(this.t * 1.2 + x) * 0.012 : 0 });
+      const k = loose ? 0.78 + 0.4 * hash2(x, y, 15) : 1;
+      drawFrame(ctx, sprite, cx, by - ts * 0.05, ts / TILE_BU, { flip: v > 0.5, sx: k, sy: k, rot: th.obstacle === 'tree' || th.obstacle === 'pine' ? Math.sin(this.t * 1.2 + x) * 0.012 : 0 });
       return;
     }
     switch (th.obstacle) {

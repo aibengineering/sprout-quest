@@ -1913,9 +1913,11 @@ scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the l
   await use('lever');
   check(await game<number>(page, 'g.save.sawmill.queue.length') === 12 && await game<number>(page, 'g.save.mats.bark') === 0, 'the lever did not send the logs to the saw');
   await waitFor(page, 'the blade spinning', async () => (await mill()).spin > 3);
-  // Later: the planks are stacked by the door.
+  check((await mill()).sound === 1, `the Sawmill at work should be heard in full inside (${(await mill()).sound})`);
+  // Later: the planks are stacked by the door, and the mill has fallen quiet.
   await run(page, 'g.save.sawmill.since -= 12 * 5000');
   check(JSON.stringify((await mill()).guide.stations) === '["planks"]', 'finished planks should glow');
+  await waitFor(page, 'the Sawmill falling quiet', async () => (await mill()).sound === 0);
   await use('planks');
   check((await mill()).loot > 0, 'collected planks did not animate toward the Bag');
   const target = await page.locator('#btn-bag').boundingBox();
@@ -1937,6 +1939,11 @@ scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the l
   await page.keyboard.up('KeyS');
   check(await game<boolean>(page, `(() => { const o = g.over.world.objs.find((o) => o.project === 'sawmill'); return Math.hypot(g.over.x - o.x - o.w/2, g.over.y - o.y - o.h - .7) < 1; })()`), 'not back outside the Sawmill');
   check(await game<boolean>(page, `!!g.over.cast.get('bram:bram')`), 'Bram should still be outside after leaving');
+  // While it works, it's heard outside too, softer, and not from across the village.
+  await run(page, `g.save.sawmill.queue.push('bark', 'bark', 'bark'); g.save.sawmill.since = Date.now()`);
+  await waitFor(page, 'the Sawmill heard from its door', async () => { const v = (await mill()).sound; return v > 0 && v < 1; });
+  await run(page, `const o = g.over.world.objs.find((o) => o.project === 'sawmill'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 12)`);
+  await waitFor(page, 'the Sawmill out of earshot', async () => (await mill()).sound === 0);
 });
 
 scenario("Bram's Sawmill: mixed plank pickups, secondary guidance, and reduced motion on a small phone", (g) => {
@@ -3373,8 +3380,8 @@ scenario('Route redesign: separate main cavern, both side branches, guardian exi
  check(await game<boolean>(page,`!g.over.map.blocked(g.over.x,g.over.y,.28)`),'gallery exit is blocked');
  await run(page,`g.over.teleport(166.5,14.8);g.over.roamers.calm=999`);await page.keyboard.down('KeyD');
  try{await waitFor(page,'Hollow exit transition',()=>game<boolean>(page,`g.over.currentZone.id==='hollow'&&!g.over.underground&&!g.trans`));}finally{await page.keyboard.up('KeyD');}
- await run(page,`g.over.teleport(126.3,14.8);g.over.roamers.calm=999`);await page.keyboard.down('KeyD');
- try{await waitFor(page,'surface cave entrance',()=>game<boolean>(page,`g.over.underground===g.over.cavern&&!g.trans`));}finally{await page.keyboard.up('KeyD');}
+ await run(page,`g.over.teleport(126,13.4);g.over.roamers.calm=999`);await page.keyboard.down('KeyW');
+ try{await waitFor(page,'surface cave entrance',()=>game<boolean>(page,`g.over.underground===g.over.cavern&&!g.trans`));}finally{await page.keyboard.up('KeyW');}
  if(SHOTS)await page.screenshot({path:`${OUT}main-cavern-phone.png`});
  await run(page,`g.encounter()`);await waitFor(page,'field encounter underground',()=>game<boolean>(page,`g.mode==='battle'&&g.battle?.setup.zone.id==='cave'`),12000);
 });
@@ -3389,16 +3396,17 @@ scenario('Cave mouths: rocky forest edge, no outdoor cave preview, full black fa
  check(await game<boolean>(page,`g.over.sceneBounds.x0+g.over.sceneBounds.w===127&&!g.over.underground`),'outdoor map still includes the cave');
  await page.keyboard.down('KeyD');await page.waitForTimeout(800);await page.keyboard.up('KeyD');
  check(await game<boolean>(page,`g.over.x<125&&!g.over.underground&&!g.trans`),'walked past the Alpha Woolf into the cave');
- await run(page,`g.save.bosses.push('alphawolf');g.over.world.obj('gate','cave').hidden=true;g.over.world.objs.find(o=>o.id==='cavern:entry').label='Enter Echo Cavern';g.over.teleport(123.7,14.8)`);await page.waitForTimeout(650);await calm();
+ await run(page,`g.save.bosses.push('alphawolf');g.over.world.obj('gate','cave').hidden=true;g.over.world.objs.find(o=>o.id==='cavern:entry').label='Enter Echo Cavern';g.over.teleport(126,13.4)`);await page.waitForTimeout(650);await calm();
  for(const [width,height] of [[390,844],[960,640]]){
    await page.setViewportSize({width,height});await page.waitForTimeout(200);
-   check(await game<boolean>(page,`g.over.view.left+${width}<=127*g.over.ts+1`),'outdoor camera peeks into cave tiles');
+   // The camera may show a few tiles past the edge, so the mouth isn't squashed against the screen, but only as solid cliff.
+   check(await game<boolean>(page,`g.over.view.left+${width}<=130*g.over.ts+1&&[127,128,129].every(x=>[12,13,14,15].every(y=>g.over.sceneryTile(x,y)===2))`),'outdoor camera peeks into cave tiles');
    if(SHOTS)await page.screenshot({path:`${OUT}cave-mouth-outside-${width}.png`});
  }
  await page.setViewportSize({width:390,height:844});
- await page.keyboard.down('KeyD');
+ await page.keyboard.down('KeyW');
  try{await waitFor(page,'cave fade begins',()=>game<boolean>(page,`g.trans?.style==='fade'&&!g.trans.fired&&!g.over.underground`));}
- finally{await page.keyboard.up('KeyD');}
+ finally{await page.keyboard.up('KeyW');}
  await run(page,`g.trans.dur=6;g.trans.t=2.7`);
  const black=()=>page.evaluate(()=>{const c=document.querySelector('canvas')!;const ctx=c.getContext('2d')!;return [[10,10],[c.width/2,c.height/2],[c.width-10,c.height-10]].every(([x,y])=>{const p=ctx.getImageData(x,y,1,1).data;return p[0]===0&&p[1]===0&&p[2]===0&&p[3]===255;});});
  await waitFor(page,'fully black before map switch',black);
@@ -3411,7 +3419,7 @@ scenario('Cave mouths: rocky forest edge, no outdoor cave preview, full black fa
  if(SHOTS)await page.screenshot({path:`${OUT}cave-mouth-inside.png`});
  await run(page,`g.over.teleport(127.6,14.8)`);await calm();await page.keyboard.down('KeyA');
  try{await waitFor(page,'return to woods',()=>game<boolean>(page,`!g.trans&&!g.over.underground&&g.over.currentZone.id==='woods'`));}finally{await page.keyboard.up('KeyA');}
- check(await game<boolean>(page,`Math.abs(g.over.x-123.7)<.1&&!g.over.map.blocked(g.over.x,g.over.y,.28)`),'exit lands behind the mouth or immediately re-enters it');
+ check(await game<boolean>(page,`Math.abs(g.over.x-126)<.1&&!g.over.underground&&!g.over.map.blocked(g.over.x,g.over.y,.28)`),'exit lands behind the mouth or immediately re-enters it');
  await run(page,`g.save.bosses.push('echoqueen');g.over.world.obj('gate','hollow').hidden=true;g.over.teleport(166.5,14.8)`);await calm();await page.keyboard.down('KeyD');
  try{await waitFor(page,'hollow mouth exit',()=>game<boolean>(page,`!g.trans&&!g.over.underground&&g.over.currentZone.id==='hollow'`));}finally{await page.keyboard.up('KeyD');}
  check(await game<boolean>(page,`g.over.sceneBounds.x0===167&&g.over.x>169`),'Hollow still shares the underground camera');

@@ -3,9 +3,10 @@ import { WORLD_W, zoneById } from './data';
 
 export const CAVE_WEST_EDGE = zoneById('cave').x0;
 export const CAVE_EAST_EDGE = CAVE_WEST_EDGE + zoneById('cave').w;
-export const CAVE_WEST_MOUTH = { x: CAVE_WEST_EDGE - 3, y: 12.5, w: 1.6, h: 1.5 };
+// The west mouth is set into the cliff at the head of the path, so you walk up into it (behind the Alpha Woolf's rocks).
+export const CAVE_WEST_MOUTH = { x: CAVE_WEST_EDGE - 1.8, y: 10.55, w: 1.6, h: 1.5 };
 export const CAVE_EAST_MOUTH = { x: CAVE_EAST_EDGE + .1, y: 12.5, w: 1.6, h: 1.5 };
-export const CAVE_WEST_OUTSIDE = { x: CAVE_WEST_EDGE - 3.3, y: 14.8 };
+export const CAVE_WEST_OUTSIDE = { x: CAVE_WEST_EDGE - 1, y: 13.1 };
 export const CAVE_EAST_OUTSIDE = { x: CAVE_EAST_EDGE + 2.4, y: 14.8 };
 
 export function surfaceBounds(x: number) {

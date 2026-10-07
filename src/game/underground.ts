@@ -5,7 +5,7 @@ import { MOUTH } from '../procession';
 import { seamById, seamOpen, SEAMS, TUNNEL_HOME } from '../seams';
 import { icon } from '../ui';
 import { syncStories } from './stories';
-import { CAVE_WEST_EDGE, CAVE_EAST_EDGE, CAVE_WEST_OUTSIDE, CAVE_EAST_OUTSIDE } from '../caveEntrance';
+import { CAVE_WEST_EDGE, CAVE_EAST_EDGE, CAVE_WEST_MOUTH, CAVE_WEST_OUTSIDE, CAVE_EAST_OUTSIDE } from '../caveEntrance';
 import { G, busy, paused, persist, transition } from './context';
 
 export function enterMainCavern(side: 'west' | 'east' = 'west') {
@@ -37,13 +37,14 @@ export function undergroundTick() {
   if (G.over.underground===G.over.cavern) {
     const c=G.over.cavern, a=G.input.axis();
     if(c.outAt(G.over.x,G.over.y)) {
-      if(G.over.x<c.x0+.8&&a.x<-.5) {G.input.reset();transition(()=>{G.over.teleport(CAVE_WEST_OUTSIDE.x,CAVE_WEST_OUTSIDE.y);G.over.face=Math.PI;persist();},.85,'fade');}
+      if(G.over.x<c.x0+.8&&a.x<-.5) {G.input.reset();transition(()=>{G.over.teleport(CAVE_WEST_OUTSIDE.x,CAVE_WEST_OUTSIDE.y);G.over.face=Math.PI/2;persist();},.85,'fade');}
       else if(G.over.x>c.x0+c.w-.8&&a.x>.5&&G.save.bosses.includes('echoqueen')) {G.input.reset();transition(()=>{G.over.teleport(CAVE_EAST_OUTSIDE.x,CAVE_EAST_OUTSIDE.y);G.over.face=0;persist();},.85,'fade');}
     }
     if(a.y<-.5 && Math.abs(G.over.x-MOUTH.x)<.5 && G.over.y>MOUTH.y-.2&&G.over.y<MOUTH.y+.6) enterEchoCave();
   } else if (G.over.underground) {
     if (G.over.underground.outAt(G.over.x, G.over.y)) G.over.underground===G.over.echo ? leaveEchoCave() : leaveOreGallery();
-  } else if(G.over.currentZone.id==='woods'&&G.over.x>CAVE_WEST_EDGE-2&&G.input.axis().x>.5&&G.save.bosses.includes('alphawolf')) enterMainCavern();
+  // The west mouth is set into the cliff at the head of the path: walk up into it.
+  } else if(G.over.currentZone.id==='woods'&&Math.abs(G.over.x-(CAVE_WEST_MOUTH.x+CAVE_WEST_MOUTH.w/2))<1&&G.over.y<CAVE_WEST_MOUTH.y+CAVE_WEST_MOUTH.h+.9&&G.input.axis().y<-.5&&G.save.bosses.includes('alphawolf')) enterMainCavern();
   else if(G.over.currentZone.id==='hollow'&&G.over.x<CAVE_EAST_EDGE+1.1&&G.input.axis().x<-.5) enterMainCavern('east');
   else if (G.over.currentZone.id === 'cave' && G.input.axis().y < -.5
     && Math.abs(G.over.x - MOUTH.x) < .5 && G.over.y > MOUTH.y - .2 && G.over.y < MOUTH.y + .6) enterEchoCave();
