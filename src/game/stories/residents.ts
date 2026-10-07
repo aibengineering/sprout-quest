@@ -12,7 +12,7 @@ const PEOPLE = {
   moss: { name: 'Moss', emoji: '🥖', portrait: () => 'npc_moss', meal: 'trailbuns', recipe: 'Trail Buns',
     welcome: [
       'I’m Moss. I used to bake for people passing through.',
-      'When the road closed, nobody came. Bram said there might be work here.',
+      'When the road closed, nobody came. I heard there might be work here.',
       'Clover’s lending me her oven. I’ll teach her my Trail Buns.',
       'Berries and Bunny Fluff. Take some before gathering; you’ll learn more from the work.',
     ],

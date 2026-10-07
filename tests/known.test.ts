@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { NEIGHBOURS } from '../src/neighbours';
 import { knows, nameOf } from '../src/known';
 import { LANDMARK_SIGNS, ROUTE_GUIDES } from '../src/mapDesign';
 import { SHORTCUTS } from '../src/shortcuts';
@@ -57,4 +58,8 @@ describe('text you can read before meeting anyone', () => {
     ];
     for (const text of early) expect(text).not.toMatch(CAST);
   });
+});
+
+test("Bram's tips point you to a newcomer without naming them: you learn their name when you meet them", () => {
+  for (const id of ['pip', 'rook', 'moss'] as const) expect({ id, named: NEIGHBOURS[id].lead.includes(NEIGHBOURS[id].name) }).toEqual({ id, named: false });
 });
