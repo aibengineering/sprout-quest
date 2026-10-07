@@ -55,7 +55,7 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'plots', icon: '🌱', title: 'New Building Plots',
-    text: 'Help Bram move home, then bring him materials for Poppy’s Garden and our neighbours’ building requests.',
+    text: 'The old field at Sowerby’s east end could be built on now. It will take sawn timber, and someone who knows how to work it.',
     when: (s) => s.bosses.includes('kingslime'),
   },
   {
@@ -75,7 +75,7 @@ export const UNLOCKS: Unlock[] = [
   },
   {
     id: 'cottage', icon: '🏡', title: 'A Guest Cottage',
-    text: "Bram has work for the village: a garden, Clover’s kitchen and a cottage for Pip. Talk to him outside the Sawmill.",
+    text: "Bram has work for the village: a garden, Clover’s kitchen and a cottage for a newcomer. Talk to him outside the Sawmill.",
     when: (s) => s.flags.includes('bram:hut') && s.build.sawmill > 0,
   },
 ];

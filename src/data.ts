@@ -530,7 +530,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
 };
 
 /**
- * Planks spent outside the village plans: Bram's cabin (his story) and Bram's Bridge over the Woods creek. Counted in the
+ * Planks spent outside the village plans: Bram's cabin (his story) and the Camp Creek Bridge in the Woods. Counted in the
  * farming budget with everything else.
  */
 export const BRAM_CABIN_PLANKS = 48;

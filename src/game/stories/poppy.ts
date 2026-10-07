@@ -8,6 +8,7 @@ import { FIELD_COLS, gardenOpen, gardenUpdate, isReady } from '../../garden';
 import { drumsStep, poppyAway } from '../../procession';
 import { plotOpen } from '../../rules';
 import { POPPY_GROVE } from '../../poppyGrove';
+import { knows } from '../../known';
 import { FIELD, type WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { bubble, follow, lookAt, narrate, pan, say, scene, walk, wait, type Speaker } from '../scenes';
@@ -15,6 +16,8 @@ import { stopWaiting, syncStories, waitAt, type Story } from '../stories';
 import { GRANNY, GRANNY_ID } from './granny';
 
 export const POPPY_TALK: Speaker = { name: 'Poppy', emoji: '👧', portrait: (m) => (m === 'happy' ? 'npc_poppy' : m === 'hug' ? 'npc_poppy_hug' : `npc_poppy_${m}`) };
+/** Until she tells you her name, after the slimes are beaten. */
+const GIRL: Speaker = { ...POPPY_TALK, name: 'Little girl' };
 
 /**
  * One dead-end forest trail leads west from the meadow into a rich gathering glade.
@@ -91,7 +94,8 @@ function gardenMood(): string | undefined {
 
 export const POPPY: Story = {
   id: 'poppy',
-  title: "Poppy's Bunny",
+  // The girl in the grove hasn't told you her name yet.
+  get title() { return knows(G.save, 'poppy') ? "Poppy's Bunny" : 'A Cry for Help'; },
   icon: '🧸',
   available: () => has('village') && G.save.lv >= 3,
   objs: [RESCUE, PACK1, PACK2, BIGBUN],
@@ -110,7 +114,7 @@ export const POPPY: Story = {
           await pan(M + POPPY_GROVE.camera.x, POPPY_GROVE.camera.y, 1100);
           bubble('poppy:poppy', '😨', 99);
           await wait(900);
-          await say(POPPY_TALK, 'Eek! Go away, go away! Somebody, help!', 'scared');
+          await say(GIRL, 'Eek! Go away, go away! Somebody, help!', 'scared');
           await narrate("The slimes haven't noticed you. Run up behind them and take them by surprise!");
         });
       },
@@ -239,7 +243,7 @@ export const POPPY: Story = {
     if (step >= 6 && poppyAway(G.save)) return cast;
     const at = (mood: string, talk: () => Promise<void> | void): ActorSpec => ({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...HOME, face: Math.PI / 2, mood, label: 'Talk', talk });
     if (step === 1) {
-      cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...COWER, face: 0, mood: '😨', label: 'Talk', talk: () => chat([[POPPY_TALK, 'H-help! Please! The slimes!', 'scared']]) });
+      cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...COWER, face: 0, mood: '😨', label: 'Talk', talk: () => chat([[GIRL, 'H-help! Please! The slimes!', 'scared']]) });
     } else if (step === 2 && has('poppy:waiting')) {
       // You fainted on the way: she waited by the grove for you.
       cast.push({
@@ -262,7 +266,7 @@ export const POPPY: Story = {
       }));
     } else if (step >= 6 && gardenOpen(G.save)) {
       // She tends the Garden now, and shows what it needs over her head.
-      cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...GARDEN_SPOT, face: Math.PI / 2, mood: gardenMood(), label: 'Talk', talk: () => paused(async()=>{const n=gardenLine++;await say(POPPY_TALK,G.save.flags.includes('rook:lodge') && n % 4===0 ? 'Rook asked how much Mr. Floppers was worth. He’s not for sale.' : GARDEN_LINES[n % GARDEN_LINES.length]);await offerVillageUpgrade('Poppy');}) });
+      cast.push({ id: 'poppy:poppy', look: { kind: 'walker', name: 'poppy' }, ...GARDEN_SPOT, face: Math.PI / 2, wander: 2, mood: gardenMood(), label: 'Talk', talk: () => paused(async()=>{const n=gardenLine++;await say(POPPY_TALK,G.save.flags.includes('rook:lodge') && n % 4===0 ? 'Rook asked how much Mr. Floppers was worth. He’s not for sale.' : GARDEN_LINES[n % GARDEN_LINES.length]);await offerVillageUpgrade('Poppy');}) });
     } else if (step >= 6) {
       // Every other chat, once there's a plot for it, she asks for a garden.
       const home = () => {

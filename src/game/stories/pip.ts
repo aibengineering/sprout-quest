@@ -103,6 +103,6 @@ export const PIP_STORY: Story = {
 
   cast(step) {
     if (step < 1) return [];
-    return [{ id: ID, look: { kind: 'walker', name: 'pip' }, ...HOME, face: Math.PI / 2, mood: '😄', label: 'Talk', talk: visitPip }];
+    return [{ id: ID, look: { kind: 'walker', name: 'pip' }, ...HOME, face: Math.PI / 2, wander: 2, mood: '😄', label: 'Talk', talk: visitPip }];
   },
 };

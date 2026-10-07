@@ -29,6 +29,7 @@ import { ResourceCave } from './resourceCave';
 import { HUNTS, VARIANTS } from './hunts';
 import { SHORTCUTS, shortcutById, shortcutBuilt, shortcutWorldPoint, type Shortcut } from './shortcuts';
 import { HOMES, homeLevel } from './housing';
+import { knows } from './known';
 import { drawBubble, drawSpeech } from './bubble';
 import { drawBoulder } from './nodeart';
 import { seamAvailable } from './seams';
@@ -345,7 +346,7 @@ export class Overworld {
     }
     this.shakeT = Math.max(0, this.shakeT - dt);
     this.fx.update(dt);
-    this.cast.update(dt, this);
+    this.cast.update(dt, this, this.map, !frozen && !this.quiet && this.alert <= 0);
     this.headroom += ((this.layers?.headroom() ?? 0) - this.headroom) * (1 - Math.exp(-dt * 3));
     const target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? { x: this.x, y: this.y };
     const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : 12));
@@ -1503,7 +1504,7 @@ export class Overworld {
     switch (o.kind) {
       case 'residence': {
         const who = HOMES[o.home!];
-        this.nameTag(ctx, `${who.icon} ${who.name}’s home`, ax, top, ts);
+        this.nameTag(ctx, knows(this.save, o.home!) ? `${who.icon} ${who.name}’s home` : '🏡 Empty plot', ax, top, ts);
         break;
       }
       case 'forge': {

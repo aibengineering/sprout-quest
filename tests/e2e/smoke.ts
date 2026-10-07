@@ -19,6 +19,7 @@ import { masteryXpToNext, playerStats } from '../../src/rules';
 import { browserEnv } from './browser-env';
 import { SHORTCUTS, shortcutWorldPoint } from '../../src/shortcuts';
 import { NEIGHBOURS } from '../../src/neighbours';
+import { HOMES } from '../../src/housing';
 
 const SHOTS = process.argv.includes('--shots');
 const env = browserEnv(SHOTS);
@@ -2844,10 +2845,10 @@ scenario('Bram’s building quests: welcome Rook and Moss, open the lodge, cook 
   await bramJob(page, 'rook2');
   const cost = await game<number>(page, 'g.save.mats.pineplank');
   await page.click('[data-dialog="job:rook2"]'); await page.waitForSelector('.craft-building');
-  check(await game<boolean>(page, `g.save.homes.rook === 2 && g.save.mats.pineplank === ${cost - 56}`), 'upgrade not committed before animation');
+  check(await game<boolean>(page, `g.save.homes.rook === 2 && g.save.mats.pineplank === ${cost - HOMES.rook.plans[1].cost.pineplank!}`), 'upgrade not committed before animation');
   await page.reload(); await page.waitForSelector('.title-btns:not([hidden])'); await page.click('#btn-continue');
   await page.waitForTimeout(2200); await closeDialogs(page);
-  check(await game<boolean>(page, `g.save.homes.rook === 2 && g.save.homes.moss === 1 && g.save.mats.pineplank === ${cost - 56} && g.save.flags.includes('rook:lodge')`), 'reload lost or duplicated the addition');
+  check(await game<boolean>(page, `g.save.homes.rook === 2 && g.save.homes.moss === 1 && g.save.mats.pineplank === ${cost - HOMES.rook.plans[1].cost.pineplank!} && g.save.flags.includes('rook:lodge')`), 'reload lost or duplicated the addition');
   await cookByHand(page, 'meadowtea');
   check(await game<boolean>(page, `g.save.meal?.id === 'meadowtea' && g.save.meal.left <= 240`), 'Rook’s lodge changed Clover’s tea');
   await cookByHand(page, 'trailbuns');

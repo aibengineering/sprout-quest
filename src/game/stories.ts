@@ -5,6 +5,7 @@ import type { ActorSpec } from '../actors';
 import type { BattleSetup } from '../battle/types';
 import type { MapLayers } from '../overworld';
 import type { WorldObj } from '../world';
+import type { Recipe } from '../data';
 import { busy as transitioning, G, persist, syncWorld } from './context';
 import { BRAM_STORY } from './stories/bram';
 import { GRANNY_STORY } from './stories/granny';
@@ -21,6 +22,8 @@ export interface StoryStep {
   id: string;
   /** Shown in the tracker and the Journal while this step is current. */
   label: string;
+  /** Live requirements from the same recipe used by the hand-in or construction. */
+  cost?: () => Recipe;
   /** Steps you haven't knowingly started (stumbling across the story) stay out of the tracker. */
   hidden?: boolean;
   /** Where the waypoint arrow points. */
@@ -74,21 +77,23 @@ export const STORIES: Story[] = [GRANNY_STORY, POPPY, BRAM_STORY, DRUMS, HUNT_ST
 export const stepOf = (id: string) => G.save.stories[id] ?? 0;
 export const finished = (st: Story) => stepOf(st.id) >= st.steps.length;
 
-/** The story you're in the middle of (for the tracker and the waypoint), if any: one under way before one that's only waiting to start. */
+/** Only the player's selected side story controls the tracker and waypoint. */
 export function activeStory(): { story: Story; step: StoryStep } | null {
-  const open = STORIES.filter((st) => {
-    const step = st.steps[stepOf(st.id)];
-    return step && !step.hidden && st.available();
-  });
-  const story = open.find((st) => stepOf(st.id) > 0 || st.started?.()) ?? open[0];
-  return story ? { story, step: story.steps[stepOf(story.id)] } : null;
+  const story = STORIES.find((st) => st.id === G.save.trackedQuest);
+  const step = story?.steps[stepOf(story.id)];
+  return story && step && !step.hidden && story.available() ? { story, step } : null;
 }
 
-/** Every story you've started, for the Journal. */
+/** Known side quests, including visible invitations; undiscovered hidden steps stay out of the Journal. */
 export function storyLog() {
-  return STORIES.filter((st) => stepOf(st.id) > 0 || st.started?.()).map((st) => ({
-    title: st.title, icon: st.icon, done: finished(st), label: finished(st) ? 'Complete!' : st.steps[stepOf(st.id)].label,
-  }));
+  return STORIES.filter((st) => stepOf(st.id) > 0 || st.started?.() || (st.available() && st.steps[stepOf(st.id)] && !st.steps[stepOf(st.id)].hidden)).map((st) => {
+    const step = st.steps[stepOf(st.id)], done = finished(st);
+    return {
+      id: st.id, title: st.title, icon: st.icon, done,
+      trackable: !done && !step.hidden && st.available(),
+      label: done ? 'Complete!' : step.label, cost: done ? {} : step.cost?.() ?? {},
+    };
+  });
 }
 
 /** Puts every story's monster groups on the map (once), then syncs characters and visibility. */
@@ -115,13 +120,7 @@ export function syncStories() {
       const specs = key === space ? cast : [];
       for (const a of actors.list.filter((a) => a.id.startsWith(`${st.id}:`) && !specs.some((c) => c.id === a.id))) actors.remove(a.id);
       for (const spec of specs) {
-        const a = actors.get(spec.id);
-        if (!a) actors.add(spec);
-        else {
-          // Keep where they are (a follower mid-walk), but take on the step's look, mood and lines.
-          const { x, y, ...rest } = spec;
-          Object.assign(a, rest, a.follow || spec.follow ? {} : { x, y }, { follow: !!spec.follow, mood: spec.mood, label: spec.label, talk: spec.talk });
-        }
+        actors.sync(spec);
       }
     }
   }
@@ -194,11 +193,3 @@ export const storyLayers: MapLayers = {
   over: (ctx, ts, view) => STORIES.forEach((st) => st.layers?.over?.(ctx, ts, view)),
   headroom: () => Math.max(0, ...STORIES.map((st) => st.layers?.headroom?.() ?? 0)),
 };
-
-/** The active story wants no arrow at all just now. */
-export const storyNoArrow = () => !!activeStory()?.step.noArrow?.();
-
-/** The waypoint for the active story, if it has one. */
-export function storyTarget(): { x: number; y: number } | null {
-  return activeStory()?.step.target?.() ?? null;
-}

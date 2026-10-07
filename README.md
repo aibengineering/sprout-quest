@@ -59,8 +59,8 @@ A cute, mobile-first little adventure game. Wander from Sowerby through tall gra
 real-time arena battles, level up, chop and mine your way up the material tiers, and craft better gear at the Forge,
 then push east toward stronger monsters and the dragon at the end of Ember Peak.
 
-No runtime dependencies. Characters, monsters, weapons and scenery are cute cel-shaded 3D models built with
-Blender Python scripts in `art/` and pre-rendered into sprite atlases; sounds and the map are generated in code.
+Characters, monsters and weapons are cute cel-shaded 3D models built with Blender Python scripts in `art/`.
+Trees and ore rocks use 2D vector paths; other scenery uses rendered sprite atlases. Sounds and the map are generated in code.
 The music is written as code too, and played by a real orchestra: recordings from VSCO 2 Community Edition
 (public domain), see [docs/music.md](docs/music.md).
 
@@ -183,6 +183,9 @@ of 2 for phone screenshots; the default smoke runner disables WebGL for most log
 Two visual tools for the 3D art, in the same headless Chromium: `bun run tests/e2e/hero-armors.ts [out.png]` draws the
 hero in every armour (idle, walking, from behind, sword in hand) to check worn armour after re-exporting it, and
 `bun run tests/e2e/icons3d.ts` checks the model-drawn inventory icons.
+`bun run tests/e2e/resource-vectors.ts` checks every vector resource, resolution caching, cut planes and strike
+surfaces, and captures phone-sized map/close-up views plus damaged/fallen states in `.amp/in/artifacts/resource-vectors/`.
+Add `--reference <directory>` containing the old `atlas.json` and its WebP pages for a before/after contact sheet.
 
 ## Play report
 
@@ -317,6 +320,13 @@ In menus and dialogs: Enter/Space confirms, Esc cancels or closes, 1–5 or ←/
 Every sprite comes from Blender Python scripts in `art/`: primitives with a cel-shading material and inverted-hull
 outlines, posed per frame and rendered with EEVEE. It runs headless, with no Blender UI needed.
 
+Trees and rocks are the exception: `src/resourceVectors.ts` owns their shared 2D Canvas vector paths and palettes,
+for map scenery, gatherable nodes, depleted stumps/rubble and gathering close-ups. `src/assets.ts` rasterizes them
+at the destination's device-pixel density in cached power-of-two buckets, so zooming does not enlarge a tiny lossy
+source sprite or redraw every path every frame. `src/nodeart.ts` keeps the chopping notches, falling tops, mining
+cracks and scattered chunks. The packer excludes these resource frames; their old Blender builders remain as
+references, and the gathering tools and inventory material models are unchanged.
+
 ```sh
 bun run art              # re-render everything (~30 min on CPU), then pack into public/assets/
 bun run art monsters     # re-render one group: hero | monsters | weapons | env | icons | icons2 | npc | gather
@@ -327,11 +337,12 @@ BLENDER=/path/to/blender bun run art
 - `art/lib.py`: toon material, outlines, primitive builders, ortho camera and render helpers
 - `art/hero.py`: the hero (every armor looks different) plus the walk cycle, and the villagers who share its rig
 - `art/monsters.py`: monsters with idle loops and golden variants
-- `art/gather.py`: close-ups for the chop/mine minigame: trees whole and split into stump and top, big rocks, and
-  the axes and picks for every tool tier
+- `art/gather.py`: axes and picks for every gathering tier, plus the original tree/rock renders as references
 - `art/weapons.py`, `art/env.py`, `art/icons.py`: weapons (built from reusable parts per material), scenery and
   buildings, menu icons
 - `art/pack.py`: trims frames and packs them into WebP atlases plus `atlas.json`
+  (`blender -b --factory-startup -P art/pack.py -- --prune-resources` repacks only current non-vector frames,
+  without rerendering historical art or changing icons)
 
 Commit the final runtime assets in `public/assets/` (compressed GLB models, WebP atlases/icons and their metadata),
 along with their source builders in `art/`. Normal builds copy these ready-made assets; they do not run Blender.

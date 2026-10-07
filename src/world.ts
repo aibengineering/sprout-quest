@@ -317,7 +317,7 @@ export class World extends TileMap {
     });
     add({
       kind: 'sign', x: V + 29.4, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
-      text: 'East: East Road. Dry trails take the long way round; grass cuts are quicker. Sunny Meadow and Poppy’s grove lie off the southern trail.',
+      text: 'East: East Road and Sunny Meadow.',
     });
     for (const z of ZONES) {
       for (const p of this.mark(z.id, 'S')) {

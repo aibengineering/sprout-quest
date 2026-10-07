@@ -1,6 +1,7 @@
 // Granny Clover: by the blue house in Sowerby from the day you arrive, worrying about her granddaughter Poppy. Once
 // Mr. Floppers is home (Poppy's story), she welcomes you into her Kitchen to cook together (see kitchen.ts).
 import { kitchenOpen } from '../../kitchen';
+import { knows } from '../../known';
 import { poppyAway } from '../../procession';
 import { G, paused, persist } from '../context';
 import { offerVillageUpgrade } from '../housing';
@@ -23,10 +24,13 @@ function lines(): [string, string?][] {
   if (poppyAway(G.save)) return [["Echo Cavern, dear. Please, bring my Poppy home.", 'worried']];
   // Before the rescue can start, she only frets; once it can, Poppy's properly overdue (and she says where).
   if (step === 0 && !poppyDue()) return [["Oh! You must be the traveler everyone's talking about. My granddaughter Poppy's off picking flowers in the Sunny Meadow again. She wanders so far… I do worry.", 'worried']];
-  if (step <= 1) return [["Poppy went to pick flowers this morning, down in the meadow's far south-east corner. She should have been home by now…", 'worried']];
+  // Still out there (or waiting for you by the grove after you fainted): Granny doesn't know she's safe yet.
+  if (step <= 2) return [["My granddaughter Poppy went to pick flowers this morning, down in the meadow's far south-east corner. She should have been home by now…", 'worried']];
   if (step <= 4) return [['Poor Poppy. That bunny is her best friend in the whole world.', 'worried']];
   if (step === 5) return [["You found him? Oh, go on, give him to her, dear!"]];
-  if (!kitchenOpen(G.save)) return [["Thank you for bringing Mr. Floppers home, dear. I’d love to cook something with you, but this little kitchen barely fits me."], [G.save.flags.includes('bram:hut') ? "Bram’s putting a kitchen beside the house. Grow some flowers with Poppy, then bring him the timber and oven stone." : "Once Bram’s home, I’ll ask about a kitchen with proper benches. Poppy wants flowers in every window."]];
+  if (!kitchenOpen(G.save)) return [["Thank you for bringing Mr. Floppers home, dear. I’d love to cook something with you, but this little kitchen barely fits me."], [G.save.flags.includes('bram:hut') ? "Bram’s putting a kitchen beside the house. Grow some flowers with Poppy, then bring him the timber and oven stone."
+    : knows(G.save, 'bram') ? "Once Bram’s home, I’ll ask about a kitchen with proper benches. Poppy wants flowers in every window."
+    : "One day I’d love a kitchen with proper benches, dear. We’d need someone handy with timber. Poppy wants flowers in every window."]];
   const neighbours = G.save.flags.includes('moss:recipe') && G.save.flags.includes('rook:lodge')
     ? 'Moss knows bread. Rook knows prices. I’d rather nobody put a price on Poppy’s friends.'
     : G.save.flags.includes('moss:recipe') ? 'Moss has been baking beside me. It’s lovely to have someone at the oven again.'

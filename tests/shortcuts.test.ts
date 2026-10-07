@@ -96,7 +96,9 @@ describe('intentional timber return loops', () => {
     });
     test(`${p.name}: Bram, the right blade and the region must be unlocked; an already-built crossing never charges twice`, () => {
       const s=ready();s.flags=[];s.stories.bram=0;
-      expect(canBuildShortcut(s,p)).toBe('locked');expect(shortcutLock(s,p)).toContain('Bram');
+      // Nobody's named Bram yet: the lock points the way without naming him.
+      expect(canBuildShortcut(s,p)).toBe('locked');expect(shortcutLock(s,p)).not.toContain('Bram');
+      s.flags.push('bram:pie');expect(shortcutLock(s,p)).toContain('Bram');
       s.flags.push('bram:home');s.build.sawmill=p.mill-1;
       expect(canBuildShortcut(s,p)).toBe('locked');
       s.build.sawmill=p.mill;

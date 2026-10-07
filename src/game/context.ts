@@ -19,6 +19,7 @@ import { homeLevel } from '../housing';
 import { shortcutById } from '../shortcuts';
 import { seamAvailable, seamOpen, SEAMS } from '../seams';
 import { HUNTS, hunting } from '../hunts';
+import { knows } from '../known';
 
 /**
  * What the game is doing, which decides what takes input and what's drawn:
@@ -127,6 +128,8 @@ export function showZoneBanner(z: Zone) {
 /** Opens gates whose guardians are beaten, lights campfires and reveals building plots as they unlock. */
 export function syncWorld() {
   const s = G.save;
+  // Before you know Bram, an empty plot is just somewhere to look at.
+  const askBram = knows(s, 'bram') ? 'Ask Bram' : 'Look';
   G.world.setShortcuts(s);
   G.over.oreGallery.sync(s);
   G.over.cavern.sync();
@@ -144,16 +147,16 @@ export function syncWorld() {
       if (o.project === 'home') o.label = has(s, 'village') ? 'Build' : 'Rest';
       if (o.project === 'sawmill') o.label = s.build.sawmill ? 'Sawmill' : 'Build';
       if (o.project === 'cottage') o.label = s.build.cottage ? 'Visit' : 'Ask Bram';
-      if (o.project === 'garden') o.label = gardenOpen(s) ? 'Garden' : 'Ask Bram';
+      if (o.project === 'garden') o.label = gardenOpen(s) ? 'Garden' : askBram;
     }
-    if (o.project === 'training') o.label = s.build.training ? 'Train with the fox' : 'Ask Bram';
+    if (o.project === 'training') o.label = s.build.training ? 'Train with the fox' : askBram;
     if (o.kind === 'residence') {
       o.hidden = !s.flags.includes('bram:hut') && !homeLevel(s, o.home!);
       o.label = homeLevel(s, o.home!) ? 'Visit' : 'Ask Bram';
     }
     if (o.kind === 'station' && o.id?.startsWith('garden:')) o.hidden = o.id === 'garden:sign' ? !s.build.garden || !plotOpen(s, 'garden') : !gardenOpen(s);
     if (o.id === 'garden:sign') o.label = s.build.garden < PROJECTS.garden.levels.length ? 'Ask Bram' : '';
-    if (o.kind === 'house') o.label = kitchenOpen(s) && !poppyAway(s) ? 'Kitchen' : (s.stories.poppy ?? 0) >= 6 && !poppyAway(s) ? 'Ask Bram' : '';
+    if (o.kind === 'house') o.label = kitchenOpen(s) && !poppyAway(s) ? 'Kitchen' : (s.stories.poppy ?? 0) >= 6 && !poppyAway(s) && knows(s, 'bram') ? 'Ask Bram' : '';
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);
     if (o.kind === 'bridge') {

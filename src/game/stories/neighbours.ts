@@ -2,6 +2,7 @@
 import { NEIGHBOURS, NEIGHBOUR_ORDER, neighbourAvailable, neighbourBuilding, neighbourReturned, type NeighbourId } from '../../neighbours';
 import { GRANNY } from './granny';
 import { seamOpen } from '../../seams';
+import { knows, nameOf } from '../../known';
 import { G, paused, persist } from '../context';
 import { say, type Speaker } from '../scenes';
 import { syncStories, waitAt, stopWaiting, type Story } from '../stories';
@@ -29,15 +30,15 @@ function talk(id: NeighbourId) {
     } else await say(speaker(id),neighbourReturned(G.save,id) ? 'Bram’s outside the Sawmill. He said to ask him about a place for me.' : 'Lead on. I’ll keep up.');
   });
 }
-function journey(id: NeighbourId): Story {
+function journey(id: Exclude<NeighbourId, 'alder'>): Story {
   const p=NEIGHBOURS[id], aid=actorId(id);
   return {
-    id:`journey-${id}`, title:`${p.name} Finds Sowerby`, icon:p.icon, objs:[],
+    id:`journey-${id}`, get title(){return knows(G.save,id) ? `${p.name} Finds Sowerby` : 'A New Face';}, icon:p.icon, objs:[],
     started:()=>id==='pip'&&G.save.flags.includes('pip:seam:met'),
     castSpace:()=>id==='pip'&&!neighbourReturned(G.save,id)&&(!G.save.flags.includes(flag(id,'met')) || G.over.underground===G.over.oreGallery) ? 'gallery':'world',
     available:()=>neighbourAvailable(G.save,id) || (G.save.flags.includes(flag(id,'met')) && !neighbourBuilding(G.save,id)),
     steps:[
-      { id:'meet', get label(){return id==='pip' && G.save.flags.includes('pip:seam:met') ? seamOpen(G.save,'quarry') ? 'Show Pip the opened ore gallery' : 'Break Pip’s boulder: ten clean mining hits in a row' : `Find ${p.name} at ${p.place}`;}, target:()=>id==='pip'&&G.over.underground===G.over.oreGallery ? G.save.flags.includes('pip:seam:met')&&!seamOpen(G.save,'quarry') ? {x:G.over.oreGallery.spawn.x,y:8.5}:G.over.oreGallery.pip : p.at, done:()=>G.save.flags.includes(flag(id,'met')) },
+      { id:'meet', get label(){return id==='pip' && G.save.flags.includes('pip:seam:met') ? seamOpen(G.save,'quarry') ? 'Show Pip the opened ore gallery' : 'Break Pip’s boulder: ten clean mining hits in a row' : `Find ${nameOf(G.save,id)} at ${p.place}`;}, target:()=>id==='pip'&&G.over.underground===G.over.oreGallery ? G.save.flags.includes('pip:seam:met')&&!seamOpen(G.save,'quarry') ? {x:G.over.oreGallery.spawn.x,y:8.5}:G.over.oreGallery.pip : p.at, done:()=>G.save.flags.includes(flag(id,'met')) },
       { id:'home', label:`Walk ${p.name} back to Clover in Sowerby`, target:()=>id==='pip'&&G.over.underground===G.over.oreGallery ? {x:G.over.oreGallery.x0+11.5,y:2.5} : G.save.flags.includes(flag(id,'waiting')) ? p.at : HOME,
         done:()=>{
           const a=G.over.actors.get(aid);
@@ -53,9 +54,9 @@ function journey(id: NeighbourId): Story {
       if (neighbourBuilding(G.save,id)) return [];
       const met=G.save.flags.includes(flag(id,'met')), home=neighbourReturned(G.save,id), waiting=G.save.flags.includes(flag(id,'waiting'));
       const at=home?p.town:met&&!waiting?{x:G.over.x-.8,y:G.over.y+.1}:id==='pip'&&!waiting?G.over.oreGallery.pip:p.at;
-      return [{id:aid,name:p.name,look:{kind:'walker',name:id},...at,follow:met&&!home&&!waiting,face:Math.PI/2,label:met?'Talk':`Meet ${p.name}`,talk:()=>talk(id)}];
+      return [{id:aid,name:p.name,look:{kind:'walker',name:id},...at,follow:met&&!home&&!waiting,wander:home?1.5:undefined,face:Math.PI/2,label:knows(G.save,id)?'Talk':`Meet ${nameOf(G.save,id)}`,talk:()=>talk(id)}];
     },
     fainted:()=>{if (G.over.actors.get(aid)?.follow) waitAt(aid,flag(id,'waiting'));},
   };
 }
-export const NEIGHBOUR_STORIES=NEIGHBOUR_ORDER.filter(id=>id!=='alder').map(journey);
+export const NEIGHBOUR_STORIES=NEIGHBOUR_ORDER.filter((id): id is Exclude<NeighbourId, 'alder'> => id!=='alder').map(journey);
