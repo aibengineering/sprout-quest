@@ -14,7 +14,7 @@ import { doorwayTick, drawRoomHud, enterRoom, leaveRoom, roomTick } from './game
 import { enterEchoCave, leaveEchoCave, enterOreGallery, leaveOreGallery, useBurrow, undergroundTick } from './game/underground';
 import { kitchenDebug } from './game/kitchenRoom';
 import { drawGardenHud, gardenDebug, gardenTick, inGarden } from './game/gardenWork';
-import { sawmillDebug } from './game/sawmillRoom';
+import { millSoundTick, sawmillDebug } from './game/sawmillRoom';
 import { menuHooks } from './game/menu';
 import { arriveAtVillage, maybeAutoTalk, progressQuests } from './game/story';
 import { checkStories, storyLayers, tickStories } from './game/stories';
@@ -285,6 +285,7 @@ function frame(now: number) {
   G.music.want(b ? battleTheme(b.setup.zone.id, b.setup.boss) : zoneTheme(G.over.currentZone.id));
   if (b) { G.ui.lootBelow(null); battleFrame(b, dt); }
   else worldFrame(dt);
+  millSoundTick();
   tickModels();
   G.input.flush();
   mapFade.hidden=G.trans?.style!=='fade';

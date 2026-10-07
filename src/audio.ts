@@ -47,6 +47,11 @@ export class Audio {
     return this.ctx;
   }
 
+  /** Where the effects play into (at their volume), for sounds that run on, like the Sawmill at work. */
+  get output(): AudioNode | null {
+    return this.master;
+  }
+
   /** The sound effects' volume, 0 (off) to 1. */
   get effects() {
     return this.level;
