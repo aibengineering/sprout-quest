@@ -1136,21 +1136,49 @@ export class Overworld {
     const stone=!this.underground?caveApproachStone(x,y):0;
     if (zoneAtX(x).id === 'cave' || stone>=.85) {
       // Joined rock faces enclose the tunnels; individual boulders still mark mineable cover.
-      const px = x * ts, py = y * ts;
-      ctx.fillStyle = stone>=.85?'#646c61':'#303247';
+      // The rock's top is a soft mottle of stones, low in contrast so it reads as one mass; where it meets open floor it
+      // has a lit rim, and where the floor is below it, a cliff face that darkens towards its foot.
+      const px = x * ts, py = y * ts, out = stone >= .85;
+      const c = out ? { base: '#646c61', stone: '#6b7266', dent: '#5a6056', rim: '#8e9584', face: '#565c53', foot: '#3f443c' }
+        : { base: '#303247', stone: '#35374d', dent: '#2a2b3e', rim: '#4b4e69', face: '#2a2c3f', foot: '#1d1e2c' };
+      ctx.fillStyle = c.base;
       ctx.fillRect(px, py - ts * .28, ts + 1, ts * 1.28 + 1);
-      const open = (dx: number, dy: number) => this.sceneryTile(x + dx, y + dy) !== T.OBST;
-      ctx.strokeStyle = stone>=.85?'#939987':'#51536d'; ctx.lineWidth = ts * .065;
-      ctx.beginPath();
-      if (open(-1, 0)) { ctx.moveTo(px + ts * .04, py); ctx.lineTo(px + ts * .04, py + ts); }
-      if (open(1, 0)) { ctx.moveTo(px + ts * .96, py); ctx.lineTo(px + ts * .96, py + ts); }
-      if (open(0, 1)) { ctx.moveTo(px, py + ts * .92); ctx.lineTo(px + ts, py + ts * .92); }
-      ctx.stroke();
-      if (hash2(x, y, 12) > .6) {
-        ctx.strokeStyle = '#242639'; ctx.lineWidth = ts * .035;
-        ctx.beginPath(); ctx.moveTo(px + ts * .3, py + ts * .15);
-        ctx.lineTo(px + ts * .55, py + ts * .38); ctx.lineTo(px + ts * .47, py + ts * .7); ctx.stroke();
+      // One low, irregular stone on most tiles: a rounded polygon, a shade lighter than the rock, with a soft dent below.
+      if (hash2(x, y, 20) < .7) {
+        const sx = px + ts * (.25 + .5 * hash2(x, y, 21)), sy = py + ts * (.12 + .4 * hash2(x, y, 22)), r = ts * (.16 + .1 * hash2(x, y, 23));
+        const pts = Array.from({ length: 6 }, (_, i) => {
+          const a = (i / 6) * TAU + hash2(x, y, 24) * 2, k = .78 + .3 * hash2(x + i, y, 25);
+          return [Math.cos(a) * r * k, Math.sin(a) * r * k * .62] as const;
+        });
+        const stoneAt = (ox: number, oy: number, fill: string) => {
+          ctx.fillStyle = fill; ctx.beginPath();
+          pts.forEach(([dx, dy], i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, sx + ox + dx, sy + oy + dy));
+          ctx.closePath(); ctx.fill();
+        };
+        stoneAt(r * .1, r * .22, c.dent);
+        stoneAt(0, 0, c.stone);
       }
+      const open = (dx: number, dy: number) => this.sceneryTile(x + dx, y + dy) !== T.OBST;
+      if (open(0, 1)) {
+        const face = ctx.createLinearGradient(0, py + ts * .55, 0, py + ts);
+        face.addColorStop(0, c.face); face.addColorStop(1, c.foot);
+        ctx.fillStyle = face;
+        ctx.fillRect(px, py + ts * .58, ts + 1, ts * .42 + 1);
+        ctx.strokeStyle = c.foot; ctx.lineWidth = ts * .03; ctx.globalAlpha = .6;
+        ctx.beginPath();
+        for (const f of [.28, .63]) {
+          const fx = px + ts * (f + (hash2(x, y, 50) - .5) * .12);
+          ctx.moveTo(fx, py + ts * .66); ctx.lineTo(fx - ts * .03, py + ts * .92);
+        }
+        ctx.stroke(); ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = c.rim; ctx.lineWidth = ts * .06; ctx.lineCap = 'round';
+      ctx.beginPath();
+      if (open(-1, 0)) { ctx.moveTo(px + ts * .04, py - ts * .2); ctx.lineTo(px + ts * .04, py + ts * .56); }
+      if (open(1, 0)) { ctx.moveTo(px + ts * .96, py - ts * .2); ctx.lineTo(px + ts * .96, py + ts * .56); }
+      if (open(0, 1)) { ctx.moveTo(px + ts * .02, py + ts * .58); ctx.lineTo(px + ts * .98, py + ts * .58); }
+      if (open(0, -1)) { ctx.moveTo(px + ts * .02, py - ts * .26); ctx.lineTo(px + ts * .98, py - ts * .26); }
+      ctx.stroke(); ctx.lineCap = 'butt';
       return;
     }
     if(stone>=.4)th={...th,obstacle:'boulder'};
