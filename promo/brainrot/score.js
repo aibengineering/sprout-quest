@@ -43,52 +43,70 @@ export function events() {
   const ev = [];
   const add = (t, type, o = {}) => ev.push({ t, type, ...o });
 
-  // --- Intro: a cosy music box in F major, then a record scratch. ---
-  const box = [
-    ['C5', 0], ['F5', 2], ['A5', 4], ['C6', 6], ['A5', 8], ['Bb5', 10], ['A5', 12], ['G5', 14],
-    ['F5', 16], ['A5', 18], ['G5', 20], ['E5', 22], ['F5', 24], ['C6', 26],
-  ];
-  for (const [n, s] of box) add(s * STEP, 'musicbox', { n: midi(n) });
-  add(0, 'pad', { notes: ['F3', 'A3', 'C4', 'E4'].map(midi), dur: BAR });
-  add(BAR, 'pad', { notes: ['Bb2', 'D3', 'F3', 'A3'].map(midi), dur: BAR * 0.7 });
+  // --- Intro: Grieg's "Morning Mood" (public domain), the flute's sunrise phrase in F major, twice. ---
+  // mi-do-ti-la-ti-do, then the record scratch cuts the second one short.
+  const morning = [[0, 'A5', 2], [2, 'F5', 2], [4, 'E5', 2], [6, 'D5', 2], [8, 'E5', 2], [10, 'F5', 4],
+    [14, 'A5', 2], [16, 'F5', 2], [18, 'E5', 2], [20, 'D5', 2], [22, 'E5', 2], [24, 'F5', 3]];
+  for (const [s, n, d] of morning) {
+    add(s * STEP, 'flute', { n: midi(n), dur: d * STEP });
+    add(s * STEP, 'musicbox', { n: midi(n) + 12 });
+  }
+  add(0, 'pad', { notes: ['F2', 'C3', 'F3', 'A3', 'C4'].map(midi), dur: bar(1, 11) });
   for (const s of [0, 8, 16, 24]) add(s * STEP, 'softkick');
   add(bar(1, 11), 'scratch');
   add(bar(1, 13), 'whoosh', { dur: STEP * 3 });
 
-  // --- The drop: phonk at 160. ---
-  const roots = { F: 'F1', Ab: 'Ab1', Db: 'Db1', Eb: 'Eb1', C: 'C2', Bb: 'Bb1' };
-  const bassBars = [
-    [[0, 'F'], [6, 'F'], [10, 'Ab']],
-    [[0, 'Db'], [6, 'Db'], [10, 'Eb'], [13, 'C', 'slide']],
+  // --- From the drop: Grieg's "In the Hall of the Mountain King" (public domain) as phonk, in F minor. ---
+  // Each bar is one bar of the tune: [step, semitones above F, length in steps].
+  const KING = [
+    [[0, 0, 2], [2, 2, 2], [4, 3, 2], [6, 5, 2], [8, 7, 2], [10, 3, 2], [12, 7, 4]], // F G Ab Bb C Ab C
+    [[0, 6, 2], [2, 2, 2], [4, 6, 4], [8, 5, 2], [10, 1, 2], [12, 5, 4]], //             B G B  Bb Gb Bb
+    [[0, 0, 2], [2, 2, 2], [4, 3, 2], [6, 5, 2], [8, 7, 2], [10, 3, 2], [12, 7, 2], [14, 12, 2]], // ...up to F
+    [[0, 10, 2], [2, 7, 2], [4, 3, 2], [6, 7, 2], [8, 10, 8]], //                         Eb C Ab C Eb
   ];
-  const bell = [
-    [[0, 'F5'], [3, 'F5'], [6, 'Ab5'], [8, 'G5'], [10, 'F5'], [11, 'Eb5'], [12, 'F5'], [14, 'C6']],
-    [[0, 'Db6'], [3, 'C6'], [6, 'Ab5'], [8, 'Bb5'], [10, 'Ab5'], [12, 'G5'], [13, 'Eb5'], [14, 'F5']],
+  const KING_BASS = [
+    [[0, 'F1'], [6, 'F1'], [10, 'Ab1']],
+    [[0, 'C2'], [6, 'C2'], [10, 'Bb1'], [13, 'G1', 'slide']],
+    [[0, 'F1'], [6, 'F1'], [10, 'C2']],
+    [[0, 'Db1'], [6, 'Db1'], [10, 'C2', 'slide']],
   ];
-  const bellHi = [
-    [[0, 'C6'], [2, 'Ab5'], [3, 'C6'], [6, 'Eb6'], [8, 'Db6'], [10, 'C6'], [12, 'Ab5'], [14, 'Bb5'], [15, 'C6']],
-    [[0, 'Db6'], [2, 'F6'], [3, 'Eb6'], [6, 'Db6'], [8, 'C6'], [10, 'Bb5'], [12, 'Ab5'], [13, 'G5'], [14, 'F5']],
-  ];
-  const groove = (b, opts = {}) => {
+  const TOP = midi('F5');
+  const MAJOR = { 0: 0, 2: 2, 3: 4, 5: 5, 7: 7, 12: 12 };
+  const THIRD_BELOW = { 0: -3, 2: -1, 4: 0, 5: 2, 7: 4, 12: 9 };
+  /** The tune on the cowbell and a supersaw lead, with optional octaves, a harmony, major mode and double time. */
+  const tune = (b, notes, { oct = 0, low = 0, harm = false, major = false, speed = 1, at = 0 } = {}) => {
+    for (const [s, i0, d] of notes) {
+      const i = major ? MAJOR[i0] : i0, t = bar(b, at + s / speed), dur = (d / speed) * STEP * (d > 2 ? 0.95 : 0.8);
+      add(t, 'cowbell', { n: TOP + i });
+      add(t, 'lead', { n: TOP + i, dur });
+      if (oct) add(t, 'lead', { n: TOP + 12 + i, dur, v: oct });
+      if (low) add(t, 'lead', { n: TOP - 12 + i, dur, v: low });
+      if (harm) add(t, 'lead', { n: TOP + THIRD_BELOW[i], dur, v: 0.6 });
+    }
+  };
+  const bassLine = (b, line) => line.forEach(([s, r, slide], i) => {
+    const next = line[i + 1] ? line[i + 1][0] : 16;
+    add(bar(b, s), 'bass', { n: midi(r), dur: (next - s) * STEP, slide: !!slide, from: slide ? midi(line[i - 1][1]) : 0 });
+  });
+  const drums = (b, opts = {}) => {
     const t0 = bar(b);
-    const alt = b % 2;
-    const kicks = opts.kicks ?? (alt ? [0, 6, 10, 13] : [0, 6, 10]);
+    const kicks = opts.kicks ?? (b % 2 ? [0, 6, 10, 13] : [0, 6, 10]);
     for (const s of kicks) add(t0 + s * STEP, 'kick', { big: s === 0 });
     for (const s of [4, 12]) add(t0 + s * STEP, 'clap');
     const hats = opts.sixteenths ? [...Array(16).keys()] : [0, 2, 4, 6, 8, 10, 12, 14];
     for (const s of hats) add(t0 + s * STEP, 'hat', { v: s % 4 === 2 ? 1 : 0.55 });
     if (b % 4 === 3 && !opts.sixteenths) for (const s of [13, 15]) add(t0 + s * STEP, 'hat', { v: 0.5 });
     if (b % 4 === 3) for (let i = 0; i < 3; i++) add(t0 + 14 * STEP + i * STEP * 2 / 3, 'hat', { v: 0.7 });
-    const bars = bassBars[alt];
-    bars.forEach(([s, r, slide], i) => {
-      const next = bars[i + 1] ? bars[i + 1][0] : 16;
-      add(t0 + s * STEP, 'bass', { n: midi(roots[r]), dur: (next - s) * STEP, slide: !!slide, from: slide ? midi(roots[bars[i - 1][1]]) : 0 });
-    });
-    if (opts.bell !== false) for (const [s, n] of (opts.hi ? bellHi : bell)[alt]) add(t0 + s * STEP, 'cowbell', { n: midi(n) });
   };
 
   add(bar(2), 'boom', { big: true });
-  for (let b = 2; b <= 14; b++) groove(b, { sixteenths: b >= 6 && b <= 8, hi: (b >= 6 && b <= 8) || b === 12 });
+  // Three and a bit statements, building: the lead gains an octave above from the slime fight on.
+  for (let b = 2; b <= 14; b++) {
+    const m = (b - 2) % 4;
+    drums(b, { sixteenths: b >= 6 && b <= 8 });
+    bassLine(b, KING_BASS[m]);
+    tune(b, KING[m], { oct: b < 6 ? 0 : b < 10 ? 0.45 : 0.35 });
+  }
 
   // Chop: four axe hits, the tree falls on beat 2 of bar 3, logs pop, coins.
   for (const s of [0, 4, 8, 12]) add(bar(2, s), 'chop');
@@ -147,11 +165,17 @@ export function events() {
   add(bar(15), 'drone', { dur: BAR });
   for (const s of [0, 2, 8, 10]) add(bar(15, s), 'heart', { v: s < 8 ? 0.8 : 1 });
   add(bar(15), 'riser', { dur: BAR - STEP * 2 });
+  // The tune's first bar, low and sneaky, the way the piece itself begins.
+  for (const [s, i, d] of KING[0]) add(bar(15, s), 'creep', { n: midi('F3') + i, dur: d * STEP });
 
   // Dragon: a roar and the heaviest groove.
   add(bar(16), 'boom', { big: true });
   add(bar(16), 'roar');
-  for (const b of [16, 17]) groove(b, { kicks: [0, 3, 6, 8, 10, 12, 14], sixteenths: true, hi: true });
+  // The whole tune in double time, the piece's frantic climax without changing tempo.
+  for (const b of [16, 17]) drums(b, { kicks: [0, 3, 6, 8, 10, 12, 14], sixteenths: true });
+  bassLine(16, [[0, 'F1'], [3, 'F1'], [6, 'F1'], [8, 'C2'], [10, 'C2'], [12, 'Bb1'], [14, 'G1', 'slide']]);
+  bassLine(17, [[0, 'F1'], [3, 'F1'], [6, 'F1'], [8, 'Db1'], [10, 'Db1'], [12, 'C2', 'slide'], [14, 'C2']]);
+  KING.forEach((notes, m) => tune(16 + (m >> 1), notes, { speed: 2, at: (m % 2) * 8, oct: 0.45, low: 0.5 }));
   add(bar(16, 8), 'horn', { pattern: 'triple' });
   for (const s of [0, 4, 8]) add(bar(17, s), 'boom', { big: s === 0 });
   add(bar(17, 10), 'riser', { dur: STEP * 6 });
@@ -159,13 +183,19 @@ export function events() {
   // Title.
   add(bar(18), 'boom', { big: true });
   add(bar(18), 'horn', { pattern: 'triple' });
-  for (const b of [18, 19]) groove(b, {});
+  // Triumphant: the tune in F major, harmonised in thirds, cadencing onto the final chord.
+  for (const b of [18, 19]) drums(b);
+  bassLine(18, [[0, 'F1'], [6, 'F1'], [10, 'C2']]);
+  bassLine(19, [[0, 'Bb1'], [6, 'Bb1'], [10, 'C2'], [13, 'C2']]);
+  tune(18, KING[0], { major: true, harm: true, oct: 0.35 });
+  tune(19, KING[2], { major: true, harm: true, oct: 0.35 });
   for (let i = 0; i < 11; i++) add(bar(18, 4) + i * STEP, 'pop', { p: i % 7 });
   add(bar(19), 'stamp');
   add(bar(19, 8), 'ding', { p: 1 });
   add(bar(20), 'boom', { big: true });
   add(bar(20), 'horn', { pattern: 'long' });
   add(bar(20), 'finale');
+  for (const n of ['F5', 'A5', 'C6', 'F6']) add(bar(20), 'lead', { n: midi(n), dur: 1.2, v: n === 'F6' ? 0.4 : 0.7 });
 
   ev.sort((a, b) => a.t - b.t);
   return ev;

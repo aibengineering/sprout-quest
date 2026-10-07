@@ -75,16 +75,53 @@ export function scheduleSong(ctx, t0 = 0, dest = ctx.destination) {
   const I = {
     musicbox(t, e) {
       const f = mtof(e.n);
-      const g = gain(0); perc(g, t, 0.06, 1.4, 0.003);
+      const g = gain(0); perc(g, t, 0.025, 1.4, 0.003);
       for (const [m, a, type] of [[1, 1, 'sine'], [2.002, 0.25, 'sine'], [4.2, 0.08, 'sine'], [3, 0.06, 'triangle']]) {
         const o = osc(type, f * m, t, t + 1.6); const og = gain(a); o.connect(og).connect(g);
       }
       g.connect(melody); send(g, 0.9);
     },
+    flute(t, e) {
+      // A breathy flute: sine with a touch of second harmonic, a slow vibrato and a puff of noise on each note.
+      const f = mtof(e.n), d = e.dur;
+      const g = gain(0);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 0.03);
+      g.gain.setValueAtTime(0.042, t + Math.max(0.04, d - 0.03)); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.1);
+      const vib = osc('sine', 5.5, t, t + d + 0.15); const vg = gain(f * 0.006); vib.connect(vg);
+      for (const [type, m, a] of [['sine', 1, 1], ['triangle', 2, 0.12]]) {
+        const o = osc(type, f * m, t, t + d + 0.15); vg.connect(o.frequency); const og = gain(a); o.connect(og).connect(g);
+      }
+      const n = noiseSrc(t, 0.1); const bp = filt('bandpass', f * 2, 2); const ng = gain(0); perc(ng, t, 0.05, 0.08, 0.01);
+      n.connect(bp).connect(ng).connect(g);
+      g.connect(melody); send(g, 0.8);
+    },
+    lead(t, e) {
+      // The hyperpop lead that carries the Mountain King: a square and two detuned saws, filter snapping shut.
+      const f = mtof(e.n), d = Math.max(0.05, e.dur), v = e.v ?? 1;
+      const g = gain(0);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.19 * v, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.12 * v, t + 0.07); g.gain.setValueAtTime(0.12 * v, t + d);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.05);
+      const lp = filt('lowpass', 5200, 1.5); lp.frequency.setValueAtTime(5200, t); lp.frequency.exponentialRampToValueAtTime(2400, t + 0.12);
+      for (const [type, det, a] of [['square', 0, 0.55], ['sawtooth', 9, 0.45], ['sawtooth', -9, 0.45]]) {
+        const o = osc(type, f, t, t + d + 0.08); o.detune.value = det; const og = gain(a); o.connect(og).connect(lp);
+      }
+      lp.connect(g).connect(melody); send(g, 0.18);
+    },
+    creep(t, e) {
+      // Low, sneaky bassoon-and-pizzicato, the way the Mountain King starts.
+      const f = mtof(e.n), d = e.dur * 0.75;
+      const g = gain(0); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.13, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.05, t + d); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.08);
+      const o = osc('sawtooth', f, t, t + d + 0.1); const o2 = osc('triangle', f / 2, t, t + d + 0.1);
+      const bp = filt('bandpass', 520, 1.2), lp = filt('lowpass', 1400);
+      o.connect(bp).connect(lp); const o2g = gain(0.8); o2.connect(o2g).connect(lp);
+      lp.connect(g).connect(melody); send(g, 0.7);
+    },
     pad(t, e) {
       const g = gain(0);
-      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.014, t + 0.35);
-      g.gain.setValueAtTime(0.014, t + e.dur - 0.3); g.gain.linearRampToValueAtTime(0.0001, t + e.dur + 0.2);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.008, t + 0.35);
+      g.gain.setValueAtTime(0.008, t + e.dur - 0.3); g.gain.linearRampToValueAtTime(0.0001, t + e.dur + 0.2);
       const lp = filt('lowpass', 1100, 0.5);
       for (const n of e.notes) for (const d of [-6, 6]) { const o = osc('sawtooth', mtof(n), t, t + e.dur + 0.3); o.detune.value = d; o.connect(lp); }
       lp.connect(g).connect(melody); send(g, 0.8);
@@ -130,16 +167,16 @@ export function scheduleSong(ctx, t0 = 0, dest = ctx.destination) {
         else { o.frequency.setValueAtTime(f * m * 1.9, t); o.frequency.exponentialRampToValueAtTime(f * m, t + 0.03); }
         const og = gain(a); o.connect(og).connect(mix);
       }
-      mix.connect(shaper(3.5)).connect(filt('lowpass', 1600, 0.6)).connect(g).connect(bass);
+      mix.connect(shaper(3.5)).connect(filt('lowpass', 950, 0.6)).connect(g).connect(bass);
     },
     cowbell(t, e) {
-      // The phonk cowbell: two detuned squares through a band, a fast drop then a short tail.
+      // The phonk cowbell: two squares a fifth apart through a band (so it rings on the melody note), a fast drop then a tail.
       const f = mtof(e.n - 12);
       const g = gain(0);
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.32, t + 0.002);
-      g.gain.exponentialRampToValueAtTime(0.09, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.2, t + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.055, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
       const bp = filt('bandpass', f * 2.2, 0.9);
-      for (const m of [1, 1.4836]) { const o = osc('square', f * m, t, t + 0.42); o.connect(bp); }
+      for (const m of [1, 1.5]) { const o = osc('square', f * m, t, t + 0.42); o.connect(bp); }
       const hp = filt('highpass', 280);
       bp.connect(hp).connect(g).connect(melody); send(g, 0.25);
     },
@@ -224,7 +261,7 @@ export function scheduleSong(ctx, t0 = 0, dest = ctx.destination) {
       g.gain.setValueAtTime(0.16, t + 1.0); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
       const f1 = filt('bandpass', 750, 4), f2 = filt('bandpass', 1150, 5);
       const lfo = osc('sine', 5.5, t, t + 1.5); const lg = gain(6); lfo.connect(lg);
-      for (const n of [65, 69, 72, 77]) { const o = osc('sawtooth', mtof(n), t, t + 1.5); lg.connect(o.detune); o.connect(f1); o.connect(f2); }
+      for (const n of [68, 72, 75, 80]) { const o = osc('sawtooth', mtof(n), t, t + 1.5); lg.connect(o.detune); o.connect(f1); o.connect(f2); }
       f1.connect(g); f2.connect(g); g.connect(sfx); send(g, 1);
     },
     horn(t, e) {
@@ -280,7 +317,7 @@ export function scheduleSong(ctx, t0 = 0, dest = ctx.destination) {
       const n = noiseSrc(t, 0.03); const hp = filt('highpass', 2000); const ng = gain(0); perc(ng, t, 0.5, 0.025); n.connect(hp).connect(ng).connect(sfx);
     },
     equip(t) {
-      [84, 88, 91, 96, 100].forEach((n, i) => {
+      [84, 87, 91, 96, 99].forEach((n, i) => {
         const tt = t + i * 0.035; const o = osc('sine', mtof(n), tt, tt + 0.35);
         const g = gain(0); perc(g, tt, 0.12, 0.3); o.connect(g).connect(sfx); send(g, 0.6);
       });
@@ -353,10 +390,10 @@ export function scheduleSong(ctx, t0 = 0, dest = ctx.destination) {
       n.connect(bp).connect(ng).connect(sfx);
     },
     finale(t) {
-      // The last chord rings out over a long 808.
+      // The last chord (F major: the Mountain King, triumphant) rings out over a long 808.
       const g = gain(0); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.2, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
       const lp = filt('lowpass', 4000); lp.frequency.exponentialRampToValueAtTime(300, t + 2.4);
-      for (const n of [53, 56, 60, 65]) for (const d of [-8, 8]) { const o = osc('sawtooth', mtof(n), t, t + 2.7); o.detune.value = d; o.connect(lp); }
+      for (const n of [53, 57, 60, 65]) for (const d of [-8, 8]) { const o = osc('sawtooth', mtof(n), t, t + 2.7); o.detune.value = d; o.connect(lp); }
       lp.connect(g).connect(melody); send(g, 0.8);
       I.bass(t, { n: 29, dur: 2.4, fade: true });
       I.cowbell(t, { n: 77 });
