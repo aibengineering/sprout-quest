@@ -169,7 +169,7 @@ function goalIcon(q: Quest): string {
   if (g.type === 'build') return icon(`b_${buildingArt(g.project, g.level)}`, PROJECTS[g.project].icon, 'icon xl');
   if (g.type === 'kills') return icon('goo', '⚔️', 'icon xl');
   if (g.type === 'craft') return icon('stonehammer', '⚒', 'icon xl');
-  if (g.type === 'mend') return icon('axe1', '🪓', 'icon xl');
+  if (g.type === 'mend') return icon('axe0', '🪓', 'icon xl');
   return icon('npc_elder', '🌿', 'icon xl');
 }
 
@@ -178,7 +178,7 @@ export function allIconIds(): string[] {
   const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'bramhut', 'cottage1',
     ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`)), ...[0, 1, 2, 3, 4].map((l) => `sawmill${l}`)];
   return [
-    ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
+    ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id), 'axe0', 'pick0',
     ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
     ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_rook', 'npc_moss', 'npc_fox', ...KITCHEN_PLANS.map((p)=>`b_${p.art}`),
@@ -1196,7 +1196,7 @@ export class UI {
     const mend = s.flags.includes('oldtools') ? TOOLS.filter((t) => t.tier === 1 && s.tools[t.skill] < 1).map((t) => {
       const can = hasMats(s, t.recipe);
       const [name, what] = t.skill === 'wood' ? ['Blunt old axe', 'Goo to glue the head back on, Fluff to wrap the grip.'] : ['Chipped old pick', 'Goo to set the loose head, Fluff to wrap the grip.'];
-      return `<div class="mcard row mend"><div class="ico">${icon(t.id, t.icon)}</div><div class="info">
+      return `<div class="mcard row mend"><div class="ico">${icon(t.skill === 'wood' ? 'axe0' : 'pick0', t.icon)}</div><div class="info">
         <div class="name">${name}</div><div class="desc">${what}</div><div class="chips">${costChips(s, t.recipe)}</div></div>
         <button class="go" data-tool="${t.id}" ${can ? '' : 'disabled'}>Mend</button></div>`;
     }).join('') : '';
