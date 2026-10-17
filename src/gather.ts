@@ -18,9 +18,10 @@ const SPEED_UP = 1.14;
 const MAX_SPEED = 2.2;
 /** Share of the sweet spot, around its center, that counts as perfect. */
 const PERFECT_CORE = 0.36;
-const MISS_DAMAGE = 0.35;
+/** A miss barely dents it: mashing is far slower than timing your strikes. */
+const MISS_DAMAGE = 0.05;
 /** Seconds you can't strike after a miss, so mashing is slower than timing. */
-const MISS_LOCK = 0.45;
+const MISS_LOCK = 0.6;
 const HIT_LOCK = 0.1;
 
 export class Chop {
