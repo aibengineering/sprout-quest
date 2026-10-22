@@ -3,8 +3,9 @@ import { zoneById } from '../data';
 import { ECHO_OUTSIDE } from '../echoCave';
 import { MOUTH } from '../procession';
 import { seamById, seamOpen, SEAMS, TUNNEL_HOME } from '../seams';
+import { icon } from '../ui';
 import { syncStories } from './stories';
-import { CAVE_WEST_EDGE, CAVE_EAST_EDGE, CAVE_WEST_OUTSIDE, CAVE_EAST_OUTSIDE } from '../caveEntrance';
+import { CAVE_WEST_EDGE, CAVE_EAST_EDGE, CAVE_WEST_MOUTH, CAVE_WEST_OUTSIDE, CAVE_EAST_OUTSIDE } from '../caveEntrance';
 import { G, busy, paused, persist, transition } from './context';
 
 export function enterMainCavern(side: 'west' | 'east' = 'west') {
@@ -36,13 +37,14 @@ export function undergroundTick() {
   if (G.over.underground===G.over.cavern) {
     const c=G.over.cavern, a=G.input.axis();
     if(c.outAt(G.over.x,G.over.y)) {
-      if(G.over.x<c.x0+.8&&a.x<-.5) {G.input.reset();transition(()=>{G.over.teleport(CAVE_WEST_OUTSIDE.x,CAVE_WEST_OUTSIDE.y);G.over.face=Math.PI;persist();},.85,'fade');}
+      if(G.over.x<c.x0+.8&&a.x<-.5) {G.input.reset();transition(()=>{G.over.teleport(CAVE_WEST_OUTSIDE.x,CAVE_WEST_OUTSIDE.y);G.over.face=Math.PI/2;persist();},.85,'fade');}
       else if(G.over.x>c.x0+c.w-.8&&a.x>.5&&G.save.bosses.includes('echoqueen')) {G.input.reset();transition(()=>{G.over.teleport(CAVE_EAST_OUTSIDE.x,CAVE_EAST_OUTSIDE.y);G.over.face=0;persist();},.85,'fade');}
     }
     if(a.y<-.5 && Math.abs(G.over.x-MOUTH.x)<.5 && G.over.y>MOUTH.y-.2&&G.over.y<MOUTH.y+.6) enterEchoCave();
   } else if (G.over.underground) {
     if (G.over.underground.outAt(G.over.x, G.over.y)) G.over.underground===G.over.echo ? leaveEchoCave() : leaveOreGallery();
-  } else if(G.over.currentZone.id==='woods'&&G.over.x>CAVE_WEST_EDGE-2&&G.input.axis().x>.5&&G.save.bosses.includes('alphawolf')) enterMainCavern();
+  // The west mouth is set into the cliff at the head of the path: walk up into it.
+  } else if(G.over.currentZone.id==='woods'&&Math.abs(G.over.x-(CAVE_WEST_MOUTH.x+CAVE_WEST_MOUTH.w/2))<1&&G.over.y<CAVE_WEST_MOUTH.y+CAVE_WEST_MOUTH.h+.9&&G.input.axis().y<-.5&&G.save.bosses.includes('alphawolf')) enterMainCavern();
   else if(G.over.currentZone.id==='hollow'&&G.over.x<CAVE_EAST_EDGE+1.1&&G.input.axis().x<-.5) enterMainCavern('east');
   else if (G.over.currentZone.id === 'cave' && G.input.axis().y < -.5
     && Math.abs(G.over.x - MOUTH.x) < .5 && G.over.y > MOUTH.y - .2 && G.over.y < MOUTH.y + .6) enterEchoCave();
@@ -77,7 +79,18 @@ export async function useBurrow(id:string){
  if(busy()||G.save.spirit)return;
  if(id==='home'){
   const choices=SEAMS.filter(p=>seamOpen(G.save,p.id));
-  const result=await paused(()=>G.ui.dialog('<h2>⛏️ Pip’s tunnels</h2><p>Only passages you have opened lead out from here.</p>'+choices.map(p=>`<button class="go wide" data-dialog="tunnel:${p.id}">${p.name}</button>`).join(''),[['close','Stay']],'burrow-travel'));
+  const result=await paused(()=>G.ui.dialog(`
+    <div class="burrow-heading">
+      <span class="burrow-badge" aria-hidden="true">${icon('npc_pip','⛏️')}</span>
+      <div><span class="burrow-eyebrow">FROM SOWERBY</span><h2>Pip’s tunnels</h2></div>
+    </div>
+    <p class="burrow-intro">Where shall we go?</p>
+    <div class="burrow-routes">${choices.map(p=>`
+      <button class="burrow-route" data-dialog="tunnel:${p.id}">
+        <span class="burrow-ore" aria-hidden="true">${icon(p.rock,'🪨')}</span>
+        <span class="burrow-place"><b>${p.name}</b><small>${p.id==='quarry'?'Pip’s ore gallery':zoneById(p.zone).name}</small></span>
+        <span class="burrow-arrow" aria-hidden="true">→</span>
+      </button>`).join('')}</div>`,[['close','Stay in Sowerby','ghost']],'burrow-travel'));
   const p=choices.find(p=>result===`tunnel:${p.id}`);if(!p)return;
   transition(()=>{if(p.id==='quarry')G.over.enterOreGallery({x:G.over.oreGallery.x0+10.5,y:3.2});else G.over.teleport(p.at.x,p.at.y+1);syncStories();persist();});return;
  }

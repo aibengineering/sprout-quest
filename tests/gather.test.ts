@@ -63,14 +63,15 @@ describe('chopping minigame', () => {
     }
     const sloppy = new Chop(NODES.oak.hp, 1, 0.2, () => 0.5);
     let misses = 0;
-    while (!sloppy.done && misses < 50) {
+    while (!sloppy.done && misses < 200) {
       sloppy.update(0.5);
       moveTo(sloppy, sloppy.center > 0.5 ? 0.01 : 0.99);
       if (sloppy.strike()) misses++;
     }
     expect(timed.done && sloppy.done).toBe(true);
     expect(strikes).toBeLessThanOrEqual(4);
-    expect(misses).toBeGreaterThan(strikes * 2);
+    // A miss barely dents it, so mashing can't race honest timing.
+    expect(misses).toBeGreaterThan(strikes * 10);
   });
 
   test('the sweet spot grows with skill level', () => {

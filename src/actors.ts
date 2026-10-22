@@ -1,6 +1,7 @@
 // Characters on the map: story people (and the odd scripted monster) who walk set paths, follow you, show how they
 // feel with an emoji bubble you can read from across the screen, and can be talked to up close.
 import type { MonsterKind } from './data';
+import type { TileMap } from './world';
 
 /** How an actor is drawn: a walker (npc/<name>/<dir>/<frame>, like the hero), a 4-frame idle loop, or a monster. */
 export type Look =
@@ -22,6 +23,8 @@ export interface Actor {
   path: { x: number; y: number }[];
   /** Trails a step behind you. */
   follow: boolean;
+  /** Gentle idle strolls within this many tiles of the story's placement. */
+  wander?: number;
   /** A passing feeling (pops up, then fades). */
   bubble: Bubble | null;
   /** A few words said aloud while you get on with things (no popup: the game carries on). */
@@ -44,6 +47,7 @@ export class Actors {
   list: Actor[] = [];
   /** Where you've walked recently, for followers to trace. */
   private trail: { x: number; y: number }[] = [];
+  private wandering = new WeakMap<Actor, { x: number; y: number; wait: number; target?: { x: number; y: number } }>();
 
   get(id: string) {
     return this.list.find((a) => a.id === id);
@@ -54,6 +58,27 @@ export class Actors {
     this.remove(spec.id);
     const a: Actor = { face: Math.PI / 2, moving: false, speed: 3.2, path: [], follow: false, bubble: null, ...spec };
     this.list.push(a);
+    if (a.wander) this.wandering.set(a, { x: spec.x, y: spec.y, wait: 2 + Math.random() * 4 });
+    return a;
+  }
+
+  /** Refresh story lines and placement without interrupting a stroll or escort. */
+  sync(spec: ActorSpec) {
+    const a = this.get(spec.id);
+    if (!a) return this.add(spec);
+    const home = this.wandering.get(a);
+    // A scene can borrow someone from home; the next sync returns them after it ends.
+    const strolling = a.wander && spec.wander && home?.x === spec.x && home.y === spec.y
+      && Math.hypot(a.x - spec.x, a.y - spec.y) <= spec.wander;
+    const { x, y, face, ...rest } = spec;
+    Object.assign(a, rest, a.follow || spec.follow || strolling ? {} : { x, y }, {
+      follow: !!spec.follow, wander: spec.wander, mood: spec.mood, label: spec.label, talk: spec.talk,
+    });
+    if (!strolling) {
+      this.wandering.delete(a);
+      if (a.wander) this.wandering.set(a, { x, y, wait: 2 + Math.random() * 4 });
+      if (face !== undefined) a.face = face;
+    }
     return a;
   }
 
@@ -78,6 +103,8 @@ export class Actors {
     const a = this.get(id);
     if (!a || !path.length) return Promise.resolve();
     a.path = [...path];
+    const idle = this.wandering.get(a);
+    if (idle) idle.target = undefined;
     if (speed) a.speed = speed;
     return new Promise((ok) => (a.arrived = ok));
   }
@@ -88,7 +115,7 @@ export class Actors {
     for (const a of this.list) if (a.follow) { a.x = x - 0.6; a.y = y + 0.2; }
   }
 
-  update(dt: number, hero: { x: number; y: number }) {
+  update(dt: number, hero: { x: number; y: number }, map?: Pick<TileMap, 'blocked'>, wander = true) {
     const last = this.trail[this.trail.length - 1];
     if (!last || Math.hypot(hero.x - last.x, hero.y - last.y) > 0.12) {
       this.trail.push({ x: hero.x, y: hero.y });
@@ -104,6 +131,7 @@ export class Actors {
         if (a.speech.t > a.speech.hold) a.speech = undefined;
       }
       let target: { x: number; y: number } | null = null, speed = a.speed;
+      let idle: ReturnType<typeof this.wandering.get>;
       if (a.path.length) target = a.path[0];
       else if (a.follow) {
         const d = Math.hypot(hero.x - a.x, hero.y - a.y);
@@ -112,6 +140,24 @@ export class Actors {
           target = this.behind(hero, 1.1);
           speed = Math.max(4.2, d * 3);
         }
+      } else if (a.wander && map) {
+        idle = this.wandering.get(a);
+        if (!idle) {
+          idle = { x: a.x, y: a.y, wait: 2 + Math.random() * 4 };
+          this.wandering.set(a, idle);
+        }
+        if (wander && Math.hypot(hero.x - a.x, hero.y - a.y) > 1.8) {
+          idle.wait -= dt;
+          if (!idle.target && idle.wait <= 0) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = a.wander * Math.sqrt(Math.random());
+            const point = { x: idle.x + Math.cos(angle) * radius, y: idle.y + Math.sin(angle) * radius };
+            if (!map.blocked(point.x, point.y, 0.28)) idle.target = point;
+            else idle.wait = 2 + Math.random() * 4;
+          }
+          target = idle.target ?? null;
+          speed = 0.65;
+        }
       }
       if (!target) {
         a.moving = false;
@@ -119,6 +165,11 @@ export class Actors {
       }
       const dx = target.x - a.x, dy = target.y - a.y, dist = Math.hypot(dx, dy);
       if (dist < 0.06) {
+        if (idle) {
+          idle.target = undefined;
+          idle.wait = 2 + Math.random() * 4;
+          a.moving = false;
+        }
         if (a.path.length) {
           a.path.shift();
           if (!a.path.length) {
@@ -131,10 +182,21 @@ export class Actors {
         continue;
       }
       const step = Math.min(dist, speed * dt);
-      a.x += (dx / dist) * step;
-      a.y += (dy / dist) * step;
+      const steps = idle ? Math.max(1, Math.ceil(step / 0.15)) : 1;
+      let moved = false;
+      for (let i = 0; i < steps; i++) {
+        const x = a.x + (dx / dist) * step / steps, y = a.y + (dy / dist) * step / steps;
+        if (idle && map!.blocked(x, y, 0.28)) {
+          idle.target = undefined;
+          idle.wait = 2 + Math.random() * 4;
+          break;
+        }
+        a.x = x;
+        a.y = y;
+        moved = true;
+      }
       a.face = Math.atan2(dy, dx);
-      a.moving = true;
+      a.moving = moved;
     }
   }
 

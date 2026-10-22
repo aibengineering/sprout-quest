@@ -74,7 +74,7 @@ export interface Enemy {
   /** Where a leaping boss is heading. */
   tx: number;
   ty: number;
-  /** One-off behaviour flag (the Alpha Woolf's howl). */
+  /** Behaviour flag (the Alpha Woolf's howl, or the Slime King's interrupted hop). */
   flag: boolean;
   minion: boolean;
 }
@@ -111,7 +111,11 @@ export interface BattleLog {
 }
 
 /** A telegraphed danger zone that goes off after `delay`. */
-export interface Hazard { x: number; y: number; r: number; t: number; delay: number; atk: number; mult: number; done: boolean; from?: MonsterKind }
+export interface Hazard {
+  x: number; y: number; r: number; t: number; delay: number; atk: number; mult: number; done: boolean; from?: MonsterKind;
+  /** A Slime King splash waits for this jumper to land, at its actual position. */
+  jumper?: Enemy;
+}
 export interface Ring { x: number; y: number; r0: number; r1: number; t: number; dur: number; color: string; width?: number }
 
 /** A strike in progress. */

@@ -1,7 +1,8 @@
 // Chopping and mining: starting the timing minigame at a tree or rock, playing it, paying out, and node labels.
-import { zoneById, NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind } from '../data';
+import { MATS, NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind } from '../data';
 import { Chop, GatherView, type Look } from '../gather';
-import { isTreeKind, type RockColors, type RockKind, type TreeKind } from '../nodeart';
+import { BOULDER_COLORS, isTreeKind, type RockKind, type TreeKind } from '../nodeart';
+import { ROCK_PALETTES } from '../resourceVectors';
 import { usingKeyboard } from '../input';
 import { canGather, harvest, hasOldTools, revealed, sweetWidth, toolPower, type GatherReward } from '../rules';
 import { logEvent } from '../stats';
@@ -11,25 +12,17 @@ import { celebrateSkill, lootLines } from './rewards';
 import { progressQuests } from './story';
 import { storyFelled, storyNoisy, storyTooLoud } from './stories';
 import { sweetBoost, miningSweetBoost } from '../kitchen';
-import { seamById, seamOpen, openSeam } from '../seams';
+import { seamById, seamAvailable, openSeam } from '../seams';
 import { syncWorld } from './context';
 
 /** The minigame in progress, if any, and what it paid out once the node gave way. */
-export let chop: { game: Chop; obj: WorldObj; view: GatherView; reward?: GatherReward; fromLv?: number; shown?: ReturnType<typeof revealed>; noise?: number } | null = null;
+export let chop: { game: Chop; obj: WorldObj; view: GatherView; reward?: GatherReward; fromLv?: number; xpFinished?: boolean; shown?: ReturnType<typeof revealed>; noise?: number } | null = null;
 
 /** How much noise each kind of strike makes, where a story is listening (Bram's camp): 1 brings trouble. */
 const NOISE: Record<'perfect' | 'hit' | 'miss', number> = { perfect: 0, hit: 0.12, miss: 0.4 };
 let chopStart = 0;
 
-/** Colors for each kind of rock in the mining minigame: its face on the bar, and the chips that fly off it. */
-const ROCK_COLORS: Record<RockKind, RockColors> = {
-  rock: { body: '#9a9aa8', dark: '#6a6a78', fleck: '#d8d8e0' },
-  copper: { body: '#8a7a6a', dark: '#5e5048', fleck: '#ff9a4a' },
-  iron: { body: '#5e6272', dark: '#40434f', fleck: '#c8d8f0' },
-  crystal: { body: '#7a6a9a', dark: '#4e4468', fleck: '#9af0ff' },
-  obsidian: { body: '#3a3248', dark: '#1c1822', fleck: '#ff8a3a' },
-};
-/** Every gathering node has close-up art: a tree in nodeart's TREES, or a rock kind with colors above. */
+/** Every gathering node has close-up art: a tree profile or a rock with a shared vector palette. */
 const everyNodeHasArt: Exclude<NodeKind, TreeKind | RockKind> extends never ? true : false = true;
 void everyNodeHasArt;
 
@@ -42,9 +35,7 @@ const timeLeft = (ms: number) => {
 export function tryGather(o: WorldObj) {
   const s = G.save, n = NODES[o.node!];
   const seam = o.boulder ? seamById(o.boulder) : undefined;
-  if(seam && seamOpen(s,seam.id)) return;
-  const guardian=seam&&zoneById(seam.zone).guardian;
-  if(guardian&&!s.bosses.includes(guardian.kind)){G.ui.toast('Open the road to this region first.');return;}
+  if(o.boulder && !seamAvailable(s,o.boulder)) return;
   const why = canGather(s, o.node!, o.id!);
   if (why === 'tool') {
     const t = TOOLS.find((t) => t.skill === n.skill && t.tier === n.tier)!;
@@ -64,7 +55,7 @@ export function tryGather(o: WorldObj) {
   const tool = s.tools[n.skill];
   const look: Look = isTreeKind(o.node!)
     ? { kind: 'wood', tree: o.node, tool }
-    : { kind: 'mine', rock: o.node as RockKind, tool, ...ROCK_COLORS[o.node as RockKind] };
+    : { kind: 'mine', rock: o.node as RockKind, tool, boulder: !!o.boulder, ...(o.boulder ? BOULDER_COLORS : ROCK_PALETTES[o.node as RockKind]) };
   const view = new GatherView(look);
   view.onSound = (sfx) => G.audio.play(sfx);
   // Woodcutter's Stew (Granny's) widens the sweet spot on trees.
@@ -92,7 +83,7 @@ export function updateGather(dt: number) {
   if (c.game.done) {
     input.flush();
     if (!c.reward) collect(c);
-    if (c.view.finished) finishGather();
+    if (c.view.finished && c.xpFinished) finishGather();
     return;
   }
   const a = input.axis();
@@ -129,9 +120,13 @@ export function updateGather(dt: number) {
 /** Pays out the moment the node gives way: materials, skill XP, and the regrowth timer. */
 function collect(c: NonNullable<typeof chop>) {
   const s = G.save, n = NODES[c.obj.node!];
+  const from = { ...s.skills[n.skill] };
   c.fromLv = s.skills[n.skill].lv;
   c.shown = revealed(s);
   c.reward = harvest(s, c.obj.node!, c.obj.id!, !!c.obj.grass, c.game.flawless);
+  // Celebrate the actual find while the tree falls, without pausing gathering or rolling another reward.
+  if (n.seed && c.reward.drops[n.seed.mat]) G.ui.toast(`🌱 You found ${MATS[n.seed.mat].name}!`, 3200);
+  void G.ui.skillXpGain(n.skill, from, c.reward.xp).then(() => { c.xpFinished = true; });
   if(c.obj.boulder && openSeam(s,c.obj.boulder,c.game.streak)) {
     syncWorld();
     G.ui.toast(c.obj.boulder==='quarry' ? '⛏️ The boulder gives way! An ore gallery—and a tunnel home.' : '⛏️ A hidden burrow! You can take this tunnel home.',4200);
@@ -205,6 +200,6 @@ export function syncNodes() {
   for (const o of [...G.world.objs,...G.over.oreGallery.objs]) {
     if (o.kind !== 'node') continue;
     const skill = NODES[o.node!].skill;
-    o.label = o.boulder ? 'Break boulder' : (G.save.nodes[o.id!] ?? 0) <= now ? SKILL_VERB[skill] : skill === 'wood' ? 'Regrowing' : 'Rubble';
+    o.label = o.boulder ? seamAvailable(G.save,o.boulder) ? 'Break boulder' : '' : (G.save.nodes[o.id!] ?? 0) <= now ? SKILL_VERB[skill] : skill === 'wood' ? 'Regrowing' : 'Rubble';
   }
 }

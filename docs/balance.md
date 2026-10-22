@@ -75,7 +75,8 @@ in the farming budget. Weapons stay cheaper, so switching class stays easy.
   *kills per level* at each checkpoint.
 - **Weapon handling** is the rarer, bigger one. Each of its 10 levels gives something you can feel:
   - Lv 2: the class's special.
-  - Lv 3: the class's own ability (Riposte, Sunder, Snare or Blink).
+  - Lv 3: the class's own ability (Riposte, Sunder, Snare or Echo Cast). Echo Cast repeats every third normal wand
+    cast after 0.16 seconds with a smaller, half-damage bolt on the original path; Scatter does not advance it.
   - Lv 4, 6, 7 and 9: faster attacks.
   - Lv 5, 8 and 10: special ranks II, III and Mastery.
 - Handling is paced to the whole story (`HANDLING_XP` in `src/rules.ts`). With one weapon:

@@ -7,6 +7,7 @@ import { drawFrame, frame } from '../assets';
 import type { Room } from '../room';
 import { crate, drawCarried, drawProp, hintPill, paintShell, paintWindow, PROP_SCALE, propRise, propUnit, stationGlow } from '../roomArt';
 import { Particles } from '../particles';
+import { MillSound, millLevel } from '../sawmillSound';
 import { rrect } from '../sprites';
 import type { WorldObj } from '../world';
 import { G, persist } from './context';
@@ -328,5 +329,32 @@ export const SAWMILL_PLAY: RoomPlay = {
   },
 };
 
+// ---------------------------------------------------------------- its sound
+
+/** The mill at work, heard (sawmillSound.ts), made once sound is on. */
+let sound: MillSound | null = null;
+/** How loud it is now (0–1), and how many logs were waiting last frame (one fewer is a plank dropping). */
+let heard = 0, waiting = 0;
+
+/**
+ * Every frame, wherever you are: the Sawmill's working sound while it's cutting, fullest in here, fading with distance
+ * outside, and silent anywhere else, while the world waits (fights, menus, the title) or with the effects off.
+ */
+export function millSoundTick() {
+  const a = G.audio, over = G.over, w = G.save.sawmill && sawUpdate(G.save);
+  const cutting = !!w && w.queue.length > 0;
+  const live = (G.mode === 'world' || G.mode === 'gather') && !a.muted && a.effects > 0;
+  const mill = G.world.objs.find((o) => o.project === 'sawmill');
+  const at = !live ? null : over.room ? (over.room.id === 'sawmill' ? 'inside' : null) : over.underground || !mill ? null
+    : Math.hypot(Math.max(mill.x - over.x, 0, over.x - mill.x - mill.w), Math.max(mill.y - over.y, 0, over.y - mill.y - mill.h));
+  heard = millLevel(cutting, at);
+  const ctx = a.context, out = a.output;
+  if (!ctx || !out) return;
+  sound ??= new MillSound(ctx, out);
+  sound.update(heard, w?.queue.length ? (Date.now() - w.since) / 1000 / sawSeconds(G.save) : null, at === 'inside');
+  if (w && w.queue.length < waiting) sound.knock();
+  waiting = w ? w.queue.length : 0;
+}
+
 /** For tests and the console: what's going on in the mill. */
-export const sawmillDebug = () => ({ carrying, bench, spin, guide: guide(), loot: loot.count, lootTo: loot.lootTo });
+export const sawmillDebug = () => ({ carrying, bench, spin, guide: guide(), loot: loot.count, lootTo: loot.lootTo, sound: heard });

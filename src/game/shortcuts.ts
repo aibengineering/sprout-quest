@@ -13,11 +13,10 @@ export async function constructShortcut(id: string) {
   try {
     await paused(async () => {
       const lock = shortcutLock(G.save, p);
-      if (lock) { await G.ui.message(`🌉 ${p.name}`, `${p.benefit} ${lock}`); return; }
       if (canBuildShortcut(G.save, p) === 'built') return;
       const can = canBuildShortcut(G.save, p) === 'ok';
-      const choice = await G.ui.dialog(`<div class="big" style="font-size:24px">🌉 ${p.name}</div><p>${p.benefit}</p><div class="chips">${costChips(G.save, p.cost)}</div>${can ? '' : '<p>Bring the listed planks from Bram’s Sawmill to finish this crossing.</p>'}`,
-        [['no', 'Not yet'], ...(can ? [['yes', 'Build crossing', 'alt'] as [string, string, string?]] : [])], 'shortcut-plan');
+      const choice = await G.ui.dialog(`<h2>${p.name}</h2><p>${p.benefit}</p><div class="chips">${costChips(G.save, p.cost)}</div>${lock ? `<p>${lock}</p>` : can ? '<p>Ready to repair. Use these planks to open the crossing?</p>' : '<p>Bring the listed planks from Bram’s Sawmill to finish this crossing.</p>'}`,
+        [['no', 'Not now', 'ghost'], ...(can ? [['yes', 'Repair bridge', 'alt'] as [string, string, string?]] : [])], 'shortcut-plan');
       if (choice !== 'yes' || buildShortcut(G.save, p) !== 'ok') return;
       logEvent(G.save, { kind: 'build', id: `shortcut:${p.id}`, lv: 1 });
       syncWorld(); persist();

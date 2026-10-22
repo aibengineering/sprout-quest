@@ -68,11 +68,14 @@ describe('balance', () => {
     for (const sk of ['wood', 'mine'] as const) expect(minutesToSkillLevel(sk, SKILL_MAX)).toBeLessThanOrEqual(20);
   });
 
-  test('gear tracks follow primary armour materials and gathering skill requirements', () => {
+  test('gear tracks follow primary materials and gathering skill requirements', () => {
     for (const g of Object.values(GEAR).filter((g) => g.recipe)) {
       const track = gearTrack(g);
       expect({ id: g.id, needsSkill: !!g.needs }).toEqual({ id: g.id, needsSkill: track !== 'hunter' });
     }
+    expect(gearTrack(GEAR.sporewand)).toBe('hunter'); // A wooden handle does not make it legendary hybrid gear.
+    expect(gearTrack({ ...GEAR.sporewand, recipe: { pine: 18, cap: 3, fang: 1 } })).toBe('gatherer');
+    expect(gearTrack(GEAR.wyrmfire)).toBe('both');
   });
 
   test('every weapon tier and forge level has a hunter and a gatherer option, and the "both" gear beats them all', () => {
@@ -225,4 +228,12 @@ describe('balance', () => {
     expect(cropsPerTree('berry')).toBeCloseTo(0.2 * 6, 5);
     expect(cropsPerTree('herb')).toBeCloseTo(0.2 * 4, 5);
   });
+});
+
+import { greenhorn as easeFor, GREENHORN_WINS } from '../src/rules';
+test('your first field fights are gentler, growing back to full strength by your tenth win', () => {
+  expect(easeFor(0)).toEqual({ hp: 0.4, atk: 0.7 });
+  expect(easeFor(GREENHORN_WINS)).toEqual({ hp: 1, atk: 1 });
+  expect(easeFor(99)).toEqual({ hp: 1, atk: 1 });
+  for (let w = 0; w < GREENHORN_WINS; w++) expect(easeFor(w + 1).hp).toBeGreaterThan(easeFor(w).hp);
 });

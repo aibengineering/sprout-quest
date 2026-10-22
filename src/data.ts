@@ -198,7 +198,7 @@ const GEAR_LIST: Gear[] = [
   W('coppersword', 'Copper Sword', 'sword', 2, 14, 'metal', '#e8904a', '#ffd0a0', 'Bright and keen.', { copper: 12, bark: 9 }, { mine: 4 }),
   W('copperhammer', 'Copper Hammer', 'hammer', 2, 18, 'metal', '#d8783a', '#ffc890', 'Rings like a bell on every slam.', { copper: 15, pine: 9 }, { mine: 4 }),
   W('sporewhip', 'Spore Whip', 'whip', 2, 16, 'spore', '#e8505a', '#ffb4b4', 'Every lash leaves a puff of poison spores.', { cap: 18, fang: 4 }),
-  W('sporewand', 'Spore Wand', 'wand', 2, 13, 'spore', '#e8505a', '#ffb4b4', 'Shoots spore pods that poison.', { cap: 15, fang: 6 }),
+  W('sporewand', 'Spore Wand', 'wand', 2, 13, 'spore', '#e8505a', '#ffb4b4', 'A pine handle, fang-braced mushroom head, and a lucky clover to wake its magic. Shoots poisonous spore pods.', { cap: 15, fang: 6, pine: 6, clover: 1 }),
   W('ironsword', 'Iron Sword', 'sword', 3, 22, 'metal', '#c8d4e8', '#ffffff', 'Heavy, true, dependable.', { iron: 15, pine: 9 }, { mine: 6 }),
   W('ironhammer', 'Iron Hammer', 'hammer', 3, 28, 'metal', '#9aa4b8', '#e8eef8', 'Every slam shakes the ground.', { iron: 18, pine: 9 }, { mine: 6 }),
   W('batwhip', 'Batwing Whip', 'whip', 3, 24, 'bat', '#7a5ab8', '#c8a8ff', 'Hungry lashes: each hit heals you a little.', { wing: 12, core: 1, fang: 4 }),
@@ -476,7 +476,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
     levels: [
       { name: 'Tent', cost: {}, perk: 'A cozy tent to call your own.' },
       { name: 'Cottage', cost: { bark: 24, stone: 12, clover: 1 }, perk: '+10% max HP' },
-      { name: 'Manor', cost: { glimplank: 32, emberplank: 32, obsidian: 8, crystal: 8, flower: 8 }, perk: '+20% max HP' },
+      { name: 'Manor', cost: { glimplank: 96, emberplank: 96, obsidian: 8, crystal: 8, flower: 8 }, perk: '+20% max HP' },
     ],
   },
   forge: {
@@ -530,7 +530,7 @@ export const PROJECTS: Record<ProjectId, Project> = {
 };
 
 /**
- * Planks spent outside the village plans: Bram's cabin (his story) and Bram's Bridge over the Woods creek. Counted in the
+ * Planks spent outside the village plans: Bram's cabin (his story) and the Camp Creek Bridge in the Woods. Counted in the
  * farming budget with everything else.
  */
 export const BRAM_CABIN_PLANKS = 48;

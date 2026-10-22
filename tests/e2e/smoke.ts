@@ -19,6 +19,7 @@ import { masteryXpToNext, playerStats } from '../../src/rules';
 import { browserEnv } from './browser-env';
 import { SHORTCUTS, shortcutWorldPoint } from '../../src/shortcuts';
 import { NEIGHBOURS } from '../../src/neighbours';
+import { HOMES } from '../../src/housing';
 
 const SHOTS = process.argv.includes('--shots');
 const env = browserEnv(SHOTS);
@@ -399,7 +400,7 @@ scenario("a weapon class's handling path: every level, what it brings, and where
   if (SHOTS) await page.screenshot({ path: `${OUT}handling-path.png` });
   // Any class's path, trained or not.
   await page.click('#modal [data-pick="hpath:wand"]');
-  check(/Blink/.test((await page.locator('#modal .htree').textContent()) ?? ''), "Magic's path doesn't show Blink");
+  check(/Echo Cast/.test((await page.locator('#modal .htree').textContent()) ?? ''), "Magic's path doesn't show Echo Cast");
   await page.click('#modal [data-pick="hpath:"]');
   check(!(await page.$('#modal .htree')), "Back didn't return to the Skills page");
 });
@@ -510,7 +511,7 @@ scenario("a new move plays its preview when handling unlocks it, and watches aga
   check(!!(await page.$('#modal .htab.on[data-pick="hpath:sword"]')), 'did not come back to the sword path');
 });
 
-scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its special fires", (g) => {
+scenario("each class has its trick (Riposte, Stagger, Snare, Echo Cast) and its special fires", (g) => {
   g.save.owned.push('stonesword', 'stonehammer', 'jellywhip', 'jellywand');
 }, async (page) => {
   const fight = async (w: string) => {
@@ -559,14 +560,18 @@ scenario("each class has its trick (Riposte, Stagger, Snare, Blink) and its spec
   await special('jellywhip');
   await winFight(page);
 
-  // Magic: the dodge is a teleport.
+  // Magic: the third normal cast echoes, and its special leaves the rhythm alone.
   await fight('jellywand');
-  const from = await game<[number, number]>(page, '[g.battle.p.x, g.battle.p.y]');
-  await page.keyboard.press('KeyK');
-  await page.waitForTimeout(30);
-  const to = await game<[number, number]>(page, '[g.battle.p.x, g.battle.p.y]');
-  check(Math.hypot(to[0] - from[0], to[1] - from[1]) > 80, 'jellywand: the dodge didn\'t blink');
+  for (let i = 1; i <= 3; i++) {
+    await waitFor(page, 'ready to cast', async () => game<boolean>(page, 'g.battle.canStrike'), 5000);
+    await page.keyboard.press('KeyJ');
+    await waitFor(page, 'the normal cast', async () => (await game<number>(page, 'g.battle.log.swings')) === i, 5000);
+    await page.waitForTimeout(350);
+    check(await game<number>(page, 'g.battle.p.echoCount') === i % 3, 'jellywand: incorrect echo rhythm');
+    check(await game<number>(page, 'g.battle.echoes') === Math.floor(i / 3), 'jellywand: incorrect echo count');
+  }
   await special('jellywand');
+  check(await game<number>(page, 'g.battle.p.echoCount') === 0, 'jellywand: Scatter advanced the echo rhythm');
   await winFight(page);
 });
 
@@ -733,11 +738,19 @@ scenario('an iron pick mines Glimmer Hollow crystal, slowly', (g) => {
 scenario('a tree falls and a rock breaks all the way, and what you earned lands in your bag', (g) => {
   g.save.tools.wood = 1;
   g.save.tools.mine = 1;
+  g.save.skills.wood = { lv: 1, xp: 18 };
+  g.save.skills.mine = { lv: 2, xp: 7 };
 }, async (page) => {
-  for (const [kind, mat] of [['oak', 'bark'], ['rock', 'stone']] as const) {
+  for (const [kind, mat, skill, endLv, endXp, need] of [
+    ['oak', 'bark', 'wood', 2, 8, 35],
+    ['rock', 'stone', 'mine', 2, 17, 35],
+    ['rock', 'stone', 'mine', 10, 0, 1],
+  ] as const) {
+    await page.setViewportSize({ width: kind === 'oak' ? 320 : 390, height: 844 });
+    if (endLv === 10) await run(page, `g.save.skills.mine = { lv: 9, xp: 138 }`);
     const placed = await game<boolean>(page, `(() => {
       const o = g.over, w = o.world;
-      for (const r of w.objs.filter((x) => x.kind === 'node' && x.node === '${kind}' && !x.grass && x.id.startsWith('meadow:'))) {
+      for (const r of w.objs.filter((x) => x.kind === 'node' && x.node === '${kind}' && !x.grass && x.id.startsWith('meadow:') && !(g.save.nodes[x.id] > Date.now()))) {
         for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1]]) {
           const x = r.x + 0.4 + dx * 0.95, y = r.y + 0.6 + dy * 0.95;
           if (w.blocked(x, y, 0.28)) continue;
@@ -752,18 +765,119 @@ scenario('a tree falls and a rock breaks all the way, and what you earned lands 
     const before = await game<number>(page, `g.save.mats.${mat}`);
     await page.keyboard.press('KeyE');
     await waitFor(page, `the ${kind} minigame`, async () => (await game<string>(page, 'g.mode')) === 'gather');
+    check(await game<boolean>(page, `g.chop.obj.node === '${kind}'`), 'gathering selected the wrong node');
+    await page.locator(`#hud-gather[data-skill="${skill}"]:not([hidden])`).waitFor();
+    check(await page.locator('#hud .hand-row').isHidden(), 'weapon handling should make room for the gathering skill');
+    check(await page.locator('#hud-gname').innerText() === (skill === 'wood' ? '🪓 Woodcutting' : '⛏️ Mining'), 'wrong skill label');
+    if (SHOTS) await page.screenshot({ path: `${OUT}gather-${skill}-${endLv}-before.png` });
+    if (kind === 'oak') {
+      // Cancelling must restore handling without granting XP or materials.
+      await page.keyboard.press('Escape');
+      await waitFor(page, 'cancelled gathering', () => game<boolean>(page, `g.mode === 'world'`));
+      check(await page.locator('#hud-gather').isHidden(), 'gathering bar stayed after cancellation');
+      check(await game<boolean>(page, `g.save.skills.wood.xp === 18 && g.save.mats.bark === ${before}`), 'cancellation awarded rewards');
+      await page.keyboard.press('KeyE');
+      await waitFor(page, 'chopping again', () => game<boolean>(page, `g.mode === 'gather'`));
+    }
     // Strike on the sweet spot until it gives way.
     for (let i = 0; i < 40 && !(await game<boolean>(page, 'g.chop?.game.done ?? true')); i++) {
       await waitFor(page, 'the sweet spot', async () => game<boolean>(page, `(() => { const c = g.chop?.game; return !c || c.done || (Math.abs(c.pos - c.center) < c.width * 0.3 && c.lock <= 0); })()`), 8000);
       await page.keyboard.press('KeyE');
       await page.waitForTimeout(60);
     }
+    check(await page.locator('#hud .skill-gain').count(), 'skill XP did not animate');
+    check(await page.locator('#hud .xp-float').count(), 'XP gain amount did not appear');
+    if (skill === 'mine' && endLv === 2) {
+      const filling = await page.locator('#hud-gxp').evaluate((el) => el.getBoundingClientRect().width / el.parentElement!.getBoundingClientRect().width);
+      check(filling > 7 / 35 && filling < 17 / 35, `XP bar jumped instead of filling: ${filling}`);
+    }
+    if (SHOTS) await page.screenshot({ path: `${OUT}gather-${skill}-${endLv}-fill.png` });
+    if (endLv === 10) {
+      await waitFor(page, 'mastered mining bar', async () => await page.locator('#hud-glv').innerText() === 'MAX');
+      check(await page.locator('#hud .xp-float').innerText() === '+10 XP', 'XP counter did not finish when the capped bar filled');
+      if (SHOTS) await page.screenshot({ path: `${OUT}gather-mine-max.png` });
+    }
     // It falls or breaks, the loot pops out, and you're back on the map with it.
     await waitFor(page, `the ${kind} to finish`, async () => (await game<string>(page, 'g.mode')) !== 'gather', 5000);
     const after = await game<number>(page, `g.save.mats.${mat}`);
     check(after > before, `felling the ${kind} gave no ${mat} (${before} → ${after})`);
+    check(await game<boolean>(page, `g.save.skills.${skill}.lv === ${endLv} && g.save.skills.${skill}.xp === ${endXp}`), 'incorrect skill XP reward/rollover');
+    const pct = await page.locator('#hud-gxp').evaluate((el) => parseFloat((el as HTMLElement).style.width));
+    check(Math.abs(pct - (endLv === 10 ? 100 : 100 * endXp / need)) < 0.01, `skill XP bar settled at wrong fill: ${pct}`);
+    check(await page.locator('#hud-glv').innerText() === (endLv === 10 ? 'MAX' : `Lv ${endLv}`), 'skill level label did not advance');
     await closeDialogs(page);
     await page.waitForTimeout(300);
+    check(await page.locator('#hud-gather').isHidden() && await page.locator('#hud .hand-row').isVisible(), 'handling was not restored after gathering');
+  }
+});
+
+scenario('seed discoveries: actual finds are highlighted while chopping, without pausing or awarding twice', (g) => {
+  g.save.quest = g.quests.length;
+  g.save.tools.wood = 2;
+  g.save.skills.wood = { lv: 10, xp: 0 };
+  g.save.build.garden = 1;
+  g.save.stories.poppy = 6;
+  g.save.stories.bram = 9;
+  g.save.flags.push('poppy:returned', 'bram:hut', 'garden:welcome');
+  g.save.bosses.push('kingslime');
+}, async (page) => {
+  await run(page, `window.__seedFinds = [];
+    const toast = g.ui.toast.bind(g.ui);
+    g.ui.toast = (msg, ms) => {
+      if (msg.startsWith('🌱 You found')) window.__seedFinds.push({ msg, mode: g.mode, open: g.ui.isOpen });
+      toast(msg, ms);
+    };`);
+  for (const [kind, seed, name, roll, garden, width, found] of [
+    ['oak', 'berryseed', 'Berry Seeds', .39, 1, 390, true],
+    ['pine', 'herbseed', 'Herb Seeds', .39, 1, 320, true],
+    ['oak', 'berryseed', 'Berry Seeds', .39, 1, 1280, true],
+    ['oak', 'berryseed', 'Berry Seeds', .4, 1, 390, false],
+    ['oak', 'berryseed', 'Berry Seeds', 0, 0, 390, false],
+  ] as const) {
+    await page.setViewportSize({ width, height: 844 });
+    const placed = await game<boolean>(page, `(() => {
+      g.save.build.garden = ${garden};
+      const w = g.over.world;
+      for (const o of w.objs.filter(o => o.kind === 'node' && o.node === '${kind}' && !o.grass && !(g.save.nodes[o.id] > Date.now()))) {
+        for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1]]) {
+          const x = o.x + .4 + dx * .95, y = o.y + .6 + dy * .95;
+          if (w.blocked(x, y, .28)) continue;
+          g.over.teleport(x, y); g.over.roamers.calm = 999;
+          if (g.over.nearbyObject() === o) return true;
+        }
+      }
+      return false;
+    })()`);
+    check(placed, `no accessible ${kind} for seed discovery`);
+    const before = await game<number>(page, `g.save.mats.${seed}`);
+    const finds = await game<number>(page, 'window.__seedFinds.length');
+    await page.keyboard.press('KeyE');
+    await waitFor(page, 'seed discovery gathering', () => game<boolean>(page, `g.mode === 'gather'`));
+    // Cancel once: no harvest means no discovery, even when the subsequent roll would find a seed.
+    if (kind === 'oak' && width === 390 && found) {
+      await page.keyboard.press('Escape');
+      await waitFor(page, 'cancelled seed gathering', () => game<boolean>(page, `g.mode === 'world'`));
+      check(await game<boolean>(page, `g.save.mats.${seed} === ${before} && window.__seedFinds.length === ${finds}`), 'cancelled gathering discovered a seed');
+      await page.keyboard.press('KeyE');
+      await waitFor(page, 'seed gathering restarted', () => game<boolean>(page, `g.mode === 'gather'`));
+    }
+    await run(page, `window.__seedRandom = Math.random; Math.random = () => ${roll};
+      window.sproutPlaytest.enable({ combat: false, gather: true });`);
+    try {
+      await waitFor(page, 'seed reward committed', () => game<boolean>(page, `!!g.chop?.reward`));
+      check(await game<boolean>(page, `g.mode === 'gather' && !g.ui.isOpen`), 'seed discovery interrupted the gathering animation');
+      if (found) {
+        check(await page.locator('#toast').innerText() === `🌱 You found ${name}!`, 'wrong seed discovery text');
+        await page.waitForTimeout(300);
+        check(await game<boolean>(page, `g.mode === 'gather' && !g.ui.isOpen`), 'seed popup paused or skipped the falling tree');
+        if (SHOTS) await page.screenshot({ path: `${OUT}seed-discovery-${kind}-${width}.png` });
+      }
+      await waitFor(page, 'seed gathering finishes normally', () => game<boolean>(page, `g.mode === 'world'`));
+      check(await game<boolean>(page, `g.save.mats.${seed} === ${before + (found ? 1 : 0)} && window.__seedFinds.length === ${finds + (found ? 1 : 0)}`), 'seed reward or discovery was duplicated, missing, or fabricated');
+      check(await page.evaluate('window.__seedFinds.every(f => f.mode === "gather" && !f.open)'), 'discovery was delayed until after gathering');
+    } finally {
+      await run(page, `Math.random = window.__seedRandom; window.sproutPlaytest.disable();`);
+    }
   }
 });
 
@@ -1799,9 +1913,11 @@ scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the l
   await use('lever');
   check(await game<number>(page, 'g.save.sawmill.queue.length') === 12 && await game<number>(page, 'g.save.mats.bark') === 0, 'the lever did not send the logs to the saw');
   await waitFor(page, 'the blade spinning', async () => (await mill()).spin > 3);
-  // Later: the planks are stacked by the door.
+  check((await mill()).sound === 1, `the Sawmill at work should be heard in full inside (${(await mill()).sound})`);
+  // Later: the planks are stacked by the door, and the mill has fallen quiet.
   await run(page, 'g.save.sawmill.since -= 12 * 5000');
   check(JSON.stringify((await mill()).guide.stations) === '["planks"]', 'finished planks should glow');
+  await waitFor(page, 'the Sawmill falling quiet', async () => (await mill()).sound === 0);
   await use('planks');
   check((await mill()).loot > 0, 'collected planks did not animate toward the Bag');
   const target = await page.locator('#btn-bag').boundingBox();
@@ -1823,6 +1939,11 @@ scenario("Bram's Sawmill: walk in, carry armfuls of oak to the bench, pull the l
   await page.keyboard.up('KeyS');
   check(await game<boolean>(page, `(() => { const o = g.over.world.objs.find((o) => o.project === 'sawmill'); return Math.hypot(g.over.x - o.x - o.w/2, g.over.y - o.y - o.h - .7) < 1; })()`), 'not back outside the Sawmill');
   check(await game<boolean>(page, `!!g.over.cast.get('bram:bram')`), 'Bram should still be outside after leaving');
+  // While it works, it's heard outside too, softer, and not from across the village.
+  await run(page, `g.save.sawmill.queue.push('bark', 'bark', 'bark'); g.save.sawmill.since = Date.now()`);
+  await waitFor(page, 'the Sawmill heard from its door', async () => { const v = (await mill()).sound; return v > 0 && v < 1; });
+  await run(page, `const o = g.over.world.objs.find((o) => o.project === 'sawmill'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 12)`);
+  await waitFor(page, 'the Sawmill out of earshot', async () => (await mill()).sound === 0);
 });
 
 scenario("Bram's Sawmill: mixed plank pickups, secondary guidance, and reduced motion on a small phone", (g) => {
@@ -2585,7 +2706,7 @@ scenario('Resident upgrades: ask Clover for a pantry, hand in to Bram, reload, t
   check(await game<boolean>(page,`g.save.buildingJob==='kitchen2' && g.save.mats.pineplank===${before}`),'request charged or lost its job');
   await bramJob(page,'kitchen2');await page.click('[data-dialog="job:kitchen2"]');await page.waitForSelector('.craft-building');
   await page.reload();await page.waitForSelector('.title-btns:not([hidden])');await page.click('#btn-continue');await page.waitForTimeout(2200);await closeDialogs(page);
-  check(await game<boolean>(page,`g.save.kitchenLevel===2 && g.save.mats.pineplank===${before-56} && !g.save.buildingJob`),'reload lost or charged the pantry twice');
+  check(await game<boolean>(page,`g.save.kitchenLevel===2 && g.save.mats.pineplank===${before-128} && !g.save.buildingJob`),'reload lost or charged the pantry twice');
   await run(page,`void g.over.actors.get('granny:granny').talk()`);
   await waitFor(page,'Clover requests her final kitchen',async()=>{await closeDialogs(page,8,'.caption');return !!await page.$('.upgrade-request');});
   await page.click('.upgrade-request [data-dialog="ask"]');await bramJob(page,'kitchen3');await handInJob(page,'kitchen3');
@@ -2731,10 +2852,10 @@ scenario('Bram’s building quests: welcome Rook and Moss, open the lodge, cook 
   await bramJob(page, 'rook2');
   const cost = await game<number>(page, 'g.save.mats.pineplank');
   await page.click('[data-dialog="job:rook2"]'); await page.waitForSelector('.craft-building');
-  check(await game<boolean>(page, `g.save.homes.rook === 2 && g.save.mats.pineplank === ${cost - 56}`), 'upgrade not committed before animation');
+  check(await game<boolean>(page, `g.save.homes.rook === 2 && g.save.mats.pineplank === ${cost - HOMES.rook.plans[1].cost.pineplank!}`), 'upgrade not committed before animation');
   await page.reload(); await page.waitForSelector('.title-btns:not([hidden])'); await page.click('#btn-continue');
   await page.waitForTimeout(2200); await closeDialogs(page);
-  check(await game<boolean>(page, `g.save.homes.rook === 2 && g.save.homes.moss === 1 && g.save.mats.pineplank === ${cost - 56} && g.save.flags.includes('rook:lodge')`), 'reload lost or duplicated the addition');
+  check(await game<boolean>(page, `g.save.homes.rook === 2 && g.save.homes.moss === 1 && g.save.mats.pineplank === ${cost - HOMES.rook.plans[1].cost.pineplank!} && g.save.flags.includes('rook:lodge')`), 'reload lost or duplicated the addition');
   await cookByHand(page, 'meadowtea');
   check(await game<boolean>(page, `g.save.meal?.id === 'meadowtea' && g.save.meal.left <= 240`), 'Rook’s lodge changed Clover’s tea');
   await cookByHand(page, 'trailbuns');
@@ -2851,9 +2972,46 @@ const shortcutSeed = (g: any) => {
   s.pos = { x: 59.5, y: 18 };
 };
 
+scenario('Bridge repair: bank cards, missing timber, locks and explicit touch confirmation', shortcutSeed, async(page)=>{
+  await run(page,`g.save.mats.plank=28;g.over.teleport(95.5,14.8);g.over.roamers.list=[];g.over.roamers.calm=1e9;g.over.roamers.respawn=1e9`);
+  await page.waitForSelector('#shortcut-prompt[data-state="missing"]:not([hidden])');
+  check((await page.textContent('#shortcut-prompt'))?.includes('28 / 64')&&(await page.textContent('#shortcut-prompt'))?.includes('Need 36 more'),'missing-material card has wrong counts');
+  check(await game<boolean>(page,`g.mode==='world'&&!g.ui.isOpen`),'approaching opened a modal automatically');
+  if(SHOTS){await page.waitForTimeout(300);await page.screenshot({path:`${OUT}bridge-repair-missing.png`});}
+  await page.tap('#shortcut-prompt');await page.waitForSelector('.shortcut-plan');
+  check(!await page.$('[data-dialog="yes"]'),'missing materials allowed repair');
+  await page.click('[data-dialog="no"]');
+  await run(page,`g.over.teleport(95.5,9.5)`);await page.waitForSelector('#shortcut-prompt:not([hidden])');
+  check(await game<boolean>(page,`g.over.nearbyObject()?.id==='woods-camp'`),'far bank has no repair target');
+  await run(page,`g.save.build.sawmill=0`);await page.waitForSelector('#shortcut-prompt[data-state="locked"]');
+  check((await page.textContent('#shortcut-prompt'))?.includes('level 1'),'locked card has no prerequisite');
+  await page.keyboard.press('KeyE');await page.waitForSelector('.shortcut-plan');
+  check((await page.textContent('.shortcut-plan'))?.includes('level 1')&&!await page.$('[data-dialog="yes"]'),'locked details do not explain or enforce prerequisite');
+  await page.keyboard.press('Escape');
+  await run(page,`g.save.build.sawmill=1;g.save.mats.plank=64;g.over.teleport(95.5,14.8)`);
+  await page.waitForSelector('#shortcut-prompt[data-state="ok"]');
+  check((await page.textContent('#shortcut-prompt'))?.includes('Ready to repair'),'ready card missing');
+  for(const size of [{width:390,height:844},{width:320,height:568},{width:568,height:320}]){
+    await page.setViewportSize(size);await page.waitForTimeout(300);
+    check(await page.locator('#shortcut-prompt').evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&r.height>=44;}),'repair card clipped');
+    check(await game<boolean>(page,`(()=>{const r=document.getElementById('shortcut-prompt').getBoundingClientRect(),h=g.over.toScreen(g.over.x,g.over.y),ts=g.over.ts;return r.bottom<h.y-ts*1.4||r.left>h.x+ts*.55||r.right<h.x-ts*.55;})()`),'repair card covers hero');
+    if(SHOTS)await page.screenshot({path:`${OUT}bridge-repair-ready-${size.width}.png`});
+  }
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('#shortcut-prompt').focus();await page.keyboard.press('Space');await page.waitForSelector('.shortcut-plan');
+  check(await game<boolean>(page,`g.save.mats.plank===64&&!g.save.flags.includes('bridge:woods')`),'opening confirmation spent timber');
+  await page.keyboard.press('Escape');
+  await page.tap('#shortcut-prompt');await page.waitForSelector('.shortcut-plan');
+  if(SHOTS){await page.waitForTimeout(300);await page.screenshot({path:`${OUT}bridge-repair-confirm.png`});}
+  await page.click('[data-dialog="yes"]');
+  await waitFor(page,'bridge repaired',()=>game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('bridge:woods')&&g.save.mats.plank===0`));
+  check(await page.locator('#shortcut-prompt').isHidden(),'repaired bridge still offers repair');
+});
+
 scenario('Timber shortcuts: six local crossings, cancel, tier locks, real walking and reload during assembly', shortcutSeed, async (page) => {
   const approach = async (id: string) => {
-    await run(page, `const o = g.over.world.objs.find(o => o.kind === 'bridge' && o.id === '${id}'); g.over.teleport(o.x+.3,o.y+o.h+.45); g.over.face=-Math.PI/2; g.over.roamers.list=[]; g.over.roamers.respawn=1e9; g.over.roamers.calm=1e9`);
+    const p=SHORTCUTS.find(p=>p.id===id)!,at=shortcutWorldPoint(p,p.from);
+    await run(page, `g.over.teleport(${at.x},${at.y}); g.over.face=-Math.PI/2; g.over.roamers.list=[]; g.over.roamers.respawn=1e9; g.over.roamers.calm=1e9`);
     await page.waitForTimeout(250); await page.keyboard.press('KeyE');
     await page.waitForSelector('#modal:not([hidden]) [data-dialog]');
   };
@@ -3019,6 +3177,54 @@ scenario('Without WebGL, found items and tags keep their icons', null, async (pa
   check(await page.locator('canvas.live3d').count() === 0 && await page.locator('.view3d img.icon').isVisible(), 'the icon is not showing');
 });
 
+scenario('Quest boulders cannot be mined before Pip explains the seam', (g)=>{
+ const s=g.save;s.quest=g.quests.length;s.lv=17;
+ s.flags=s.flags.filter((f:string)=>!f.startsWith('pip:'));s.build.cottage=0;s.homes.pip=0;s.stories['journey-pip']=0;
+ s.bosses.push('kingslime','alphawolf','echoqueen','crystalking');s.tools.mine=4;s.skills.mine={lv:10,xp:0};
+},async(page)=>{
+ for(const id of ['stillwater','rootlight','cinder']){
+  await run(page,`const o=g.over.world.objs.find(o=>o.boulder==='${id}');g.over.teleport(o.x+o.w/2,o.y+o.h+.5);g.over.face=-Math.PI/2;g.over.roamers.calm=999`);
+  await page.waitForTimeout(650);
+  check(await game<boolean>(page,`g.over.world.objs.find(o=>o.boulder==='${id}').label===''&&!g.over.nearbyObject()?.boulder`),'quest boulder still offers mining');
+  await page.keyboard.press('KeyE');await page.waitForTimeout(200);
+  // Nearby ordinary ore remains mineable; only the quest barrier must be excluded.
+  check(await game<boolean>(page,`!g.chop?.obj.boulder&&!g.save.flags.includes('seam:${id}')`),'mined a boulder before the quest');
+  if(await game<boolean>(page,`g.mode==='gather'`)){
+   await page.keyboard.press('Escape');await waitFor(page,'leave ordinary ore',()=>game<boolean>(page,`g.mode==='world'&&!g.chop`));
+  }
+ }
+});
+
+scenario('Pip’s travel menu: destination cards, safe dismissal and small-screen scrolling', (g)=>{
+ const s=g.save;s.quest=g.quests.length;s.flags.push('seam:stillwater','bram:hut','granny:extension','poppy:returned');
+ s.stories={...s.stories,poppy:6,bram:9,pip:1,drums:4,granny:99};s.build.cottage=1;s.bosses.push('kingslime');s.pos={x:34.8,y:22};
+},async(page)=>{
+ await run(page,`void g.useBurrow('home')`);await page.waitForSelector('.burrow-travel');
+ check(await page.locator('.burrow-route').count()===1,'undiscovered routes appeared');
+ check(await page.locator('.burrow-place small').textContent()==='Whisper Woods','destination region missing');
+ if(SHOTS){await page.waitForTimeout(250);await page.screenshot({path:`${OUT}pip-travel-single.png`});}
+ await page.click('.burrow-travel [data-dialog="close"]');
+ await waitFor(page,'stay in Sowerby',()=>game<boolean>(page,`g.mode==='world'&&!g.trans&&g.over.currentZone.id==='village'`));
+ await run(page,`void g.useBurrow('home')`);await page.waitForSelector('.burrow-travel');
+ await page.keyboard.press('Escape');
+ await waitFor(page,'Escape stays home rather than selecting the first tunnel',()=>game<boolean>(page,`g.mode==='world'&&!g.trans&&g.over.currentZone.id==='village'`));
+ await run(page,`g.save.flags.push('seam:quarry','seam:rootlight','seam:cinder');void g.useBurrow('home')`);
+ await page.waitForSelector('.burrow-travel');
+ check(await page.locator('.burrow-route').count()===4,'opened tunnels missing');
+ check((await page.locator('.burrow-place small').allTextContents()).join('|')==='Pip’s ore gallery|Whisper Woods|Glimmer Hollow|Ember Peak','regions do not match the travel destinations');
+ if(SHOTS){await page.waitForTimeout(250);await page.screenshot({path:`${OUT}pip-travel-all.png`});}
+ for(const size of [{width:320,height:568},{width:568,height:320}]){
+   await page.setViewportSize(size);await page.waitForTimeout(250);
+   check(await page.locator('.burrow-travel .result').evaluate(el=>el.scrollWidth<=el.clientWidth),'travel sheet overflows horizontally');
+   await page.locator('.burrow-travel [data-dialog="close"]').scrollIntoViewIfNeeded();
+   check(await page.locator('.burrow-travel [data-dialog="close"]').evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.height>=44;}),'stay button clipped or too small');
+   if(SHOTS)await page.screenshot({path:`${OUT}pip-travel-${size.width}.png`});
+ }
+ await page.setViewportSize({width:390,height:844});
+ await page.click('.burrow-travel [data-dialog="tunnel:stillwater"]');
+ await waitFor(page,'Stillwater destination',()=>game<boolean>(page,`g.mode==='world'&&!g.trans&&g.over.currentZone.id==='woods'&&Math.abs(g.over.x-122.5)<.1&&Math.abs(g.over.y-33.8)<.1`));
+});
+
 scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel and a walk home', (g)=>{
  const s=g.save;s.lv=14;s.quest=g.quests.length;s.villageJobs=true;
  s.flags=s.flags.filter((f:string)=>!f.endsWith(':returned'));s.flags.push('bram:hut','granny:extension','poppy:returned');
@@ -3028,6 +3234,9 @@ scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel an
  await page.keyboard.press('KeyE');
  await waitFor(page,'Pip’s underground tunnel',()=>game<boolean>(page,`g.over.underground===g.over.oreGallery&&!g.trans`));
  check(await game<boolean>(page,`!!g.over.oreGallery.actors.get('journey-pip:pip')&&!g.over.actors.get('journey-pip:pip')`),'Pip is duplicated outside his tunnel');
+ await run(page,`g.over.x=g.over.oreGallery.x0+7;g.over.y=8.7;g.over.face=-Math.PI/2`);
+ await page.keyboard.press('KeyE');await page.waitForTimeout(650);
+ check(await game<boolean>(page,`g.mode==='world'&&!g.chop&&g.over.oreGallery.objs.find(o=>o.boulder).label===''`),'gallery boulder can be mined before talking to Pip');
  await run(page,`const a=g.over.oreGallery.actors.get('journey-pip:pip');g.over.x=a.x;g.over.y=a.y+.6;g.over.face=-Math.PI/2`);
  await page.keyboard.press('KeyE');await waitFor(page,'Pip explains the seam',async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('pip:seam:met')&&g.mode==='world'`);});
  if(SHOTS)await page.screenshot({path:`${OUT}pip-promising-tunnel.png`});
@@ -3035,6 +3244,8 @@ scenario('Pip’s discovery: ten-hit boulder, mixed ore gallery, saved tunnel an
  check(await game<boolean>(page,`g.over.underground===g.over.oreGallery&&g.save.flags.includes('pip:seam:met')`),'reload lost Pip’s discovery');
  await run(page,`g.over.x=g.over.oreGallery.x0+7;g.over.y=8.7;g.over.face=-Math.PI/2`);await page.keyboard.press('KeyE');
  await waitFor(page,'the boulder minigame',()=>game<boolean>(page,`g.mode==='gather'&&g.chop?.game.requiredStreak===10`));
+ check(await game<boolean>(page,`g.chop.view.look.boulder===true`),'quest boulder reused ordinary ore art');
+ if(SHOTS)await page.screenshot({path:`${OUT}pip-boulder-minigame.png`});
  for(let i=0;i<4;i++){await run(page,`const c=g.chop.game;c.lock=0;c.pos=c.center;c.strike()`);await page.waitForTimeout(180);}
  await run(page,`const c=g.chop.game;c.lock=0;c.pos=0;c.strike()`);
  check(await game<boolean>(page,`g.chop.game.streak===0&&!g.chop.game.done&&!g.save.flags.includes('seam:quarry')`),'a miss cleared the boulder or retained its streak');
@@ -3169,8 +3380,8 @@ scenario('Route redesign: separate main cavern, both side branches, guardian exi
  check(await game<boolean>(page,`!g.over.map.blocked(g.over.x,g.over.y,.28)`),'gallery exit is blocked');
  await run(page,`g.over.teleport(166.5,14.8);g.over.roamers.calm=999`);await page.keyboard.down('KeyD');
  try{await waitFor(page,'Hollow exit transition',()=>game<boolean>(page,`g.over.currentZone.id==='hollow'&&!g.over.underground&&!g.trans`));}finally{await page.keyboard.up('KeyD');}
- await run(page,`g.over.teleport(126.3,14.8);g.over.roamers.calm=999`);await page.keyboard.down('KeyD');
- try{await waitFor(page,'surface cave entrance',()=>game<boolean>(page,`g.over.underground===g.over.cavern&&!g.trans`));}finally{await page.keyboard.up('KeyD');}
+ await run(page,`g.over.teleport(126,13.4);g.over.roamers.calm=999`);await page.keyboard.down('KeyW');
+ try{await waitFor(page,'surface cave entrance',()=>game<boolean>(page,`g.over.underground===g.over.cavern&&!g.trans`));}finally{await page.keyboard.up('KeyW');}
  if(SHOTS)await page.screenshot({path:`${OUT}main-cavern-phone.png`});
  await run(page,`g.encounter()`);await waitFor(page,'field encounter underground',()=>game<boolean>(page,`g.mode==='battle'&&g.battle?.setup.zone.id==='cave'`),12000);
 });
@@ -3185,16 +3396,17 @@ scenario('Cave mouths: rocky forest edge, no outdoor cave preview, full black fa
  check(await game<boolean>(page,`g.over.sceneBounds.x0+g.over.sceneBounds.w===127&&!g.over.underground`),'outdoor map still includes the cave');
  await page.keyboard.down('KeyD');await page.waitForTimeout(800);await page.keyboard.up('KeyD');
  check(await game<boolean>(page,`g.over.x<125&&!g.over.underground&&!g.trans`),'walked past the Alpha Woolf into the cave');
- await run(page,`g.save.bosses.push('alphawolf');g.over.world.obj('gate','cave').hidden=true;g.over.world.objs.find(o=>o.id==='cavern:entry').label='Enter Echo Cavern';g.over.teleport(123.7,14.8)`);await page.waitForTimeout(650);await calm();
+ await run(page,`g.save.bosses.push('alphawolf');g.over.world.obj('gate','cave').hidden=true;g.over.world.objs.find(o=>o.id==='cavern:entry').label='Enter Echo Cavern';g.over.teleport(126,13.4)`);await page.waitForTimeout(650);await calm();
  for(const [width,height] of [[390,844],[960,640]]){
    await page.setViewportSize({width,height});await page.waitForTimeout(200);
-   check(await game<boolean>(page,`g.over.view.left+${width}<=127*g.over.ts+1`),'outdoor camera peeks into cave tiles');
+   // The camera may show a few tiles past the edge, so the mouth isn't squashed against the screen, but only as solid cliff.
+   check(await game<boolean>(page,`g.over.view.left+${width}<=130*g.over.ts+1&&[127,128,129].every(x=>[12,13,14,15].every(y=>g.over.sceneryTile(x,y)===2))`),'outdoor camera peeks into cave tiles');
    if(SHOTS)await page.screenshot({path:`${OUT}cave-mouth-outside-${width}.png`});
  }
  await page.setViewportSize({width:390,height:844});
- await page.keyboard.down('KeyD');
+ await page.keyboard.down('KeyW');
  try{await waitFor(page,'cave fade begins',()=>game<boolean>(page,`g.trans?.style==='fade'&&!g.trans.fired&&!g.over.underground`));}
- finally{await page.keyboard.up('KeyD');}
+ finally{await page.keyboard.up('KeyW');}
  await run(page,`g.trans.dur=6;g.trans.t=2.7`);
  const black=()=>page.evaluate(()=>{const c=document.querySelector('canvas')!;const ctx=c.getContext('2d')!;return [[10,10],[c.width/2,c.height/2],[c.width-10,c.height-10]].every(([x,y])=>{const p=ctx.getImageData(x,y,1,1).data;return p[0]===0&&p[1]===0&&p[2]===0&&p[3]===255;});});
  await waitFor(page,'fully black before map switch',black);
@@ -3207,7 +3419,7 @@ scenario('Cave mouths: rocky forest edge, no outdoor cave preview, full black fa
  if(SHOTS)await page.screenshot({path:`${OUT}cave-mouth-inside.png`});
  await run(page,`g.over.teleport(127.6,14.8)`);await calm();await page.keyboard.down('KeyA');
  try{await waitFor(page,'return to woods',()=>game<boolean>(page,`!g.trans&&!g.over.underground&&g.over.currentZone.id==='woods'`));}finally{await page.keyboard.up('KeyA');}
- check(await game<boolean>(page,`Math.abs(g.over.x-123.7)<.1&&!g.over.map.blocked(g.over.x,g.over.y,.28)`),'exit lands behind the mouth or immediately re-enters it');
+ check(await game<boolean>(page,`Math.abs(g.over.x-126)<.1&&!g.over.underground&&!g.over.map.blocked(g.over.x,g.over.y,.28)`),'exit lands behind the mouth or immediately re-enters it');
  await run(page,`g.save.bosses.push('echoqueen');g.over.world.obj('gate','hollow').hidden=true;g.over.teleport(166.5,14.8)`);await calm();await page.keyboard.down('KeyD');
  try{await waitFor(page,'hollow mouth exit',()=>game<boolean>(page,`!g.trans&&!g.over.underground&&g.over.currentZone.id==='hollow'`));}finally{await page.keyboard.up('KeyD');}
  check(await game<boolean>(page,`g.over.sceneBounds.x0===167&&g.over.x>169`),'Hollow still shares the underground camera');

@@ -6,7 +6,7 @@ import { has } from '../unlocks';
 import type { WorldObj } from '../world';
 import { G } from './context';
 import { ECHO_EXIT } from '../echoCave';
-import { storyNoArrow, storyTarget } from './stories';
+import { activeStory } from './stories';
 
 /** The spot in front of an object, where you actually stand to use it. */
 const front = (o?: { x: number; y: number; w: number; h: number }) => (o ? { x: o.x + o.w / 2, y: o.y + o.h + 0.7 } : null);
@@ -14,14 +14,16 @@ const front = (o?: { x: number; y: number; w: number; h: number }) => (o ? { x: 
 export function objective(): { x: number; y: number } | null {
   // Fainted: the way back to your body comes first.
   if (G.save.spirit) return G.save.spirit;
-  // A side story you're in the middle of leads the way (or has you find it yourself).
-  if (storyNoArrow()) return null;
-  const side = storyTarget();
+  if (G.save.trackedQuest === null) return null;
+  const selected = activeStory();
+  if (selected?.step.noArrow?.()) return null;
+  const side = selected ? (selected.step.cost && gatherPointer(selected.step.cost())) || selected.step.target?.() || null : null;
   if (G.over.underground) {
     const map=G.over.underground;
     if(!side || side.x<map.x0 || side.x>=map.x0+map.w) return map===G.over.echo ? ECHO_EXIT : {x:G.over.oreGallery.spawn.x,y:14.5};
   }
-  if (side) return side;
+  // A selected side quest without a waypoint must not silently point at the main story.
+  if (selected) return side;
   const s = G.save, w = G.world;
   const q = currentQuest(s);
   if (!q) return null;

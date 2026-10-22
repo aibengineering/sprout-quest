@@ -4,7 +4,7 @@ import { modelStats, rendererSize, tickModels } from './models';
 import { liveView } from './itemview';
 import type { Battle } from './battle/battle';
 import { drawBattle } from './battle/render';
-import { MAX_POTIONS, MONSTERS, QUESTS, ZONES, zoneById, type MonsterKind, type ZoneId } from './data';
+import { MAX_POTIONS, MONSTERS, NODES, QUESTS, ZONES, zoneById, type MonsterKind, type ZoneId } from './data';
 import { G, applySound, busy, menuCtx, persist, showZoneBanner, syncWorld } from './game/context';
 import { canRun, challengeFoe, coachBattle, startBattle, startFieldBattle } from './game/fights';
 import { revive, spirit } from './game/death';
@@ -14,7 +14,7 @@ import { doorwayTick, drawRoomHud, enterRoom, leaveRoom, roomTick } from './game
 import { enterEchoCave, leaveEchoCave, enterOreGallery, leaveOreGallery, useBurrow, undergroundTick } from './game/underground';
 import { kitchenDebug } from './game/kitchenRoom';
 import { drawGardenHud, gardenDebug, gardenTick, inGarden } from './game/gardenWork';
-import { sawmillDebug } from './game/sawmillRoom';
+import { millSoundTick, sawmillDebug } from './game/sawmillRoom';
 import { menuHooks } from './game/menu';
 import { arriveAtVillage, maybeAutoTalk, progressQuests } from './game/story';
 import { checkStories, storyLayers, tickStories } from './game/stories';
@@ -27,6 +27,7 @@ import { SCREENS, flushTime, noteReached, trackTime, type Activity } from './sta
 import { mealTick } from './kitchen';
 import { has } from './unlocks';
 import { battleTheme, zoneTheme } from './music/scores';
+import { shortcutById } from './shortcuts';
 
 const canvas = document.getElementById('cv') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -62,6 +63,16 @@ const openFromHud = (tab: 'journey' | 'items') => {
 document.getElementById('quest-pill')!.addEventListener('click', () => has(G.save, 'journal') && openFromHud('journey'));
 document.getElementById('btn-journal')!.addEventListener('click', () => openFromHud('journey'));
 document.getElementById('btn-bag')!.addEventListener('click', () => openFromHud('items'));
+const shortcutPrompt = document.getElementById('shortcut-prompt')!;
+shortcutPrompt.addEventListener('click', () => {
+  if (G.mode !== 'world' || busy() || spirit() || G.over.quiet) return;
+  const near = G.over.nearbyObject();
+  if (near?.kind === 'bridge' && near.id === shortcutPrompt.dataset.shortcut) void interact();
+});
+shortcutPrompt.addEventListener('keydown', e => {
+  if (e.code !== 'Enter' && e.code !== 'Space') return;
+  e.preventDefault(); e.stopPropagation(); shortcutPrompt.click();
+});
 
 const bind = (id: string, a: Parameters<Input['bindButton']>[1]) => G.input.bindButton(document.getElementById(id)!, a);
 bind('btn-attack', 'attack');
@@ -106,6 +117,7 @@ function battleFrame(b: Battle, dt: number) {
   ui.questPill(false);
   ui.dock(false);
   ui.dragHint(false);
+  ui.shortcutPrompt(null);
   // The skill button only once your handling with this weapon's class has unlocked its skill (Lv 2).
   ui.battleButtons(!!b.skillNow, has(s, 'bag') && s.flags.includes('village'));
   if (G.mode === 'battle') {
@@ -147,6 +159,7 @@ function worldFrame(dt: number) {
   // People and entrances own the action button even when a monster is nearby. Attack still starts a surprise fight.
   const actionTarget = freeWorld() ? over.nearbyObject() : null;
   const priorityAction = actionTarget?.kind === 'npc' || actionTarget?.kind === 'door'
+    || actionTarget?.kind === 'bridge'
     || ['prop_cavemouth', 'resource:mouth', 'cavern:entry', 'cavern:east'].includes(actionTarget?.id ?? '');
   const prey = freeWorld() && over.fieldMap
     ? over.roamers.unaware(over.x, over.y) : null;
@@ -186,7 +199,7 @@ function worldFrame(dt: number) {
     const g = ZONES.find((z) => z.id === near.zone)?.guardian;
     if (g && !s.bosses.includes(g.kind)) noteReached(s, g.kind);
   }
-  ui.setAction(G.mode === 'gather' && chop ? gatherVerb() : prey && !priorityAction ? 'Attack!' : near ? near.label : null);
+  ui.setAction(G.mode === 'gather' && chop ? gatherVerb() : prey && !priorityAction ? 'Attack!' : near?.kind === 'bridge' ? null : near ? near.label : null);
   const dash=document.getElementById('btn-dash')!;dash.hidden=!freeWorld()||!over.fieldMap||!s.perks.includes('shadowscarf');
   dash.querySelector<HTMLElement>('.cd')!.style.setProperty('--p',over.dashFrac.toFixed(2));
   over.objective = G.mode === 'world' ? objective() : null;
@@ -201,6 +214,8 @@ function worldFrame(dt: number) {
   const ease = sq * sq * (3 - 2 * sq);
   over.zoom = debugZoom || 1 + ease;
   over.render(ctx, vw, vh);
+  const crossing = freeWorld() && !over.quiet && !over.busyHands && over.alert <= 0 && near?.kind === 'bridge' ? shortcutById(near.id!) : null;
+  ui.shortcutPrompt(crossing ?? null, over.toScreen(over.x, over.y), over.ts);
   if (sw) {
     ctx.fillStyle = `rgba(255,250,235,${0.75 * ease})`;
     ctx.fillRect(0, 0, vw, vh);
@@ -214,7 +229,7 @@ function worldFrame(dt: number) {
     ctx.fillStyle = 'rgba(42,26,48,0.15)';
     ctx.fillRect(0, 0, vw, vh);
   } else {
-    ui.hud(s.hp, over.underground?.name ?? over.room?.spec.name ?? over.currentZone.name);
+    ui.hud(s.hp, over.underground?.name ?? over.room?.spec.name ?? over.currentZone.name, G.mode === 'gather' && chop ? NODES[chop.obj.node!].skill : null);
     // In a room, its own hint takes the quest's place at the top.
     ui.questPill(!over.room && !inGarden() && (G.mode === 'world' || G.mode === 'dialog'));
   }
@@ -270,6 +285,7 @@ function frame(now: number) {
   G.music.want(b ? battleTheme(b.setup.zone.id, b.setup.boss) : zoneTheme(G.over.currentZone.id));
   if (b) { G.ui.lootBelow(null); battleFrame(b, dt); }
   else worldFrame(dt);
+  millSoundTick();
   tickModels();
   G.input.flush();
   mapFade.hidden=G.trans?.style!=='fade';

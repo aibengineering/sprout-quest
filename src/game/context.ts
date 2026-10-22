@@ -16,9 +16,10 @@ import { kitchenOpen } from '../kitchen';
 import { poppyAway } from '../procession';
 import { World } from '../world';
 import { homeLevel } from '../housing';
-import { shortcutById, shortcutLock } from '../shortcuts';
-import { seamOpen, SEAMS } from '../seams';
+import { shortcutById } from '../shortcuts';
+import { seamAvailable, seamOpen, SEAMS } from '../seams';
 import { HUNTS, hunting } from '../hunts';
+import { knows } from '../known';
 
 /**
  * What the game is doing, which decides what takes input and what's drawn:
@@ -127,6 +128,8 @@ export function showZoneBanner(z: Zone) {
 /** Opens gates whose guardians are beaten, lights campfires and reveals building plots as they unlock. */
 export function syncWorld() {
   const s = G.save;
+  // Before you know Bram, an empty plot is just somewhere to look at.
+  const askBram = knows(s, 'bram') ? 'Ask Bram' : 'Look';
   G.world.setShortcuts(s);
   G.over.oreGallery.sync(s);
   G.over.cavern.sync();
@@ -144,26 +147,26 @@ export function syncWorld() {
       if (o.project === 'home') o.label = has(s, 'village') ? 'Build' : 'Rest';
       if (o.project === 'sawmill') o.label = s.build.sawmill ? 'Sawmill' : 'Build';
       if (o.project === 'cottage') o.label = s.build.cottage ? 'Visit' : 'Ask Bram';
-      if (o.project === 'garden') o.label = gardenOpen(s) ? 'Garden' : 'Ask Bram';
+      if (o.project === 'garden') o.label = gardenOpen(s) ? 'Garden' : askBram;
     }
-    if (o.project === 'training') o.label = s.build.training ? 'Train with the fox' : 'Ask Bram';
+    if (o.project === 'training') o.label = s.build.training ? 'Train with the fox' : askBram;
     if (o.kind === 'residence') {
       o.hidden = !s.flags.includes('bram:hut') && !homeLevel(s, o.home!);
       o.label = homeLevel(s, o.home!) ? 'Visit' : 'Ask Bram';
     }
     if (o.kind === 'station' && o.id?.startsWith('garden:')) o.hidden = o.id === 'garden:sign' ? !s.build.garden || !plotOpen(s, 'garden') : !gardenOpen(s);
     if (o.id === 'garden:sign') o.label = s.build.garden < PROJECTS.garden.levels.length ? 'Ask Bram' : '';
-    if (o.kind === 'house') o.label = kitchenOpen(s) && !poppyAway(s) ? 'Kitchen' : (s.stories.poppy ?? 0) >= 6 && !poppyAway(s) ? 'Ask Bram' : '';
+    if (o.kind === 'house') o.label = kitchenOpen(s) && !poppyAway(s) ? 'Kitchen' : (s.stories.poppy ?? 0) >= 6 && !poppyAway(s) && knows(s, 'bram') ? 'Ask Bram' : '';
     if (o.kind === 'forge') o.label = s.build.forge === 0 ? (has(s, 'village') ? 'Repair' : 'Look') : has(s, 'forge') ? 'Forge' : 'Look';
     if (o.kind === 'pickup' || o.kind === 'foe') o.hidden = s.flags.includes(o.flag!);
     if (o.kind === 'bridge') {
       const p = shortcutById(o.id!);
       o.hidden = !!p && s.flags.includes(p.flag);
-      o.label = p && !shortcutLock(s, p) ? 'Build shortcut' : 'Inspect crossing';
+      o.label = ''; // The sign is scenery; repairs are offered at either bank.
     }
     // Bram's cabin goes up at the end of his story.
     if (o.kind === 'prop' && o.id === 'bramhut') o.hidden = !s.flags.includes('bram:hut');
-    if(o.boulder) { o.hidden=seamOpen(s,o.boulder); o.label='Break boulder'; }
+    if(o.boulder) { o.hidden=seamOpen(s,o.boulder); o.label=seamAvailable(s,o.boulder)?'Break boulder':''; }
     if(o.tunnel) o.hidden=!seamOpen(s,o.tunnel);
     if(o.id==='burrow:home') o.hidden=!SEAMS.some(p=>seamOpen(s,p.id));
     if(o.hunt){const a=hunting(s).active,d=HUNTS.find(d=>d.kind===o.hunt)!;o.hidden=!a||a.kind!==o.hunt||a.status!=='tracking';o.foes=a?[{kind:a.kind,lv:a.lv}]:[];o.text=d.name;}

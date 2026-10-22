@@ -23,13 +23,19 @@ import { hash2, T, type TileMap, type World, type WorldObj } from './world';
 import { WALL_RISE, type Room } from './room';
 import { EchoCave, ECHO_OUTSIDE } from './echoCave';
 import { Cavern } from './cavern';
-import { surfaceBounds, caveApproachStone, CAVE_WEST_EDGE } from './caveEntrance';
+import { surfaceBounds, caveApproachStone, CAVE_WEST_EDGE, CAVE_EAST_EDGE } from './caveEntrance';
+
+/** Tiles of cliff the camera may show past the surface's edge, beside a cave mouth. */
+const CLIFF_VIEW = 3;
 import { dodgeCharges, dodgeMotion } from './rules';
 import { ResourceCave } from './resourceCave';
 import { HUNTS, VARIANTS } from './hunts';
 import { SHORTCUTS, shortcutById, shortcutBuilt, shortcutWorldPoint, type Shortcut } from './shortcuts';
 import { HOMES, homeLevel } from './housing';
+import { knows } from './known';
 import { drawBubble, drawSpeech } from './bubble';
+import { drawBoulder } from './nodeart';
+import { seamAvailable } from './seams';
 
 const TAU = Math.PI * 2;
 /** Chip colors when mining each kind of rock. */
@@ -174,6 +180,14 @@ export class Overworld {
     return m===this.world ? surfaceBounds(this.x) : {x0:m.x0,w:m.w};
   }
 
+  /** What the camera can show: on the surface, a few tiles of cliff past the walkable land, so a cave mouth at the
+   * land's edge sits in the middle of the screen rather than squashed against its side. */
+  get viewBounds() {
+    const b=this.sceneBounds;
+    if(this.map!==this.world)return b;
+    return b.x0===0 ? {x0:0,w:b.w+CLIFF_VIEW} : {x0:b.x0-CLIFF_VIEW,w:b.w+CLIFF_VIEW};
+  }
+
   /** Who's around you: the room's people, or the map's. */
   get cast() {
     return this.underground?.actors ?? this.room?.actors ?? this.actors;
@@ -312,6 +326,17 @@ export class Overworld {
     };
     const talk = this.cast.list.find((a) => a.label && Math.hypot(a.x - this.x, a.y - (this.y - 0.2)) < 1.4 && facing(a));
     if (talk) return { kind: 'npc', id: talk.id, x: talk.x - 0.35, y: talk.y - 0.45, w: 0.7, h: 0.45, label: talk.label! };
+    if (this.fieldMap) {
+      for (const p of SHORTCUTS) {
+        if (shortcutBuilt(this.save, p)) continue;
+        if (![p.from, p.to].some(bank => {
+          const at = shortcutWorldPoint(p, bank);
+          return Math.hypot(this.x - at.x, this.y - at.y) < 1.4;
+        })) continue;
+        const o = this.map.objs.find(o => o.kind === 'bridge' && o.id === p.id);
+        if (o && !o.hidden) return { ...o, label: 'Repair bridge' };
+      }
+    }
     return this.map.nearestObj(this.x, this.y - 0.2, 1.4);
   }
 
@@ -332,7 +357,7 @@ export class Overworld {
     }
     this.shakeT = Math.max(0, this.shakeT - dt);
     this.fx.update(dt);
-    this.cast.update(dt, this);
+    this.cast.update(dt, this, this.map, !frozen && !this.quiet && this.alert <= 0);
     this.headroom += ((this.layers?.headroom() ?? 0) - this.headroom) * (1 - Math.exp(-dt * 3));
     const target = (typeof this.camTarget === 'function' ? this.camTarget() : this.camTarget) ?? { x: this.x, y: this.y };
     const k = 1 - Math.exp(-dt * (this.camTarget ? 2.2 : 12));
@@ -431,7 +456,7 @@ export class Overworld {
     const ts = (this.ts = R
       ? Math.round(Math.min(Overworld.tileSize(vw, vh) * 1.25, vw / (R.w - 0.3), (vh - ROOM_BAND.top - ROOM_BAND.bottom) / roomRows) * this.zoom)
       : Math.round(Overworld.tileSize(vw, vh) * this.zoom));
-    const bounds=this.sceneBounds;
+    const bounds=this.viewBounds;
     const mapW = bounds.w * ts, mapH = (this.fieldMap ? ROUTES[this.zone.id]?.length ?? WORLD_H : W.h) * ts;
     let camX = this.camX * ts - vw / 2;
     let camY = (this.camY - 0.5) * ts - vh / 2;
@@ -457,13 +482,13 @@ export class Overworld {
     // Interaction hint bubble (not while chopping or mining: the minigame's card is up)
     const near = this.quiet || this.chopping || this.busyHands ? null : this.nearbyObject();
     this.roomRects.label = null;
-    if (near && this.alert <= 0) {
+    if (near && near.kind !== 'bridge' && this.alert <= 0) {
       // A room's doormat says "Leave" under it, not over you standing on it, and its stations wear theirs on top of
       // what's drawn (not over your head as you stand in front). In the Garden's field it's over the plot you'd work on.
       const bed = near.project === 'garden' && this.gardenPlot !== null ? plotSpot(near, this.gardenPlot) : null;
       const top = this.room && near.kind === 'station' ? this.stationTop.get(near) : undefined;
       let bx = (bed ? bed.x : near.x + near.w / 2) * ts;
-      const by = (top !== undefined ? top / ts + 0.15 : bed ? bed.y - 0.55 : near.kind === 'door' ? near.y + near.h + 0.75 : near.y) * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
+      const by = (top !== undefined ? top / ts + 0.15 : bed ? bed.y - 0.55 : near.boulder ? near.y - (near.boulder === 'quarry' ? 1.2 : 0.6) : near.kind === 'door' ? near.y + near.h + 0.75 : near.y) * ts - ts * 0.3 + Math.sin(this.t * 4) * 3;
       ctx.font = `900 ${Math.round(ts * 0.4)}px ui-rounded, "Nunito", system-ui, sans-serif`;
       const label = this.keyHints ? `[E] ${near.label}` : near.label;
       const tw = ctx.measureText(label).width + ts * 0.4;
@@ -482,8 +507,14 @@ export class Overworld {
 
   /** The map itself: ground, scenery, buildings, monsters and the hero. `left`/`top` are the camera's corner in tiles. */
   private sceneryTile(x:number,y:number) {
-    // The logical graph retains gate coordinates for old saves; the outdoor view ends in a cliff behind its mouth.
-    return !this.underground&&!this.room&&x===CAVE_WEST_EDGE-1 ? T.OBST : this.map.tile(x,y);
+    // Above ground, the cavern's own tiles are solid cliff: you only see its tunnels once you're inside.
+    return !this.underground&&!this.room&&x>=CAVE_WEST_EDGE&&x<CAVE_EAST_EDGE ? T.OBST : this.map.tile(x,y);
+  }
+
+  /** Whether an obstacle tile is drawn as rock (cave walls and the cliff around a cave mouth) rather than a tree. */
+  private isRock(x: number, y: number) {
+    if (this.underground) return true;
+    return (x >= CAVE_WEST_EDGE && x < CAVE_EAST_EDGE) || zoneAtX(x).id === 'cave' || caveApproachStone(x, y) >= .85;
   }
 
   private drawScene(ctx: CanvasRenderingContext2D, left: number, top: number, ts: number, vw: number, vh: number) {
@@ -494,7 +525,7 @@ export class Overworld {
     ctx.save();
     ctx.translate(-camX, -camY);
 
-    const bounds=this.sceneBounds;
+    const bounds=this.viewBounds;
     ctx.beginPath();ctx.rect(bounds.x0*ts,camY,bounds.w*ts,vh);ctx.clip();
 
     const x0 = Math.max(bounds.x0, Math.floor(camX / ts) - 1), x1 = Math.min(bounds.x0 + bounds.w - 1, Math.ceil((camX + vw) / ts) + 1);
@@ -506,7 +537,9 @@ export class Overworld {
     // Ground layer
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
-        const th = zoneAtX(x).theme;
+        // Above ground, the ground under the cliff past a cave mouth is the neighbouring land's, not the cavern's.
+        const inCave = !this.underground && x >= CAVE_WEST_EDGE && x < CAVE_EAST_EDGE;
+        const th = zoneAtX(inCave ? (x < (CAVE_WEST_EDGE + CAVE_EAST_EDGE) / 2 ? CAVE_WEST_EDGE - 1 : CAVE_EAST_EDGE) : x).theme;
         const t = this.sceneryTile(x, y);
         const px = x * ts, py = y * ts;
         // Broad, soft colour patches replace the conspicuous checkerboard of individual tiles.
@@ -566,7 +599,8 @@ export class Overworld {
       const left = deck ? Math.min(o.x, deck.x - .45) : o.x;
       const right = deck ? Math.max(o.x + o.w, deck.x + crossing!.deck.w + .45) : o.x + o.w;
       if (right < x0 - 2 || left > x1 + 2) continue;
-      if (o.kind === 'fence') this.fenceItems(ctx, o, ts, items);
+      if (crossing) this.shortcutItems(ctx, o, ts, items);
+      else if (o.kind === 'fence') this.fenceItems(ctx, o, ts, items);
       else if (o.kind === 'plot' && o.project === 'garden') this.fieldItems(ctx, o, ts, items);
       else items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
     }
@@ -835,12 +869,13 @@ export class Overworld {
   /** A gathering node: a ribboned tree or an ore-flecked rock when ready, a stump or rubble while it comes back. */
   private drawTree(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
     const ready = !!o.boulder || (this.save.nodes[o.id!] ?? 0) <= Date.now();
+    const highlighted = o.boulder ? seamAvailable(this.save, o.boulder) : ready;
     const rock = NODES[o.node!].skill === 'mine';
     // Rocks have no drawn fallback: skip them (glow and all) until the sprites are in.
-    if (rock && !frame(`env/${o.node}_node`)) return;
+    if (rock && !o.boulder && !frame(`env/${o.node}_node`)) return;
     const shake = o === this.chopping && this.shakeT > 0 ? Math.sin(this.shakeT * 70) * this.shakeT * 0.25 : 0;
     const cx = (o.x + o.w / 2) * ts, by = (o.y + o.h - 0.08) * ts;
-    if (ready) {
+    if (highlighted) {
       // One soft highlight marks all available resources, regardless of terrain.
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -850,10 +885,18 @@ export class Overworld {
       ctx.fill();
       ctx.restore();
     }
-    shadow(ctx, cx, by, ts * (ready ? 0.42 : 0.3));
+    shadow(ctx, cx, by, ts * (o.boulder ? o.boulder === 'quarry' ? 1.1 : 0.6 : ready ? 0.42 : 0.3));
     const sprite = frame(`env/${o.node}_${ready ? 'node' : rock ? 'rubble' : 'stump'}`) ?? (ready && !rock ? frame(o.node === 'pine' ? 'env/pine0' : 'env/tree1') : null);
     // A touch bigger than the scenery trees so they stand out.
-    if (sprite) drawFrame(ctx, sprite, cx, by, (ts / TILE_BU) * (o.boulder ? o.boulder==='quarry'?3.1:1.65 : ready ? 1.12 : 1), { rot: ready ? shake + Math.sin(this.t * 1.2 + o.x) * 0.012 : 0 });
+    if (o.boulder) {
+      ctx.save();
+      ctx.translate(cx, by);
+      const scale = ts * (o.boulder === 'quarry' ? 0.021 : 0.0105);
+      ctx.scale(scale, scale);
+      ctx.rotate(shake);
+      drawBoulder(ctx);
+      ctx.restore();
+    } else if (sprite) drawFrame(ctx, sprite, cx, by, (ts / TILE_BU) * (ready ? 1.12 : 1), { rot: ready ? shake + Math.sin(this.t * 1.2 + o.x) * 0.012 : 0 });
     else if (!ready) {
       ctx.fillStyle = '#9a6a44';
       ctx.beginPath();
@@ -865,7 +908,7 @@ export class Overworld {
       ctx.fill();
     }
     // A glint now and then marks resources that are ready to gather.
-    if (ready && Math.random() < 0.04) {
+    if (highlighted && Math.random() < 0.04) {
       this.fx.burst(cx + (Math.random() - 0.5) * ts * 0.8, by - ts * (0.6 + Math.random() * 0.8), '#ffffff', 1, ts * 0.3, { star: true, size: ts * 0.07, grav: -ts * 0.4, life: 0.8 });
     }
   }
@@ -1109,34 +1152,79 @@ export class Overworld {
   }
 
   private drawObstacle(ctx: CanvasRenderingContext2D, x: number, y: number, ts: number, th: Theme) {
-    const stone=!this.underground?caveApproachStone(x,y):0;
+    const stone=this.underground?0:x>=CAVE_WEST_EDGE&&x<CAVE_EAST_EDGE?1:caveApproachStone(x,y);
     if (zoneAtX(x).id === 'cave' || stone>=.85) {
-      // Joined rock faces enclose the tunnels; individual boulders still mark mineable cover.
-      const px = x * ts, py = y * ts;
-      ctx.fillStyle = stone>=.85?'#646c61':'#303247';
-      ctx.fillRect(px, py - ts * .28, ts + 1, ts * 1.28 + 1);
-      const open = (dx: number, dy: number) => this.sceneryTile(x + dx, y + dy) !== T.OBST;
-      ctx.strokeStyle = stone>=.85?'#939987':'#51536d'; ctx.lineWidth = ts * .065;
-      ctx.beginPath();
-      if (open(-1, 0)) { ctx.moveTo(px + ts * .04, py); ctx.lineTo(px + ts * .04, py + ts); }
-      if (open(1, 0)) { ctx.moveTo(px + ts * .96, py); ctx.lineTo(px + ts * .96, py + ts); }
-      if (open(0, 1)) { ctx.moveTo(px, py + ts * .92); ctx.lineTo(px + ts, py + ts * .92); }
-      ctx.stroke();
-      if (hash2(x, y, 12) > .6) {
-        ctx.strokeStyle = '#242639'; ctx.lineWidth = ts * .035;
-        ctx.beginPath(); ctx.moveTo(px + ts * .3, py + ts * .15);
-        ctx.lineTo(px + ts * .55, py + ts * .38); ctx.lineTo(px + ts * .47, py + ts * .7); ctx.stroke();
+      // Rock is one mass whose edges wander: wherever it meets open ground or trees its outline follows a smooth wobble
+      // set by world position (so neighbouring tiles join with no grid lines), corners between two open sides are
+      // rounded, and the edge is inked. Inside it's calm stone with now and then a faint flat slab; where the floor is
+      // below it, a darkening cliff face shows.
+      const px = x * ts, py = y * ts, out = stone >= .85;
+      const c = out ? { base: '#6b7266', slab: '#737b6e', slabShade: '#61685b', lip: '#8d9482', face: '#565d51', foot: '#383d34', ink: '#3a3f36' }
+        : { base: '#2e3045', slab: '#35384f', slabShade: '#292b3e', lip: '#45486a', face: '#26283a', foot: '#17181f', ink: '#121319' };
+      const rock = (dx: number, dy: number) => this.sceneryTile(x + dx, y + dy) === T.OBST && this.isRock(x + dx, y + dy);
+      const [L, R, U, D] = [!rock(-1, 0), !rock(1, 0), !rock(0, -1), !rock(0, 1)];
+      const wob = (t: number) => (.5 * Math.sin(t * 2.1 + 1.3) + .3 * Math.sin(t * 4.7 + .7) + .2 * Math.sin(t * 9.3 + 2.1)) * ts * .09;
+      const e = ts * .12, rc = ts * .38, n = 6;
+      const X0 = px, X1 = px + ts + .5, Y0 = py - ts * .22, Y1 = py + ts + .5;
+      // Each side as points, inset and wobbling where it's open (corners between two open sides cut for the rounding).
+      const top = (): [number, number][] => Array.from({ length: n + 1 }, (_, i) => { const xx = X0 + (L ? rc : 0) + (X1 - X0 - (L ? rc : 0) - (R ? rc : 0)) * i / n; return [xx, Y0 + e + wob(xx / ts + y * 3.1)]; });
+      const right = (): [number, number][] => Array.from({ length: n + 1 }, (_, i) => { const yy = Y0 + (U ? rc : 0) + (Y1 - Y0 - (U ? rc : 0) - (D ? rc : 0)) * i / n; return [X1 - e + wob(yy / ts + (x + 1) * 2.3), yy]; });
+      const bottom = (): [number, number][] => Array.from({ length: n + 1 }, (_, i) => { const xx = X1 - (R ? rc : 0) - (X1 - X0 - (L ? rc : 0) - (R ? rc : 0)) * i / n; return [xx, Y1 - e + wob(xx / ts + (y + 1) * 3.1)]; });
+      const left = (): [number, number][] => Array.from({ length: n + 1 }, (_, i) => { const yy = Y1 - (D ? rc : 0) - (Y1 - Y0 - (U ? rc : 0) - (D ? rc : 0)) * i / n; return [X0 + e + wob(yy / ts + x * 2.3), yy]; });
+      const sides: { open: boolean; pts: [number, number][] }[] = [
+        { open: U, pts: U ? top() : [[X0, Y0], [X1, Y0]] }, { open: R, pts: R ? right() : [[X1, Y0], [X1, Y1]] },
+        { open: D, pts: D ? bottom() : [[X1, Y1], [X0, Y1]] }, { open: L, pts: L ? left() : [[X0, Y1], [X0, Y0]] },
+      ];
+      const trace = (strokeOnly: boolean) => {
+        ctx.beginPath();
+        sides.forEach((sd, i) => {
+          const next = sides[(i + 1) % 4], corner = sd.open && next.open;
+          if (strokeOnly && !sd.open) return;
+          sd.pts.forEach(([a, b], j) => (j === 0 && (strokeOnly || i === 0) ? ctx.moveTo(a, b) : ctx.lineTo(a, b)));
+          if (corner) {
+            const [ex, ey] = sd.pts[sd.pts.length - 1], [nx, ny] = next.pts[0];
+            ctx.quadraticCurveTo(i === 0 || i === 2 ? nx : ex, i === 0 || i === 2 ? ey : ny, nx, ny);
+          }
+        });
+        if (!strokeOnly) ctx.closePath();
+      };
+      ctx.save();
+      trace(false); ctx.fillStyle = c.base; ctx.fill(); ctx.clip();
+      if (hash2(x, y, 20) < .45) {
+        const sx = px + ts * (.3 + .4 * hash2(x, y, 21)), sy = py + ts * (.05 + .35 * hash2(x, y, 22)), rr = ts * (.2 + .12 * hash2(x, y, 23));
+        ctx.fillStyle = c.slabShade; ctx.beginPath(); ctx.ellipse(sx + rr * .08, sy + rr * .14, rr, rr * .48, 0, 0, TAU); ctx.fill();
+        ctx.fillStyle = c.slab; ctx.beginPath(); ctx.ellipse(sx, sy, rr * .92, rr * .42, 0, 0, TAU); ctx.fill();
       }
+      if (D) {
+        const faceTop = py + ts * .5;
+        const face = ctx.createLinearGradient(0, faceTop, 0, Y1);
+        face.addColorStop(0, c.face); face.addColorStop(1, c.foot);
+        ctx.fillStyle = face;
+        ctx.beginPath(); ctx.moveTo(X0 - 1, Y1 + 1);
+        for (let i = 0; i <= n; i++) { const xx = X0 + (X1 - X0) * i / n; ctx.lineTo(xx, faceTop + wob(xx / ts + y * 5.7) * .6); }
+        ctx.lineTo(X1 + 1, Y1 + 1); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = c.lip; ctx.lineWidth = ts * .05; ctx.lineCap = 'round';
+        ctx.beginPath();
+        for (let i = 0; i <= n; i++) { const xx = X0 + (X1 - X0) * i / n; (i ? ctx.lineTo : ctx.moveTo).call(ctx, xx, faceTop + wob(xx / ts + y * 5.7) * .6); }
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.strokeStyle = c.ink; ctx.lineWidth = ts * .05; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      trace(true); ctx.stroke();
+      ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
       return;
     }
     if(stone>=.4)th={...th,obstacle:'boulder'};
-    const cx = (x + 0.5) * ts + (hash2(x, y, 12) - 0.5) * ts * 0.15;
-    const by = (y + 0.92) * ts;
+    // Scattered boulders on the approach to a cliff wander and vary in size, so they don't line up in a grid.
+    const loose = th.obstacle === 'boulder';
+    const cx = (x + 0.5) * ts + (hash2(x, y, 12) - 0.5) * ts * (loose ? 0.45 : 0.15);
+    const by = (y + 0.92 + (loose ? (hash2(x, y, 14) - 0.5) * 0.3 : 0)) * ts;
     const v = hash2(x, y, 13);
     const sprite = frame(`env/${th.obstacle}${Math.floor(v * 3)}`);
     if (sprite) {
       shadow(ctx, cx, by - ts * 0.05, ts * 0.42);
-      drawFrame(ctx, sprite, cx, by - ts * 0.05, ts / TILE_BU, { flip: v > 0.5, rot: th.obstacle === 'tree' || th.obstacle === 'pine' ? Math.sin(this.t * 1.2 + x) * 0.012 : 0 });
+      const k = loose ? 0.78 + 0.4 * hash2(x, y, 15) : 1;
+      drawFrame(ctx, sprite, cx, by - ts * 0.05, ts / TILE_BU, { flip: v > 0.5, sx: k, sy: k, rot: th.obstacle === 'tree' || th.obstacle === 'pine' ? Math.sin(this.t * 1.2 + x) * 0.012 : 0 });
       return;
     }
     switch (th.obstacle) {
@@ -1286,8 +1374,6 @@ export class Overworld {
         return this.drawPickup(ctx, o, ts);
       case 'node':
         return this.drawTree(ctx, o, ts);
-      case 'bridge':
-        return this.drawShortcutSite(ctx, o, ts);
       case 'foe':
         return this.drawFoe(ctx, o, ts);
       case 'station': {
@@ -1302,38 +1388,43 @@ export class Overworld {
     if (!this.drawBuilding(ctx, o, ts)) this.drawBuildingFallback(ctx, o, ts);
   }
 
-  private drawShortcutSite(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number) {
+  private shortcutItems(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number, items: { y: number; draw: () => void }[]) {
     const p = shortcutById(o.id!);
-    if (!p || shortcutBuilt(this.save,p)) return;
+    if (!p || o.hidden || shortcutBuilt(this.save,p)) return;
     const d = p.deck, at = shortcutWorldPoint(p,d), vertical = d.h >= d.w, colours = this.bridgePalette(p);
-    // Broken landing boards on both banks make the missing connection legible before the player reads the plans.
+    // Boards lie on the ground; each post sorts at its own bank, never at the distant sign's depth.
     for (const far of [false,true]) {
       const x = at.x + (vertical ? 0 : far ? d.w : -.45), y = d.y + (vertical ? far ? d.h : -.45 : 0);
       ctx.fillStyle = colours[1];
       ctx.fillRect(x*ts,y*ts,(vertical ? d.w : .45)*ts,(vertical ? .45 : d.h)*ts);
-      ctx.fillStyle = colours[2];
       for (const side of [0,1]) {
         const sx = vertical ? (at.x+side*(d.w-.12))*ts : (x+.12)*ts;
         const sy = vertical ? (y+.12)*ts : (d.y+side*(d.h-.12))*ts;
-        ctx.fillRect(sx,sy-ts*.35,ts*.12,ts*.48);
+        items.push({ y: sy / ts + .13, draw: () => {
+          ctx.fillStyle = colours[2];
+          ctx.fillRect(sx,sy-ts*.35,ts*.12,ts*.48);
+        } });
       }
     }
-    const sprite = frame('env/sign');
-    const ax = (o.x+o.w/2)*ts, ay = (o.y+o.h)*ts;
-    if (sprite) drawFrame(ctx,sprite,ax,ay,ts/TILE_BU);
-    if (Math.hypot(this.x-(o.x+.3),this.y-(o.y+.5)) < 4.5) this.nameTag(ctx, `🌉 ${p.name}`, ax, ay-ts*.8, ts);
+    items.push({ y: o.y + o.h, draw: () => {
+      const sprite = frame('env/sign');
+      if (sprite) drawFrame(ctx,sprite,(o.x+o.w/2)*ts,(o.y+o.h)*ts,ts/TILE_BU);
+    } });
   }
 
   /** A white name tag centered over an object whose top is at `top`. */
   private nameTag(ctx: CanvasRenderingContext2D, text: string, cx: number, top: number, ts: number) {
+    ctx.save();
     ctx.font = `900 ${Math.round(ts * 0.34)}px ui-rounded, "Nunito", system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineWidth = ts * 0.1;
+    ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(60,30,60,0.8)';
     ctx.strokeText(text, cx, top - ts * 0.25);
     ctx.fillStyle = '#fff';
     ctx.fillText(text, cx, top - ts * 0.25);
+    ctx.restore();
   }
 
   /** Elder Oswin, with a bouncing "!" when she has something new to say. False if her sprite isn't loaded. */
@@ -1477,7 +1568,7 @@ export class Overworld {
     switch (o.kind) {
       case 'residence': {
         const who = HOMES[o.home!];
-        this.nameTag(ctx, `${who.icon} ${who.name}’s home`, ax, top, ts);
+        this.nameTag(ctx, knows(this.save, o.home!) ? `${who.icon} ${who.name}’s home` : '🏡 Empty plot', ax, top, ts);
         break;
       }
       case 'forge': {

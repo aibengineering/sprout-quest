@@ -199,6 +199,21 @@ button {
 /* ---------- Controls ---------- */
 .ctl { position: fixed; inset: 0; pointer-events: none; z-index: 8; }
 .ctl button { pointer-events: auto; }
+#shortcut-prompt { position: absolute; display: flex; align-items: center; gap: 10px; width: min(250px, calc(100vw - 24px)); padding: 12px; text-align: left; background: var(--parchment); border: 2px solid var(--outline); border-radius: 16px; box-shadow: 0 4px 0 #3a244855; }
+#shortcut-prompt .shortcut-icon { display: grid; place-items: center; flex: none; width: 36px; height: 40px; border-radius: 10px; background: #eadbc2; }
+#shortcut-prompt .icon { width: 34px; height: 34px; }
+.shortcut-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.shortcut-eyebrow { color: #80654f; font: 900 9px 'Nunito', sans-serif; letter-spacing: 1px; }
+.shortcut-copy b { font-size: 17px; line-height: 1.15; font-weight: 500; }
+.shortcut-copy small { color: #72583e; font: 800 12px 'Nunito', sans-serif; }
+.shortcut-status { color: #8a551b; font: 800 12px/1.3 'Nunito', sans-serif; }
+#shortcut-prompt[data-state="ok"] { border-color: #3c7045; }
+#shortcut-prompt[data-state="ok"] .shortcut-status { color: #3c7045; }
+#shortcut-prompt[data-state="locked"] .shortcut-status { color: #80654f; }
+#shortcut-prompt:focus-visible { outline: 3px solid #ffb627; outline-offset: 3px; }
+#shortcut-prompt:active { box-shadow: none; margin-top: 3px; }
+.shortcut-plan .result { overflow-y: auto; touch-action: pan-y; }
+.shortcut-plan .btns { margin-top: 16px; }
 .act {
   position: absolute;
   right: calc(22px + var(--safe-r));
@@ -449,6 +464,10 @@ h3::before { content: ''; width: 10px; height: 10px; flex: none; background: #6c
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 @media (max-width: 440px) { #toast { top: calc(120px + var(--safe-t)); } }
+/* Gathering cards start at max(96px, 12vh) and extend at most 288px; leave their title and timing bar clear. */
+@media (min-width: 441px) {
+  body:has(#hud-gather:not([hidden])) #toast { top: calc(max(96px, 12vh) + 304px); }
+}
 
 /* ---------- Title ---------- */
 #title {
@@ -539,6 +558,7 @@ img.icon.sm { width: 20px; height: 20px; vertical-align: -5px; filter: none; }
 }
 .quest-pill .qi { font-size: 20px; }
 .quest-pill .qt { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.quest-pill .qkind { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.8; margin-bottom: 3px; }
 .quest-pill .qt b { font-size: 13px; }
 .quest-pill .qt small { font-size: 11px; font-weight: 700; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .quest-pill .qc { background: var(--accent); border-radius: 10px; padding: 2px 8px; font-weight: 900; font-size: 13px; flex: none; }
@@ -653,6 +673,24 @@ h3 small { font-size: 11px; opacity: 0.7; font-weight: 700; }
 .pbar { height: 12px; border-radius: 8px; background: #fff; overflow: hidden; margin-top: 6px; border: 2px solid var(--outline); }
 .pbar i { display: block; height: 100%; background: linear-gradient(90deg, #ffb03a, #ff7a5a); border-radius: 6px; }
 .qrew { margin-top: 10px; font-size: 13px; font-weight: 800; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.quest-summary { display: flex; align-items: center; gap: 10px; padding: 10px 0; font-size: 13px; }
+.quest-summary > div { flex: 1; min-width: 0; }
+.quest-summary p { font-size: 12px; margin: 4px 0 0; }
+.quest-track { margin-top: 12px; min-height: 44px; width: 100%; }
+.quest-track[aria-pressed="true"] { background: #def3d3; }
+.quest-bill { margin-top: 10px; padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.6); }
+.quest-bill .desc { font-size: 11px; margin-bottom: 6px; font-weight: 700; }
+.quest-material { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 0; }
+.quest-material span { flex: 1; }
+.quest-material b { white-space: nowrap; }
+.quest-material.ok { color: #327239; }
+.side-quest .name { font-size: 19px; font-weight: 600; }
+.notebook .qcard.side-quest { transform: none; }
+.notebook .qcard.tracked { border-color: #7ba567; }
+.quest-story { margin-top: 6px; font-size: 13px; }
+.quest-story summary { cursor: pointer; padding: 12px 0; font-weight: 700; }
+.quest-completed { margin-top: 16px; font-size: 13px; }
+.quest-completed summary { cursor: pointer; min-height: 44px; font-weight: 800; }
 .zrow { display: flex; align-items: center; gap: 10px; background: var(--card); border: 2px solid var(--card-edge); border-radius: 16px; padding: 10px; margin-bottom: 8px; box-shadow: 0 3px 0 var(--card-edge); }
 .zrow.locked { background: #f1e6dc; }
 .zrow .info { flex: 1; min-width: 0; }
@@ -1047,7 +1085,7 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 .stat.gain { transform: scale(1.04); box-shadow: 0 3px 0 rgba(74, 42, 90, 0.25), 0 0 0 3px #ffd24a; }
 .stat.gain .bar.xp { height: 10px; transition: height 0.2s; }
 .stat.gain .bar.xp i { background: linear-gradient(#fff2a8, #ffc23a); box-shadow: 0 0 8px #ffd24a; }
-.stat.ding .lv { animation: lvding 0.42s cubic-bezier(0.3, 1.8, 0.5, 1); background: #ffb627; }
+.stat.ding:not(.skill-gain) .lv { animation: lvding 0.42s cubic-bezier(0.3, 1.8, 0.5, 1); background: #ffb627; }
 @keyframes lvding { 40% { transform: scale(1.45) rotate(-6deg); } }
 .xp-float {
   position: absolute; left: 14px; top: 100%; margin-top: 6px; z-index: 1;
@@ -1063,6 +1101,16 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 .hand-row .hlv { font: 700 10px var(--display); color: #2a8a8a; min-width: 14px; text-align: right; }
 .bar.hand { flex: 1; height: 5px; }
 .bar.hand i { background: linear-gradient(#8ae8e0, #3ab8b0); }
+.gather-label { display: flex; justify-content: space-between; gap: 4px; font: 700 10px var(--display); margin-bottom: 3px; }
+.gather-row { color: #357b45; }
+.bar.gather { height: 7px; }
+.bar.gather i { background: linear-gradient(#a8ee8a, #54b86a); }
+.gather-row[data-skill="mine"] { color: #76549a; }
+.gather-row[data-skill="mine"] .bar i { background: linear-gradient(#d8b8ff, #9a78d0); }
+.stat.skill-gain { transform: scale(1.04); }
+.stat.skill-gain .bar.gather { height: 10px; }
+.stat.skill-gain .xp-float { top: auto; bottom: 4px; left: 50%; margin-top: 0; font-size: 12px; line-height: 1; -webkit-text-stroke: 2px var(--outline); }
+.stat.skill-gain.ding #hud-glv { animation: lvding 0.42s cubic-bezier(0.3, 1.8, 0.5, 1); }
 .stat.hand-gain .bar.hand { height: 9px; transition: height 0.2s; }
 .stat.hand-gain .bar.hand i { background: linear-gradient(#c8fff8, #4ad8c8); box-shadow: 0 0 8px #6ae8d8; }
 .xp-float.hand { color: #8af0e0; }
@@ -1291,6 +1339,28 @@ button.portrait { padding: 0; font: inherit; cursor: pointer; }
 /* The Waystone's list of campfires to travel out to. */
 .waystone { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; }
 .waystone .go small { opacity: 0.7; font-size: 12px; }
+
+/* Pip's travel sheet: destinations first, a quiet way to stay home below. */
+.sheet.burrow-travel { width: min(440px, 100%); border-radius: 24px; }
+.burrow-travel .result { padding: 20px 16px 16px; text-align: left; overflow-y: auto; touch-action: pan-y; }
+.burrow-heading { display: flex; align-items: center; gap: 12px; }
+.burrow-badge { display: grid; place-items: center; flex: none; width: 58px; height: 58px; background: #eadbc2; border: 2px solid #d4bc9b; border-radius: 18px; }
+.burrow-badge .icon { width: 52px; height: 52px; }
+.burrow-eyebrow { display: block; margin-bottom: 3px; color: #80654f; font-size: 10px; font-weight: 900; letter-spacing: 1.5px; }
+.burrow-heading h2 { font-size: 25px; color: var(--outline); }
+.burrow-travel .burrow-intro { margin: 16px 0 10px; font-size: 14px; color: #80654f; }
+.burrow-routes { display: flex; flex-direction: column; gap: 10px; }
+.burrow-route { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 76px; padding: 12px; text-align: left; background: var(--card); border: 2px solid var(--card-edge); border-radius: 16px; box-shadow: 0 3px 0 #dfc7a6; }
+.burrow-ore { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 12px; background: #f1e4d1; }
+.burrow-ore .icon { width: 36px; height: 36px; }
+.burrow-place { flex: 1; min-width: 0; }
+.burrow-place b { display: block; font-size: 17px; font-weight: 500; line-height: 1.2; }
+.burrow-place small { display: block; margin-top: 4px; font: 700 12px 'Nunito', sans-serif; color: #80654f; }
+.burrow-arrow { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #e4efd9; color: #3c7045; font-size: 20px; }
+.burrow-route:active { transform: translateY(2px); box-shadow: none; background: #f5ecd9; }
+.burrow-route:focus-visible, .burrow-travel .go:focus-visible { outline: 3px solid #3c7045; outline-offset: 3px; }
+.burrow-travel .btns { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--card-edge); }
+.burrow-travel .btns .go { width: 100%; min-height: 48px; padding: 10px 12px; background: transparent; color: #72583e; border: 2px solid var(--card-edge); box-shadow: none; text-shadow: none; font-size: 15px; }
 
 /* ================= Crafting: from bag to workbench ================= */
 .sheet.crafting { width: min(450px, 100%); background: radial-gradient(ellipse at 50% 22%, #fffef8 0, #fcf0da 65%); }

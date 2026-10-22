@@ -1,0 +1,24 @@
+<svg width="88" height="42" xmlns="http://www.w3.org/2000/svg" viewBox="-44 -34 88 42">
+<defs>
+<radialGradient id="gC" gradientUnits="userSpaceOnUse" cx="-30" cy="-172" r="140"><stop offset="0" stop-color="#ddd1ff"/><stop offset=".34" stop-color="#cdbcfd"/><stop offset=".46" stop-color="#bfaafb"/><stop offset=".64" stop-color="#b19af7"/><stop offset=".76" stop-color="#9f86ef"/><stop offset="1" stop-color="#8b70e3"/></radialGradient>
+<linearGradient id="bark" x1="0" x2="1"><stop offset="0" stop-color="#e2def0"/><stop offset=".3" stop-color="#eeebf8"/><stop offset=".58" stop-color="#dcd7ec"/><stop offset=".72" stop-color="#c8c1e0"/><stop offset="1" stop-color="#b6aed4"/></linearGradient>
+<filter id="soft2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2"/></filter>
+<path id="tp" d="M-12 -84 C-12.5 -62 -13.5 -42 -15.5 -28 C-16.5 -20 -18 -15 -20 -11 C-27 -12 -31 -2 -24 1 C-20 4 -14 3 -11 1 C-7 4 3 4 7 1 C11 4 19 4 23 1 C31 2 32 -10 23 -11 C20 -15 18 -20 17 -28 C15 -42 14 -62 13 -84 Z"/>
+<clipPath id="tc"><use href="#tp"/></clipPath>
+<clipPath id="la"><rect x="-90" y="-25" width="180" height="40"/></clipPath><clipPath id="lo"><rect x="-90" y="-24" width="180" height="40"/><ellipse cx="0" cy="-24" rx="24" ry="5"/></clipPath>
+<g id="tk">
+<use href="#tp" fill="url(#bark)"/>
+<g clip-path="url(#tc)">
+<g stroke="#ada5cc" stroke-width="2.6" stroke-linecap="round" fill="none" opacity=".75"><path d="M-7.5 -80 Q-8 -50 -11 -14"/><path d="M-2 -78 Q-2 -48 -3 -18"/><path d="M3 -80 Q3 -50 4 -10"/><path d="M8 -78 Q8.5 -46 11 -16"/></g>
+<g stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" fill="none" opacity=".6"><path d="M-5 -76 Q-5.5 -50 -7.5 -20"/><path d="M0.5 -74 Q0.5 -50 0.5 -26"/></g>
+<ellipse cx="0" cy="4" rx="34" ry="4" fill="#8a80b8" opacity=".5" filter="url(#soft2)"/>
+<g fill="none" stroke="#a69ec8" stroke-width="2" stroke-linecap="round" opacity=".8"><path d="M-11 1 C-12 -2 -13 -5 -15 -8"/><path d="M7 1 C8 -2 10 -5 13 -8"/></g>
+</g>
+</g>
+</defs>
+<g id="stump">
+<ellipse cx="0" cy="0" rx="38" ry="6" fill="#24461f" opacity=".25" filter="url(#soft2)"/>
+<use href="#tp" fill="#3a2448" stroke="#3a2448" stroke-width="5" stroke-linejoin="round" clip-path="url(#lo)"/><use href="#tk" clip-path="url(#la)"/>
+</g>
+<g id="cut"><ellipse cx=".5" cy="-24" rx="17.2" ry="4.5" fill="#3a2448" stroke="#3a2448" stroke-width="4"/><ellipse cx=".5" cy="-24" rx="17.2" ry="4.5" fill="#c2b8f4"/><ellipse cx=".5" cy="-24" rx="11" ry="2.8" fill="none" stroke="#f4f0ff" stroke-width="1.4"/><ellipse cx=".5" cy="-24" rx="4.5" ry="1.2" fill="none" stroke="#f4f0ff" stroke-width="1.2"/></g>
+</svg>

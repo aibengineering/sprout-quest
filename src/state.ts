@@ -32,6 +32,8 @@ export interface SaveState {
   tips: string[];
   /** Index into QUESTS of the current story step. */
   quest: number;
+  /** 'main' (or absent) follows the main story; a side-story id follows that chain; null hides guidance. */
+  trackedQuest?: string | null;
   /** Progress counters for the current step. */
   questKills: number;
   talked: boolean;

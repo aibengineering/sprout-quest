@@ -10,7 +10,7 @@ let choosing = false, chat = 0;
 const CHATS = [
   'Splendid work. Those markings! A collector back home would pay twice for a specimen like that.',
   'Clover insists I eat before counting the specimens. A formidable negotiator, that woman.',
-  'Alder calls it practice. I call it a living. Both require a steady hand, don’t they?',
+  'Practice is all very well. Out in the field, a steady hand pays rather better, don’t you find?',
   'Poppy knows all their nicknames. Splendid memory. I’ll need tidy labels before showing anything to the buyers.',
   'Bram says these shelves will hold anything I bring back. Splendid! He meant the timber. I meant the possibilities.',
 ];

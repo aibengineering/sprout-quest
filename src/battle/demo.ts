@@ -108,6 +108,7 @@ export class MoveDemo {
     switch (m.kind === 'trick' ? m.trick : 'riposte') {
       case 'snare': return [{ kind: 'slime', x: 105, y: 0 }];
       case 'stagger': return [{ kind: 'bunny', x: 75, y: 0 }];
+      case 'echo': return [{ kind: 'slime', x: 95, y: 0 }];
       default: return [{ kind: 'bunny', x: 130, y: 0 }];
     }
   }
@@ -160,27 +161,27 @@ export class MoveDemo {
     });
     const toward = { x: Math.cos(p.face), y: Math.sin(p.face) };
     switch (m.trick) {
-      case 'riposte':
-      case 'blink': {
-        // Wait for its charge, then dodge as it arrives: Blades dodge right through it (readying a Riposte), Magic
-        // blinks aside out of its path. Then answer at once.
+      case 'echo':
+        // Three ordinary casts, then let the delayed bolt land before the loop pauses.
+        e.stun = Math.max(e.stun, 0.2);
+        if (b.echoes > 0 && b.hits >= 4) done();
+        else if (this.t > 0.6 && b.canStrike && b.log.swings < 3) inp.press('attack');
+        return;
+      case 'riposte': {
+        // Wait for its charge, then dodge right through it to ready a Riposte. Answer at once.
         const close = Math.hypot(e.x - p.x, e.y - p.y) - e.r - p.r;
         if (this.phase === 0 && e.state === 'charge' && close < 45) {
-          inp.move = m.trick === 'riposte' ? toward : { x: -toward.y, y: toward.x };
+          inp.move = toward;
           inp.press('dodge');
           this.phase = 1;
         } else if (this.phase === 1 && p.dodgeT <= 0) {
-          if (m.trick === 'riposte' && p.riposte > 0) {
+          if (p.riposte > 0) {
             // It shot past you: step in, and strike while the Riposte is ready.
             if (close > 26) inp.move = toward;
             else if (b.canStrike) {
               inp.press('attack');
               done();
             }
-          } else if (m.trick === 'blink' && e.state !== 'charge') {
-            // Keep firing until a bolt lands, as you would (one can miss a Hopbun on the move).
-            if (b.hits > 0) done();
-            else if (b.canStrike) inp.press('attack');
           }
         }
         return;

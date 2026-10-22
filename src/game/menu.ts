@@ -119,7 +119,7 @@ export const menuHooks: UIHooks = {
       if (!craftPresentation(t)) G.audio.play('craft');
       persist();
       G.ui.closeMenu(true);
-      const what = t.skill === 'wood' ? 'Walk up to a tree with a ribbon on it and chop!' : 'Walk up to a rock with a ribbon on it and break it!';
+      const what = t.skill === 'wood' ? 'Walk up to a tree with a ribbon on it and chop!' : 'Walk up to a glowing rock and break it!';
       await paused(() => G.ui.madeItem(t, before, `${t.desc} ${what}`, t.icon, t.tier === 1 ? 'Good as new' : 'You crafted'));
       void progressQuests();
     } finally {
@@ -207,9 +207,16 @@ export const menuHooks: UIHooks = {
 
   story() {
     const a = activeStory();
-    return a && { icon: a.story.icon, title: a.story.title, label: a.step.label };
+    return a && { id: a.story.id, icon: a.story.icon, title: a.story.title, label: a.step.label, cost: a.step.cost?.() ?? {} };
   },
   stories: storyLog,
+  trackQuest(id) {
+    if (id !== null && id !== 'main' && !storyLog().some((st) => st.id === id && st.trackable)) return;
+    G.save.trackedQuest = id;
+    persist();
+    G.ui.questPill(false);
+    G.ui.refresh();
+  },
 
   async patchNotes() {
     const seen = G.save.seenVersion;

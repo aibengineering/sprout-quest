@@ -20,7 +20,7 @@ export const VILLAGE_JOBS: VillageJob[] = [
   project('garden2', 'garden', 2, 'Poppy', 'Poppy’s running out of beds. She wants room for herbs. More plots, same gate.', 1),
   home('pip', 2, 'Pip’s stones are taking over the floor. A study should keep them out of Clover’s kitchen.'),
   project('training2', 'training', 2, 'Masked Fox', 'She wants moving targets in that little clearing. Pine for the deck. I’ll leave the lessons to her.', 2),
-  home('moss', 1, 'Clover knows a baker who needs an oven and a roof. Moss can use her new kitchen. Berries and flowers will make him welcome.'),
+  home('moss', 1, 'Moss needs a roof. He can bake in Clover’s new kitchen for now. Berries and flowers will make him welcome.'),
   home('rook', 2, 'Rook’s filled the shelves already. Says the collectors back home favour the bigger specimens. More shelves, then.'),
   project('garden3', 'garden', 3, 'Poppy', 'Poppy has filled the beds again. Let’s give them the whole field, with lamps for the late watering.', 3),
   home('moss', 2, 'Moss needs a cool place for his dough. Glimmerwood and crystal. He asked for flowers where Clover can see them.'),

@@ -180,7 +180,7 @@ describe('dodge charges', () => {
     save.equip.weapon = weapon;
     save.owned.push(weapon);
     if (anklet) save.perks.push('echoanklet');
-    // A Wand at handling 3 has its Blink (its dodge is a teleport).
+    // Wand handling no longer changes its dodge; quest perks work for every class.
     save.mastery.wand.lv = 3;
     const b = new Battle({ zone: zoneById('meadow'), foes: [{ kind: 'slime', lv: 1, golden: false }], boss: false }, save, input(presses), { play: () => {} } as unknown as Audio, () => {});
     // A foe that stays out of the way, so the fight goes on.
@@ -243,18 +243,21 @@ describe('dodge charges', () => {
     expect(b.dodgesReady).toBe(2);
   });
 
-  test("the Wand's Blink teleports twice in a row with it", () => {
+  test('a levelled Wand still rolls, and the Anklet gives it two dodge charges', () => {
     const presses: string[] = [];
     const b = fight('jellywand', true, presses);
-    expect(b.trick).toBe('blink');
+    expect(b.trick).toBe('echo');
     tick(b, 2);
     const x0 = b.p.x, y0 = b.p.y;
     presses.push('dodge');
     tick(b, 1 / 60);
-    const d1 = Math.hypot(b.p.x - x0, b.p.y - y0);
+    expect(Math.hypot(b.p.x - x0, b.p.y - y0)).toBe(0);
+    expect(b.p.dodgeT).toBe(0.2);
+    tick(b, 0.2);
+    expect(Math.hypot(b.p.x - x0, b.p.y - y0)).toBeGreaterThan(60);
     presses.push('dodge');
     tick(b, 1 / 60);
-    expect(d1).toBeGreaterThan(60);
     expect(b.log.dodges).toBe(2);
+    expect(b.dodgesReady).toBe(0);
   });
 });

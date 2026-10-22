@@ -3,7 +3,7 @@
 // that comes anyway, and after he's hurt charging in to help, you walk him home. He stays, builds the Sawmill, and
 // teaches Granny his stew. See the story bible (Side quests).
 import type { ActorSpec } from '../../actors';
-import { BRAM_CABIN_PLANKS, ZONES, zoneById, type MonsterKind } from '../../data';
+import { BRAM_CABIN_PLANKS, PROJECTS, ZONES, zoneById, type MonsterKind } from '../../data';
 import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { challengeFoe, startBattle } from '../fights';
@@ -11,8 +11,11 @@ import { bubble, narrate, pan, say, scene, walk, wait, type Speaker } from '../s
 import { stopWaiting, waitAt, type Story } from '../stories';
 import { GRANNY, GRANNY_AT, GRANNY_ID } from './granny';
 import { bramHousePlans } from '../housing';
+import { knows } from '../../known';
 
 export const BRAM: Speaker = { name: 'Bram', emoji: '🧔', portrait: (m) => (m === 'happy' ? 'npc_bram_happy' : m === 'hurt' ? 'npc_bram_hurt' : 'npc_bram') };
+/** Before Granny names him, he's just a grump at a logging camp. */
+const LUMBERJACK: Speaker = { ...BRAM, name: 'Lumberjack' };
 const ID = 'bram:bram';
 
 const W = ZONES.find((z) => z.id === 'woods')!.x0;
@@ -65,7 +68,7 @@ function tooLoud() {
 
 export const BRAM_STORY: Story = {
   id: 'bram',
-  title: "Bram's Sawmill",
+  get title() { return knows(G.save, 'bram') ? "Bram's Sawmill" : 'A Favour for Granny'; },
   icon: '🪓',
   available: () => G.save.bosses.includes('kingslime') && (G.save.stories.poppy ?? 0) >= 6,
   // He's at his camp from the start, grumbling; he only warms up once Granny sends you with a pie.
@@ -211,6 +214,7 @@ export const BRAM_STORY: Story = {
     },
     {
       id: 'mill', label: "Build Bram's Sawmill in Sowerby",
+      cost: () => PROJECTS.sawmill.levels[0].cost,
       target: () => {
         const o = G.world.obj('plot', 'sawmill');
         return o ? { x: o.x + o.w / 2, y: o.y + o.h + 0.6 } : MILL;
@@ -229,6 +233,7 @@ export const BRAM_STORY: Story = {
     },
     {
       id: 'hut', label: `Saw ${BRAM_CABIN_PLANKS} planks for Bram's cabin`,
+      cost: () => ({ plank: BRAM_CABIN_PLANKS }),
       target: () => ({ x: MILL.x + 0.2, y: MILL.y + 0.8 }),
       done: () => has('bram:hut'),
       async then() {
@@ -253,7 +258,7 @@ export const BRAM_STORY: Story = {
     const at = (p: { x: number; y: number }, mood: string | undefined, talk: () => Promise<void> | void, hurt = false): ActorSpec => ({
       id: ID, look: { kind: 'walker', name: hurt ? 'bram_hurt' : 'bram' }, ...p, face: Math.PI / 2, mood, label: 'Talk', talk,
     });
-    if (step === 0) return [at(CAMP, '😤', () => chat([[BRAM, 'Go away. Trees are fine where they are.']]))];
+    if (step === 0) return [at(CAMP, '😤', () => chat([[LUMBERJACK, 'Go away. Trees are fine where they are.']]))];
     if (step === 1) return [at(CAMP, '😤', () => { G.save.flags.push('bram:met'); })];
     if (step === 2) {
       return [at(CAMP, '😐', () => chat([[BRAM, felledCount() ? `${felledCount()} down. Quiet, now. Clean cuts.` : "Well? Pines don't fell themselves. Clean cuts, mind."]]))];
@@ -285,7 +290,7 @@ export const BRAM_STORY: Story = {
       })];
     }
     // Settled in: chat outside, and he joins you at the bench when you enter his Sawmill.
-    return [at(MILL, undefined, bramHousePlans)];
+    return [{ ...at(MILL, undefined, bramHousePlans), wander: 2 }];
   },
 
   fainted() {

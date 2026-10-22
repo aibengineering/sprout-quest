@@ -5,6 +5,8 @@ import { Color, Mesh } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { GEAR } from '../src/data';
+import { craftGear } from '../src/rules';
+import { newState } from '../src/state';
 import coppersword from '../src/crafting/items/coppersword';
 import copperhammer from '../src/crafting/items/copperhammer';
 import sporewhip from '../src/crafting/items/sporewhip';
@@ -16,7 +18,7 @@ const ingredientColors = {
   coppersword: ['#e8904a', '#ffc890', '#7a5238', '#bc8960'],
   copperhammer: ['#e8904a', '#ffc890', '#c39965', '#7b593b'],
   sporewhip: ['#e8505a', '#fff0d8', '#ca7886'],
-  sporewand: ['#e8505a', '#fff0d8', '#eacdb8', '#bb8294'],
+  sporewand: ['#e8505a', '#fff0d8', '#bb8294', '#7b593b', '#c39965', '#5ac85a'],
 };
 
 describe('copper and spore weapon ingredient art', () => {
@@ -68,6 +70,28 @@ describe('copper and spore weapon ingredient art', () => {
     expect(GEAR.coppersword.recipe).toEqual({ copper: 12, bark: 9 });
     expect(GEAR.copperhammer.recipe).toEqual({ copper: 15, pine: 9 });
     expect(GEAR.sporewhip.recipe).toEqual({ cap: 18, fang: 4 });
-    expect(GEAR.sporewand.recipe).toEqual({ cap: 15, fang: 6 });
+    expect(GEAR.sporewand.recipe).toEqual({ cap: 15, fang: 6, pine: 6, clover: 1 });
+  });
+
+  test('the Spore Wand needs both wood and magic, and spends each ingredient once', () => {
+    const s = newState();
+    s.build.forge = 2;
+    s.mastery.wand.lv = 4;
+    Object.assign(s.mats, { cap: 17, fang: 9, pine: 5, clover: 1 });
+    const before = { ...s.mats };
+    expect(craftGear(s, 'sporewand')).toBe('missing');
+    expect(s.mats).toEqual(before);
+    s.mats.pine = 8; s.mats.clover = 0;
+    expect(craftGear(s, 'sporewand')).toBe('missing');
+    expect(s.mats.pine).toBe(8);
+    s.mats.clover = 1;
+    expect(craftGear(s, 'sporewand')).toBe('ok');
+    expect({ cap: s.mats.cap, fang: s.mats.fang, pine: s.mats.pine, clover: s.mats.clover }).toEqual({ cap: 2, fang: 3, pine: 2, clover: 0 });
+    expect(craftGear(s, 'sporewand')).toBe('owned');
+    expect(s.mats.pine).toBe(2);
+    expect(s.mats.clover).toBe(0);
+    const last = sporewand.targets.at(-1)!;
+    expect(last.material).toBe('clover');
+    expect(last.at).toBeGreaterThan(Math.max(...sporewand.targets.slice(0, -1).map(t => t.at + t.duration)));
   });
 });

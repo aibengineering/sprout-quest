@@ -6,7 +6,7 @@ export type NeighbourId = 'pip' | 'alder' | 'rook' | 'moss';
 export const NEIGHBOUR_ORDER: NeighbourId[] = ['pip', 'alder', 'rook', 'moss'];
 export const NEIGHBOURS = {
   pip: { name: 'Pip', icon: '⛏️', place: 'the Old Quarry tunnel in Echo Cavern', at: { x: zoneById('cave').x0 + 5.5, y: 33.8 }, town: { x: 36.5, y: 8.8 },
-    lead: 'Hear that tapping under the Old Quarry? Pip’s found a promising tunnel in Echo Cavern. Go and have a look.',
+    lead: 'Hear that tapping under the Old Quarry? Someone’s digging down there, in Echo Cavern. Go and have a look.',
     meet: ['I’m Pip! There’s a lovely rock through here. I can feel it in my whiskers.', 'This big one needs ten clean hits together. Miss, and the seam settles. You swing; I’ll count.'],
     arrived: 'A tunnel to Sowerby! Clover’s saved me a chair. Never had one of those underground.' },
   // Legacy construction key retained so old dojo levels and queued jobs survive. She never escorts into town.
@@ -14,11 +14,11 @@ export const NEIGHBOURS = {
     lead: 'There’s a little trail above Glimmer Hollow. Follow the glimmer dust. Whoever lives there seems to prefer her own company.',
     meet: ['Keep up, little boots.'], arrived: 'This clearing will do. Keep it quiet.' },
   rook: { name: 'Rook', icon: '🏹', place: 'the western shelter on Ember Peak', at: { x: zoneById('peak').x0 + 7.5, y: 29.8 }, town: { x: 33, y: 10.3 },
-    lead: 'A traveller’s sheltering on Ember Peak, below the dragon’s ridge. Burnt coat, splendid manners. Says his name’s Rook.',
+    lead: 'There’s a traveller sheltering on Ember Peak, below the dragon’s ridge. Burnt coat, splendid manners.',
     meet: ['Rook. Pleasure! Followed the Emberwyrm up the Peak. Magnificent creature! It took exception.', 'This leg’s still protesting. Back home, collectors pay handsomely for a rare specimen.', 'Heard Sowerby has a builder. Walk me there?'],
     arrived: 'Clover’s hospitality! Bram’s craftsmanship! What a splendid base. And all those fine specimens just down the road.' },
   moss: { name: 'Moss', icon: '🥖', place: 'the ridge stop on East Road', at: { x: zoneById('meadow').x0 + 31.5, y: 4.8 }, town: { x: 29, y: 11.8 },
-    lead: 'Clover heard Moss is waiting beside the East Road ridge. Tell him there’s room by her oven.',
+    lead: 'Clover heard someone’s waiting beside the East Road ridge. Tell them there’s room by her oven.',
     meet: ['I’m Moss. Used to bake for people passing through. Since the road closed, nobody’s come.', 'Clover’s lending me her oven? I’d like that. I’ve packed enough buns for the walk. Lead on.'],
     arrived: 'Clover’s saved me a place by the oven. Bram says we can manage a roof. Think I’ll unpack this time.' },
 } as const;

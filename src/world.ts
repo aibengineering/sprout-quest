@@ -305,8 +305,8 @@ export class World extends TileMap {
     add({ kind: 'prop', id: 'prop_logs', zone: 'woods', x: W + 11, y: 4.1, w: 1, h: 0.6, label: '' }, false);
     add({kind:'prop',id:'cavern:entry',...CAVE_WEST_MOUTH,label:'Enter Echo Cavern',walkable:true},false);
     add({kind:'prop',id:'cavern:east',...CAVE_EAST_MOUTH,label:'Enter Echo Cavern',walkable:true},false);
-    // Local plans at physical crossing sites; the stake must not obstruct its bank approach.
-    for (const p of SHORTCUTS) add({ kind: 'bridge', id: p.id, flag: p.flag, zone: p.zone, x: zoneById(p.zone).x0 + p.marker.x, y: p.marker.y, w: .6, h: .5, label: 'Inspect crossing', text: p.name, walkable: true }, false);
+    // Decorative stakes; the repair interaction belongs to the two bank approaches.
+    for (const p of SHORTCUTS) add({ kind: 'bridge', id: p.id, flag: p.flag, zone: p.zone, x: zoneById(p.zone).x0 + p.marker.x, y: p.marker.y, w: .6, h: .5, label: '', text: p.name, walkable: true }, false);
     add({ kind: 'fountain', ...TOWN_SPRING, label: 'Rest', text: "Veyra's Spring" });
     for (const p of VILLAGE_PATHS) for (let y = p.y; y < p.y + p.h; y++)
       for (let x = p.x; x < p.x + p.w; x++) this.set(x, y, T.PATH);
@@ -317,7 +317,7 @@ export class World extends TileMap {
     });
     add({
       kind: 'sign', x: V + 29.4, y: MID - 2, w: 0.8, h: 0.6, label: 'Read',
-      text: 'East: East Road. Dry trails take the long way round; grass cuts are quicker. Sunny Meadow and Poppy’s grove lie off the southern trail.',
+      text: 'East: East Road and Sunny Meadow.',
     });
     for (const z of ZONES) {
       for (const p of this.mark(z.id, 'S')) {

@@ -1,5 +1,6 @@
 // Mining discoveries are permanent, optional returns to Sowerby; no tunnel opens a locked eastern region.
 import { zoneById, type ZoneId } from './data';
+import { neighbourReturned } from './neighbours';
 import type { RockKind } from './nodeart';
 import type { SaveState } from './state';
 export interface Seam {
@@ -22,12 +23,16 @@ export const SEAMS: Seam[] = [
 ];
 export const seamById = (id: string) => SEAMS.find(p => p.id === id);
 export const seamOpen = (s: SaveState, id: string) => s.flags.includes(`seam:${id}`);
+/** Pip teaches mining discoveries first. Settled Pip keeps older saves' tunnels available. */
+export function seamAvailable(s: SaveState, id: string): boolean {
+  const p = seamById(id);
+  if (!p || seamOpen(s, id) || (!s.flags.includes('pip:seam:met') && !neighbourReturned(s, 'pip'))) return false;
+  const g = zoneById(p.zone).guardian;
+  return !g || s.bosses.includes(g.kind);
+}
 export function openSeam(s: SaveState, id: string, streak: number): boolean {
   const p = seamById(id);
-  if (!p || streak < p.streak || seamOpen(s, id))
-    return false;
-  const g = zoneById(p.zone).guardian;
-  if (g && !s.bosses.includes(g.kind))
+  if (!p || streak < p.streak || !seamAvailable(s, id))
     return false;
   s.flags.push(`seam:${id}`);
   return true;

@@ -23,6 +23,9 @@ import { canShareFiles } from './share';
 import { reportInfo } from './stats';
 import { newerThan } from './semver';
 import { PATCH_NOTES, VERSION } from './version';
+import { canBuildShortcut, shortcutLock, type Shortcut } from './shortcuts';
+import { knows } from './known';
+import { villageDue } from './villageJobs';
 
 /** Which unlock reveals each menu tab (settings is always there). */
 const TAB_UNLOCK: Partial<Record<Tab, UnlockId>> = { journey: 'journal', items: 'bag', forge: 'forge', village: 'village' };
@@ -78,9 +81,10 @@ export interface UIHooks {
   exportReport(how: 'file' | 'copy'): void;
   /** Shows the patch notes (and marks them read). */
   patchNotes(): void;
-  /** The side story you're in the middle of (the tracker shows it over the main quest), and every one you've started. */
-  story(): { icon: string; title: string; label: string } | null;
-  stories(): { icon: string; title: string; label: string; done: boolean }[];
+  /** The selected side quest, and the Journal's known side quests. */
+  story(): { id: string; icon: string; title: string; label: string; cost: Recipe } | null;
+  stories(): { id: string; icon: string; title: string; label: string; done: boolean; trackable: boolean; cost: Recipe }[];
+  trackQuest(id: string | null): void;
   menuClosed(): void;
 }
 
@@ -165,7 +169,7 @@ function goalIcon(q: Quest): string {
   if (g.type === 'build') return icon(`b_${buildingArt(g.project, g.level)}`, PROJECTS[g.project].icon, 'icon xl');
   if (g.type === 'kills') return icon('goo', '⚔️', 'icon xl');
   if (g.type === 'craft') return icon('stonehammer', '⚒', 'icon xl');
-  if (g.type === 'mend') return icon('axe1', '🪓', 'icon xl');
+  if (g.type === 'mend') return icon('axe0', '🪓', 'icon xl');
   return icon('npc_elder', '🌿', 'icon xl');
 }
 
@@ -174,7 +178,7 @@ export function allIconIds(): string[] {
   const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'bramhut', 'cottage1',
     ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`)), ...[0, 1, 2, 3, 4].map((l) => `sawmill${l}`)];
   return [
-    ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id),
+    ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id), 'axe0', 'pick0',
     ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
     ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_rook', 'npc_moss', 'npc_fox', ...KITCHEN_PLANS.map((p)=>`b_${p.art}`),
@@ -280,9 +284,8 @@ function handlingPace(style: Style, lv: number): string {
 
 /** What opens a locked building plot. */
 const PLOT_OPENS: Partial<Record<UnlockId, string>> = {
-  plots: 'The plot opens once you beat the Slime King', warpplot: 'The ruins open up once you beat the Alpha Woolf',
+  warpplot: 'The ruins stir once the road to Echo Cavern is clear',
   sawmill: 'Someone who knows timber could build one. Granny might know who.',
-  cottage: 'It needs timber, and someone to saw it. Once Bram is settled in…',
 };
 
 /** A building's art (icon `b_<name>`, map sprite `env/<name>`) at a level. */
@@ -465,7 +468,8 @@ export class UI {
     let lv = f.from.lv, frac = fracOf(lv, f.from.xp);
     const end = fracOf(to.lv, to.xp);
     // The count goes up with the bubbles: each one adds its share of the whole fill, level-ups included.
-    const units = Math.max(0.001, to.lv - lv + end - frac);
+    // At the cap the full bar represents the previous level, not another level to fill.
+    const units = Math.max(0.001, to.lv - lv + end - frac - (f.max && to.lv >= f.max ? 1 : 0));
     let done = 0;
     tag.textContent = `+0 ${f.unit}`;
     const notch = (at: number, big = false) => {
@@ -530,10 +534,51 @@ export class UI {
     bar.style.transition = '';
   }
 
-  hud(hp: number, zoneName: string) {
+  private gatherAnim = false;
+
+  /** Gathering uses the same fill and rollover as combat, before its level-up screen opens. */
+  async skillXpGain(skill: SkillId, from: { lv: number; xp: number }, gained: number) {
+    const card = $('hud').querySelector('.stat') as HTMLElement;
+    if ($('hud').hidden || gained <= 0 || from.lv >= SKILL_MAX) return;
+    const to = { ...this.hooks.save().skills[skill] };
+    this.gatherAnim = true;
+    card.classList.add('skill-gain');
+    const tag = document.createElement('div');
+    tag.className = 'xp-float hand';
+    card.append(tag);
+    await this.fillTrack(card, tag, {
+      bar: $('hud-gxp'), track: $('hud-gxp').parentElement!, need: skillXpToNext, from, to, gained,
+      unit: 'XP', voice: 'handling', ding: 'handlingDing', max: SKILL_MAX,
+      onLevel: (lv) => ($('hud-glv').textContent = lv >= SKILL_MAX ? 'MAX' : `Lv ${lv}`),
+    });
+    await new Promise((r) => setTimeout(r, 350));
+    tag.remove();
+    card.classList.remove('skill-gain');
+    this.gatherAnim = false;
+    delete this.last.gather;
+  }
+
+  hud(hp: number, zoneName: string, gathering: SkillId | null = null) {
     this.watchUnlocks();
     const s = this.hooks.save();
     const st = playerStats(s);
+    $('hud-gather').hidden = !gathering;
+    ($('hud').querySelector('.hand-row') as HTMLElement).hidden = !!gathering;
+    if (gathering && !this.gatherAnim) {
+      const sk = s.skills[gathering], max = sk.lv >= SKILL_MAX, need = skillXpToNext(sk.lv);
+      this.set('gather', `${gathering}:${sk.lv}:${sk.xp}`, () => {
+        $('hud-gather').dataset.skill = gathering;
+        $('hud-gname').textContent = `${gathering === 'wood' ? '🪓' : '⛏️'} ${SKILL_NAMES[gathering]}`;
+        $('hud-glv').textContent = max ? 'MAX' : `Lv ${sk.lv}`;
+        $('hud-gxp').style.width = `${max ? 100 : Math.min(100, (100 * sk.xp) / need)}%`;
+        const track = $('hud-gxp').parentElement!;
+        track.setAttribute('aria-label', `${SKILL_NAMES[gathering]} XP`);
+        track.setAttribute('aria-valuemin', '0');
+        track.setAttribute('aria-valuemax', String(max ? 1 : need));
+        track.setAttribute('aria-valuenow', String(max ? 1 : sk.xp));
+        track.setAttribute('aria-valuetext', max ? 'Mastered' : `Level ${sk.lv}, ${sk.xp} of ${need} XP`);
+      });
+    }
     // Your handling with the weapon in hand, under your XP.
     const style = GEAR[s.equip.weapon]?.style ?? 'sword', m = s.mastery[style];
     const handKey = `${style}:${m.lv}:${m.xp}`;
@@ -570,35 +615,24 @@ export class UI {
   questPill(show: boolean) {
     const s = this.hooks.save();
     const q = currentQuest(s), side = this.hooks.story();
-    if (show && side) {
-      // A side story you're in the middle of takes the tracker until it's done.
-      this.set('pill', `side|${side.title}|${side.label}`, () => {
-        const el = $('quest-pill');
-        el.hidden = false;
-        el.innerHTML = `<span class="qi">${side.icon}</span><span class="qt"><b>${esc(side.title)}</b><small>${esc(side.label)}</small></span>`;
-        el.classList.add('side');
-        el.classList.remove('bump');
-        void el.offsetWidth;
-        el.classList.add('bump');
-      });
-      return;
-    }
-    $('quest-pill').classList.remove('side');
-    if (!show || !q) {
+    if (!show || s.trackedQuest === null || (!q && !side)) {
       this.set('pill', 'hidden', () => ($('quest-pill').hidden = true));
       return;
     }
-    const p = progress(s, q);
-    const needs = questNeeds(s, q);
-    const count = !needs.length && p.max > 1 ? `${p.cur}/${p.max}` : '';
-    const text = `${q.id}|${count}|${needs.map((n) => n.have).join(',')}`;
+    const p = q && !side ? progress(s, q) : null;
+    const needs = side ? Object.entries(side.cost).map(([mat, need]) => ({ mat: mat as MatId, have: s.mats[mat as MatId], need: need! })) : questNeeds(s, q!);
+    const count = !needs.length && p && p.max > 1 ? `${p.cur}/${p.max}` : '';
+    const title = side?.title ?? q!.title, label = side?.label ?? q!.hint;
+    const text = `${side?.id ?? q!.id}|${label}|${count}|${needs.map((n) => `${n.mat}:${n.have}/${n.need}`).join(',')}`;
     this.set('pill', text, () => {
       const el = $('quest-pill');
       el.hidden = false;
+      el.classList.toggle('side', !!side);
+      el.setAttribute('aria-label', `${side ? 'Side quest' : 'Main story'}: ${title}. ${label}. Change tracked quest`);
       // Material goals list what they need, with a bar filling as you collect.
       const have = needs.reduce((a, n) => a + Math.min(n.have, n.need), 0), total = needs.reduce((a, n) => a + n.need, 0);
-      const chips = needs.map((n) => `<span class="qm ${n.have >= n.need ? 'ok' : ''}">${icon(n.mat, MATS[n.mat].icon, 'icon sm')}${Math.min(n.have, n.need)}/${n.need}</span>`).join('');
-      el.innerHTML = `<span class="qi">📜</span><span class="qt"><b>${esc(q.title)}</b><small>${esc(q.hint)}</small>${
+      const chips = needs.map((n) => `<span class="qm ${n.have >= n.need ? 'ok' : ''}" title="${esc(MATS[n.mat].name)}" aria-label="${esc(MATS[n.mat].name)}: ${n.have} of ${n.need}">${icon(n.mat, MATS[n.mat].icon, 'icon sm')}${Math.min(n.have, n.need)}/${n.need}</span>`).join('');
+      el.innerHTML = `<span class="qi">${side?.icon ?? '📜'}</span><span class="qt"><span class="qkind">${side ? 'Side quest' : 'Main story'} · Change ›</span><b>${esc(title)}</b><small>${esc(label)}</small>${
         needs.length ? `<span class="qms">${chips}</span><span class="qbar"><i style="width:${(100 * have) / Math.max(1, total)}%"></i></span>` : ''}</span>${count ? `<span class="qc">${count}</span>` : ''}`;
       el.classList.remove('bump');
       void el.offsetWidth;
@@ -781,6 +815,29 @@ export class UI {
     });
   }
 
+  /** A tappable repair plan above the hero, or beside them on short screens. */
+  shortcutPrompt(p: Shortcut | null, hero?: { x: number; y: number }, ts = 0) {
+    const b = $('shortcut-prompt');
+    b.hidden = !p;
+    if (!p || !hero) return;
+    const s = this.hooks.save(), state = canBuildShortcut(s, p), lock = shortcutLock(s, p);
+    const materials = Object.entries(p.cost) as [MatId, number][];
+    const counts = materials.map(([m, n]) => `${MATS[m].name}s ${s.mats[m]} / ${n}`).join(' · ');
+    const missing = materials.filter(([m, n]) => s.mats[m] < n).map(([m, n]) => `${n - s.mats[m]} more ${MATS[m].name.toLowerCase()}s`).join(', ');
+    const status = lock ? lock.split('. ')[0] : state === 'ok' ? 'Ready to repair →' : `Need ${missing}`;
+    this.set('shortcut', `${p.id}|${state}|${counts}|${status}`, () => {
+      b.dataset.shortcut = p.id;
+      b.dataset.state = state;
+      b.innerHTML = `<span class="shortcut-icon" aria-hidden="true">${icon(materials[0][0],'🪵')}</span><span class="shortcut-copy"><span class="shortcut-eyebrow">REPAIR BRIDGE <kbd class="key">E</kbd></span><b>${esc(p.name)}</b><small>${esc(counts)}</small><span class="shortcut-status">${esc(status)}</span></span>`;
+    });
+    const w = b.offsetWidth, h = b.offsetHeight;
+    const side = innerHeight < 480 && hero.x + ts * .7 + w < innerWidth - 8;
+    const left = side ? hero.x + ts * .7 : hero.x - w / 2;
+    const top = side ? hero.y - h / 2 : hero.y - ts * 1.5 - h - 12;
+    b.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, left))}px`;
+    b.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, top))}px`;
+  }
+
   /**
    * Keyboard control for anything shown in the modal. Runs in the capture phase and swallows the keys it uses, so
    * e.g. the Enter that confirms a dialog doesn't also reach the game as "interact" a frame later.
@@ -801,7 +858,7 @@ export class UI {
         return;
       }
       const btns = [...this.sheet.querySelectorAll<HTMLButtonElement>('[data-dialog]')];
-      const primary = btns[btns.length - 1], secondary = this.sheet.classList.contains('house-plans') ? btns.find((b) => b.dataset.dialog === 'close')
+      const primary = btns[btns.length - 1], secondary = this.sheet.classList.contains('house-plans') || this.sheet.classList.contains('burrow-travel') ? btns.find((b) => b.dataset.dialog === 'close')
         : this.sheet.classList.contains('shortcut-plan') ? btns.find((b) => b.dataset.dialog === 'no') : btns.length > 1 ? btns[0] : null;
       if (k === 'Enter' || k === 'Space' || k === 'KeyE' || k === 'NumpadEnter') {
         swallow();
@@ -1002,6 +1059,14 @@ export class UI {
 
   private journey(s: SaveState): string {
     const q = currentQuest(s);
+    const selected = s.trackedQuest === null ? null : this.hooks.story()?.id ?? 'main';
+    const track = (id: string, title: string) => `<button class="go ghost quest-track" data-track="${esc(id)}" aria-pressed="${selected === id}" aria-label="${selected === id ? 'Stop tracking' : 'Track'} ${esc(title)}">${selected === id ? '✓ Tracking · Stop' : 'Track quest'}</button>`;
+    const bill = (cost: Recipe) => {
+      const entries = Object.entries(cost) as [MatId, number][];
+      if (!entries.length) return '';
+      const ready = entries.every(([m, n]) => s.mats[m] >= n);
+      return `<div class="quest-bill"><div class="desc">${ready ? '✓ Materials ready — finish the task to complete' : 'Materials needed · in your bag / required'}</div>${entries.map(([m, n]) => `<div class="quest-material ${s.mats[m] >= n ? 'ok' : ''}">${icon(m, MATS[m].icon, 'icon sm')}<span>${esc(MATS[m].name)}</span><b>${s.mats[m]} / ${n}${s.mats[m] >= n ? ' ✓' : ''}</b></div>`).join('')}</div>`;
+    };
     let card = '';
     if (q) {
       const p = progress(s, q);
@@ -1013,10 +1078,12 @@ export class UI {
         <section class="qcard">
           <div class="qtop"><div class="qart">${goalIcon(q)}</div>
             <div><div class="qchap">${esc(q.chapter)}</div><div class="qtitle">${esc(q.title)}</div></div></div>
-          <p class="qtext">“${esc(q.text)}”</p>
+          <details class="quest-story"><summary>Read story</summary><p class="qtext">“${esc(q.text)}”</p></details>
           <div class="qgoal"><span>🎯 ${esc(p.label)}</span><b>${p.cur}/${p.max}</b></div>
           <div class="pbar"><i style="width:${(100 * p.cur) / p.max}%"></i></div>
+          ${bill(Object.fromEntries(questNeeds(s, q).map((n) => [n.mat, n.need])))}
           ${rewards ? `<div class="qrew">Reward ${rewards}</div>` : ''}
+          ${track('main', q.title)}
         </section>`;
     } else {
       card = `<section class="qcard done"><div class="qtitle">🌅 The smoke has cleared</div><p class="qtext">Sowerby is safe. Keep building, crafting and rematching bosses!</p></section>`;
@@ -1025,12 +1092,14 @@ export class UI {
     const zones = ZONES.filter((z) => z.id !== 'glade').map((z) => {
       const g = z.guardian;
       const beaten = !g || s.bosses.includes(g.kind);
+      // The Elder names each guardian as its chapter begins; the ones further on stay a mystery.
+      const told = !!g && s.quest >= QUESTS.findIndex((q) => q.goal.type === 'boss' && q.goal.kind === g.kind);
       let status: string;
       if (z.id === 'village') status = 'Home sweet home';
-      else if (!beaten) status = `🔒 Guarded by ${MONSTERS[g!.kind].name} · Lv ${g!.lv}`;
+      else if (!beaten) status = told ? `🔒 Guarded by ${MONSTERS[g!.kind].name} · Lv ${g!.lv}` : `🔒 Guarded · Lv ${g!.lv}`;
       else if (g) status = `🔥 Campfire lit · Monsters Lv ${z.lv[0]}–${z.lv[1]}`;
       else status = `Monsters Lv ${z.lv[0]}–${z.lv[1]}`;
-      const art = !beaten ? bossIcon(g!.kind) : `<span class="emo">${ZONE_EMOJI[z.id]}</span>`;
+      const art = !beaten ? told ? bossIcon(g!.kind) : '<span class="emo">❔</span>' : `<span class="emo">${ZONE_EMOJI[z.id]}</span>`;
       return `<div class="zrow ${beaten ? '' : 'locked'}"><div class="zart">${art}</div><div class="info"><div class="name">${esc(z.name)}</div><div class="desc">${status}</div></div></div>`;
     }).join('');
     // Travel happens in the world: a campfire takes you home, the Waystone takes you out.
@@ -1042,9 +1111,12 @@ export class UI {
       const mark = st === 'done' ? '✓' : st === 'now' ? '▶' : '🔒';
       return `<li class="${st}"><span class="mk">${mark}</span><span class="ch">${esc(qq.chapter)}</span><span>${st === 'later' ? '???' : esc(qq.title)}</span></li>`;
     }).join('');
-    const sides = this.hooks.stories().map((st) => `<div class="zrow ${st.done ? 'done' : ''}"><div class="zart"><span class="emo">${st.icon}</span></div>
-      <div class="info"><div class="name">${esc(st.title)}</div><div class="desc">${st.done ? '✓ ' : '▶ '}${esc(st.label)}</div></div></div>`).join('');
-    return `<div class="notebook">${card}${sides ? `<h3>Side stories</h3><div class="zones">${sides}</div>` : ''}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div><h3>Story</h3><ol class="chapters">${chapters}</ol></div>`;
+    const stories = this.hooks.stories();
+    const sides = stories.filter((st) => !st.done).map((st) => `<section class="qcard side-quest${selected === st.id ? ' tracked' : ''}" data-quest="${esc(st.id)}"><div class="qtop"><span class="emo">${st.icon}</span><div class="name">${esc(st.title)}</div></div>
+      <p class="qtext">${esc(st.label)}</p>${bill(st.cost)}${st.trackable ? track(st.id, st.title) : '<div class="desc">Not currently available</div>'}</section>`).join('');
+    const completed = stories.filter((st) => st.done).map((st) => `<div class="zrow done"><span class="emo">${st.icon}</span><div class="info"><div class="name">${esc(st.title)}</div><div class="desc">✓ Complete!</div></div></div>`).join('');
+    const tracking = `<div class="quest-summary"><div><b>${selected === null ? 'No quest tracked' : 'Tracking: ' + esc(selected === 'main' ? q?.title ?? 'Main story complete' : stories.find((st) => st.id === selected)!.title)}</b><p>Choose what your HUD and waypoint follow. All quests keep progressing.</p></div>${selected !== null ? '<button class="go ghost" data-track="none">Stop</button>' : ''}</div>`;
+    return `<div class="notebook">${tracking}<h3>Main story</h3>${card}<h3>Side quests</h3>${sides || '<p class="sub">Explore and talk to people to find side quests.</p>'}${completed ? `<details class="quest-completed"><summary>Completed side quests (${stories.filter((st) => st.done).length})</summary>${completed}</details>` : ''}<h3>World map</h3>${warpNote}<div class="zones">${zones}</div><h3>Story chapters</h3><ol class="chapters">${chapters}</ol></div>`;
   }
 
   private items(s: SaveState): string {
@@ -1102,7 +1174,7 @@ export class UI {
 
   private potionTag(s: SaveState, maxHp: number): string {
     return tagCard('<span class="emo big-emo">🧪</span>', `Potions <span class="lvl">${s.potions}/${MAX_POTIONS}</span>`,
-      `<div class="desc">Heals ${Math.round(POTION_HEAL * 100)}% HP. Free refills at Veyra's Spring.</div>`,
+      `<div class="desc">Heals ${Math.round(POTION_HEAL * 100)}% HP. Free refills at ${s.flags.includes('village') ? "Veyra's Spring" : 'the village spring'}.</div>`,
       `<button class="go" data-do="drink" ${s.potions > 0 && s.hp < maxHp ? '' : 'disabled'}>Drink</button>`);
   }
 
@@ -1124,7 +1196,7 @@ export class UI {
     const mend = s.flags.includes('oldtools') ? TOOLS.filter((t) => t.tier === 1 && s.tools[t.skill] < 1).map((t) => {
       const can = hasMats(s, t.recipe);
       const [name, what] = t.skill === 'wood' ? ['Blunt old axe', 'Goo to glue the head back on, Fluff to wrap the grip.'] : ['Chipped old pick', 'Goo to set the loose head, Fluff to wrap the grip.'];
-      return `<div class="mcard row mend"><div class="ico">${icon(t.id, t.icon)}</div><div class="info">
+      return `<div class="mcard row mend"><div class="ico">${icon(t.skill === 'wood' ? 'axe0' : 'pick0', t.icon)}</div><div class="info">
         <div class="name">${name}</div><div class="desc">${what}</div><div class="chips">${costChips(s, t.recipe)}</div></div>
         <button class="go" data-tool="${t.id}" ${can ? '' : 'disabled'}>Mend</button></div>`;
     }).join('') : '';
@@ -1264,8 +1336,10 @@ export class UI {
         ${costs ? `<div class="bp-costs">${costs}</div>` : ''}
         <button class="go wide bp-go" data-build="${id}" ${ok && here ? '' : 'disabled'}>${label}</button></div>`;
     }).join('');
-    const neighbours = HOME_ORDER.map((id) => `${HOMES[id].icon} ${HOMES[id].name}: ${homeLevel(s, id) ? HOMES[id].plans[homeLevel(s, id) - 1].name : 'a home to build'}`).join('<br>');
-    return `<div class="board">${note}<div class="note">🧔 Bram has the next building job for Poppy, Clover and our neighbours. Bring its materials to him outside the Sawmill.<br>${neighbours}</div><div class="blueprints">${cards}</div></div>`;
+    // Bram's building jobs, once he's settled in, and the neighbours you've met so far.
+    const neighbours = HOME_ORDER.filter((id) => knows(s, id)).map((id) => `<br>${HOMES[id].icon} ${HOMES[id].name}: ${homeLevel(s, id) ? HOMES[id].plans[homeLevel(s, id) - 1].name : 'a home to build'}`).join('');
+    const jobs = villageDue(s) ? `<div class="note">🧔 Bram has the next building job for Poppy, Clover and our neighbours. Bring its materials to him outside the Sawmill.${neighbours}</div>` : '';
+    return `<div class="board">${note}${jobs}<div class="blueprints">${cards}</div></div>`;
   }
 
   /** Dev builds add their own row to the More tab (save slots and presets; see src/dev/devtools.ts). */
@@ -1293,7 +1367,7 @@ export class UI {
       <h3>How to play</h3>
       <div class="note" style="font-weight:600;line-height:1.5">
         • Drag anywhere to move. Walk through <b>tall grass</b> to meet monsters.<br>
-        • Follow the 📜 goal at the top of the screen. Elder Oswin has hints!<br>
+        • Follow the 📜 goal at the top of the screen. ${knows(s, 'oswin') ? 'Elder Oswin' : 'The village elder'} has hints!<br>
         • <b>Guardians</b> block the roads. Beat them to open the way and light a 🔥 campfire checkpoint.<br>
         • In battle: ⚔️ attack the way you last moved (hold to keep attacking), 💨 dodge, ✨ weapon skill, 🧪 potion. Red circles mean danger!<br>
         • Craft gear at the ⚒ Forge and build up the 🏡 Village for permanent boosts.<br>
@@ -1329,6 +1403,7 @@ export class UI {
       return;
     }
     if (d.preview) return this.hooks.preview(d.preview);
+    if (d.track) return this.hooks.trackQuest(d.track === 'none' || el.getAttribute('aria-pressed') === 'true' ? null : d.track);
     if (d.pick) {
       const k = d.pick.indexOf(':');
       this.pick[d.pick.slice(0, k)] = d.pick.slice(k + 1);

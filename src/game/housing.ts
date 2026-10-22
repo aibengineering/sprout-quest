@@ -10,6 +10,7 @@ import { G, paused, persist } from './context';
 import { logEvent } from '../stats';
 import { say } from './scenes';
 import { BRAM } from './stories/bram';
+import { knows } from '../known';
 
 let planning = false;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -19,7 +20,7 @@ export async function bramHousePlans() {
   try {
     await paused(async () => {
       const s = G.save, job = nextVillageJob(s);
-      if (!job) return say(BRAM, 'Everyone’s got a roof. For now. Inside the mill if you need planks; Your quiet teacher is up in the Hollow if you need practice.', 'happy');
+      if (!job) return say(BRAM, 'Everyone’s got a roof. For now. Inside the mill if you need planks; your quiet teacher is up in the Hollow if you need practice.', 'happy');
       if (job.recruit && !neighbourReturned(s,job.recruit)) return say(BRAM,NEIGHBOURS[job.recruit].lead,'happy');
       if (!s.flags.includes(`building:asked:${job.id}`)) {
         await say(BRAM, job.request, 'happy');
@@ -49,7 +50,9 @@ export async function bramHousePlans() {
     });
   } finally { planning = false; }
 }
-export const askBramForHome = () => G.ui.toast('🧔 Bram is outside the Sawmill. Bring him the materials for his next building job.', 3600);
+export const askBramForHome = () => G.ui.toast(villageDue(G.save) ? '🧔 Bram is outside the Sawmill. Bring him the materials for his next building job.'
+  : knows(G.save, 'bram') ? '🧔 Once Bram’s settled in Sowerby, he can build here.'
+  : '🪵 This will take sawn timber, and someone who knows how to work it.', 3600);
 
 /** A resident proposes their own next addition. Bram remains the only material hand-in. */
 export async function offerVillageUpgrade(owner: string) {

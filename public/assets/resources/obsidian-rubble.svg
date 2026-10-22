@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="74" height="36" viewBox="-37 -22 74 36">
+<defs><filter id="sb2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.5"/></filter></defs>
+<ellipse cx="0" cy="8" rx="32" ry="4" fill="#24461f" opacity=".25" filter="url(#sb2)"/>
+<g id="body"><g fill="#3a2448" stroke="#3a2448" stroke-width="5"><ellipse cx="-19" cy="-2" rx="13" ry="7.5"/><ellipse cx="1" cy="-6" rx="14" ry="9.5"/><ellipse cx="20" cy="-1" rx="12" ry="7"/><ellipse cx="-5" cy="3" rx="11" ry="6"/></g><g fill="#3a2f4e"><ellipse cx="-19" cy="-2" rx="13" ry="7.5"/><ellipse cx="1" cy="-6" rx="14" ry="9.5"/><ellipse cx="20" cy="-1" rx="12" ry="7"/><ellipse cx="-5" cy="3" rx="11" ry="6"/></g>
+<g fill="#4c3f63" filter="url(#sb2)"><ellipse cx="-21" cy="-4.625" rx="7.8" ry="3"/><ellipse cx="-1" cy="-9.325" rx="8.4" ry="3.8"/><ellipse cx="18" cy="-3.45" rx="7.2" ry="2.8"/><ellipse cx="-7" cy="0.9" rx="6.6" ry="2.4"/></g>
+<g fill="#1a1324" opacity=".5" filter="url(#sb2)"><ellipse cx="0" cy="8" rx="30" ry="3"/></g>
+<ellipse cx="10" cy="2" rx="7" ry="5" fill="#ff8a1e" opacity=".55" filter="url(#sb2)"/>
+<path d="M6 0 L10 -4 L9 2 L13 6" fill="none" stroke="#f59a2c" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+</g></svg>

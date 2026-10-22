@@ -49,7 +49,7 @@ export interface Strike {
 
 export type SkillKind = 'spin' | 'whirl' | 'quake' | 'scatter';
 /** The one thing each class does that the others don't. */
-export type Trick = 'riposte' | 'stagger' | 'snare' | 'blink';
+export type Trick = 'riposte' | 'stagger' | 'snare' | 'echo';
 
 export interface Moveset {
   /** Blades chain three strikes; every other class strikes once and rests (see `rest`), weaving its skill in between. */
@@ -79,7 +79,7 @@ export function pace(lv: number) {
 
 /**
  * The handling path, the same for every class of weapon: its skill unlocks at Lv 2 and grows a rank at 5, 8 and 10
- * (Mastery), the class's own trick (Riposte, Sunder, Snare, Blink) comes at Lv 3, and every other level is a step up
+ * (Mastery), the class's own trick (Riposte, Sunder, Snare, Echo Cast) comes at Lv 3, and every other level is a step up
  * in attack speed. So each level gives something you can feel, one thing at a time, and the skill levels are the big
  * ones.
  */
@@ -185,15 +185,14 @@ export const MOVESETS: Record<Style, Moveset> = {
       { anim: 'crack', shape: 'lash', windup: 0.16, active: 0.08, recover: 0.2, range: 118, size: 18, mult: 2.8, tip: 0.3, graze: 0.5, kb: 200, stun: 0.35, shake: 4, hitstop: 0.07, move: 0.45 },
     ],
   },
-  // One bolt at a time, from anywhere in the arena. Its trick is the Blink: your dodge is a short teleport instead of
-  // a roll.
+  // One bolt at a time, from anywhere in the arena. Echo Cast repeats every third normal cast with a smaller bolt.
   wand: {
     window: 0.3,
     skill: 'scatter',
     skillName: 'Scatter',
     size: 1,
     rest: 0.4,
-    trick: 'blink',
+    trick: 'echo',
     combo: [
       { anim: 'cast', shape: 'shot', windup: 0.07, active: 0.05, recover: 0.18, range: 0, size: 9, mult: 1.8, kb: 90, shots: [0], shake: 2, hitstop: 0.03, move: 0.8 },
     ],
@@ -213,14 +212,14 @@ export const TRICKS: Record<Trick, { name: string; note: string }> = {
   riposte: { name: 'Riposte', note: 'Dodge through an attack and your next strike is a sure critical hit' },
   stagger: { name: 'Stagger', note: 'A slam knocks a monster out of its attack and dazes it' },
   snare: { name: 'Snare', note: 'A crack at the tip yanks the foe in toward you' },
-  blink: { name: 'Blink', note: 'Your dodge is a short teleport' },
+  echo: { name: 'Echo Cast', note: 'Every third normal cast echoes a smaller bolt for half damage' },
 };
 /** Stagger: how long a slam dazes a monster it knocks out of its attack (guardians only flinch, see hitEnemy). */
 export const STAGGER = { secs: 1.1 };
 /** Riposte: how long after a dodge through an attack your next strike is a sure crit, and how much harder it hits. */
 export const RIPOSTE = { secs: 1.2, mult: 1.5 };
-/** Blink: how far the teleport goes. */
-export const BLINK = 120;
+/** Echo Cast: a delayed, smaller bolt following the original cast's path. */
+export const ECHO = { delay: 0.16, mult: 0.5, size: 0.7 };
 
 /** Reach/size bonus per tier: tier 5 weapons reach 20% further than the starter (damage grows through attack instead). */
 export const tierScale = (tier: number) => 1 + 0.04 * tier;

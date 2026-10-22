@@ -36,6 +36,23 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.8',
+    date: '2026-10-22',
+    title: 'Gentle Starts and Crisp Woods',
+    notes: [
+      "🐣 Your first fights are gentler, growing to full strength by your tenth win",
+      "🌳 Trees and ore rocks are crisp hand-drawn art, with leafy oaks in four looks",
+      "🙊 Nobody is named before you meet them, and signs no longer repeat the cards",
+      "🕳️ Walk up into Echo Cavern's mouth, set into a rounded, inked cliff",
+      "🪚 The Sawmill hums, creaks and knocks softly while it's working",
+      "🪓 Gathering XP fills as you chop and mine, and mashing no longer beats timing",
+      "🪄 Echo Cast replaces Blink: every third normal wand cast echoes a smaller bolt",
+      "👑 Hit the Slime King mid-hop to interrupt his landing splash and goo burst",
+      "🌉 Repair cards at both banks show costs and locks before you confirm",
+      "⛏️ Pip's tunnels show where they lead, and his mossy boulders wait for him",
+    ],
+  },
+  {
     version: '0.3.7',
     date: '2026-10-05',
     title: 'Rooms, Hunts and Hidden Tunnels',
