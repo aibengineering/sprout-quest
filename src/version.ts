@@ -37,19 +37,19 @@ export function noteProblems(p: PatchNote): string[] {
 export const PATCH_NOTES: PatchNote[] = [
   {
     version: '0.3.8',
-    date: '2026-10-06',
-    title: 'Gathering and Magic',
+    date: '2026-10-22',
+    title: 'Gentle Starts and Crisp Woods',
     notes: [
-      "🪓 Woodcutting and Mining XP fill as you gather, with level-ups and mastery",
+      "🐣 Your first fights are gentler, growing to full strength by your tenth win",
+      "🌳 Trees and ore rocks are crisp hand-drawn art, with leafy oaks in four looks",
+      "🙊 Nobody is named before you meet them, and signs no longer repeat the cards",
+      "🕳️ Walk up into Echo Cavern's mouth, set into a rounded, inked cliff",
+      "🪚 The Sawmill hums, creaks and knocks softly while it's working",
+      "🪓 Gathering XP fills as you chop and mine, and mashing no longer beats timing",
       "🪄 Echo Cast replaces Blink: every third normal wand cast echoes a smaller bolt",
       "👑 Hit the Slime King mid-hop to interrupt his landing splash and goo burst",
-      "🪨 Moss-capped quest boulders wait until Pip explains how to break them",
-      "⛏️ Pip’s tunnels show destination cards, and Escape safely keeps you home",
-      "🏘️ Optional home and kitchen additions need more timber, not early upgrades",
-      "🌱 Seed finds pop up while trees fall, without interrupting gathering",
-      "🏷️ World labels have smoother outlines without dark spikes",
       "🌉 Repair cards at both banks show costs and locks before you confirm",
-      "🍄 Spore Wands get pine handles, fang braces and a Lucky Clover finishing charm",
+      "⛏️ Pip's tunnels show where they lead, and his mossy boulders wait for him",
     ],
   },
   {

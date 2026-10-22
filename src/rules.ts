@@ -81,6 +81,16 @@ export function calcDamage(atk: number, def: number, mult: number, critChance: n
 
 export interface ScaledMonster { hp: number; atk: number; def: number; xp: number }
 
+/**
+ * Your first field fights are gentler while you get the hang of it: a monster starts at 40% of its health and hits
+ * softer, growing back to full strength by your tenth win. Guardians, the tower, hunts and the dojo are never eased.
+ */
+export const GREENHORN_WINS = 10;
+export function greenhorn(wins: number): { hp: number; atk: number } {
+  const t = Math.min(1, Math.max(0, wins) / GREENHORN_WINS);
+  return { hp: 0.4 + 0.6 * t, atk: 0.7 + 0.3 * t };
+}
+
 export function scaleMonster(m: MonsterDef, lv: number, golden: boolean): ScaledMonster {
   const k = Math.max(0.6, 1 + 0.15 * (lv - m.lv));
   const g = golden ? 1.5 : 1;

@@ -7,7 +7,7 @@ import { vibrate } from '../audio';
 import { GEAR, MONSTERS, POTION_HEAL, type Fx as Element, type Gear, type MatId, type MonsterKind } from '../data';
 import { Fx } from '../fx';
 import type { Input } from '../input';
-import { GENTLE_ATK, MONSTER_HP, calcDamage, dodgeCharges, dodgeMotion, levelEdge, xpEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
+import { GENTLE_ATK, MONSTER_HP, calcDamage, greenhorn, dodgeCharges, dodgeMotion, levelEdge, xpEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
 import { ECHO, MOVESETS, RIPOSTE, SKILL_DATA, STAGGER, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
@@ -161,6 +161,11 @@ export class Battle implements FoeWorld, HitWorld {
     if(variant){s.hp=Math.round(s.hp*variant.hp);s.atk=Math.round(s.atk*variant.atk);s.def=Math.round(s.def*variant.def);}
     // The prologue's gentle foes still fall to one three-hit combo.
     if (f.gentle) s.hp = Math.round(s.hp / MONSTER_HP);
+    else if (!this.setup.boss && !this.setup.tower && !this.setup.dojo && !this.setup.hunt) {
+      const ease = greenhorn(this.save.wins);
+      s.hp = Math.max(1, Math.round(s.hp * ease.hp));
+      s.atk = Math.max(1, Math.round(s.atk * ease.atk));
+    }
     const e: Enemy = {
       kind: f.kind, def, lv: f.lv, golden: f.golden, variant:f.variant,
       // The level gap: a monster above you hits harder, one below you softer (see levelEdge).

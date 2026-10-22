@@ -46,6 +46,7 @@ describe('dev playtest controls', () => {
       const random = spyOn(Math, 'random').mockImplementation(() => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32));
       try {
         const save = newState(), input = inputStub(), auto = new AutoInput(input);
+        save.wins = 10; // full-strength monsters (the first few fights are eased; see greenhorn)
         let outcome: BattleOutcome | null = null;
         const b = new Battle({ zone: zoneById('meadow'), foes, boss: false }, save, input, { play() {} } as unknown as Audio, (o) => { outcome = o; });
         for (let t = 0; t < 120 && !outcome; t += dt) {

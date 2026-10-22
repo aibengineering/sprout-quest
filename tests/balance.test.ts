@@ -229,3 +229,11 @@ describe('balance', () => {
     expect(cropsPerTree('herb')).toBeCloseTo(0.2 * 4, 5);
   });
 });
+
+import { greenhorn as easeFor, GREENHORN_WINS } from '../src/rules';
+test('your first field fights are gentler, growing back to full strength by your tenth win', () => {
+  expect(easeFor(0)).toEqual({ hp: 0.4, atk: 0.7 });
+  expect(easeFor(GREENHORN_WINS)).toEqual({ hp: 1, atk: 1 });
+  expect(easeFor(99)).toEqual({ hp: 1, atk: 1 });
+  for (let w = 0; w < GREENHORN_WINS; w++) expect(easeFor(w + 1).hp).toBeGreaterThan(easeFor(w).hp);
+});
