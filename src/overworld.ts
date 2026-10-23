@@ -564,7 +564,8 @@ export class Overworld {
         if(t!==T.OBST&&t!==T.POOL&&t!==T.CHASM){
           const shade=ctx.createLinearGradient(px,py,px,py+ts*.3);
           shade.addColorStop(0,'rgba(24,32,40,.16)');shade.addColorStop(1,'rgba(24,32,40,0)');
-          if(W.tile(x,y-1)===T.OBST){ctx.fillStyle=shade;ctx.fillRect(px,py,ts,ts*.3);}
+          // Only under cliffs and rock: trees cast their own soft shadows, and a band under a row of them looks boxy.
+          if(W.tile(x,y-1)===T.OBST&&this.isRock(x,y-1)){ctx.fillStyle=shade;ctx.fillRect(px,py,ts,ts*.3);}
           if(t===T.GROUND&&hash2(x,y,73)<.10)this.drawDecor(ctx,x,y,px,py,ts,th);
         }
         if (t === T.PATH) this.drawPath(ctx, x, y, px, py, ts, stone>.5?{...th,path:'#a9a28f'}:th);

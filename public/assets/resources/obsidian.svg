@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="196" height="142" viewBox="-100 -126 196 142">
 <defs><filter id="sb" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="sb2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.5"/></filter><radialGradient id="ob1" cx=".4" cy=".75" r=".75"><stop offset="0" stop-color="#4e4266"/><stop offset=".6" stop-color="#40355a"/><stop offset="1" stop-color="#2e2543"/></radialGradient><clipPath id="oc"><path d="M-66 -22 C-72 -38 -60 -50 -44 -50 C-36 -62 -16 -64 0 -58 C18 -64 40 -60 48 -48 C62 -46 70 -34 64 -22 C74 -16 72 -2 60 0 C52 6 40 6 30 4 C10 8 -20 8 -40 4 C-52 6 -66 4 -68 -6 C-74 -10 -72 -20 -66 -22Z"/></clipPath></defs>
-<ellipse cx="0" cy="5" rx="76" ry="8" fill="#24461f" opacity=".3" filter="url(#sb2)"/>
 <g id="ore"><g fill="#3a2448" stroke="#3a2448" stroke-width="5" stroke-linejoin="round"><path d="M-82 -64 -64 -60 -48 -24 -74 -6 -94 -46Z"/><path d="M-57 -95 -28 -84 -16 -40 -50 -26 -72 -62Z"/><path d="M18 -117 40 -88 38 -44 -4 -44 -6 -94Z"/><path d="M78 -82 88 -52 68 -20 38 -30 46 -68Z"/></g>
 <path fill="#6b5c86" d="M-82 -64 -94 -46 -79 -53Z"/>
 <path fill="#4a3e62" d="M-94 -46 -74 -6 -61 -15 -79 -53Z"/>

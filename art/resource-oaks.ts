@@ -91,7 +91,6 @@ ${filters}
 <clipPath id="cc">${paths(P)}</clipPath>
 ${trunkDefs(oakTrunk, o.trunkTop)}
 </defs>
-${shadow(f1(w * 0.3))}
 <g id="top">
 ${topTrunk}
 <g fill="${OL}" stroke="${OL}" stroke-width="5" stroke-linejoin="round">${paths(P)}</g>

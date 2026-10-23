@@ -10,7 +10,6 @@
 <clipPath id="ct"><rect x="-100" y="-58" width="200" height="28"/></clipPath>
 <clipPath id="cto"><rect x="-100" y="-58" width="200" height="28"/></clipPath>
 </defs>
-<ellipse cx="0" cy="0" rx="35.1" ry="7" fill="#24461f" opacity=".25" filter="url(#soft2)"/>
 <g id="stump"><g clip-path="url(#cso)" fill="#3a2448" stroke="#3a2448" stroke-width="5" stroke-linejoin="round"><path d="M-17.5 -92 L-17.5 -24 C-17.5 -10 -21 -4 -29 0 L29 0 C21 -4 17.5 -10 17.5 -24 L17.5 -92 Z"/><ellipse cx="27" cy="-6" rx="7" ry="3.5"/><ellipse cx="-26" cy="-2" rx="9" ry="4.5"/><ellipse cx="25" cy="-2" rx="9" ry="4.5"/></g><g clip-path="url(#cs)">
 <g fill="url(#bark)"><path d="M-17.5 -92 L-17.5 -24 C-17.5 -10 -21 -4 -29 0 L29 0 C21 -4 17.5 -10 17.5 -24 L17.5 -92 Z"/><ellipse cx="27" cy="-6" rx="7" ry="3.5"/><ellipse cx="-26" cy="-2" rx="9" ry="4.5"/><ellipse cx="25" cy="-2" rx="9" ry="4.5"/></g>
 <g clip-path="url(#tk)">

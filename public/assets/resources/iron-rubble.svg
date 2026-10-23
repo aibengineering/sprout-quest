@@ -7,7 +7,6 @@
 <filter id="s" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.6"/></filter>
 <g id="sil"><ellipse cx="-20" cy="-7" rx="13" ry="7.5"/><ellipse cx="-2" cy="-10" rx="13" ry="8"/><ellipse cx="20" cy="-4" rx="12" ry="7"/><ellipse cx="-6" cy="0" rx="13" ry="6"/><ellipse cx="8" cy="-1" rx="11" ry="5"/></g><clipPath id="c"><ellipse cx="-20" cy="-7" rx="13" ry="7.5"/><ellipse cx="-2" cy="-10" rx="13" ry="8"/><ellipse cx="20" cy="-4" rx="12" ry="7"/><ellipse cx="-6" cy="0" rx="13" ry="6"/><ellipse cx="8" cy="-1" rx="11" ry="5"/></clipPath>
 </defs>
-<ellipse cx="0" cy="3" rx="34" ry="5" fill="#24461f" opacity=".25" filter="url(#s)"/>
 <g id="body">
 <use href="#sil" fill="#3a2448" stroke="#3a2448" stroke-width="3" stroke-linejoin="round"/>
 <g clip-path="url(#c)"><rect x="-38" y="-28" width="76" height="40" fill="url(#b)"/><ellipse cx="0" cy="6" rx="30" ry="4" fill="#2f3044" opacity=".35" filter="url(#s)"/><ellipse cx="-4" cy="-13" rx="16" ry="3" fill="#676c84" opacity=".7" filter="url(#s)"/></g>
