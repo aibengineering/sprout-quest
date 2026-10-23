@@ -178,7 +178,7 @@ export function allIconIds(): string[] {
   const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'bramhut', 'cottage1',
     ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`)), ...[0, 1, 2, 3, 4].map((l) => `sawmill${l}`)];
   return [
-    ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id), 'axe0', 'pick0',
+    ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id), 'axe0', 'pick0', 'hero',
     ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
     ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_rook', 'npc_moss', 'npc_fox', ...KITCHEN_PLANS.map((p)=>`b_${p.art}`),
@@ -1017,7 +1017,7 @@ export class UI {
     this.sheet.innerHTML = `
       <div class="grab" aria-hidden="true"></div>
       <header class="mhead">
-        ${this.tab === 'items' ? `<button class="portrait" data-pick="items:you" aria-label="You">${icon(s.equip.armor, '🌱')}</button>` : `<div class="portrait">${icon(s.equip.armor, '🌱')}</div>`}
+        ${this.tab === 'items' ? `<button class="portrait" data-pick="items:you" aria-label="You">${icon('hero', '🌱')}</button>` : `<div class="portrait">${icon('hero', '🌱')}</div>`}
         <div class="who">
           <div class="name">Sprout <span class="lvl">Lv ${s.lv}</span></div>
           <div class="mini hp"><i style="width:${(100 * s.hp) / st.maxHp}%"></i><span>${Math.ceil(s.hp)} / ${st.maxHp} HP</span></div>

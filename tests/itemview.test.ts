@@ -66,7 +66,9 @@ describe('which model shows an item', () => {
     expect(itemModel('goo')).toEqual({ url: 'assets/crafting3d/mat_goo.glb', elevation: (12 * Math.PI) / 180 });
     expect(itemModel('twig')).toMatchObject({ url: 'assets/models/wpn_twig.glb', tilt: true });
     // No model: the picture stays an icon.
-    for (const none of ['pie', 'echoanklet', 'tunic', 'meal_nope']) expect(itemModel(none)).toBeNull();
+    for (const none of ['pie', 'echoanklet', 'meal_nope']) expect(itemModel(none)).toBeNull();
+    // The starter Tunic has no crafting scene: its icon is the garment the hero wears.
+    expect(itemModel('tunic')?.url).toBe('assets/models/armor_tunic.glb');
     expect(view3d('pie', '<img>')).toBe('<img>');
   });
 
