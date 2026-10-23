@@ -283,6 +283,8 @@ function frame(now: number) {
   const b = G.battle;
   // The music follows along: the fight's theme in a fight (a guardian's for a boss), otherwise the area's.
   G.music.want(b ? battleTheme(b.setup.zone.id, b.setup.boss) : zoneTheme(G.over.currentZone.id));
+  // In a fight a mouse attacks and dodges; on the map it still drags to walk (and strikes in the chop card).
+  G.input.mouseCombat = G.mode === 'battle';
   if (b) { G.ui.lootBelow(null); battleFrame(b, dt); }
   else worldFrame(dt);
   millSoundTick();

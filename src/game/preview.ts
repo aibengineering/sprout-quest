@@ -18,15 +18,15 @@ const btn = (key: string, emoji: string) => (usingKeyboard() ? `<kbd>${key}</kbd
 function words(m: DemoMove): { name: string; note: string; how: string } {
   if (m.kind === 'skill') {
     const sk = skillAt(MOVESETS[m.style].skill, m.lv)!;
-    return { name: sk.name, note: sk.note, how: `${btn('L', '✨')} to use it. It recharges after.` };
+    return { name: sk.name, note: sk.note, how: `${btn('F', '✨')} to use it. It recharges after.` };
   }
   const t = TRICKS[m.trick];
   // Just what to press, and when (the note above says what it does).
   const how = {
-    riposte: `${btn('K', '💨')} through its attack, then ${btn('J', '⚔️')} straight away.`,
-    stagger: `${btn('J', '⚔️')} just as it winds up.`,
-    snare: `${btn('J', '⚔️')} with it right at the tip of your whip.`,
-    echo: `${btn('J', '⚔️')} to cast. When the wand glows, your next normal cast echoes. Scatter doesn't count.`,
+    riposte: `${btn('Shift', '💨')} through its attack, then ${btn('Space', '⚔️')} straight away.`,
+    stagger: `${btn('Space', '⚔️')} just as it winds up.`,
+    snare: `${btn('Space', '⚔️')} with it right at the tip of your whip.`,
+    echo: `${btn('Space', '⚔️')} to cast. When the wand glows, your next normal cast echoes. Scatter doesn't count.`,
   }[m.trick];
   return { name: t.name, note: t.note, how };
 }
