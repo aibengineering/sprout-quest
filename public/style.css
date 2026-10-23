@@ -856,8 +856,7 @@ body.kbd .btn.lg .key { top: -2px; left: -2px; font-size: 16px; }
 /* Inline caps on text buttons. */
 body.kbd .go .key, body.kbd .pill .key, body.kbd .big-btn .key { margin-left: 8px; vertical-align: 1px; background: rgba(255, 255, 255, 0.9); }
 body.kbd .big-btn .key { font-size: 13px; vertical-align: 3px; }
-body.kbd .tabbar .key { position: absolute; top: 3px; left: 6px; font-size: 9px; padding: 2px 4px; opacity: 0.75; }
-body.kbd .tabbar .tab-close .key { position: static; margin-top: 2px; opacity: 1; }
+body.kbd .tabbar .key { position: static; margin-top: 2px; font-size: 10px; padding: 1px 5px; }
 .drag-hint .keys { display: none; flex-direction: column; align-items: center; gap: 4px; }
 body.kbd .drag-hint .keys { display: flex; }
 .drag-hint .keys kbd { font-size: 18px; padding: 6px 10px; margin: 0 2px; animation: keytap 1.6s infinite; }

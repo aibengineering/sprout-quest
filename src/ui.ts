@@ -31,6 +31,8 @@ import { villageDue } from './villageJobs';
 const TAB_UNLOCK: Partial<Record<Tab, UnlockId>> = { journey: 'journal', items: 'bag', forge: 'forge', village: 'village' };
 
 export type Tab = 'journey' | 'items' | 'forge' | 'village' | 'settings';
+/** Menu tabs with a letter of their own (the Bag and Journal buttons' keys); shown on the tab in keyboard mode. */
+const TAB_KEYS: Partial<Record<Tab, string>> = { journey: 'Q', items: 'B' };
 
 export interface MenuCtx {
   atForge: boolean;
@@ -1012,8 +1014,9 @@ export class UI {
     // Each tab is its own thing from the world: a notebook, the satchel, the smithy's bench, the builder's board.
     this.sheet.className = `sheet menu theme-${this.tab}`;
     const closeBtn = '<button class="tab-close" data-do="close" aria-label="Close menu"><span>✕</span>Close<kbd class="key">Esc</kbd></button>';
-    const tabBtns = tabs.map(([id, ico, label], i) =>
-      `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}<kbd class="key">${i + 1}</kbd></button>`).join('');
+    // The same letters as the Bag and Journal buttons on the map (number keys still switch tabs, unlabelled).
+    const tabBtns = tabs.map(([id, ico, label]) =>
+      `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}${TAB_KEYS[id] ? `<kbd class="key">${TAB_KEYS[id]}</kbd>` : ''}</button>`).join('');
     this.sheet.innerHTML = `
       <div class="grab" aria-hidden="true"></div>
       <header class="mhead">
