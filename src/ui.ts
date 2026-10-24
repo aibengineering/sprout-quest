@@ -652,9 +652,17 @@ export class UI {
   }
 
   /** `dodges`: how many dodge charges are ready, of how many (pips on the button once there's more than one). */
-  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0, dodges: [number, number] = [1, 1]) {
+  /** `charge`: how full a wand's bolt is (0–1), a ring filling round the Attack button, gold when full. */
+  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0, dodges: [number, number] = [1, 1], charge = 0) {
     const at = attackFrac.toFixed(2);
     this.set('atk', at, () => ($('btn-attack').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', at)));
+    const ch = charge.toFixed(2);
+    this.set('charge', ch, () => {
+      const btn = $('btn-attack');
+      btn.style.setProperty('--charge', ch);
+      btn.classList.toggle('charging', charge > 0);
+      btn.classList.toggle('charged', charge >= 1);
+    });
     this.set('pot', String(potions), () => {
       $('potion-n').textContent = String(potions);
       $('btn-potion').style.opacity = potions > 0 ? '1' : '0.5';

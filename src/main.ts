@@ -127,7 +127,7 @@ function battleFrame(b: Battle, dt: number) {
   ui.battleButtons(!!b.skillNow, has(s, 'bag') && s.flags.includes('village'));
   if (G.mode === 'battle') {
     coachBattle(b);
-    ui.battleHud(b.save.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac, [b.dodgesReady, b.p.dodgeCds.length]);
+    ui.battleHud(b.save.potions, b.skillFrac, b.dodgeFrac, b.moves.skillName, canRun(b), b.attackFrac, [b.dodgesReady, b.p.dodgeCds.length], b.p.charge ? Math.min(1, b.p.charge / b.chargeFull) : 0);
   }
 }
 

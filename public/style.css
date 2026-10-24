@@ -256,6 +256,15 @@ button {
   background: conic-gradient(rgba(74, 42, 90, 0.55) calc(var(--p, 0) * 360deg), transparent 0);
   pointer-events: none;
 }
+/* A wand's charge: a ring filling round the Attack button, gold and pulsing when the bolt is full. */
+.btn.lg.charging::after {
+  content: ''; position: absolute; inset: -7px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(#fff calc(var(--charge, 0) * 360deg), rgba(255, 255, 255, 0.18) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+}
+.btn.lg.charged::after { background: #ffd35a; animation: charged-pulse 0.6s ease-in-out infinite alternate; }
+@keyframes charged-pulse { from { filter: brightness(1); } to { filter: brightness(1.35) drop-shadow(0 0 6px #ffd35a); } }
 .btn.lg {
   width: 92px; height: 92px; font-size: 40px;
   right: calc(18px + var(--safe-r)); bottom: calc(24px + var(--safe-b));
