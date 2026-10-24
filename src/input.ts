@@ -45,6 +45,8 @@ export class Input {
   enabled = true;
   /** In a fight, a mouse attacks (left button) and dodges (right) instead of dragging the stick: you move with the keys. */
   mouseCombat = false;
+  /** On the map, a mouse click (a short press, not a drag) does what E does: talk, chop, open, enter. */
+  mouseActs = false;
   /** Where on the screen the last tap landed (for tapping something on the map, like a Garden bed). */
   tapAt: { x: number; y: number } | null = null;
 
@@ -89,8 +91,11 @@ export class Input {
       const d0 = this.downs.get(e.pointerId);
       this.downs.delete(e.pointerId);
       if (d0 && e.type === 'pointerup' && this.enabled && Math.hypot(e.clientX - d0.x, e.clientY - d0.y) <= TAP_SLOP) {
-        this.pressed.add('tap');
-        this.tapAt = d0;
+        if (e.pointerType === 'mouse' && this.mouseActs) this.pressed.add('act');
+        else {
+          this.pressed.add('tap');
+          this.tapAt = d0;
+        }
       }
       if (e.pointerId !== this.joy.id) return;
       this.joy.id = -1;

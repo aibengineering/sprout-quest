@@ -285,6 +285,7 @@ function frame(now: number) {
   G.music.want(b ? battleTheme(b.setup.zone.id, b.setup.boss) : zoneTheme(G.over.currentZone.id));
   // In a fight a mouse attacks and dodges; on the map it still drags to walk (and strikes in the chop card).
   G.input.mouseCombat = G.mode === 'battle';
+  G.input.mouseActs = G.mode === 'world';
   if (b) { G.ui.lootBelow(null); battleFrame(b, dt); }
   else worldFrame(dt);
   millSoundTick();
