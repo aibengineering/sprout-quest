@@ -8,7 +8,7 @@ import type { Input } from '../src/input';
 import { Battle } from '../src/battle/battle';
 import { lashCrackAt, lashRope } from '../src/battle/pose';
 import type { Swing } from '../src/battle/types';
-import { WHIP_REST, battleWeapon } from '../src/battle/weaponPose';
+import { AWAY_REST, WHIP_REST, battleWeapon } from '../src/battle/weaponPose';
 import { GEAR, zoneById } from '../src/data';
 import { newState } from '../src/state';
 import { MOVESETS, skillAt, tierScale, type SkillRank } from '../src/weapons';
@@ -71,6 +71,19 @@ describe('weapon attachments', () => {
     expect(battleWeapon(g, m, 1, p, 0).held.scale).toBeCloseTo(base, 6);
     // Other weapons keep the shared rest pose.
     expect(battleWeapon(GEAR.ironsword, MOVESETS.sword, 1, fighter(Math.PI / 2), 0).held.ang).toBeCloseTo(Math.PI - 0.75, 6);
+  });
+
+  test('facing away, a resting weapon is raised in the near hand past its shoulder, not across your back', () => {
+    for (const id of ['twig', 'ironsword', 'stonehammer', 'jellywand']) {
+      const g = GEAR[id], m = MOVESETS[g.style!];
+      const rest = battleWeapon(g, m, 1, fighter(-Math.PI / 2), 0);
+      expect(rest.held.ang).toBeCloseTo(-Math.PI / 2 - AWAY_REST.ang, 6);
+      expect(rest.held.lift).toBeCloseTo(AWAY_REST.lift, 6);
+      // On screen: the grip on the hand's side (left, facing away), the tip above it and further out.
+      expect(rest.hand.x).toBeLessThan(0);
+      expect(rest.tip.x).toBeLessThan(rest.hand.x);
+      expect(rest.tip.y).toBeLessThan(rest.hand.y);
+    }
   });
 
   test('a blade aimed directly at the camera has a finite orientation', () => {

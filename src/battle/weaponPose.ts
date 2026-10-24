@@ -9,6 +9,11 @@ import { clamp01, easeIn, easeOut, type Swing } from './types';
  * grip you can see instead of sitting on the tunic as a blob. Lashes, Whirl and casts keep the regular numbers.
  */
 export const WHIP_REST = { ang: 0.3, lift: 0.35, scale: 1.6 };
+/**
+ * Facing away from you, a weapon at rest is raised in the near hand, its tip up past that shoulder, instead of lying
+ * across your back where the hand can't be seen. `ang` is how far it leans out from straight ahead.
+ */
+export const AWAY_REST = { ang: 1.0, lift: 0.7 };
 
 interface FighterPose { face: number; moving: boolean; swing: Swing | null; whirlT: number; whirlAng: number; castT?: number; castAng?: number }
 
@@ -19,9 +24,11 @@ export function battleWeapon(g: Gear, moves: Moveset, reach: number, p: FighterP
   const rest = g.style === 'hammer' ? 0.5 : whipRest ? WHIP_REST.ang : 0.75;
   // A resting whip points away from the body on its hand's side, not across the tunic.
   const handSide = Math.cos(heroYaw(p.face)), restSide = whipRest && Math.abs(handSide) > 0.3 ? Math.sign(handSide) : side;
-  const ps = sw ? pose(sw, reach) : { ang: casting ? p.castAng ?? p.face : idle ? restSide > 0 ? rest : Math.PI - rest : p.whirlAng, off: 0, scale: 1 };
+  const away = idle && !whipRest && Math.sin(p.face) < -0.5;
+  const ps = sw ? pose(sw, reach)
+    : { ang: casting ? p.castAng ?? p.face : away ? -Math.PI / 2 - AWAY_REST.ang : idle ? restSide > 0 ? rest : Math.PI - rest : p.whirlAng, off: 0, scale: 1 };
   const held: Held = {
-    id: `wpn_${g.id}`, at: 'hand', ang: ps.ang, lift: whipRest ? WHIP_REST.lift : idle ? 0.35 : 0.15,
+    id: `wpn_${g.id}`, at: 'hand', ang: ps.ang, lift: whipRest ? WHIP_REST.lift : away ? AWAY_REST.lift : idle ? 0.35 : 0.15,
     scale: (34 * moves.size) / HERO_BATTLE_UNIT * (whipRest ? WHIP_REST.scale : 1),
     off: ps.off / HERO_BATTLE_UNIT,
     uncoiled: g.style === 'whip' && !idle,
