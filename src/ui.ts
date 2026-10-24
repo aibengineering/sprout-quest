@@ -2,6 +2,7 @@ import { KITCHEN_PLANS } from './kitchenUpgrades';
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
 import { xpBloops, type Sfx } from './audio';
+import { loadUiSize, saveUiSize, type UiSize } from './uiSize';
 import { buildPresentation, craftMarkup, craftPresentation, playCraft } from './crafting';
 import type { CraftItem, CraftPresentation } from './crafting/types';
 import {
@@ -1367,6 +1368,9 @@ export class UI {
         <div class="desc">Version ${VERSION}: ${esc(PATCH_NOTES[0].title)}</div></div>
         <button class="go" data-do="notes">Patch notes</button></div>
       ${this.soundCard()}
+      <div class="mcard row"><div class="ico">🔍</div><div class="info"><div class="name">Interface size</div>
+        <div class="desc">Auto fits the menus and buttons to your screen.</div></div>
+        <div class="stack" style="flex-direction:row">${(['small', 'auto', 'large'] as UiSize[]).map((v) => `<button class="go ${loadUiSize() === v ? '' : 'ghost'}" data-uisize="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div></div>
       <h3>How to play</h3>
       <div class="note" style="font-weight:600;line-height:1.5">
         • Drag anywhere to move. Walk through <b>tall grass</b> to meet monsters.<br>
@@ -1376,7 +1380,7 @@ export class UI {
         • Craft gear at the ⚒ Forge and build up the 🏡 Village for permanent boosts.<br>
         • Craft axes and picks (Forge → Tools) to chop glowing trees and mine glowing rocks. A tool can work the next tier up, slowly.<br>
         • You attack the way you last moved. Winning with a class of weapon trains it; better weapons of that class need it.<br>
-        • Keyboard: WASD/arrows, J/Space attack, K dodge, L skill, H potion, E interact, M menu.
+        • Keyboard and mouse: WASD/arrows to move, E or click to use things, Space or click to attack, Shift or right-click to dodge, F skill, 1 potion, B bag, Q journal, Esc menu.
       </div>
       <div class="mcard row"><div class="ico">📊</div><div class="info"><div class="name">Play report</div>
         <div class="desc">${rep.fights} fights and ${rep.gathers} gathers recorded, with time, damage, stamina and more. Share the file for balancing, or copy the summary to paste.</div></div>
@@ -1431,6 +1435,11 @@ export class UI {
     else if (d.do === 'reset') this.hooks.resetSave();
     else if (d.do === 'report') this.hooks.exportReport('file');
     else if (d.do === 'report-copy') this.hooks.exportReport('copy');
+    else if (d.uisize) {
+      saveUiSize(d.uisize as UiSize);
+      window.dispatchEvent(new Event('resize'));
+      return this.renderMenu(false);
+    }
     else if (d.do === 'notes') return this.hooks.patchNotes();
     else if (d.do === 'forge-locked') {
       this.showLocked = !this.showLocked;

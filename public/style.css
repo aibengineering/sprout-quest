@@ -19,6 +19,9 @@
   --safe-r: env(safe-area-inset-right, 0px);
   font-family: 'Nunito', ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
 }
+/* The interface is laid out for a phone and scales up on bigger screens (--ui, set on resize in main.ts). The game
+   canvas, the touch layer and the joystick aren't scaled: they work in real screen pixels. */
+#hud, #dock, #quest-pill, #unlock-card, #coach, #drag-hint, #banner, #ctl-world, #ctl-battle, #modal, #toast, #loot, #title { zoom: var(--ui, 1); }
 /* The chunky display face for anything that's a title, a name or a button. */
 h1, h2, h3, button, .big, .name, .qtitle, .qchap, .lvl, .speaker, .talk-name, #banner b { font-family: var(--display); }
 

@@ -1,6 +1,7 @@
 // Entry point: the canvas, the frame loop, and wiring the page's buttons to the game. The flows themselves live in
 // game/: fights, gathering, story, interactions, the menu's actions and the title screen, sharing state through `G`.
 import { modelStats, rendererSize, tickModels } from './models';
+import { uiSize } from './uiSize';
 import { liveView } from './itemview';
 import type { Battle } from './battle/battle';
 import { drawBattle } from './battle/render';
@@ -41,6 +42,10 @@ function resize() {
   canvas.width = Math.round(vw * dpr);
   canvas.height = Math.round(vh * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // The menus, HUD and buttons are laid out for a phone: on a bigger screen they scale up with it (driven by the
+  // shorter fit, like a game engine's "scale with screen size"), between 1× and 2×, times your UI size setting.
+  const fit = Math.min(2, Math.max(1, Math.min(vw / 480, vh / 820)));
+  document.documentElement.style.setProperty('--ui', String(Math.round(fit * uiSize() * 100) / 100));
 }
 window.addEventListener('resize', resize);
 resize();
