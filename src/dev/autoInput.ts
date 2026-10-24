@@ -78,6 +78,8 @@ export function combatControls(b: Battle): Controls {
     escapeX += side.x; escapeY += side.y;
   }
   if (danger && p.dodgeT <= 0 && p.iframes <= 0 && b.dodgesReady > 0) {
+    // A dodge drops a wand's charge: let a well-charged bolt go first, and dodge next frame.
+    if (p.charging && p.charge > b.chargeFull * 0.4) return controls;
     let away = vector(escapeX, escapeY);
     if (!away.x && !away.y) away = vector(p.x - target.x, p.y - target.y);
     // If retreat would run into the arena edge, dodge sideways toward its center instead.
@@ -105,7 +107,11 @@ export function combatControls(b: Battle): Controls {
   else if (distance > stand + 5) controls.move = vector(dx, dy);
   else if (!p.swing && Math.abs(angDiff(direction, p.face)) > 0.1) controls.move = vector(dx, dy, 0.15);
 
-  if (!retreat && distance <= reach + target.r * 0.5) controls.hold.add('attack');
+  const inRange = !retreat && distance <= reach + target.r * 0.5;
+  // Magic: hold until the bolt is fully charged (stepping back too, once started), then let go to cast it. Charging
+  // keeps your aim, so let it go early if the target has moved off it.
+  const onAim = Math.abs(angDiff(direction, p.face)) < 0.3;
+  if (ranged ? onAim && (p.charging ? p.charge < b.chargeFull : inRange) : inRange) controls.hold.add('attack');
   if (!retreat && b.skillNow && p.skillCd <= 0 && distance < (ranged ? 320 : 120 * b.reach)) controls.press.add('skill');
   return controls;
 }

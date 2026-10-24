@@ -6,8 +6,8 @@ export type Sfx =
   // Gathering: an axe biting wood, a pick on stone, a glancing miss, a tree creaking over and landing, a rock
   // crumbling, and what you earned landing in your bag.
   | 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup'
-  // A whip's tip snapping over.
-  | 'crack'
+  // A whip's tip snapping over, and a wand's bolt fully charged (a soft rising chime).
+  | 'crack' | 'charged'
   // Rewards: a bell as the XP bar tops out (a level), a tick per stat that grows, and a treasure's little fanfare.
   | 'ding' | 'tick' | 'treasure'
   // Weapon handling's bar has its own voice: the same bell, a fourth lower and warmer.
@@ -218,6 +218,7 @@ export class Audio {
       case 'crumble': this.noise(0.5, 0.38, 850); this.noise(0.3, 0.2, 2400, 0.06); this.tone(115, 0.26, 'sine', 0.28, 48); break;
       case 'pickup': notes([988, 1319], 0.05, 'square', 0.07); break;
       case 'crack': this.noise(0.035, 0.55, 7000); this.tone(2400, 0.025, 'square', 0.08, 1200); break;
+      case 'charged': this.tone(1175, 0.14, 'sine', 0.07, 1760); this.tone(1760, 0.28, 'sine', 0.05, undefined, 0.07); break;
       case 'ding': this.bell(); break;
       case 'handlingDing': this.bell(0.75); break;
       case 'tick': this.tone(1320, 0.05, 'square', 0.06); break;

@@ -239,7 +239,7 @@ function handlingTree(s: SaveState, style: Style): string {
       const sk = skillAt(moves.skill, at)!;
       [title, note] = [sk.name, sk.note];
     } else if (step === 'trick') [title, note] = [TRICKS[moves.trick].name, TRICKS[moves.trick].note];
-    else [title, note] = ['Faster attacks', `${paceGain(style, at) - paceGain(style, at - 1)}% quicker (${paceGain(style, at)}% in all)`];
+    else [title, note] = [style === 'wand' ? 'Faster charging' : 'Faster attacks', `${paceGain(style, at) - paceGain(style, at - 1)}% quicker (${paceGain(style, at)}% in all)`];
     // Further ahead than the next couple of levels: just that something's waiting there.
     if (at > m.lv + PATH_REVEAL) {
       return `<li class="hnode locked secret"><span class="hdot">❔</span>

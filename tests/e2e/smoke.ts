@@ -14,7 +14,7 @@ import { availableParallelism } from 'node:os';
 import { startServer } from '../../server';
 import { GEAR, MONSTERS, NODES } from '../../src/data';
 import { MEALS, type MealId } from '../../src/kitchen';
-import { MOVESETS, comboTime } from '../../src/weapons';
+import { MOVESETS, chargeTime, comboTime, pace } from '../../src/weapons';
 import { masteryXpToNext, playerStats } from '../../src/rules';
 import { browserEnv } from './browser-env';
 import { SHORTCUTS, shortcutWorldPoint } from '../../src/shortcuts';
@@ -464,8 +464,10 @@ scenario('every weapon waits between strikes, and handling shortens the wait', (
       swings.push(await game<number>(page, 'g.battle.log.swings'));
       await winFight(page);
     }
-    // Mashing is capped by the pace (a strike per strikeTime, plus the combo rest), and mastery really is faster.
-    const m = MOVESETS[style], perStrike = comboTime(m, 1) / m.combo.length;
+    // Mashing is capped by the pace (a strike per strikeTime, plus the combo rest), and mastery really is faster. A wand
+    // taps out uncharged bolts as fast as a cast and its short rest allow.
+    const m = MOVESETS[style], s = m.combo[0];
+    const perStrike = s.charge ? s.windup + s.active + s.recover + m.rest * pace(1).rest : comboTime(m, 1) / m.combo.length;
     const cap = Math.ceil(2 / perStrike) + 1;
     check(swings[0] <= cap, `${w}: ${swings[0]} swings in 2s at handling Lv 1 (its pace allows ≤${cap})`);
     check(swings[1] > swings[0], `${w}: mastered handling swung ${swings[1]} times, no more than Lv 1's ${swings[0]}`);
@@ -572,6 +574,16 @@ scenario("each class has its trick (Riposte, Stagger, Snare, Echo Cast) and its 
   }
   await special('jellywand');
   check(await game<number>(page, 'g.battle.p.echoCount') === 0, 'jellywand: Scatter advanced the echo rhythm');
+  // Holding Attack charges a bolt (fully, at Mastery, in well under a second), and letting go casts it.
+  await waitFor(page, 'ready to cast', async () => game<boolean>(page, 'g.battle.canStrike'), 5000);
+  const before = await game<number>(page, 'g.battle.log.swings');
+  await page.keyboard.down('KeyJ');
+  await page.waitForTimeout(Math.round(chargeTime(10) * 1000) + 300);
+  check(await game<boolean>(page, 'g.battle.p.charging && g.battle.p.charge >= g.battle.chargeFull'), "jellywand: holding Attack didn't charge a full bolt");
+  check(await game<number>(page, 'g.battle.log.swings') === before, 'jellywand: cast before you let go');
+  await page.keyboard.up('KeyJ');
+  await page.waitForTimeout(300);
+  check(await game<number>(page, 'g.battle.log.swings') === before + 1, "jellywand: letting go didn't cast the charged bolt");
   await winFight(page);
 });
 

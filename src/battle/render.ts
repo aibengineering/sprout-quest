@@ -699,6 +699,7 @@ function drawHero(b: Battle, ctx: Ctx) {
     else drawWeapon(ctx, style === 'whip' ? 'sword' : style, handX, handY, projectedAng, 12, b.weapon.color ?? '#ccc');
   };
   shadow(ctx, p.x, p.y, 14);
+  drawChargeRing(b, ctx);
   const armor = b.save.equip.armor;
   for(const ghost of b.afterimages) drawHeroSprite(ctx,armor,ghost.x,ghost.y,UNIT*HERO_SCALE,ghost.face,false,b.t,{alpha:ghost.t*.9,tint:'#aaa0ed',tintAmount:.6},'hero:battle-ghost');
   if (b.trick === 'echo' && p.echoCount === 2) {
@@ -733,6 +734,7 @@ function drawHero(b: Battle, ctx: Ctx) {
     if (drawn === 'model') {
       // A whip's rope (or the skill's twirl) starts from the hand you can see.
       if (style === 'whip' && !idle) drawLash(b, ctx, p.x + attachment.tip.x, p.y + attachment.tip.y, ang, sw, false, side);
+      drawChargeGlow(b, ctx, p.x + attachment.tip.x, p.y + attachment.tip.y);
       return;
     }
   }
@@ -745,6 +747,62 @@ function drawHero(b: Battle, ctx: Ctx) {
     });
   }
   if (!behind) drawW();
+  drawChargeGlow(b, ctx, p.x + attachment.tip.x, p.y + attachment.tip.y);
+}
+
+/** How far a wand's bolt is charged (0–1), and whether it's full; null while not charging. */
+function chargeOf(b: Battle) {
+  if (!b.p.charging || b.endT >= 0) return null;
+  const f = Math.min(1, b.p.charge / b.chargeFull);
+  return { f, full: f >= 1, pulse: f >= 1 ? 1 + Math.sin(b.t * 14) * 0.12 : 1 };
+}
+
+/** The charge meter: a ring on the ground round you that fills as the bolt charges, gold and pulsing once it's full. */
+function drawChargeRing(b: Battle, ctx: Ctx) {
+  const c = chargeOf(b), p = b.p;
+  if (!c) return;
+  const rx = 30 * c.pulse, ry = rx * 0.45, start = -Math.PI / 2;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = 'rgba(40, 20, 60, 0.35)';
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y, rx, ry, 0, 0, TAU);
+  ctx.stroke();
+  ctx.strokeStyle = c.full ? '#ffe07a' : '#ffffff';
+  ctx.lineWidth = c.full ? 7 : 6;
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y, rx, ry, 0, start, start + TAU * Math.max(0.02, c.f));
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** A glow at the wand's tip that swells as it charges, with sparkles circling it once it's full. */
+function drawChargeGlow(b: Battle, ctx: Ctx, x: number, y: number) {
+  const c = chargeOf(b);
+  if (!c) return;
+  const col = b.weapon.trail ?? '#fff';
+  ctx.save();
+  ctx.globalAlpha = 0.3 + 0.3 * c.f;
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.arc(x, y, (5 + 9 * c.f) * c.pulse, 0, TAU);
+  ctx.fill();
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(x, y, (2 + 3.5 * c.f) * c.pulse, 0, TAU);
+  ctx.fill();
+  if (c.full) {
+    ctx.fillStyle = '#fff6c8';
+    for (let k = 0; k < 3; k++) {
+      const a = b.t * 5 + (k * TAU) / 3;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * 15, y + Math.sin(a) * 15, 2.5, 0, TAU);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
 }
 
 /** A whip's grip on its own (the rope is drawn by drawLash): a short wrapped handle pointing along the lash. */

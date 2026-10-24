@@ -133,10 +133,10 @@ export function killModel(p: PlayerStats, style: Style, handling: number, kind: 
 
 /**
  * How many strikes a fair fight takes with each class: a regular monster at your level, with the weapon of that class
- * the checkpoint's tier gives you. Blades swing often and light; the one-strike classes land a few big blows. Either
- * way it's a real exchange, never a one-shot, and it's over in a few seconds.
+ * the checkpoint's tier gives you. Blades swing often and light; the one-strike classes land a few big blows (magic's
+ * fully charged bolts, see CHARGE). Either way it's a real exchange, never a one-shot, and it's over in a few seconds.
  */
-export const CLASS_STRIKES: Record<Style, Range> = { sword: [4, 8], hammer: [2, 4], whip: [2, 4], wand: [3, 6] };
+export const CLASS_STRIKES: Record<Style, Range> = { sword: [4, 8], hammer: [2, 4], whip: [2, 4], wand: [2, 4] };
 /** …and no longer than this from the first blow to the last (the walk in and dodging aren't counted). */
 export const MAX_KILL_SECONDS = 5;
 
