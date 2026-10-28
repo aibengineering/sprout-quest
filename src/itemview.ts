@@ -27,8 +27,8 @@ function elevation(id: string): number {
 
 /**
  * The model that shows an item (by its icon id: meals are `meal_<id>`), or null if it has none: its crafting scene,
- * finished; a material's own small model; else, for the Twig Sword, the model the hero holds. (The starter Tunic's icon is you in it: the Bag shows
- * you live instead.)
+ * finished; a material's own small model; else, for the Twig Sword, the model the hero holds, and for the starter Tunic,
+ * the armour the hero wears (just the garment).
  */
 export function itemModel(iconId: string): ItemModel | null {
   const id = iconId.replace(/^meal_/, '');
@@ -38,6 +38,7 @@ export function itemModel(iconId: string): ItemModel | null {
   if (id in MATS) return { url: `assets/crafting3d/mat_${id}.glb`, elevation: deg(12) };
   const g = GEAR[id];
   if (g?.slot === 'weapon') return { url: `assets/models/wpn_${id}.glb`, elevation: elevation(id), tilt: true };
+  if (id === 'tunic') return { url: 'assets/models/armor_tunic.glb', elevation: deg(12) };
   return null;
 }
 

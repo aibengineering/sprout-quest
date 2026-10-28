@@ -17,7 +17,7 @@ jobs:
   # main requires, so those pull requests can still merge.
   changes:
     name: What changed
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       game: ${{ steps.diff.outputs.game }}
     steps:
@@ -28,13 +28,13 @@ jobs:
         with:
           bun-version: latest
       - id: diff
-        run: bun run scripts/changes.ts "${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}"
+        run: bun run scripts/changes.ts "${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}"
 
   check:
     name: Typecheck, tests and build
     needs: changes
     if: needs.changes.outputs.game == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -50,7 +50,7 @@ jobs:
     name: Browser smoke test
     needs: changes
     if: needs.changes.outputs.game == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -64,7 +64,7 @@ jobs:
     name: Full browser regression and balance
     needs: changes
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.base_ref == 'main' && needs.changes.outputs.game == 'true')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -94,7 +94,7 @@ jobs:
     name: Version bump and patch notes
     needs: [changes, regression]
     if: always() && github.event_name == 'pull_request' && github.base_ref == 'main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # Keep the existing release check red if full regression fails; docs-only PRs may skip regression.
       - if: needs.changes.result != 'success' || (needs.changes.outputs.game == 'true' && needs.regression.result != 'success')
@@ -108,4 +108,6 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bun run scripts/check-release.ts origin/main
+      # Compare against the PR's own base commit, not origin/main: this job waits for the long regression run, and if the
+      # PR is merged in the meantime origin/main already contains this release (and its version looks unchanged).
+      - run: bun run scripts/check-release.ts ${{ github.event.pull_request.base.sha }}

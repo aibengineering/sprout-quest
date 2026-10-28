@@ -25,6 +25,8 @@ const DEMO_WEAPON: Record<Style, string> = { sword: 'stonesword', hammer: 'stone
 /** Pretend presses: the script queues them, and the battle takes them like yours. */
 class ScriptInput {
   private queued = new Set<Action>();
+  /** Buttons held down this frame (the script holds them again each frame it wants them). */
+  held = new Set<Action>();
   move = { x: 0, y: 0 };
   press(a: Action) {
     this.queued.add(a);
@@ -35,8 +37,8 @@ class ScriptInput {
   consume(a: Action) {
     return this.queued.delete(a);
   }
-  isHeld() {
-    return false;
+  isHeld(a: Action) {
+    return this.held.has(a);
   }
   flush() {
     this.queued.clear();
@@ -49,6 +51,8 @@ class ScriptInput {
 /** How long to watch after the move lands before it starts over, and how long to wait for a chance at most. */
 const AFTER = 1.4;
 const GIVE_UP = 6;
+/** Seconds the Echo Cast preview charges each cast: long enough to see it charge, short enough for three in the loop. */
+const ECHO_DEMO_CHARGE = 0.8;
 
 export class MoveDemo {
   battle!: Battle;
@@ -125,6 +129,7 @@ export class MoveDemo {
     this.t += dt;
     const b = this.battle, p = b.p, inp = this.input;
     inp.move = { x: 0, y: 0 };
+    inp.held.clear();
     this.script(b, inp);
     b.update(dt);
     // You can't be hurt watching.
@@ -162,10 +167,10 @@ export class MoveDemo {
     const toward = { x: Math.cos(p.face), y: Math.sin(p.face) };
     switch (m.trick) {
       case 'echo':
-        // Three ordinary casts, then let the delayed bolt land before the loop pauses.
+        // Three ordinary casts, each charged a moment then let go, then let the delayed bolt land before the loop pauses.
         e.stun = Math.max(e.stun, 0.2);
         if (b.echoes > 0 && b.hits >= 4) done();
-        else if (this.t > 0.6 && b.canStrike && b.log.swings < 3) inp.press('attack');
+        else if (this.t > 0.6 && b.log.swings < 3 && !(p.charging && p.charge >= ECHO_DEMO_CHARGE)) inp.held.add('attack');
         return;
       case 'riposte': {
         // Wait for its charge, then dodge right through it to ready a Riposte. Answer at once.

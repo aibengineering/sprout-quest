@@ -9,7 +9,6 @@
 <g id="sil"><ellipse cx="-2" cy="-46" rx="56" ry="39" transform="rotate(-5 -2 -46)"/><ellipse cx="-47" cy="-17" rx="21" ry="18" transform="rotate(-8 -47 -17)"/><ellipse cx="46" cy="-18" rx="23" ry="19" transform="rotate(8 46 -18)"/><ellipse cx="0" cy="-9" rx="54" ry="13"/></g>
 <clipPath id="c"><ellipse cx="-2" cy="-46" rx="56" ry="39" transform="rotate(-5 -2 -46)"/><ellipse cx="-47" cy="-17" rx="21" ry="18" transform="rotate(-8 -47 -17)"/><ellipse cx="46" cy="-18" rx="23" ry="19" transform="rotate(8 46 -18)"/><ellipse cx="0" cy="-9" rx="54" ry="13"/></clipPath>
 </defs>
-<ellipse cx="0" cy="3" rx="66" ry="8" fill="#24461f" opacity=".25" filter="url(#s1)"/>
 <g id="body">
 <use href="#sil" fill="#3a2448" stroke="#3a2448" stroke-width="5" stroke-linejoin="round"/>
 <g clip-path="url(#c)">

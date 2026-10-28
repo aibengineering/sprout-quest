@@ -23,7 +23,7 @@ import { hash2, T, type TileMap, type World, type WorldObj } from './world';
 import { WALL_RISE, type Room } from './room';
 import { EchoCave, ECHO_OUTSIDE } from './echoCave';
 import { Cavern } from './cavern';
-import { surfaceBounds, caveApproachStone, CAVE_WEST_EDGE, CAVE_EAST_EDGE } from './caveEntrance';
+import { surfaceBounds, caveApproachStone, bodyOutsideCaves, CAVE_WEST_EDGE, CAVE_EAST_EDGE } from './caveEntrance';
 
 /** Tiles of cliff the camera may show past the surface's edge, beside a cave mouth. */
 const CLIFF_VIEW = 3;
@@ -156,7 +156,7 @@ export class Overworld {
       this.x = p.x;
       this.y = p.y;
     }
-    if(save.spirit&&!save.underground) { const p=world.safePosition(save.spirit);save.spirit.x=p.x;save.spirit.y=p.y; }
+    if(save.spirit) { const p=world.safePosition(bodyOutsideCaves(save.spirit,save.bosses.includes('echoqueen')));save.spirit.x=p.x;save.spirit.y=p.y; }
     this.zone = world.zoneAt(this.x);
     if(this.zone.id==='cave') this.underground=this.cavern;
     this.camX = this.x;
@@ -564,7 +564,8 @@ export class Overworld {
         if(t!==T.OBST&&t!==T.POOL&&t!==T.CHASM){
           const shade=ctx.createLinearGradient(px,py,px,py+ts*.3);
           shade.addColorStop(0,'rgba(24,32,40,.16)');shade.addColorStop(1,'rgba(24,32,40,0)');
-          if(W.tile(x,y-1)===T.OBST){ctx.fillStyle=shade;ctx.fillRect(px,py,ts,ts*.3);}
+          // Only under cliffs and rock: trees cast their own soft shadows, and a band under a row of them looks boxy.
+          if(W.tile(x,y-1)===T.OBST&&this.isRock(x,y-1)){ctx.fillStyle=shade;ctx.fillRect(px,py,ts,ts*.3);}
           if(t===T.GROUND&&hash2(x,y,73)<.10)this.drawDecor(ctx,x,y,px,py,ts,th);
         }
         if (t === T.PATH) this.drawPath(ctx, x, y, px, py, ts, stone>.5?{...th,path:'#a9a28f'}:th);

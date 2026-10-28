@@ -6,8 +6,10 @@
  */
 export type Action = 'attack' | 'skill' | 'dodge' | 'potion' | 'act' | 'menu' | 'run' | 'bag' | 'journal' | 'touch' | 'tap';
 
+// Space, Shift, F and 1 are the advertised keys; J, K, L and H stay for players who keep their right hand on the home row.
 const KEY_ACTIONS: Record<string, Action> = {
-  Space: 'attack', KeyJ: 'attack', KeyK: 'dodge', ShiftLeft: 'dodge', KeyL: 'skill', KeyH: 'potion',
+  Space: 'attack', KeyJ: 'attack', ShiftLeft: 'dodge', ShiftRight: 'dodge', KeyK: 'dodge', KeyF: 'skill', KeyL: 'skill',
+  Digit1: 'potion', Numpad1: 'potion', KeyH: 'potion',
   KeyE: 'act', Enter: 'act', KeyM: 'menu', Escape: 'menu', KeyR: 'run', KeyB: 'bag', KeyQ: 'journal',
 };
 
@@ -41,6 +43,10 @@ export class Input {
   /** Where each finger on the play area landed, until it drags too far to be a tap. */
   private downs = new Map<number, { x: number; y: number }>();
   enabled = true;
+  /** In a fight, a mouse attacks (left button) and dodges (right) instead of dragging the stick: you move with the keys. */
+  mouseCombat = false;
+  /** On the map, a mouse click (a short press, not a drag) does what E does: talk, chop, open, enter. */
+  mouseActs = false;
   /** Where on the screen the last tap landed (for tapping something on the map, like a Garden bed). */
   tapAt: { x: number; y: number } | null = null;
 
@@ -49,7 +55,14 @@ export class Input {
     private joyBase: HTMLElement,
     private joyKnob: HTMLElement,
   ) {
+    surface.addEventListener('contextmenu', (e) => { if (this.mouseCombat) e.preventDefault(); });
     surface.addEventListener('pointerdown', (e) => {
+      if (this.mouseCombat && e.pointerType === 'mouse' && (e.button === 0 || e.button === 2)) {
+        const a: Action = e.button === 0 ? 'attack' : 'dodge';
+        if (this.enabled) { this.pressed.add(a); this.held.add(a); }
+        e.preventDefault();
+        return;
+      }
       if (this.enabled) this.pressed.add('touch');
       this.downs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (!this.enabled || this.joy.id !== -1) return;
@@ -74,11 +87,15 @@ export class Input {
       this.updateJoy();
     });
     const end = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') { this.held.delete('attack'); this.held.delete('dodge'); }
       const d0 = this.downs.get(e.pointerId);
       this.downs.delete(e.pointerId);
       if (d0 && e.type === 'pointerup' && this.enabled && Math.hypot(e.clientX - d0.x, e.clientY - d0.y) <= TAP_SLOP) {
-        this.pressed.add('tap');
-        this.tapAt = d0;
+        if (e.pointerType === 'mouse' && this.mouseActs) this.pressed.add('act');
+        else {
+          this.pressed.add('tap');
+          this.tapAt = d0;
+        }
       }
       if (e.pointerId !== this.joy.id) return;
       this.joy.id = -1;

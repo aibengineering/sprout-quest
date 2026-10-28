@@ -9,7 +9,7 @@ import { Fx } from '../fx';
 import type { Input } from '../input';
 import { GENTLE_ATK, MONSTER_HP, calcDamage, greenhorn, dodgeCharges, dodgeMotion, levelEdge, xpEdge, cloverPity, mergeDrops, playerStats, rollDrops, scaleMonster, type PlayerStats } from '../rules';
 import type { SaveState } from '../state';
-import { ECHO, MOVESETS, RIPOSTE, SKILL_DATA, STAGGER, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
+import { CHARGE, ECHO, MOVESETS, RIPOSTE, SKILL_DATA, STAGGER, chargePower, chargeTime, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
 import { MONSTER_AI, blinkAway, type FoeWorld } from './monsters';
 import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
@@ -50,6 +50,8 @@ export class Battle implements FoeWorld, HitWorld {
   readonly skillNow: SkillRank | null;
   /** Your class's trick (null until handling Lv 3). */
   readonly trick: Trick | null;
+  /** Magic: seconds to charge a bolt fully at your handling (see CHARGE). */
+  readonly chargeFull: number;
   readonly p = {
     x: 0, y: 120, vx: 0, vy: 0, kx: 0, ky: 0, r: 12,
     hp: 0, face: -Math.PI / 2, moving: false,
@@ -61,6 +63,8 @@ export class Battle implements FoeWorld, HitWorld {
     restT: 0, atkCd: 0, atkGap: 0,
     whirlT: 0, whirlTick: 0, whirlAng: 0,
     castT: 0, castAng: 0,
+    /** Magic: charging a bolt (Attack held), and for how many seconds so far (up to chargeFull). */
+    charging: false, charge: 0,
     /** Normal casts toward the next echo: at two, the wand glows ready for the third. */
     echoCount: 0,
     /** Seconds left poisoned (Sporecap spores), and until its next hurt; seconds left dizzy (a Flapper's screech). */
@@ -108,6 +112,8 @@ export class Battle implements FoeWorld, HitWorld {
   snares = 0;
   echoes = 0;
   private echoShot: { t: number; proj: Proj } | null = null;
+  /** The "Hold to charge!" nudge has been shown this fight. */
+  private chargeTaught = false;
   private onceKeys = new Set<number>();
   /** The strike whose "Riposte!" has been shown (a sweep can hit several foes). */
   private riposteShown = 0;
@@ -136,6 +142,7 @@ export class Battle implements FoeWorld, HitWorld {
     this.pace = pace(this.handling);
     this.skillNow = skillAt(this.moves.skill, this.handling);
     this.trick = hasTrick(this.handling) ? this.moves.trick : null;
+    this.chargeFull = chargeTime(this.handling);
     this.p.dodgeCds = Array(dodgeCharges(save)).fill(0);
     // Regular fights swoop in and get going at once; bosses keep their dramatic "Boss battle!" beat.
     this.intro = this.dramatic ? 1.2 : ZOOM_T + 0.1;
@@ -358,7 +365,8 @@ export class Battle implements FoeWorld, HitWorld {
     const wob = p.dizzy > 0 ? Math.sin(this.t * 2.6) * 1.3 : 0;
     const a = wob ? { x: raw.x * Math.cos(wob) - raw.y * Math.sin(wob), y: raw.x * Math.sin(wob) + raw.y * Math.cos(wob) } : raw;
     p.moving = Math.hypot(a.x, a.y) > 0.1;
-    const busy = !!p.swing || p.whirlT > 0;
+    // Charging a bolt you keep your aim and step sideways or back, instead of turning to walk.
+    const busy = !!p.swing || p.whirlT > 0 || p.charging;
     if (p.moving && !busy) p.face = Math.atan2(a.y, a.x);
     let speed = 150 * (1 + st.spd / 100);
     if (p.swing) {
@@ -366,8 +374,9 @@ export class Battle implements FoeWorld, HitWorld {
       // Heavy weapons root you while they swing; recovery lets you move again.
       speed *= sw.t < sw.s.windup + sw.s.active ? sw.s.move : 0.5 + sw.s.move * 0.5;
     }
-    // Whirling slows you down (less so as the skill ranks up).
+    // Whirling slows you down (less so as the skill ranks up), and so does charging a bolt.
     if (p.whirlT > 0) speed *= this.skillNow?.move || 0.5;
+    if (p.charging) speed *= CHARGE.slow;
     if (p.dodgeT > 0) {
       p.dodgeT -= dt;
       p.vx = Math.cos(p.dodgeDir) * speed * 3 * dodgeMotion(this.save);
@@ -394,6 +403,8 @@ export class Battle implements FoeWorld, HitWorld {
       // Blades flow: their dodge cancels a windup too.
       if (!p.swing || p.swing.t > p.swing.s.windup || this.trick === 'riposte') {
         p.swing = null;
+        p.charging = false;
+        p.charge = 0;
         p.dodgeDir = p.moving ? Math.atan2(a.y, a.x) : p.face + Math.PI;
         p.iframes = Math.max(p.iframes, 0.32);
         p.dodging = 0.32;
@@ -404,7 +415,8 @@ export class Battle implements FoeWorld, HitWorld {
       }
     }
     if (inp.consume('attack')) p.atkBuffer = 0.25;
-    const wantAttack = p.atkBuffer > 0 || inp.isHeld('attack');
+    if (this.moves.combo[0].charge) this.updateCharge(dt, inp.isHeld('attack'));
+    const wantAttack = !this.moves.combo[0].charge && (p.atkBuffer > 0 || inp.isHeld('attack'));
     // For the play report: how long you're kept waiting after a combo, and between strikes.
     if (wantAttack && p.restT > 0) this.log.rested += dt;
     else if (wantAttack && p.atkCd > 0) this.log.cooling += dt;
@@ -415,10 +427,47 @@ export class Battle implements FoeWorld, HitWorld {
       p.combo = idx + 1;
       this.startSwing(combo[idx], false, idx === combo.length - 1);
     }
-    // Skills cancel whatever swing is in progress, so they always come out when pressed.
+    // Skills cancel whatever swing is in progress, so they always come out when pressed (a wand's charge carries on).
     if (inp.consume('skill') && this.skillNow && p.skillCd <= 0 && p.dodgeT <= 0 && p.whirlT <= 0) this.skill(this.skillNow);
     if (inp.consume('potion')) this.drinkPotion();
     if (inp.consume('run')) this.tryRun();
+  }
+
+  /**
+   * Magic: while Attack is held (and nothing else is going on) the bolt charges, through the rest after a cast too; let
+   * go and it's cast as soon as it can be, as strong as you charged it. A tap (atkBuffer) casts an uncharged bolt.
+   */
+  private updateCharge(dt: number, held: boolean) {
+    const p = this.p, free = !p.swing && p.dodgeT <= 0 && p.whirlT <= 0;
+    if (held && free) {
+      const was = p.charge;
+      p.charging = true;
+      p.charge = Math.min(this.chargeFull, p.charge + dt);
+      // Fully charged: a sparkle at the tip and a soft chime.
+      if (was < this.chargeFull && p.charge >= this.chargeFull) {
+        const tip = battleWeapon(this.weapon, this.moves, this.reach, p, this.t).tip;
+        this.fx.burst(p.x + tip.x, p.y + tip.y, '#fff6c8', 8, 70, { size: 3, star: true, grav: 0, life: 0.35 });
+        this.audio.play('charged');
+      }
+      return;
+    }
+    if ((!p.charging && p.atkBuffer <= 0) || !free || p.atkCd > 0 || p.restT > 0) return;
+    const f = p.charge / this.chargeFull, s = this.moves.combo[0], power = chargePower(f);
+    p.charging = false;
+    p.charge = 0;
+    p.atkBuffer = 0;
+    this.startSwing({ ...s, mult: s.mult * power.mult, size: s.size * power.size }, false, true);
+    // New to magic and tapping away: once a fight, a nudge to try holding it.
+    if (f < 0.25 && this.handling <= 2 && !this.chargeTaught) {
+      this.chargeTaught = true;
+      this.fx.text(p.x, p.y - 48, 'Hold to charge!', '#fff6c8', 15);
+    }
+    // A full charge lets go with a kick.
+    if (f >= 1) {
+      this.audio.play('heavy');
+      this.shakeAtLeast(4);
+      this.punch = Math.max(this.punch, 0.03);
+    }
   }
 
   /** The enemy almost straight ahead of you (within AIM_ASSIST), if any. */

@@ -4,6 +4,7 @@ import { Battle } from '../src/battle/battle';
 import { zoneById } from '../src/data';
 import type { Input } from '../src/input';
 import { newState } from '../src/state';
+import { CHARGE } from '../src/weapons';
 
 const STEP = 0.01;
 function fight(lv = 3, weapon = 'jellywand') {
@@ -60,8 +61,11 @@ describe('Echo Cast', () => {
     f.tick(0.01);
     expect(f.b.echoes).toBe(1);
     const echo = f.b.projs[1];
-    expect(echo.mult).toBeCloseTo(0.9, 6); // Normal wand cast is 1.8×; echo is 0.9×.
-    expect(echo.r).toBeCloseTo(9 * 1.18 * 0.7, 6); // Tier-three bolt, then 70% radius.
+    // A tapped cast is 1.8 × 0.3 (uncharged), its bolt a tier-three one at 70% size; the echo is half of it, 70% the size.
+    expect(original.mult).toBeCloseTo(1.8 * CHARGE.tap, 6);
+    expect(original.r).toBeCloseTo(9 * 1.18 * CHARGE.small, 6);
+    expect(echo.mult).toBeCloseTo(original.mult * 0.5, 6);
+    expect(echo.r).toBeCloseTo(original.r * 0.7, 6);
     // Undo the original's first homing step to recover the outlet, then add one straight echo step.
     expect(echo.x).toBeCloseTo(original.x - original.vx * STEP + Math.cos(0.35) * 400 * STEP, 6);
     expect(echo.y).toBeCloseTo(original.y - original.vy * STEP + Math.sin(0.35) * 400 * STEP, 6);

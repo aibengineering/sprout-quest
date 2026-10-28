@@ -2,6 +2,7 @@ import { KITCHEN_PLANS } from './kitchenUpgrades';
 // DOM-based HUD, menus and dialogs layered over the canvas.
 import { iconUrl } from './assets';
 import { xpBloops, type Sfx } from './audio';
+import { loadUiSize, saveUiSize, type UiSize } from './uiSize';
 import { buildPresentation, craftMarkup, craftPresentation, playCraft } from './crafting';
 import type { CraftItem, CraftPresentation } from './crafting/types';
 import {
@@ -31,6 +32,8 @@ import { villageDue } from './villageJobs';
 const TAB_UNLOCK: Partial<Record<Tab, UnlockId>> = { journey: 'journal', items: 'bag', forge: 'forge', village: 'village' };
 
 export type Tab = 'journey' | 'items' | 'forge' | 'village' | 'settings';
+/** Menu tabs with a letter of their own (the Bag and Journal buttons' keys); shown on the tab in keyboard mode. */
+const TAB_KEYS: Partial<Record<Tab, string>> = { journey: 'Q', items: 'B' };
 
 export interface MenuCtx {
   atForge: boolean;
@@ -178,7 +181,7 @@ export function allIconIds(): string[] {
   const buildings = ['plot', 'warp0', 'warp1', 'forge0', 'forge', 'forge2', 'forge3', 'forge4', 'forge5', 'campfire', 'bramhut', 'cottage1',
     ...['home', 'garden', 'training'].flatMap((p) => [1, 2, 3].map((l) => `${p}${l}`)), ...[0, 1, 2, 3, 4].map((l) => `sawmill${l}`)];
   return [
-    ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id), 'axe0', 'pick0',
+    ...Object.keys(MATS), ...Object.keys(GEAR), ...TOOLS.map((t) => t.id), 'axe0', 'pick0', 'hero',
     ...POTION_RECIPES.filter((p) => craftPresentation(p)).map((p) => p.id),
     ...Object.entries(MONSTERS).filter(([, m]) => m.boss).map(([k]) => `boss_${k}`),
     ...buildings.map((b) => `b_${b}`), ...Object.values(HOMES).flatMap((h) => h.plans.slice(h.name === 'Pip' ? 1 : 0).map((p) => `b_${p.art}`)), 'npc_elder', 'npc_rook', 'npc_moss', 'npc_fox', ...KITCHEN_PLANS.map((p)=>`b_${p.art}`),
@@ -236,7 +239,7 @@ function handlingTree(s: SaveState, style: Style): string {
       const sk = skillAt(moves.skill, at)!;
       [title, note] = [sk.name, sk.note];
     } else if (step === 'trick') [title, note] = [TRICKS[moves.trick].name, TRICKS[moves.trick].note];
-    else [title, note] = ['Faster attacks', `${paceGain(style, at) - paceGain(style, at - 1)}% quicker (${paceGain(style, at)}% in all)`];
+    else [title, note] = [style === 'wand' ? 'Faster charging' : 'Faster attacks', `${paceGain(style, at) - paceGain(style, at - 1)}% quicker (${paceGain(style, at)}% in all)`];
     // Further ahead than the next couple of levels: just that something's waiting there.
     if (at > m.lv + PATH_REVEAL) {
       return `<li class="hnode locked secret"><span class="hdot">❔</span>
@@ -649,9 +652,17 @@ export class UI {
   }
 
   /** `dodges`: how many dodge charges are ready, of how many (pips on the button once there's more than one). */
-  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0, dodges: [number, number] = [1, 1]) {
+  /** `charge`: how full a wand's bolt is (0–1), a ring filling round the Attack button, gold when full. */
+  battleHud(potions: number, skillFrac: number, dodgeFrac: number, skillName: string, canRun: boolean, attackFrac = 0, dodges: [number, number] = [1, 1], charge = 0) {
     const at = attackFrac.toFixed(2);
     this.set('atk', at, () => ($('btn-attack').querySelector<HTMLElement>('.cd')!.style.setProperty('--p', at)));
+    const ch = charge.toFixed(2);
+    this.set('charge', ch, () => {
+      const btn = $('btn-attack');
+      btn.style.setProperty('--charge', ch);
+      btn.classList.toggle('charging', charge > 0);
+      btn.classList.toggle('charged', charge >= 1);
+    });
     this.set('pot', String(potions), () => {
       $('potion-n').textContent = String(potions);
       $('btn-potion').style.opacity = potions > 0 ? '1' : '0.5';
@@ -1012,12 +1023,13 @@ export class UI {
     // Each tab is its own thing from the world: a notebook, the satchel, the smithy's bench, the builder's board.
     this.sheet.className = `sheet menu theme-${this.tab}`;
     const closeBtn = '<button class="tab-close" data-do="close" aria-label="Close menu"><span>✕</span>Close<kbd class="key">Esc</kbd></button>';
-    const tabBtns = tabs.map(([id, ico, label], i) =>
-      `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}<kbd class="key">${i + 1}</kbd></button>`).join('');
+    // The same letters as the Bag and Journal buttons on the map (number keys still switch tabs, unlabelled).
+    const tabBtns = tabs.map(([id, ico, label]) =>
+      `<button data-tab="${id}" class="${this.tab === id ? 'on' : ''}"><span>${ico}</span>${label}${dot(id)}${TAB_KEYS[id] ? `<kbd class="key">${TAB_KEYS[id]}</kbd>` : ''}</button>`).join('');
     this.sheet.innerHTML = `
       <div class="grab" aria-hidden="true"></div>
       <header class="mhead">
-        ${this.tab === 'items' ? `<button class="portrait" data-pick="items:you" aria-label="You">${icon(s.equip.armor, '🌱')}</button>` : `<div class="portrait">${icon(s.equip.armor, '🌱')}</div>`}
+        ${this.tab === 'items' ? `<button class="portrait" data-pick="items:you" aria-label="You">${icon('hero', '🌱')}</button>` : `<div class="portrait">${icon('hero', '🌱')}</div>`}
         <div class="who">
           <div class="name">Sprout <span class="lvl">Lv ${s.lv}</span></div>
           <div class="mini hp"><i style="width:${(100 * s.hp) / st.maxHp}%"></i><span>${Math.ceil(s.hp)} / ${st.maxHp} HP</span></div>
@@ -1364,6 +1376,9 @@ export class UI {
         <div class="desc">Version ${VERSION}: ${esc(PATCH_NOTES[0].title)}</div></div>
         <button class="go" data-do="notes">Patch notes</button></div>
       ${this.soundCard()}
+      <div class="mcard row"><div class="ico">🔍</div><div class="info"><div class="name">Interface size</div>
+        <div class="desc">Auto fits the menus and buttons to your screen.</div></div>
+        <div class="stack" style="flex-direction:row">${(['small', 'auto', 'large'] as UiSize[]).map((v) => `<button class="go ${loadUiSize() === v ? '' : 'ghost'}" data-uisize="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div></div>
       <h3>How to play</h3>
       <div class="note" style="font-weight:600;line-height:1.5">
         • Drag anywhere to move. Walk through <b>tall grass</b> to meet monsters.<br>
@@ -1373,7 +1388,7 @@ export class UI {
         • Craft gear at the ⚒ Forge and build up the 🏡 Village for permanent boosts.<br>
         • Craft axes and picks (Forge → Tools) to chop glowing trees and mine glowing rocks. A tool can work the next tier up, slowly.<br>
         • You attack the way you last moved. Winning with a class of weapon trains it; better weapons of that class need it.<br>
-        • Keyboard: WASD/arrows, J/Space attack, K dodge, L skill, H potion, E interact, M menu.
+        • Keyboard and mouse: WASD/arrows to move, E or click to use things, Space or click to attack, Shift or right-click to dodge, F skill, 1 potion, B bag, Q journal, Esc menu.
       </div>
       <div class="mcard row"><div class="ico">📊</div><div class="info"><div class="name">Play report</div>
         <div class="desc">${rep.fights} fights and ${rep.gathers} gathers recorded, with time, damage, stamina and more. Share the file for balancing, or copy the summary to paste.</div></div>
@@ -1428,6 +1443,11 @@ export class UI {
     else if (d.do === 'reset') this.hooks.resetSave();
     else if (d.do === 'report') this.hooks.exportReport('file');
     else if (d.do === 'report-copy') this.hooks.exportReport('copy');
+    else if (d.uisize) {
+      saveUiSize(d.uisize as UiSize);
+      window.dispatchEvent(new Event('resize'));
+      return this.renderMenu(false);
+    }
     else if (d.do === 'notes') return this.hooks.patchNotes();
     else if (d.do === 'forge-locked') {
       this.showLocked = !this.showLocked;

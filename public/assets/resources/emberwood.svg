@@ -39,7 +39,6 @@
 </g>
 </defs>
 <g id="stump">
-<ellipse cx="0" cy="0" rx="38" ry="6" fill="#24461f" opacity=".25" filter="url(#soft2)"/>
 <use href="#tp" fill="#3a2448" stroke="#3a2448" stroke-width="5" stroke-linejoin="round" clip-path="url(#lo)"/><use href="#tk" clip-path="url(#la)"/>
 </g>
 <g id="cut" display="none"><ellipse cx="-.6" cy="-24" rx="18.4" ry="5" fill="#3a2448" stroke="#3a2448" stroke-width="4"/><ellipse cx="-.6" cy="-24" rx="18.4" ry="5" fill="#f08a4a"/><ellipse cx="-.6" cy="-24" rx="9" ry="2.6" fill="#ffd27a" opacity=".7" filter="url(#soft2)"/><ellipse cx="-.6" cy="-24" rx="12" ry="3.1" fill="none" stroke="#ffc07a" stroke-width="1.4"/><ellipse cx="-.6" cy="-24" rx="5" ry="1.4" fill="none" stroke="#ffc07a" stroke-width="1.2"/></g>

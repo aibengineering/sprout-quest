@@ -226,7 +226,7 @@ function swoopOut() {
 
 let coachStep = 0;
 
-/** "Tap ⚔️" on touch screens, "Press J" with a keyboard. */
+/** "Tap ⚔️" on touch screens, "Press Space" with a keyboard. */
 const press = (key: string, emoji: string) => (usingKeyboard() ? `Press ${key}` : `Tap ${emoji}`);
 
 /** Gentle in-battle tutorial: attack first, then dodge, later skills and potions. */
@@ -237,7 +237,7 @@ export function coachBattle(b: Battle) {
   if (s.wins === 0) {
     if (coachStep === 0) {
       if (b.hits > 0) coachStep = 1;
-      return ui.coach(`Walk toward it, then ${press('J', '⚔️')}: you swing the way you're facing.`, 'btn-attack');
+      return ui.coach(`Walk toward it, then ${press('Space (or click)', '⚔️')}: you swing the way you're facing.`, 'btn-attack');
     }
     return ui.coach(null);
   }
@@ -246,13 +246,13 @@ export function coachBattle(b: Battle) {
     if (coachStep === 0) {
       if (b.log.dodges > 0) { coachStep = 1; return ui.coach(null); }
       const winding = b.enemies.some((e) => !e.dead && e.windup > 0.2);
-      return ui.coach(winding ? `It's winding up! ${press('K', '💨')} NOW!` : `Hopbuns wiggle, then charge. ${press('K', '💨')} to dodge through them!`, 'btn-dodge');
+      return ui.coach(winding ? `It's winding up! ${press('Shift', '💨')} NOW!` : `Hopbuns wiggle, then charge. ${press('Shift', '💨')} to dodge through them!`, 'btn-dodge');
     }
     return ui.coach(null);
   }
   if (has(s, 'bag') && s.potions > 0 && b.p.hp < b.stats.maxHp * 0.4 && !s.tips.includes('coach-potion')) {
     if (b.p.potionCd > 0) s.tips.push('coach-potion');
-    return ui.coach(`Low HP! ${press('H', '🧪')} to drink a potion.`, 'btn-potion');
+    return ui.coach(`Low HP! ${press('1', '🧪')} to drink a potion.`, 'btn-potion');
   }
   ui.coach(null);
 }

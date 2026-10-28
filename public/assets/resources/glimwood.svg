@@ -25,7 +25,6 @@
 <g id="shd"><use href="#sh" fill="url(#gS)"/><path d="M-4.5 -14 L0 -21 L4.5 -14 L0 -12 Z" fill="#fbf9ff"/><path d="M0 -12 L4.5 -14 L0 -21Z" fill="#e6def9"/></g>
 </defs>
 <g id="stump">
-<ellipse cx="0" cy="0" rx="38" ry="6" fill="#24461f" opacity=".25" filter="url(#soft2)"/>
 <use href="#tp" fill="#3a2448" stroke="#3a2448" stroke-width="5" stroke-linejoin="round" clip-path="url(#lo)"/><use href="#tk" clip-path="url(#la)"/>
 </g>
 <g id="cut" display="none"><ellipse cx=".5" cy="-24" rx="17.2" ry="4.5" fill="#3a2448" stroke="#3a2448" stroke-width="4"/><ellipse cx=".5" cy="-24" rx="17.2" ry="4.5" fill="#c2b8f4"/><ellipse cx=".5" cy="-24" rx="11" ry="2.8" fill="none" stroke="#f4f0ff" stroke-width="1.4"/><ellipse cx=".5" cy="-24" rx="4.5" ry="1.2" fill="none" stroke="#f4f0ff" stroke-width="1.2"/></g>

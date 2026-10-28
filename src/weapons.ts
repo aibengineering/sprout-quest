@@ -45,6 +45,8 @@ export interface Strike {
   /** Lashes: how much of the rope, from the tip, is the sweet spot (full damage, a "crack"), and what the rest does. */
   tip?: number;
   graze?: number;
+  /** Magic: hold to charge, let go to cast; `mult` and `size` are a normal cast's, scaled by chargePower. */
+  charge?: boolean;
 }
 
 export type SkillKind = 'spin' | 'whirl' | 'quake' | 'scatter';
@@ -73,7 +75,7 @@ export interface Moveset {
  * mastered weapon strikes about twice as fast.
  */
 export function pace(lv: number) {
-  const q = SPEED_LEVELS.filter((l) => lv >= l).length / SPEED_LEVELS.length;
+  const q = speedShare(lv);
   return { chain: 1.6 - 1.15 * q, rest: 1.9 - 1.3 * q };
 }
 
@@ -86,6 +88,8 @@ export function pace(lv: number) {
 export const SKILL_LEVELS = [2, 5, 8, 10];
 export const TRICK_LEVEL = 3;
 export const SPEED_LEVELS = [4, 6, 7, 9];
+/** How many of the speed steps a handling level has reached: 0 below Lv 4, 1 from Lv 9. */
+const speedShare = (lv: number) => SPEED_LEVELS.filter((l) => lv >= l).length / SPEED_LEVELS.length;
 /** Whether your class's trick is unlocked at a handling level. */
 export const hasTrick = (lv: number) => lv >= TRICK_LEVEL;
 /** Your skill's rank at a handling level: 0 (locked) to 4 (Mastery). */
@@ -185,16 +189,18 @@ export const MOVESETS: Record<Style, Moveset> = {
       { anim: 'crack', shape: 'lash', windup: 0.16, active: 0.08, recover: 0.2, range: 118, size: 18, mult: 2.8, tip: 0.3, graze: 0.5, kb: 200, stun: 0.35, shake: 4, hitstop: 0.07, move: 0.45 },
     ],
   },
-  // One bolt at a time, from anywhere in the arena. Echo Cast repeats every third normal cast with a smaller bolt.
+  // One bolt at a time, from anywhere in the arena, charged while you hold Attack (see CHARGE): tap for quick, weak
+  // bolts, or hold for a big one. The short rest after each cast only paces the taps; a charge carries on through it.
+  // Echo Cast repeats every third normal cast with a smaller bolt.
   wand: {
     window: 0.3,
     skill: 'scatter',
     skillName: 'Scatter',
     size: 1,
-    rest: 0.4,
+    rest: 0.1,
     trick: 'echo',
     combo: [
-      { anim: 'cast', shape: 'shot', windup: 0.07, active: 0.05, recover: 0.18, range: 0, size: 9, mult: 1.8, kb: 90, shots: [0], shake: 2, hitstop: 0.03, move: 0.8 },
+      { anim: 'cast', shape: 'shot', windup: 0.07, active: 0.05, recover: 0.18, range: 0, size: 9, mult: 1.8, kb: 90, shots: [0], shake: 2, hitstop: 0.03, move: 0.8, charge: true },
     ],
   },
 };
@@ -204,7 +210,7 @@ export const CLASS_NOTES: Record<Style, string> = {
   sword: 'Three quick strikes in a flowing combo',
   hammer: 'One heavy slam at a time, with a shockwave',
   whip: 'One long lash at a time: crack it with the tip',
-  wand: 'One bolt at a time, from anywhere in the arena',
+  wand: 'Hold to charge a bolt, let go to cast it, from anywhere in the arena',
 };
 
 /** What each class's trick does, for the Skills tab. */
@@ -220,6 +226,17 @@ export const STAGGER = { secs: 1.1 };
 export const RIPOSTE = { secs: 1.2, mult: 1.5 };
 /** Echo Cast: a delayed, smaller bolt following the original cast's path. */
 export const ECHO = { delay: 0.16, mult: 0.5, size: 0.7 };
+/**
+ * Magic charges its bolts: hold Attack to charge, let go to cast. A tap casts at once but weakly (`tap`× a normal
+ * cast's damage, its bolt `small`× the size); a full charge hits `full`× with a `big`× bolt, growing evenly in between.
+ * A full charge takes `secs` at handling Lv 1, down to `mastered` with every speed step. You walk at `slow`× your speed
+ * while charging, and a dodge drops the charge.
+ */
+export const CHARGE = { secs: 1.5, mastered: 0.7, tap: 0.3, full: 1.75, small: 0.7, big: 1.5, slow: 0.6 };
+/** Seconds to charge a bolt fully at a handling level. */
+export const chargeTime = (lv: number) => CHARGE.secs - (CHARGE.secs - CHARGE.mastered) * speedShare(lv);
+/** A cast charged this far (0–1): its damage and bolt size, as multiples of a normal cast's. */
+export const chargePower = (f: number) => ({ mult: CHARGE.tap + (CHARGE.full - CHARGE.tap) * f, size: CHARGE.small + (CHARGE.big - CHARGE.small) * f });
 
 /** Reach/size bonus per tier: tier 5 weapons reach 20% further than the starter (damage grows through attack instead). */
 export const tierScale = (tier: number) => 1 + 0.04 * tier;
@@ -241,12 +258,22 @@ export function strikeShape(s: Strike, reach: number): { reach: number; area: nu
   return wave ? { reach: Math.max(r.reach, wave.reach), area: r.area + wave.area } : r;
 }
 
-/** One strike's damage multiplier on a target in front of you: its shockwave hits it too, and every pellet of a spread lands (as it does point-blank). */
-export const strikeDamage = (s: Strike) => (s.shape === 'shot' ? s.mult * (s.shots?.length ?? 1) : s.mult) + (s.wave?.mult ?? 0);
+/**
+ * One strike's damage multiplier on a target in front of you: its shockwave hits it too, and every pellet of a spread
+ * lands (as it does point-blank). Magic is judged fully charged: that's how it's meant to be played.
+ */
+export const strikeDamage = (s: Strike) => (s.shape === 'shot' ? s.mult * (s.shots?.length ?? 1) : s.mult) * (s.charge ? CHARGE.full : 1) + (s.wave?.mult ?? 0);
 /** Seconds from starting a strike until the next can start, at a handling level. */
 export const strikeTime = (s: Strike, lv: number) => s.windup + s.active + s.recover * pace(lv).chain;
-/** A strike's time, plus the rest after it if it ends the combo. */
-export const stepTime = (m: Moveset, i: number, lv: number) => strikeTime(m.combo[i], lv) + (i === m.combo.length - 1 ? m.rest * pace(lv).rest : 0);
+/**
+ * A strike's time, plus the rest after it if it ends the combo. A charged cast is the whole cast and then a full charge
+ * (it starts as the cast ends, and outlasts the rest).
+ */
+export const stepTime = (m: Moveset, i: number, lv: number) => {
+  const s = m.combo[i];
+  if (s.charge) return s.windup + s.active + s.recover + chargeTime(lv);
+  return strikeTime(s, lv) + (i === m.combo.length - 1 ? m.rest * pace(lv).rest : 0);
+};
 
 /** Seconds per full combo, chaining each strike as early as handling allows, plus the rest after it. */
 export function comboTime(m: Moveset, lv: number): number {
