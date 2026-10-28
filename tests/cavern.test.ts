@@ -36,3 +36,15 @@ test('cave monsters cannot notice, catch or be attacked by someone outdoors at t
  expect(roamers.update(.2,126.4,14.8,false)).toBeNull();expect(bat.state).toBe('idle');
  expect(roamers.unaware(127.6,14.8)).toBe(bat);expect(roamers.update(.01,127.6,14.8,false)).toBe(bat);
 });
+
+test('fainting in the caves leaves your body just outside a mouth, where your spirit can reach it (old saves too)',()=>{
+ const s=newState();s.bosses.push('alphawolf');s.spirit={x:CAVE_WEST_EDGE+12,y:20};s.pos={x:40,y:14};
+ const w=new World();w.obj('gate','cave')!.hidden=true;const over=new Overworld(w,s);
+ expect(s.spirit.x).toBeLessThan(CAVE_WEST_EDGE);
+ expect(Math.hypot(s.spirit.x-CAVE_WEST_OUTSIDE.x,s.spirit.y-CAVE_WEST_OUTSIDE.y)).toBeLessThan(2);
+ expect(w.solidAt(s.spirit.x,s.spirit.y)).toBe(false);
+ expect(over.underground).toBeNull();
+ // Deep in the east, once the Hollow's road is open, the nearer mouth is the east one.
+ const t=newState();t.bosses.push('echoqueen');t.spirit={x:CAVE_EAST_EDGE-3,y:20};new Overworld(new World(),t);
+ expect(t.spirit.x).toBeGreaterThanOrEqual(CAVE_EAST_EDGE);
+});

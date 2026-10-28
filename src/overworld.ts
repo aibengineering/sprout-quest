@@ -23,7 +23,7 @@ import { hash2, T, type TileMap, type World, type WorldObj } from './world';
 import { WALL_RISE, type Room } from './room';
 import { EchoCave, ECHO_OUTSIDE } from './echoCave';
 import { Cavern } from './cavern';
-import { surfaceBounds, caveApproachStone, CAVE_WEST_EDGE, CAVE_EAST_EDGE } from './caveEntrance';
+import { surfaceBounds, caveApproachStone, bodyOutsideCaves, CAVE_WEST_EDGE, CAVE_EAST_EDGE } from './caveEntrance';
 
 /** Tiles of cliff the camera may show past the surface's edge, beside a cave mouth. */
 const CLIFF_VIEW = 3;
@@ -156,7 +156,7 @@ export class Overworld {
       this.x = p.x;
       this.y = p.y;
     }
-    if(save.spirit&&!save.underground) { const p=world.safePosition(save.spirit);save.spirit.x=p.x;save.spirit.y=p.y; }
+    if(save.spirit) { const p=world.safePosition(bodyOutsideCaves(save.spirit,save.bosses.includes('echoqueen')));save.spirit.x=p.x;save.spirit.y=p.y; }
     this.zone = world.zoneAt(this.x);
     if(this.zone.id==='cave') this.underground=this.cavern;
     this.camX = this.x;
