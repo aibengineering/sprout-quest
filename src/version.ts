@@ -36,6 +36,21 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.9',
+    date: '2026-10-28',
+    title: 'Charged Wands and Comfy Controls',
+    notes: [
+      "👻 Faint in Echo Cavern and your body waits outside the mouth, not out of reach",
+      "🪄 Hold Attack to charge a big wand bolt, or tap for quick, weaker shots",
+      "⌨️ Space attacks, Shift dodges, F casts your skill and 1 drinks a potion",
+      "🖱️ Click to use things, or in a fight, left-click attacks and right-click dodges",
+      "🖥️ Menus and buttons scale up on big screens, with a size option in More",
+      "🗡️ Facing away in a fight, you hold your weapon up in your hand",
+      "🌳 Softer shadows under trees, rocks and everyone",
+      "👕 The Cozy Tunic's icon is the tunic, and menu tabs show their B and Q keys",
+    ],
+  },
+  {
     version: '0.3.8',
     date: '2026-10-22',
     title: 'Gentle Starts and Crisp Woods',
