@@ -60,11 +60,17 @@ jobs:
       - run: bunx playwright-core install --with-deps chromium-headless-shell
       - run: bun run e2e:fast
 
+  # The full regression, split across parallel runners (free for this public repo): the browser scenarios in four
+  # shards, the crafting scenes one runner per phone width, and the small checks together.
   regression:
-    name: Full browser regression and balance
+    name: Full browser regression (${{ matrix.part }})
     needs: changes
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.base_ref == 'main' && needs.changes.outputs.game == 'true')
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [scenarios 1/4, scenarios 2/4, scenarios 3/4, scenarios 4/4, crafting 320, crafting 390, checks and balance]
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -72,13 +78,24 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bunx playwright-core install --with-deps chromium-headless-shell
-      - run: bun run tests/e2e/sprite-effects.ts
-      - run: bun run e2e:full --shots
-      - run: bun run e2e:playtest
-      - run: bun run tests/e2e/crafting.ts
-      - run: bun run tests/e2e/icons3d.ts
-      - run: bun run balance --seeds 3
-      - if: always()
+      - if: startsWith(matrix.part, 'scenarios')
+        run: bun run e2e:full --shots --shard ${{ matrix.part == 'scenarios 1/4' && '1/4' || matrix.part == 'scenarios 2/4' && '2/4' || matrix.part == 'scenarios 3/4' && '3/4' || '4/4' }}
+      - if: matrix.part == 'crafting 320'
+        run: bun run tests/e2e/crafting.ts
+        env:
+          CRAFT_WIDTHS: '320'
+      - if: matrix.part == 'crafting 390'
+        run: bun run tests/e2e/crafting.ts
+        env:
+          CRAFT_WIDTHS: '390'
+          CRAFT_EXTRAS: '0'
+      - if: matrix.part == 'checks and balance'
+        run: |
+          bun run tests/e2e/sprite-effects.ts
+          bun run e2e:playtest
+          bun run tests/e2e/icons3d.ts
+          bun run balance --seeds 3
+      - if: always() && matrix.part == 'checks and balance'
         uses: actions/upload-artifact@v7
         with:
           name: balance-report
@@ -87,7 +104,7 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-screenshots
+          name: e2e-screenshots-${{ strategy.job-index }}
           path: tests/e2e/out/
 
   release:
