@@ -2,6 +2,10 @@ import type { HuntVariant } from '../hunts';
 // Shapes shared by the battle simulation, monster behaviours and the renderer, plus small math helpers.
 import type { MatId, MonsterDef, MonsterKind, Zone } from '../data';
 import type { Strike } from '../weapons';
+import type { PartnerId } from '../spar';
+
+/** Who can be in a fight: a monster, or a friend sparring with you (src/spar.ts). */
+export type FoeKind = MonsterKind | PartnerId;
 
 export const TAU = Math.PI * 2;
 /** Seconds between weapon skills. */
@@ -33,7 +37,7 @@ export type EState =
   | 'walk' | 'slam' | 'float' | 'cast' | 'ring' | 'triple' | 'stomp' | 'howl' | 'spikes' | 'shards' | 'screech' | 'dive' | 'bolts' | 'exposed';
 
 export interface Enemy {
-  kind: MonsterKind;
+  kind: FoeKind;
   def: MonsterDef;
   lv: number;
   golden: boolean;
@@ -83,7 +87,7 @@ export interface Proj {
   x: number; y: number; vx: number; vy: number; r: number;
   atk: number; mult: number; owner: 'p' | 'e'; life: number; color: string;
   /** The monster that fired it (for the play report's "what got you"). */
-  from?: MonsterKind;
+  from?: FoeKind;
   /** Bat bolts swerve toward foes. */
   homing?: boolean;
   /** Player attack/cast identity, shared by all bolts in one cast for once-per-attack elemental effects. */
@@ -112,7 +116,7 @@ export interface BattleLog {
 
 /** A telegraphed danger zone that goes off after `delay`. */
 export interface Hazard {
-  x: number; y: number; r: number; t: number; delay: number; atk: number; mult: number; done: boolean; from?: MonsterKind;
+  x: number; y: number; r: number; t: number; delay: number; atk: number; mult: number; done: boolean; from?: FoeKind;
   /** A Slime King splash waits for this jumper to land, at its actual position. */
   jumper?: Enemy;
 }
@@ -164,6 +168,8 @@ export interface BattleSetup {
   dojo?: string;
   /** Persistent field commission; retries keep its accepted level. */
   hunt?: string;
+  /** A friendly spar with this partner instead of `foes`: nothing won or lost, and it stops at the yield (src/spar.ts). */
+  spar?: PartnerId;
 }
 
 export interface BattleOutcome {

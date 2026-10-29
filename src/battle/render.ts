@@ -6,7 +6,7 @@ import { drawFrame, drawHero as drawHeroSprite, drawMonsterAt, drawWalker, frame
 import { hasModel, loadModel } from '../models';
 import { HERO_BATTLE_UNIT, HERO_MODEL_SCALE, weaponLength } from '../weaponPose';
 import { battleWeapon } from './weaponPose';
-import { GEAR, type ZoneId } from '../data';
+import { GEAR, type MonsterKind, type ZoneId } from '../data';
 import { drawMonster, drawPlayer, drawWeapon, rrect, shadow } from '../sprites';
 import { SKILL_DATA } from '../weapons';
 import { hash2 } from '../world';
@@ -15,6 +15,7 @@ import { drawBubble } from '../bubble';
 import { Particles } from '../particles';
 import { BURN_COLOR, ELEMENTS } from './elements';
 import { MONSTER_AI, spriteScale } from './monsters';
+import { PARTNERS, SPAR_YIELD } from '../spar';
 import { lashCrackAt, lashRope } from './pose';
 import { TAU, UNIT, ZOOM, ZOOM_T, clamp01, easeOut, rand, type Enemy, type Spark, type Spike, type Swing } from './types';
 
@@ -221,6 +222,7 @@ function drawField(b: Battle, ctx: Ctx) {
     ctx.stroke();
   }
   b.fx.draw(ctx);
+  if (b.setup.spar && b.enemies[0]) drawQuip(b, ctx, b.enemies[0]);
 }
 
 /**
@@ -228,7 +230,8 @@ function drawField(b: Battle, ctx: Ctx) {
  * soft patches and a few flowers or pebbles, and grass tufts fringe the border. Guardian fights add an old stone ring.
  */
 function drawArena(b: Battle, ctx: Ctx, w: number, h: number) {
-  if (b.setup.dojo) { drawDojoArena(ctx); return; }
+  // Lessons, and spars at the fox's clearing, are on its timber floor.
+  if (b.setup.dojo || (b.setup.spar && b.setup.zone.id === 'hollow')) { drawDojoArena(ctx); return; }
   const th = b.setup.zone.theme;
   const RX = ARENA_RX, RY = ARENA_RY;
   const SCENERY_UNIT = 29;
@@ -438,10 +441,92 @@ function drawPracticeTarget(b: Battle, ctx: Ctx, e: Enemy, alpha: number) {
   ctx.restore();
 }
 
+/**
+ * A sparring partner, in their own model: they lean back as they wind up and lunge into the blow (the squash after
+ * it). Bram's axe handle is drawn in his hands; Oswin's staff is part of his model.
+ */
+function drawPartner(b: Battle, ctx: Ctx, e: Enemy) {
+  const who = b.setup.spar!, toP = Math.atan2(b.p.y - e.y, b.p.x - e.x);
+  const aim = e.windup > 0 || e.squash > 0 ? e.dir : toP, side = Math.cos(aim) >= 0 ? 1 : -1;
+  const swing = clamp01(e.squash / 0.25);
+  const rot = side * (swing * 0.32 - e.windup * 0.22);
+  const shake = e.windup > 0.5 ? Math.sin(b.t * 50) * 1.5 : 0;
+  const x = e.x + shake + side * swing * 6, y = e.y - e.z;
+  shadow(ctx, e.x, e.y, e.r * 1.05 * (1 - Math.min(0.4, e.z / 60)));
+  const moving = Math.hypot(e.vx, e.vy) > 5;
+  const look = { flash: e.flash > 0 ? 1 : 0, rot, tint: e.state === 'exposed' ? '#ffe07a' : e.windup > 0.5 ? '#ff4a4a' : undefined, tintAmount: e.state === 'exposed' ? 0.3 : e.windup > 0.5 ? (e.windup - 0.5) * 0.5 : 0 };
+  const unit = UNIT * HERO_SCALE * (who === 'oswin' ? 1.15 : who === 'bram' ? 1.05 : 0.95);
+  if (!drawWalker(ctx, `npc/${PARTNERS[who].look}`, x, y, unit, aim, moving, b.t, look, `spar-${who}`)) {
+    // No 3D (or not loaded yet): their emoji stands in.
+    ctx.save();
+    ctx.translate(x, y - e.r);
+    ctx.rotate(rot);
+    ctx.font = `${e.r * 2.4}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(PARTNERS[who].emoji, 0, 0);
+    ctx.restore();
+  }
+  if (who === 'bram') drawHandle(ctx, x + side * e.r * 0.6, y - e.r * 1.5, side, e.windup, swing);
+}
+
+/** Bram's axe handle: on his shoulder, raised high as he winds up, brought down in front after. */
+function drawHandle(ctx: Ctx, x: number, y: number, side: number, windup: number, swing: number) {
+  // Pointing right is 0, straight up -π/2; worked out facing right, then mirrored.
+  const a0 = swing > 0 ? 0.6 * swing + -1.1 * (1 - swing) : -1.1 - windup * 1.6;
+  const a = side > 0 ? a0 : Math.PI - a0;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(a);
+  ctx.fillStyle = '#5a3a22';
+  rrect(ctx, -6, -4.5, 48, 9, 4.5);
+  ctx.fill();
+  ctx.fillStyle = '#b07a48';
+  rrect(ctx, -4.5, -3, 45, 6, 3);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** What a sparring partner just said, in a speech bubble over their head. */
+function drawQuip(b: Battle, ctx: Ctx, e: Enemy) {
+  const q = b.quip;
+  if (!q) return;
+  const hold = b.endT >= 0 ? Infinity : 2.4, fade = Math.min(1, q.t / 0.12, (hold - q.t) / 0.3);
+  if (fade <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = fade;
+  ctx.font = '800 12px ui-rounded, "Nunito", system-ui, sans-serif';
+  const words = q.text.split(' '), lines: string[] = [];
+  for (const w of words) {
+    const last = lines[lines.length - 1];
+    if (last && ctx.measureText(`${last} ${w}`).width < 150) lines[lines.length - 1] = `${last} ${w}`;
+    else lines.push(w);
+  }
+  const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16, h = lines.length * 15 + 10;
+  const x = Math.max(-ARENA_RX, Math.min(ARENA_RX - w, e.x - w / 2)), y = e.y - e.z - UNIT * 1.6 - h;
+  ctx.fillStyle = '#fffaf0';
+  ctx.strokeStyle = '#4a2a5a';
+  ctx.lineWidth = 2;
+  rrect(ctx, x, y, w, h, 8);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(e.x - 5, y + h - 1);
+  ctx.lineTo(e.x, y + h + 7);
+  ctx.lineTo(e.x + 5, y + h - 1);
+  ctx.fill();
+  ctx.fillStyle = '#4a2a5a';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  lines.forEach((l, i) => ctx.fillText(l, x + w / 2, y + 12 + i * 15));
+  ctx.restore();
+}
+
 function drawEnemy(b: Battle, ctx: Ctx, e: Enemy) {
-  const ai = MONSTER_AI[e.kind];
+  const ai = MONSTER_AI[e.kind as MonsterKind];
   const alpha = e.dead ? Math.max(0, e.deathT / 0.45) : 1;
-  if (b.setup.dojo) drawPracticeTarget(b, ctx, e, alpha);
+  if (b.setup.spar) drawPartner(b, ctx, e);
+  else if (b.setup.dojo) drawPracticeTarget(b, ctx, e, alpha);
   else if (monsterReady(e.kind)) {
     shadow(ctx, e.x, e.y, e.r * (ai.flies ? 0.7 : 1.05) * (1 - Math.min(0.4, e.z / 60)));
     let sxk = 1, syk = 1;
@@ -467,7 +552,7 @@ function drawEnemy(b: Battle, ctx: Ctx, e: Enemy) {
     const pop = popIn(b, e);
     sxk *= pop;
     syk *= pop;
-    drawMonsterAt(ctx, slotOf(e, 'enemy'), e.kind, e.golden, (b.t * (e.def.boss ? 5 : 7) + e.seed) / 6, e.face < 0, e.x + shake, e.y - e.z - (1 - pop) * 14, UNIT * spriteScale(e.kind) * (e.variant ? 1.12 : 1), {
+    drawMonsterAt(ctx, slotOf(e, 'enemy'), e.kind, e.golden, (b.t * (e.def.boss ? 5 : 7) + e.seed) / 6, e.face < 0, e.x + shake, e.y - e.z - (1 - pop) * 14, UNIT * spriteScale(e.kind as MonsterKind) * (e.variant ? 1.12 : 1), {
       alpha, sx: sxk, sy: syk,
       // Bosses get hit constantly, so their flash is softer to keep them readable.
       flash: e.flash > 0 || (e.dead && alpha > 0.7) ? (e.def.boss && !e.dead ? 0.45 : 1) : 0,
@@ -483,7 +568,7 @@ function drawEnemy(b: Battle, ctx: Ctx, e: Enemy) {
       ctx.scale(s, 1 / s);
       ctx.translate(-e.x, -e.y);
     }
-    drawMonster(ctx, e.kind, e.x, e.y, e.r, {
+    drawMonster(ctx, e.kind as MonsterKind, e.x, e.y, e.r, {
       t: b.t, flash: e.flash > 0 || (e.dead && alpha > 0.7), golden: e.golden, dir: e.face,
       z: e.z, windup: e.windup, seed: e.seed, alpha,
     });
@@ -503,7 +588,8 @@ function drawEnemy(b: Battle, ctx: Ctx, e: Enemy) {
       ctx.fill();
     }
   }
-  if (!e.dead && !e.def.boss && e.hp < e.maxHp) {
+  // (A sparring partner's health is along the top, with the yield marked: see drawOverlay.)
+  if (!e.dead && !e.def.boss && !b.setup.spar && e.hp < e.maxHp) {
     const w = Math.max(26, e.r * 2), y = e.y - e.r * 2.6 - e.z - 6;
     ctx.fillStyle = 'rgba(40,20,50,0.7)';
     rrect(ctx, e.x - w / 2 - 1.5, y - 1.5, w + 3, 7, 3.5);
@@ -931,12 +1017,30 @@ function drawOverlay(b: Battle, ctx: Ctx, vw: number, vh: number) {
     ctx.fillStyle = '#fff';
     ctx.fillText(`${boss.def.name}  Lv ${boss.lv}`, vw / 2, y + 28);
   }
+  const partner = b.setup.spar && b.enemies[0];
+  if (partner) {
+    // Their health, with a notch where they'll yield.
+    const w = Math.min(320, vw * 0.7), x = (vw - w) / 2, y = vh > vw * 1.15 ? 92 : 70;
+    ctx.fillStyle = 'rgba(40,20,50,0.75)';
+    rrect(ctx, x - 3, y - 3, w + 6, 16, 8);
+    ctx.fill();
+    ctx.fillStyle = '#7aee8a';
+    rrect(ctx, x, y, w * Math.max(0, partner.hp / partner.maxHp), 10, 5);
+    ctx.fill();
+    ctx.fillStyle = '#fff6d0';
+    ctx.fillRect(x + w * SPAR_YIELD - 1, y - 4, 2, 18);
+    ctx.font = '800 13px ui-rounded, "Nunito", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`${partner.def.name} · Spar`, vw / 2, y + 28);
+  }
   let text = '';
   let size = 44;
   if (b.intro > 0 && b.dramatic) {
-    text = b.intro > 0.55 ? (b.setup.boss ? 'Boss battle!' : 'Ready…') : 'Fight!';
+    text = b.intro > 0.55 ? (b.setup.boss ? 'Boss battle!' : 'Ready…') : b.setup.spar ? 'Spar!' : 'Fight!';
   } else if (b.endT >= 0 && b.outcome) {
-    text = b.outcome.result === 'win' ? (b.setup.dojo ? 'Targets cleared!' : 'Victory!') : b.outcome.result === 'lose' ? 'Oh no…' : '';
+    // A spar ends on the partner's last word instead (drawQuip).
+    text = b.setup.spar ? '' : b.outcome.result === 'win' ? (b.setup.dojo ? 'Targets cleared!' : 'Victory!') : b.outcome.result === 'lose' ? 'Oh no…' : '';
     size = 48;
   }
   if (!text) return;

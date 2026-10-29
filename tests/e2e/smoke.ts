@@ -2821,6 +2821,56 @@ scenario('Masked Fox’s hidden clearing: clean dodge, once-only XP, safe practi
   check(await game<boolean>(page, `JSON.stringify({lv:g.save.lv,xp:g.save.xp,mastery:g.save.mastery}) === ${JSON.stringify(JSON.stringify(earned))} && g.save.hp === ${before.hp}`), 'withdrawing awarded XP or hurt the player');
 });
 
+scenario('sparring: Elder Oswin spars (a win and a loss, nothing spent or gained), and the clearing’s Free spar lists your friends', (g) => {
+  const s = g.save; s.lv = 12; s.quest = g.quests.length;
+  s.stories = { ...s.stories, poppy: 6, bram: 9, drums: 4, granny: 99, alder: 1 };
+  s.flags.push('poppy:returned', 'bram:hut', 'alder:met', 'fox:seen', 'fox:trusted', 'fox:catch', 'fox:trial', 'fox:met');
+  s.perks.push('shadowscarf');
+  s.build.training = 1; s.build.garden = 3; s.build.cottage = 1; s.build.sawmill = 3;
+  s.homes = { pip: 2, rook: 2, moss: 2 }; s.hp = 41; s.potions = 3; s.mats.goo = 7;
+}, async (page) => {
+  await run(page, 'g.over.roamers.list = []; g.over.roamers.respawn = 1e9');
+  const snap = `JSON.stringify({hp:g.save.hp,potions:g.save.potions,lv:g.save.lv,xp:g.save.xp,mats:g.save.mats,wins:g.save.wins,kills:g.save.questKills,mastery:g.save.mastery,bosses:g.save.bosses,quest:g.save.quest,flags:g.save.flags,meals:g.save.meals})`;
+  const before = await game<string>(page, snap);
+  const nearElder = `Math.hypot(g.over.x - (g.over.world.obj('elder').x + .35), g.over.y - (g.over.world.obj('elder').y + 1)) < 1.5`;
+  const spar = async () => {
+    await run(page, `const o = g.over.world.obj('elder'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5); g.over.face = -Math.PI / 2`);
+    await page.waitForTimeout(300); await page.keyboard.press('KeyE');
+    await page.waitForSelector('.sheet.elder-talk [data-dialog="spar"]');
+    await page.click('.elder-talk [data-dialog="spar"]');
+    await waitFor(page, 'the spar with Oswin', () => game<boolean>(page, `g.mode === 'battle' && g.battle?.setup.spar === 'oswin' && g.battle.intro <= 0`), 12000);
+    check(await game<boolean>(page, `g.battle.save !== g.save && g.battle.save.potions === 0 && g.battle.p.hp === g.battle.stats.maxHp && g.battle.enemies.length === 1`), 'the spar did not fight a full-health, potion-free copy of you');
+  };
+  const result = async (says: string) => {
+    await waitFor(page, 'the spar result', async () => !!(await page.$('.sheet.spar-result')), 12000);
+    const text = (await page.textContent('.sheet.spar-result')) ?? '';
+    check(text.includes(says), `the spar result did not say "${says}": ${text}`);
+    await page.click('.spar-result [data-dialog="close"]');
+    await waitFor(page, 'back on the map', () => game<boolean>(page, `g.mode === 'world' && !g.battle && !g.trans`), 10000);
+    check(await game<boolean>(page, nearElder), 'not back where you were');
+    check(await game<string>(page, snap) === before, 'the spar changed your save');
+  };
+  // A win: he yields at a fifth of his health (forced), with his line.
+  await spar();
+  await run(page, `g.battle.enemies[0].hp = 1`);
+  await result('You won the spar!');
+  // A loss: you're helped up at a fifth of yours.
+  await spar();
+  await run(page, `g.battle.p.hp = 1`);
+  await result('Oswin wins this one.');
+  // The clearing's Free spar: everyone you've made friends with.
+  await run(page, `void g.over.actors.get('fox:fox').talk()`);
+  await page.waitForSelector('.sheet.dojo [data-dialog="spar"]'); await page.click('.sheet.dojo [data-dialog="spar"]');
+  await page.waitForSelector('.sheet.spar-pick');
+  const offered = await page.$$eval('.spar-pick [data-dialog^="spar:"]', (els) => els.map((e) => (e as HTMLElement).dataset.dialog));
+  check(JSON.stringify(offered) === JSON.stringify(['spar:oswin', 'spar:bram', 'spar:fox']), `Free spar offered ${offered}`);
+  await page.click('[data-dialog="spar:fox"]');
+  await waitFor(page, 'the spar with the fox', () => game<boolean>(page, `g.mode === 'battle' && g.battle?.setup.spar === 'fox' && g.battle.intro <= 0`), 12000);
+  await page.keyboard.press('KeyR');
+  await waitFor(page, 'back outside', () => game<boolean>(page, `g.mode === 'world' && !g.battle && !g.trans`), 12000);
+  check(await game<string>(page, snap) === before, 'calling off a spar changed your save');
+});
+
 scenario('Bram’s building quests: welcome Rook and Moss, open the lodge, cook garden recipes, upgrade and reload without duplicate costs', (g) => {
   const s = g.save;
   s.lv = 8; s.quest = g.quests.findIndex((q: any) => q.id === 'smithy');

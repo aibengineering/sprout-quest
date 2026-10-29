@@ -97,6 +97,9 @@ export const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '
 export const hasNews = (s: SaveState) => newerThan(VERSION, s.seenVersion);
 const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', meadow: '🌼', woods: '🌲', cave: '🪨', hollow: '💎', peak: '🌋' };
 
+/** Sheets whose Esc means their 'close' button, not the first button (which is a choice, like starting a lesson). */
+const ESC_CLOSES = ['house-plans', 'burrow-travel', 'elder-talk', 'dojo'];
+
 /** Blender-rendered icon with the emoji as a fallback if the image is missing. */
 export function icon(id: string, emoji: string, cls = 'icon') {
   // decoding="sync": paint the (already downloaded and decoded) icon with the menu, not a moment after.
@@ -869,7 +872,7 @@ export class UI {
         return;
       }
       const btns = [...this.sheet.querySelectorAll<HTMLButtonElement>('[data-dialog]')];
-      const primary = btns[btns.length - 1], secondary = this.sheet.classList.contains('house-plans') || this.sheet.classList.contains('burrow-travel') ? btns.find((b) => b.dataset.dialog === 'close')
+      const primary = btns[btns.length - 1], secondary = ESC_CLOSES.some((c) => this.sheet.classList.contains(c)) ? btns.find((b) => b.dataset.dialog === 'close')
         : this.sheet.classList.contains('shortcut-plan') ? btns.find((b) => b.dataset.dialog === 'no') : btns.length > 1 ? btns[0] : null;
       if (k === 'Enter' || k === 'Space' || k === 'KeyE' || k === 'NumpadEnter') {
         swallow();
@@ -1481,7 +1484,7 @@ export class UI {
     this.modal.hidden = false;
     this.sheet.className = `sheet ${cls}`;
     const btns = buttons.map(([value, label, c], i) => {
-      const cap = i === buttons.length - 1 ? 'Enter' : i === 0 && cls !== 'house-plans' ? 'Esc' : '';
+      const cap = i === buttons.length - 1 ? 'Enter' : i === 0 && !ESC_CLOSES.some((c) => cls.split(' ').includes(c)) ? 'Esc' : '';
       return `<button class="go ${c ?? ''}" data-dialog="${value}">${label}${cap ? `<kbd class="key">${cap}</kbd>` : ''}</button>`;
     }).join('');
     this.sheet.innerHTML = `<div class="result">${html}<div class="btns">${btns}</div></div>`;
@@ -1493,11 +1496,13 @@ export class UI {
     return this.dialog(`<div class="big" style="font-size:24px">${esc(title)}</div><p>${esc(text)}</p>`, [['ok', 'OK']]);
   }
 
-  elderSays(text: string, hint?: string) {
+  /** Elder Oswin's word on what's next; with `spar`, he offers a friendly spar too (resolves 'spar'). */
+  elderSays(text: string, hint?: string, spar = false) {
     return this.dialog(
       `<div class="speaker">${icon('npc_elder', '🌿', 'icon xl')}<b>Elder Oswin</b></div>
        <div class="bubble">${esc(text)}</div>${hint ? `<div class="hint">🎯 ${esc(hint)}</div>` : ''}`,
-      [['ok', 'Got it!']],
+      spar ? [['spar', '🤺 Spar'], ['close', 'Got it!']] : [['ok', 'Got it!']],
+      spar ? 'elder-talk' : '',
     );
   }
 

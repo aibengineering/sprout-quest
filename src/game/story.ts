@@ -3,6 +3,8 @@ import { currentQuest, advanceQuests } from '../quests';
 import { logEvent } from '../stats';
 import { checkUnlocks } from '../unlocks';
 import { G, paused, persist, syncWorld } from './context';
+import { oswinSpars } from '../spar';
+import { startSpar } from './spar';
 
 /** Reveals newly earned systems with a small card (or silently when catching up an old save). */
 export function unlocks(silent = false) {
@@ -98,8 +100,9 @@ export async function talkToElder() {
   const s = G.save, q = currentQuest(s);
   if (q?.goal.type === 'talk') s.talked = true;
   if (q && !s.tips.includes(`elder:${q.id}`)) s.tips.push(`elder:${q.id}`);
-  await paused(() => G.ui.elderSays(q ? q.text : 'The skies are clear thanks to you! Why not build up the village, or give the Emberwyrm a friendly rematch?', q?.hint));
+  const r = await paused(() => G.ui.elderSays(q ? q.text : 'The skies are clear thanks to you! Why not build up the village, or give the Emberwyrm a friendly rematch?', q?.hint, oswinSpars(s)));
   persist();
+  if (r === 'spar') return startSpar('oswin');
   void progressQuests();
 }
 
