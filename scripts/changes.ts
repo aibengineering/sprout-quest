@@ -21,6 +21,8 @@ export async function changedFiles(base: string): Promise<string[] | null> {
 
 /** True unless every changed file is documentation or CI tooling (when unsure, assume the game changed). */
 export const touchesGame = (files: string[] | null) => !files?.length || files.some((f) => !NOT_THE_GAME.some((re) => re.test(f)));
+/** Whether players get anything new (and so a release, with a version bump): tests run the full checks but ship nothing. */
+export const shipsToPlayers = (files: string[] | null) => !files?.length || files.some((f) => !/^tests\//.test(f) && !NOT_THE_GAME.some((re) => re.test(f)));
 
 if (import.meta.main) {
   const files = await changedFiles(process.argv[2] ?? 'origin/main');

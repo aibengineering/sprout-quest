@@ -1,18 +1,18 @@
 // Release check for pull requests into main: the version in package.json must go up, and the newest patch notes must
-// describe it. Pull requests that only touch documentation or CI tooling are exempt: they don't change the game.
+// describe it. Pull requests that only touch documentation, tests or CI tooling are exempt: they don't change the game.
 // Run from CI as `bun run scripts/check-release.ts <base ref>` (e.g. origin/main).
 import { $ } from 'bun';
 import pkg from '../package.json';
 import { newerThan } from '../src/semver';
 import { PATCH_NOTES, noteProblems } from '../src/version';
-import { changedFiles, touchesGame } from './changes';
+import { changedFiles, shipsToPlayers } from './changes';
 
 const base = process.argv[2] ?? 'origin/main';
 const problems: string[] = [];
 
 const changed = await changedFiles(base);
-if (!touchesGame(changed)) {
-  console.log(`✓ Documentation and CI only (${changed!.join(', ')}): no release needed`);
+if (!shipsToPlayers(changed)) {
+  console.log(`✓ Documentation, tests and CI only (${changed!.join(', ')}): no release needed`);
   process.exit(0);
 }
 
