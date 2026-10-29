@@ -36,6 +36,14 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.10',
+    date: '2026-10-29',
+    title: 'Spirits Find Their Way',
+    notes: [
+      "👻 As a spirit you can walk in and out of caves, so you always reach your body",
+    ],
+  },
+  {
     version: '0.3.9',
     date: '2026-10-28',
     title: 'Charged Wands and Comfy Controls',

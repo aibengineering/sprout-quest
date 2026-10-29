@@ -180,7 +180,8 @@ function worldFrame(dt: number) {
     }
     if (freeWorld() && !over.underground) maybeAutoTalk();
     if (freeWorld()) doorwayTick();
-    if (freeWorld()) undergroundTick();
+    // Cave mouths work for a spirit too: your body may lie on the other side of one.
+    if (freeWorld() || (ghost && canPlay() && !over.room)) undergroundTick();
     if (ev?.type === 'zone') {
       showZoneBanner(ev.zone);
       if (ev.zone.id === 'village' && !s.flags.includes('village')) void arriveAtVillage();

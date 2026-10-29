@@ -7,7 +7,8 @@
 // laid clear of any monsters guarding a spot (a story fight's trigger), so waking up can't drop you straight back into
 // the fight you lost.
 import { playerStats } from '../rules';
-import { bodyOutsideCaves } from '../caveEntrance';
+import { ECHO_OUTSIDE } from '../echoCave';
+import { SEAMS } from '../seams';
 import { G, backToWorld, persist, showZoneBanner, transition } from './context';
 import { storyFainted } from './stories';
 
@@ -35,7 +36,11 @@ function bodySpot(): { x: number; y: number } {
 /** You lost a fight: your body stays where you fell, and your spirit wakes at your last checkpoint. */
 export function faint() {
   const s = G.save;
-  s.spirit = G.over.underground ? bodyOutsideCaves({ x: G.over.x, y: G.over.y }, s.bosses.includes('echoqueen')) : bodySpot();
+  // In the main Cavern your body lies where you fell (a spirit walks through cave mouths); in a side cave, at its door
+  // back into the Cavern, since only the Cavern shares the map's coordinates.
+  const u = G.over.underground;
+  s.spirit = u === G.over.echo ? { ...ECHO_OUTSIDE } : u && u !== G.over.cavern ? { x: SEAMS[0].at.x + 0.45, y: SEAMS[0].at.y + 0.8 }
+    : u ? { x: G.over.x, y: G.over.y } : bodySpot();
   s.hp = 0;
   persist();
   transition(() => {
