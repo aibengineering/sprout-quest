@@ -13,6 +13,10 @@ import { BUILD_PRESENTATIONS } from '../../src/crafting/building-catalog';
 const server = startServer(0);
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const SHOTS = !!process.env.CRAFT_SHOTS;
+// CRAFT_WIDTHS=320 (or 390) runs the crafted items at one width only; CRAFT_EXTRAS=0 skips the buildings and the
+// lifecycle checks. CI splits the run across parallel runners this way.
+const WIDTHS = (process.env.CRAFT_WIDTHS ?? '320,390').split(',').map(Number);
+const EXTRAS = process.env.CRAFT_EXTRAS !== '0';
 const out = new URL('./out/combined-crafting/', import.meta.url).pathname;
 mkdirSync(out, { recursive: true });
 const items = [...Object.values(GEAR).filter(g => g.recipe), ...TOOLS, ...POTION_RECIPES, ...Object.values(MEALS)];
@@ -115,7 +119,7 @@ async function finish(page: Page, id: string, equip = true, fallback = false) {
 try {
   if (Object.keys(CRAFT_PRESENTATIONS).length !== items.length) throw Error(`Expected a presentation for each of the ${items.length} craftable items`);
   // Parallel pages are independent saves, and each runs the actual normal timeline.
-  await Promise.all([320, 390].map(async (width) => {
+  await Promise.all(WIDTHS.map(async (width) => {
     const page = await boot(width);
     for (const id of (process.env.CRAFT_ONLY ? process.env.CRAFT_ONLY.split(',') : Object.keys(CRAFT_PRESENTATIONS))) {
       await begin(page, id, true);
@@ -134,7 +138,7 @@ try {
     await page.close();
   }));
   // Every village building rising on its plot (presentation only: nothing is spent here).
-  if (!process.env.CRAFT_ONLY || process.env.CRAFT_BUILDINGS) {
+  if (EXTRAS && (!process.env.CRAFT_ONLY || process.env.CRAFT_BUILDINGS)) {
     const page = await boot(390);
     let scene: [number, number] = [0, 0];
     for (const id of Object.keys(BUILD_PRESENTATIONS)) {
@@ -164,6 +168,7 @@ try {
     console.log(`PASS the renderer shrinks back after the scenes (${scene} → ${await page.evaluate(() => (window as any).game.rendererSize)})`);
     await page.close();
   }
+  if (EXTRAS) {
   const page = await boot(320);
   await begin(page, 'ironsword', true);
   await page.keyboard.press('Escape');
@@ -193,7 +198,9 @@ try {
   await flat.close();
   if (errors.length) throw Error(errors.join('\n'));
   console.log('PASS lifecycle: double click, Skip, Escape, reduced motion, background, no WebGL, Keep, reload');
-  console.log(process.env.CRAFT_ONLY ? `Selected crafting transactions passed: ${process.env.CRAFT_ONLY}` : `All ${items.length} crafting transactions passed at 320px and 390px.`);
+  }
+  if (errors.length) throw Error(errors.join('\n'));
+  console.log(process.env.CRAFT_ONLY ? `Selected crafting transactions passed: ${process.env.CRAFT_ONLY}` : `All ${items.length} crafting transactions passed at ${WIDTHS.map((w) => `${w}px`).join(' and ')}.`);
 } finally {
   await browser.close(); server.stop(true);
 }

@@ -33,6 +33,8 @@ const FAST_SCENARIOS = new Set([
   'the Forge keeps gear a mystery until you reach its level',
   'dev builds: a preset plays in its own slot, and your real save is untouched',
 ]);
+/** `--shard 2/4`: run only every 4th scenario starting with the 2nd (after sorting, so the slow ones spread out), for CI's parallel runners. */
+const SHARD = process.argv.includes('--shard') ? process.argv[process.argv.indexOf('--shard') + 1].split('/').map(Number) as [number, number] : null;
 const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].toLowerCase() : null;
 // Two cores left for the server and the timing-sensitive checks: 4 at a time on this 6-core box, 2 on CI's 4 cores.
 const JOBS = process.argv.includes('-j') ? Math.max(1, Number(process.argv[process.argv.indexOf('-j') + 1]) || 1) : Math.max(1, Math.min(6, availableParallelism() - 2));
@@ -3447,6 +3449,12 @@ if (!queue.length || (FAST && !ONLY && queue.length !== FAST_SCENARIOS.size)) {
   throw new Error(`Expected ${FAST_SCENARIOS.size} fast scenarios, found ${queue.length}`);
 }
 queue.sort((a, b) => weight(a.name) - weight(b.name));
+if (SHARD) {
+  const [i, n] = SHARD;
+  const mine = queue.filter((_, k) => k % n === i - 1);
+  queue.splice(0, queue.length, ...mine);
+  console.log(`Shard ${i}/${n}: ${queue.length} scenarios`);
+}
 let next = 0;
 await Promise.all(Array.from({ length: Math.min(JOBS, queue.length) }, async () => {
   while (next < queue.length) await queue[next++].run();
