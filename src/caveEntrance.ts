@@ -23,12 +23,3 @@ export function caveApproachStone(x: number, y: number) {
   return towardWall * alongWall;
 }
 
-/**
- * A spirit can't go underground, so if you faint in the caves your body is found just outside a mouth (the east one
- * only once the Hollow's road is open and it's nearer). Old saves with a body in the caves move there too.
- */
-export function bodyOutsideCaves(p: { x: number; y: number }, eastOpen: boolean): { x: number; y: number } {
-  if (p.x < CAVE_WEST_EDGE || p.x >= CAVE_EAST_EDGE) return p;
-  const east = eastOpen && p.x - CAVE_WEST_EDGE > CAVE_EAST_EDGE - p.x;
-  return { ...(east ? CAVE_EAST_OUTSIDE : CAVE_WEST_OUTSIDE) };
-}
