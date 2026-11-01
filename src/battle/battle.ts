@@ -192,13 +192,16 @@ export class Battle implements FoeWorld, HitWorld {
     return e;
   }
 
-  /** A sparring partner, matched to you (see sparStats), squaring up across the clearing. */
+  /**
+   * A sparring partner, matched to you (see sparStats), squaring up across the clearing. Their last flash is long past,
+   * so Oswin doesn't open with a flinch (render.ts oswinClip).
+   */
   private spawnPartner() {
     const who = this.setup.spar!, st = sparStats(this.stats, who), def = partnerDef(who), y = -130;
     this.enemies.push({
       kind: who, def, lv: this.stats.lv, golden: false, hp: st.hp, maxHp: st.hp, atk: st.atk, dfn: st.def, xp: 0, spd: def.spd,
       x: 0, y, vx: 0, vy: 0, kx: 0, ky: 0, r: def.r, z: 0, state: FOE_AI[who].start, t: 0.8, dir: 0, face: 1, orb: Math.PI / 2 * 3, sub: 0, last: null,
-      windup: 0, flash: 0, stun: 0, evadeCd: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
+      windup: 0, flash: -1, stun: 0, evadeCd: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
       burn: 0, burnDmg: 0, burnTick: 0, dotColor: BURN_COLOR, slow: 0, squash: 0, tx: 0, ty: 0, flag: false, minion: false,
     });
   }

@@ -2,7 +2,7 @@ import { VARIANTS } from '../hunts';
 // Draws a fight: the clearing, telegraphs, fighters, shots and effects, and the overlay text. Reads the battle's
 // state and never changes the simulation (it only adds cosmetic particles).
 import { ARENA_RX, ARENA_RY } from '../arena';
-import { drawFrame, drawHero as drawHeroSprite, drawMonsterAt, drawWalker, frame, heroIn3d, monsterReady, slotOf } from '../assets';
+import { drawFrame, drawHero as drawHeroSprite, drawIdler, drawMonsterAt, drawWalker, frame, heroIn3d, monsterReady, slotOf } from '../assets';
 import { hasModel, loadModel } from '../models';
 import { HERO_BATTLE_UNIT, HERO_MODEL_SCALE, weaponLength } from '../weaponPose';
 import { battleWeapon } from './weaponPose';
@@ -442,21 +442,28 @@ function drawPracticeTarget(b: Battle, ctx: Ctx, e: Enemy, alpha: number) {
 }
 
 /**
- * A sparring partner, in their own model: they lean back as they wind up and lunge into the blow (the squash after
- * it). Bram's axe handle is drawn in his hands; Oswin's staff is part of his model.
+ * A sparring partner, in their own model. Oswin acts out each move with his staff (oswinClip); Bram and the fox lean
+ * back as they wind up and lunge into the blow (the squash after it), and Bram's axe handle is drawn in his hands.
  */
 function drawPartner(b: Battle, ctx: Ctx, e: Enemy) {
   const who = b.setup.spar!, toP = Math.atan2(b.p.y - e.y, b.p.x - e.x);
-  const aim = e.windup > 0 || e.squash > 0 ? e.dir : toP, side = Math.cos(aim) >= 0 ? 1 : -1;
-  const swing = clamp01(e.squash / 0.25);
-  const rot = side * (swing * 0.32 - e.windup * 0.22);
-  const shake = e.windup > 0.5 ? Math.sin(b.t * 50) * 1.5 : 0;
+  const oswin = who === 'oswin', acting = oswin && ['slam', 'recover', 'windup', 'hop'].includes(e.state);
+  const aim = acting || e.windup > 0 || e.squash > 0 ? e.dir : toP, side = Math.cos(aim) >= 0 ? 1 : -1;
+  const swing = oswin ? 0 : clamp01(e.squash / 0.25);
+  const rot = oswin ? 0 : side * (swing * 0.32 - e.windup * 0.22);
+  const shake = !oswin && e.windup > 0.5 ? Math.sin(b.t * 50) * 1.5 : 0;
   const x = e.x + shake + side * swing * 6, y = e.y - e.z;
   shadow(ctx, e.x, e.y, e.r * 1.05 * (1 - Math.min(0.4, e.z / 60)));
   const moving = Math.hypot(e.vx, e.vy) > 5;
-  const look = { flash: e.flash > 0 ? 1 : 0, rot, tint: e.state === 'exposed' ? '#ffe07a' : e.windup > 0.5 ? '#ff4a4a' : undefined, tintAmount: e.state === 'exposed' ? 0.3 : e.windup > 0.5 ? (e.windup - 0.5) * 0.5 : 0 };
-  const unit = UNIT * HERO_SCALE * (who === 'oswin' ? 1.15 : who === 'bram' ? 1.05 : 0.95);
-  if (!drawWalker(ctx, `npc/${PARTNERS[who].look}`, x, y, unit, aim, moving, b.t, look, `spar-${who}`)) {
+  // Open after a big move: a warm glow. (A wind-up reddens Bram and the fox; Oswin's shows in his staff.)
+  const red = !oswin && e.windup > 0.5;
+  const look = { flash: e.flash > 0 ? 1 : 0, rot, tint: e.state === 'exposed' ? '#ffe07a' : red ? '#ff4a4a' : undefined, tintAmount: e.state === 'exposed' ? 0.3 : red ? (e.windup - 0.5) * 0.5 : 0 };
+  const unit = UNIT * HERO_SCALE * (oswin ? 1.15 : who === 'bram' ? 1.05 : 0.95);
+  const [anim, phase] = oswin ? oswinClip(b, e) : ['', 0];
+  const drawn = oswin
+    ? drawIdler(ctx, 'spar-oswin', 'elder', phase, x, y, unit, look, anim, aim)
+    : drawWalker(ctx, `npc/${PARTNERS[who].look}`, x, y, unit, aim, moving, b.t, look, `spar-${who}`);
+  if (!drawn) {
     // No 3D (or not loaded yet): their emoji stands in.
     ctx.save();
     ctx.translate(x, y - e.r);
@@ -468,6 +475,32 @@ function drawPartner(b: Battle, ctx: Ctx, e: Enemy) {
     ctx.restore();
   }
   if (who === 'bram') drawHandle(ctx, x + side * e.r * 0.6, y - e.r * 1.5, side, e.windup, swing);
+}
+
+/**
+ * Which of Oswin's clips (art/hero.py elder_clips) fits what he's doing (src/battle/partners.ts), and how far through
+ * it: the one-shots follow his move's timer, the loops the clock.
+ */
+function oswinClip(b: Battle, e: Enemy): [anim: string, phase: number] {
+  const once = (anim: string, k: number): [string, number] => [anim, Math.min(0.999, Math.max(0, k))];
+  if (b.endT >= 0) return ['yield', b.t / 1.5];
+  if (e.stun > 0) return once('hit', 0.3);
+  switch (e.state) {
+    // The bonk comes down in the last 0.14 s of his 1.15 s wind-up, landing as the strike goes off, and plays on
+    // through his 0.9 s recovery.
+    case 'slam': {
+      const swing = e.windup * 1.15 - (1.15 - 0.14);
+      return swing < 0 ? once('windup', (e.windup * 1.15) / (1.15 - 0.14)) : once('bonk', swing / 1.04);
+    }
+    case 'recover': return once('bonk', (0.14 + 0.9 - e.t) / 1.04);
+    // The hop's clip spans its wind-up (0.55 s) and the hop itself (0.45 s).
+    case 'windup': return once('hop', e.windup * 0.55);
+    case 'hop': return once('hop', 0.55 + 0.45 * (1 - e.t / 0.45));
+  }
+  // A flinch when he's hit (his flash is set to 0.12 s and counts on down), outlasting the white flash.
+  if (e.flash > -0.25 && (e.state === 'walk' || e.state === 'exposed')) return once('hit', (0.12 - e.flash) / 0.37);
+  if (e.state === 'exposed') return ['winded', b.t];
+  return Math.hypot(e.vx, e.vy) > 5 ? ['walk', b.t * 1.5] : ['idle', b.t * 0.75];
 }
 
 /** Bram's axe handle: on his shoulder, raised high as he winds up, brought down in front after. */
