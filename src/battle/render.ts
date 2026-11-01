@@ -230,8 +230,8 @@ function drawField(b: Battle, ctx: Ctx) {
  * soft patches and a few flowers or pebbles, and grass tufts fringe the border. Guardian fights add an old stone ring.
  */
 function drawArena(b: Battle, ctx: Ctx, w: number, h: number) {
-  // Lessons, and spars at the fox's clearing, are on its timber floor.
-  if (b.setup.dojo || (b.setup.spar && b.setup.zone.id === 'hollow')) { drawDojoArena(ctx); return; }
+  // Lessons and spars are on a timber practice floor.
+  if (b.setup.dojo || b.setup.spar) { drawDojoArena(ctx); return; }
   const th = b.setup.zone.theme;
   const RX = ARENA_RX, RY = ARENA_RY;
   const SCENERY_UNIT = 29;

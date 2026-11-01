@@ -283,6 +283,8 @@ export class World extends TileMap {
     add({ kind: 'forge', ...TOWN_FORGE, label: 'Forge', text: 'The Forge' });
     add({ kind: 'house', x: V + 13, y: 4.3, w: 3, h: 5.2, label: '' });
     add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
+    // His old practice ring, roped off beside him: he spars you there once you've reached Sowerby (src/game/spar.ts).
+    add({ kind: 'prop', id: 'ring', x: V + 11.1, y: 9.9, w: 2.4, h: 1.9, label: '', walkable: true, shown: (s) => s.flags.includes('village') });
     add({ kind: 'plot', project: 'home', ...TOWN_HOME, label: 'Build', text: 'Home' });
     add({ kind: 'plot', project: 'training', ...TOWN_TRAINING, label: 'Build', text: 'Hidden Training Clearing', shown: s => s.flags.includes('fox:trusted') || s.build.training > 0 });
     add({kind:'prop',id:'fox:den',x:zoneById('hollow').x0+26.5,y:3.2,w:1.6,h:1.4,label:''},false);

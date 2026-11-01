@@ -1,5 +1,5 @@
-// Friendly spars (src/spar.ts): Elder Oswin offers one when you talk to him, and the fox's clearing has a Free spar
-// with anyone who'll have you. You fight as a copy of yourself (see fights.ts begin), so nothing sticks.
+// Friendly spars (src/spar.ts): Elder Oswin offers one when you talk to him, at the practice ring beside him in
+// Sowerby, and the fox's clearing has a Free spar with anyone who'll have you. You fight as a copy of yourself (see fights.ts begin), so nothing sticks.
 import { PARTNERS, sparPartners, type PartnerId } from '../spar';
 import { zoneById } from '../data';
 import type { BattleOutcome } from '../battle/types';
@@ -9,7 +9,7 @@ import { startBattle } from './fights';
 
 const portrait = (who: PartnerId) => icon(`npc_${PARTNERS[who].look}`, PARTNERS[who].emoji, 'icon lg');
 
-/** A spar in the village square (Oswin, when you talk to him) or on the clearing's practice floor. */
+/** A spar at Oswin's practice ring in Sowerby, or at the fox's clearing: either way on a timber practice floor. */
 export function startSpar(who: PartnerId, at: 'village' | 'hollow' = 'village') {
   if (!sparPartners(G.save).includes(who)) return;
   startBattle(zoneById(at), [], false, undefined, { spar: who });

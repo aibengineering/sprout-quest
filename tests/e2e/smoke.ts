@@ -2850,6 +2850,7 @@ scenario('sparring: Elder Oswin spars (a win and a loss, nothing spent or gained
     check(await game<boolean>(page, nearElder), 'not back where you were');
     check(await game<string>(page, snap) === before, 'the spar changed your save');
   };
+  check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'ring').hidden`), 'Oswin’s practice ring is not beside him');
   // A win: he yields at a fifth of his health (forced), with his line.
   await spar();
   await run(page, `g.battle.enemies[0].hp = 1`);

@@ -8,6 +8,7 @@ import type { BattleOutcome } from '../src/battle/types';
 import { zoneById } from '../src/data';
 import type { Input } from '../src/input';
 import type { Audio } from '../src/audio';
+import { World } from '../src/world';
 
 const input = { axis: () => ({ x: 0, y: 0 }), consume: () => false, isHeld: () => false, peek: () => false, flush: () => {}, reset: () => {} } as unknown as Input;
 const audio = { play: () => {} } as unknown as Audio;
@@ -105,5 +106,16 @@ describe('sparring partners', () => {
       run(30);
       expect(b.log.taken).toBeGreaterThan(0);
     }
+  });
+
+  test("Oswin's practice ring is roped off beside him in Sowerby once you arrive, and you can walk across it", () => {
+    const w = new World(), ring = w.objs.find((o) => o.id === 'ring')!, elder = w.obj('elder')!;
+    expect(ring.shown!(newState())).toBe(false);
+    const s = newState();
+    s.flags.push('village');
+    expect(ring.shown!(s)).toBe(true);
+    expect(Math.hypot(ring.x - (elder.x + elder.w), ring.y + ring.h / 2 - (elder.y + elder.h / 2))).toBeLessThan(1);
+    expect(ring.label).toBe('');
+    expect(w.blocked(ring.x + ring.w / 2, ring.y + ring.h / 2, 0.28)).toBe(false);
   });
 });
