@@ -97,6 +97,19 @@ export interface WorldObj {
   shown?: (s: SaveState) => boolean;
 }
 
+/** Buildings: only the front of the plot is solid (their walls meet the ground there), so you can walk round the back. */
+const BUILDINGS: ObjKind[] = ['forge', 'house', 'plot', 'residence'];
+
+/**
+ * The part of an object you bump into. A building's roof is drawn up over the back of its plot, so you can walk round
+ * behind it (and are drawn behind it there): only its front stands solid, about half its depth and at least a tile.
+ */
+export function solidPart(o: WorldObj): { x: number; y: number; w: number; h: number } {
+  if (!BUILDINGS.includes(o.kind) && o.id !== 'bramhut') return o;
+  const h = Math.min(o.h, Math.max(1, o.h * 0.55));
+  return { x: o.x, y: o.y + o.h - h, w: o.w, h };
+}
+
 export function hash2(x: number, y: number, seed: number): number {
   let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(seed, 1442695041);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
@@ -143,7 +156,11 @@ export class TileMap {
   solidAt(x: number, y: number): boolean {
     const t = this.tile(Math.floor(x), Math.floor(y));
     if (t === T.OBST || t === T.POOL || t === T.CHASM) return true;
-    for (const o of this.objs) if (!o.hidden && !o.walkable && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
+    for (const o of this.objs) {
+      if (o.hidden || o.walkable) continue;
+      const r = solidPart(o);
+      if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return true;
+    }
     return false;
   }
 
@@ -158,8 +175,9 @@ export class TileMap {
     let bestD = maxDist;
     for (const o of this.objs) {
       if (!o.label || o.hidden) continue;
-      const cx = Math.max(o.x, Math.min(x, o.x + o.w));
-      const cy = Math.max(o.y, Math.min(y, o.y + o.h));
+      const r = solidPart(o);
+      const cx = Math.max(r.x, Math.min(x, r.x + r.w));
+      const cy = Math.max(r.y, Math.min(y, r.y + r.h));
       const d = Math.hypot(cx - x, cy - y);
       if (d < bestD) {
         bestD = d;

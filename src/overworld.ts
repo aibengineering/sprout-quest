@@ -19,7 +19,7 @@ import { Fx } from './fx';
 import type { Input } from './input';
 import { drawPlayer, rrect, shadow } from './sprites';
 import type { SaveState } from './state';
-import { hash2, T, type TileMap, type World, type WorldObj } from './world';
+import { hash2, solidPart, T, type TileMap, type World, type WorldObj } from './world';
 import { WALL_RISE, type Room } from './room';
 import { EchoCave, ECHO_OUTSIDE } from './echoCave';
 import { Cavern } from './cavern';
@@ -622,6 +622,9 @@ export class Overworld {
     if (body) items.push({ y: body.y, draw: () => this.drawBody(ctx, body, ts) });
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
+    // Round the back of a building, a faint you shows through it.
+    if (W.objs.some((o) => !o.hidden && solidPart(o) !== o && this.x > o.x && this.x < o.x + o.w && this.y > o.y - 0.5 && this.y < o.y + o.h))
+      drawHero(ctx, this.save.equip.armor, this.x * ts, this.y * ts, ts / 1.2, this.face, this.moving, this.t, { alpha: 0.35 }, 'hero:behind');
     if (this.carried) drawCarried(ctx, this.x * ts, this.y * ts, ts, this.carried.icon, this.carried.emoji, this.carried.count, this.t);
     this.fx.draw(ctx);
     if(this.underground===this.oreGallery&&!this.oreGallery.opened){
