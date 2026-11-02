@@ -20,6 +20,7 @@ import { browserEnv } from './browser-env';
 import { SHORTCUTS, shortcutWorldPoint } from '../../src/shortcuts';
 import { NEIGHBOURS } from '../../src/neighbours';
 import { HOMES } from '../../src/housing';
+import { PRESETS } from '../../src/dev/presets';
 
 const SHOTS = process.argv.includes('--shots');
 const env = browserEnv(SHOTS);
@@ -213,7 +214,7 @@ async function winFight(page: Page) {
 /** Scenarios run from a queue, a few at a time (each has its own browser context, so their saves don't mix). */
 const queue: { name: string; run: () => Promise<void> }[] = [];
 /** The long ones start first, so none is left running alone at the end. */
-const SLOW = ['Poppy', "Bram's story", 'drums in the dark', 'every monster', 'characters are drawn in 3D', 'prologue', 'waits between strikes', 'play report'];
+const SLOW = ['quest arrows', 'Poppy', "Bram's story", 'drums in the dark', 'every monster', 'characters are drawn in 3D', 'prologue', 'waits between strikes', 'play report'];
 const weight = (name: string) => { const i = SLOW.findIndex((s) => name.includes(s)); return i < 0 ? SLOW.length : i; };
 
 function scenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>, opts: { webgl?: boolean } = {}) {
@@ -2474,6 +2475,48 @@ scenario('dev builds: a preset plays in its own slot, and your real save is unto
   await page.click('#btn-dev');
   const panel = (await page.textContent('#modal .sheet')) ?? '';
   check(/preset-poppy-chase/.test(panel) && /Sandbox/.test(panel), 'the dev panel is missing slots or presets');
+});
+
+/**
+ * Every preset, with each quest you could follow (the main story and each side quest in the Journal): its arrow must
+ * point somewhere you can stand, in the space you're in (not into a wall, rock or building, nor into a cave you're not
+ * in), and when it marks a person it must follow them as they wander, not stay on the spot they started from.
+ */
+scenario('quest arrows: on every preset, each quest points at open ground, and stays on the person it marks as they move', null, async (page) => {
+  const url = page.url().split('?')[0], problems: string[] = [];
+  for (const { id } of PRESETS) {
+    await page.goto(`${url}?preset=${id}`);
+    await waitFor(page, `the ${id} preset`, () => game<boolean>(page, `localStorage.getItem('sprout-quest-slot') === 'preset-${id}' && !!g.over && g.mode !== 'title'`), 20000);
+    await page.waitForTimeout(300);
+    problems.push(...await game<string[]>(page, `(() => {
+      const o = g.over, out = [], tracked = g.save.trackedQuest;
+      // Open ground where you are: in a side cave (Pebbler Hollow, Pip's gallery), in it; otherwise above ground or in the
+      // Cavern, which shares the map's coordinates.
+      const here = o.underground && o.underground !== o.cavern ? [o.underground] : [o.world, o.cavern];
+      const inside = (m, p) => p.x >= m.x0 && p.x < m.x0 + m.w && p.y >= m.y0 && p.y < m.y0 + m.h;
+      const open = (p) => here.some((m) => inside(m, p) && !m.blocked(p.x, p.y, 0.28));
+      const people = [...o.actors.list, ...o.echo.actors.list, ...o.oreGallery.actors.list];
+      const fmt = (p) => p.x.toFixed(1) + ',' + p.y.toFixed(1);
+      for (const quest of [undefined, ...g.stories.filter((st) => st.trackable).map((st) => st.id)]) {
+        g.save.trackedQuest = quest;
+        const p = g.objective(), what = '${id} / ' + (quest ?? 'main story');
+        if (!p) continue;
+        if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !open(p)) { out.push(what + ': the arrow points into a wall at ' + fmt(p)); continue; }
+        // Someone it marks: move them a step (somewhere open) and the arrow must go with them.
+        for (const a of people.filter((a) => Math.hypot(a.x - p.x, a.y - p.y) < 1)) {
+          const x0 = a.x, y0 = a.y, step = [[1.2, 0], [-1.2, 0], [0, 1.2], [0, -1.2]].map(([dx, dy]) => ({ x: x0 + dx, y: y0 + dy })).find(open);
+          if (!step) continue;
+          Object.assign(a, step);
+          const q = g.objective();
+          Object.assign(a, { x: x0, y: y0 });
+          if (!q || Math.hypot(q.x - step.x, q.y - step.y) > 1) out.push(what + ': the arrow stayed at ' + fmt(p) + ' when ' + a.id + ' moved to ' + fmt(step));
+        }
+      }
+      g.save.trackedQuest = tracked;
+      return out;
+    })()`));
+  }
+  check(!problems.length, `quest arrows off target:\n    ${problems.join('\n    ')}`);
 });
 
 // Fluffy Vest presentation exercises the real transaction; every scenario starts with an unowned vest.

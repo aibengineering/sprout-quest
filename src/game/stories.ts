@@ -165,6 +165,15 @@ export const storyTooLoud = (o: WorldObj) => live().forEach((st) => st.tooLoud?.
 export const storyFelled = (o: WorldObj) => live().forEach((st) => st.felled?.(o));
 export const storyFainted = () => live().forEach((st) => st.fainted?.());
 
+/**
+ * Where someone is on the map right now (or `home` while they're not out), for a quest arrow to point at: it stays over
+ * them as they wander about, instead of marking the spot they started from.
+ */
+export function actorAt(id: string, home: { x: number; y: number }) {
+  const a = G.over.actors.get(id);
+  return a ? { x: a.x, y: a.y } : { ...home };
+}
+
 /** Someone stops following you and waits at `at` (with `flag` set) until you come back and talk to them. */
 export function waitAt(id: string, flag: string) {
   const a = G.over.actors.get(id);

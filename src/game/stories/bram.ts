@@ -8,7 +8,7 @@ import type { WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { challengeFoe, startBattle } from '../fights';
 import { bubble, narrate, pan, say, scene, walk, wait, type Speaker } from '../scenes';
-import { stopWaiting, waitAt, type Story } from '../stories';
+import { actorAt, stopWaiting, waitAt, type Story } from '../stories';
 import { GRANNY, GRANNY_AT, GRANNY_ID } from './granny';
 import { bramHousePlans } from '../housing';
 import { knows } from '../../known';
@@ -234,7 +234,7 @@ export const BRAM_STORY: Story = {
     {
       id: 'hut', label: `Saw ${BRAM_CABIN_PLANKS} planks for Bram's cabin`,
       cost: () => ({ plank: BRAM_CABIN_PLANKS }),
-      target: () => ({ x: MILL.x + 0.2, y: MILL.y + 0.8 }),
+      target: () => actorAt(ID, MILL),
       done: () => has('bram:hut'),
       async then() {
         syncWorld();

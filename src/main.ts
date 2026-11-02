@@ -18,7 +18,7 @@ import { drawGardenHud, gardenDebug, gardenTick, inGarden } from './game/gardenW
 import { millSoundTick, sawmillDebug } from './game/sawmillRoom';
 import { menuHooks } from './game/menu';
 import { arriveAtVillage, maybeAutoTalk, progressQuests } from './game/story';
-import { checkStories, storyLayers, tickStories } from './game/stories';
+import { checkStories, storyLayers, storyLog, tickStories } from './game/stories';
 import { drumsDebug } from './game/stories/drums';
 import { boot, setUpTitle } from './game/title';
 import { objective } from './game/waypoint';
@@ -345,6 +345,10 @@ requestAnimationFrame(frame);
   get audio() { return G.audio; },
   /** The Pebblors' procession in Echo Cavern (game/stories/drums.ts). */
   get drums() { return drumsDebug(); },
+  /** The side quests in the Journal (game/stories.ts storyLog): set `save.trackedQuest` to an id to follow one. */
+  get stories() { return storyLog(); },
+  /** Where the quest arrow points just now (game/waypoint.ts), worked out afresh. */
+  objective,
   get sound() { return G.sound; },
   /** The room you're in ('kitchen', 'sawmill') or null, and ways in and out of them (game/rooms.ts). */
   get room() { return G.over.room?.id ?? null; },

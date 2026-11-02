@@ -6,7 +6,7 @@ import { homeLevel, type HomeId } from '../../housing';
 import { residentDoor } from '../../villageLayout';
 import { G, paused, persist } from '../context';
 import { say, type Speaker } from '../scenes';
-import type { Story } from '../stories';
+import { actorAt, type Story } from '../stories';
 
 const PEOPLE = {
   moss: { name: 'Moss', emoji: '🥖', portrait: () => 'npc_moss', meal: 'trailbuns', recipe: 'Trail Buns',
@@ -54,13 +54,13 @@ function residentStory(id: NewResident): Story {
   const p = PEOPLE[id];
   return {
     id, title: `${p.name} Moves In`, icon: p.emoji, objs: [], available: () => homeLevel(G.save, id) > 0,
-    steps: [{ id: 'welcome', label: `Welcome ${p.name} at their new home`, target: () => residentDoor(id), done: () => G.save.flags.includes(`${id}:recipe`),
+    steps: [{ id: 'welcome', label: `Welcome ${p.name} at their new home`, target: () => actorAt(`${id}:${id}`, residentDoor(id)), done: () => G.save.flags.includes(`${id}:recipe`),
       then: () => paused(async () => { await G.ui.itemFound(`meal_${p.meal}`, p.recipe, `${p.name} has taught Granny a new recipe. Choose it in the Kitchen’s recipe book.`, p.emoji, 'New neighbour, new recipe'); }) }],
     cast: () => [{ id: `${id}:${id}`, name: p.name, look: { kind: 'walker', name: id }, ...residentDoor(id), face: Math.PI / 2, wander: 2,
       label: G.save.flags.includes(`${id}:recipe`) ? 'Talk' : `Meet ${p.name}`, talk: () => visitResident(id) }],
   };
 }
 const ROOK_STORY:Story={id:'rook',title:'Rook’s Hunting Lodge',icon:'🏹',available:()=>homeLevel(G.save,'rook')>0,objs:[],steps:[{
- id:'welcome',label:'Visit Rook at his hunting lodge',target:()=>residentDoor('rook'),done:()=>G.save.flags.includes('rook:lodge'),
+ id:'welcome',label:'Visit Rook at his hunting lodge',target:()=>actorAt('rook:rook',residentDoor('rook')),done:()=>G.save.flags.includes('rook:lodge'),
 }],cast:()=>[{id:'rook:rook',name:'Rook',look:{kind:'walker',name:'rook'},...residentDoor('rook'),face:Math.PI/2,wander:1.5,label:'Talk',talk:visitHunter}]};
 export const RESIDENT_STORIES = [residentStory('moss'),ROOK_STORY];

@@ -6,7 +6,7 @@ import { offerVillageUpgrade } from '../housing';
 import { ZONES } from '../../data';
 import { G, paused, persist, syncWorld } from '../context';
 import { bubble, narrate, pan, say, scene, wait, type Speaker } from '../scenes';
-import type { Story } from '../stories';
+import { actorAt, type Story } from '../stories';
 import { residentDoor } from '../../villageLayout';
 import { homeLevel } from '../../housing';
 import { mealDescription } from '../../kitchen';
@@ -70,7 +70,7 @@ export const PIP_STORY: Story = {
   steps: [
     {
       id: 'cottage', label: 'Ask Bram to build the Guest Cottage with your planks',
-      target: () => BRAM_AT,
+      target: () => actorAt('bram:bram', BRAM_AT),
       done: () => G.save.build.cottage >= 1,
       async then() {
         syncWorld();
