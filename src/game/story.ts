@@ -78,11 +78,13 @@ export async function arriveAtVillage() {
   const w = G.world, s = G.save;
   const elder = w.obj('elder')!, forge = w.obj('forge')!, home = w.obj('plot', 'home')!, sign = w.objs.find((o) => o.kind === 'sign' && o.x > elder.x)!;
   const shrine = G.world.objs.find((o) => o.kind === 'statue' && o.id === 'veyra' && o.zone === 'village');
+  const lane = w.objs.find((o) => o.id === 'practice:way')!;
   await cutscene([
     { x: elder.x + 0.4, y: elder.y + 1, text: 'Oh my! A traveler, and you made it through the glade all by yourself? Welcome to Sowerby!' },
     { x: elder.x + 0.4, y: elder.y + 1, text: "…And that leaf. Well. Veyra keep you, little sprout." },
     ...(shrine ? [{ x: shrine.x + 0.4, y: shrine.y + 1.2, text: "Veyra's shrine. The Sower watches over our fields, and over everyone she plants here." }] : []),
     { x: home.x + 3, y: home.y + 1.5, text: "It isn't much right now. A tent, an old field gone to grass at the east end, and a lot of empty ground…" },
+    { x: lane.x + 0.5, y: lane.y - 0.5, text: "And through the gap in the hedge, past your tent, there's my old practice ring. Come by any time; I'll go easy on you. Mostly." },
     { x: forge.x + 2, y: forge.y + 2, text: 'Even our old forge has crumbled. Ever since smoke started drifting from Ember Peak, the monsters have been grumpy and nobody dares travel.' },
     { x: sign.x + 3, y: sign.y + 2, text: 'Out east, big guardians now block every road. We are cut off from the rest of the world.' },
     { x: G.over.x, y: G.over.y, text: "But I have a feeling about you. With your help, this little village could grow into something wonderful. Will you stay and help us?" },

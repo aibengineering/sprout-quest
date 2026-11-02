@@ -14,6 +14,8 @@ const W = zoneById('glade').x0;
 export const HIDDEN_CLEARING = { x: W + 9.6, y: 21, rx: 4.4, ry: 2.6 };
 export const HIDDEN_TRAIL = { x: W + 13, y: 22, w: 6, h: 2 };
 export const TRAINING_PLOT = { x: W + 7.4, y: 19.4, w: 2.4, h: 1.9 };
+/** A signpost where your lane ends at the hedge, pointing the way through it to the ring. */
+export const LANE_SIGN = { x: W + 18.2, y: 21.2, w: 0.6, h: 0.45 };
 /** The sign by the ring's gate: the practice menu. */
 export const PRACTICE_SIGN = { x: W + 9.3, y: 21.55, w: 0.6, h: 0.4 };
 /** Whether a spot is in the clearing (it's off the glade's southern woods, below the glade's own clearing). */

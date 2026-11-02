@@ -304,11 +304,15 @@ scenario('a new game plays through the prologue to Elder Oswin', null, async (pa
   await page.keyboard.down('KeyD');
   await waitFor(page, 'arriving in the village', async () => game<boolean>(page, `g.over.currentZone.id === 'village' && g.mode === 'dialog'`), 4000);
   await page.keyboard.up('KeyD');
+  const tour: string[] = [];
   for (let i = 0; i < 12 && !(await game<boolean>(page, `g.save.flags.includes('village')`)); i++) {
+    tour.push((await page.textContent('#modal:not([hidden]) .caption-text').catch(() => null)) ?? '');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(900);
   }
   check(await game(page, `g.save.flags.includes('village')`), 'arriving in the village did not finish the welcome');
+  // He points out his practice ring (the fox is never mentioned in the village).
+  check(tour.some((t) => t.includes('practice ring')) && !tour.some((t) => /fox/i.test(t)), `the tour never pointed out the practice ring: ${tour.join(' | ')}`);
   check(await game(page, `g.save.flags.includes('oldtools')`), 'Elder Oswin did not hand over his old tools');
   await closeDialogs(page);
   await page.waitForTimeout(500);
@@ -2942,6 +2946,8 @@ scenario('sparring: before the fox, the hidden clearing is Oswin’s roped-off r
 }, async (page) => {
   await run(page, 'g.over.roamers.list = []; g.over.roamers.respawn = 1e9');
   check(await game<boolean>(page, `(() => { const o = g.over.world.obj('plot', 'training'); return !o.hidden && o.walkable && o.label === ''; })()`), 'the ring is not open from your arrival, or is not walkable');
+  // A signpost where the lane meets the hedge points the way, in the village (and says nothing of the fox).
+  check(await game<boolean>(page, `(() => { const o = g.over.world.objs.find((o) => o.id === 'practice:way'); return !!o && !o.hidden && g.over.world.zoneAt(o.x).id === 'village' && o.text.includes('practice ring') && !/fox/i.test(o.text); })()`), 'no signpost to the practice ring at the end of the lane');
   // Walk west down the lane and through the gap in the hedge.
   await page.keyboard.down('KeyA');
   await waitFor(page, 'through the hedge', () => game<boolean>(page, `g.over.x < 13.5`), 8000);

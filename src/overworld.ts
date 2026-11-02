@@ -1580,6 +1580,9 @@ export class Overworld {
         this.nameTag(ctx, lit ? '⚒ Forge' : '⚒ Old Forge', ax, top, ts);
         break;
       }
+      case 'sign':
+        if (o.id === 'practice:way') this.nameTag(ctx, '⚔️ Practice ←', ax, top, ts);
+        break;
       case 'prop':
         if (o.id === 'prop_cavemouth') this.nameTag(ctx, 'Pebbler Hollow', ax, top, ts);
         if (o.id === 'fox:den') this.nameTag(ctx, 'The Quiet Den', ax, top, ts);

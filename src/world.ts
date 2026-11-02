@@ -12,7 +12,7 @@ import { LANDMARK_SIGNS, ROUTE_GUIDES } from './mapDesign';
 import { SEAMS, TUNNEL_HOME } from './seams';
 import { HUNTS } from './hunts';
 import { CAVE_WEST_MOUTH, CAVE_EAST_MOUTH } from './caveEntrance';
-import { HIDDEN_CLEARING, HIDDEN_TRAIL, PRACTICE_SIGN, TRAINING_PLOT } from './fox';
+import { HIDDEN_CLEARING, HIDDEN_TRAIL, LANE_SIGN, PRACTICE_SIGN, TRAINING_PLOT } from './fox';
 
 export const T = {
   GROUND: 0,
@@ -295,6 +295,7 @@ export class World extends TileMap {
     const practice = (s: SaveState) => s.flags.includes('village') || s.build.training > 0;
     add({ kind: 'plot', project: 'training', ...TRAINING_PLOT, label: '', text: 'Hidden Training Clearing', walkable: true, shown: practice }, false);
     add({ kind: 'sign', id: 'practice', ...PRACTICE_SIGN, label: 'Practice', shown: practice }, false);
+    add({ kind: 'sign', id: 'practice:way', ...LANE_SIGN, label: 'Read', text: '⚔️ To the practice ring: through the gap in the hedge. Friendly bouts only. Mind the old man’s staff.' }, false);
     add({kind:'prop',id:'fox:den',x:zoneById('hollow').x0+26.5,y:3.2,w:1.6,h:1.4,label:''},false);
     add({ kind: 'plot', project: 'warp', ...TOWN_WAYSTONE, label: 'Build', text: 'Waystone' });
     // Bram lives beside his mill, across the work yard from the Forge. His cabin
