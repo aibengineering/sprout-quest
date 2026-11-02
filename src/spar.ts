@@ -1,7 +1,7 @@
 // Friendly sparring: practice fights with someone from the village, for nothing but the practice. No loot, XP, story,
 // potions or fainting; your own health is never touched. Whoever drops to a fifth of their health calls it.
 import type { MonsterDef } from './data';
-import { foxTrusted } from './fox';
+import { foxAtClearing } from './fox';
 import { currentQuest } from './quests';
 import { playerStats, type PlayerStats } from './rules';
 import type { SaveState } from './state';
@@ -62,16 +62,16 @@ export const PARTNERS: Record<PartnerId, Partner> = {
   },
 };
 
-/** Who'll spar with you: Oswin once you've reached Sowerby, Bram once he's settled there, the fox once she trusts you. */
+/** Who'll spar with you: Oswin once you've reached Sowerby, Bram once he's settled there, the fox once she's at the clearing. */
 export function sparPartners(s: SaveState): PartnerId[] {
   const out: PartnerId[] = [];
   if (s.flags.includes('village')) out.push('oswin');
   if (s.flags.includes('bram:hut')) out.push('bram');
-  if (foxTrusted(s)) out.push('fox');
+  if (foxAtClearing(s)) out.push('fox');
   return out;
 }
 
-/** Oswin offers a spar when he's talked to, unless he's in the middle of telling you something the story needs. */
+/** Oswin mentions his practice ring when he's talked to, unless he's telling you something the story needs. */
 export const oswinSpars = (s: SaveState) => sparPartners(s).includes('oswin') && currentQuest(s)?.goal.type !== 'talk';
 
 /**

@@ -18,7 +18,7 @@ import { enterMainCavern, enterEchoCave, leaveEchoCave, enterOreGallery, leaveOr
 import { gardenAct, gardenStation, POPPY_AWAY } from './gardenWork';
 import { askBramForHome } from './housing';
 import { visitResident } from './stories/residents';
-import { visitDojo } from './dojo';
+import { practiceSign } from './dojo';
 import { constructShortcut } from './shortcuts';
 
 /** Opens the menu with the world waiting behind it. */
@@ -78,7 +78,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
     // Worked by hand: the plot you're on (Poppy offers advice when you talk to her).
     if (o.project === 'garden' && gardenOpen(G.save)) return gardenAct();
     if (o.project === 'garden') return askBramForHome();
-    if (o.project === 'training') return G.save.build.training ? visitDojo() : askBramForHome();
+    if (o.project === 'training') return askBramForHome();
     openMenu(menuCtx(), 'village', o.project);
   },
 
@@ -160,6 +160,7 @@ const HANDLERS: Partial<Record<ObjKind, (o: WorldObj) => void | Promise<void>>> 
   },
 
   async sign(o) {
+    if (o.id === 'practice') return practiceSign();
     await paused(() => G.ui.message('📜 Sign', o.text ?? ''));
   },
 

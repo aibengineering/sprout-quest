@@ -6,7 +6,7 @@ import { liveView } from './itemview';
 import type { Battle } from './battle/battle';
 import { drawBattle } from './battle/render';
 import { MAX_POTIONS, MONSTERS, NODES, QUESTS, ZONES, zoneById, type MonsterKind, type ZoneId } from './data';
-import { G, applySound, busy, menuCtx, persist, showZoneBanner, syncWorld } from './game/context';
+import { G, applySound, busy, menuCtx, persist, placeName, showZoneBanner, syncWorld } from './game/context';
 import { canRun, challengeFoe, coachBattle, startBattle, startFieldBattle } from './game/fights';
 import { revive, spirit } from './game/death';
 import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/gathering';
@@ -118,7 +118,7 @@ function battleFrame(b: Battle, dt: number) {
   const s = G.save, ui = G.ui;
   b.update(busy() ? 0 : dt);
   drawBattle(b, ctx, vw, vh);
-  ui.hud(G.mode === 'battle' ? b.p.hp : s.hp, G.over.currentZone.name);
+  ui.hud(G.mode === 'battle' ? b.p.hp : s.hp, placeName());
   ui.questPill(false);
   ui.dock(false);
   ui.dragHint(false);
@@ -235,7 +235,7 @@ function worldFrame(dt: number) {
     ctx.fillStyle = 'rgba(42,26,48,0.15)';
     ctx.fillRect(0, 0, vw, vh);
   } else {
-    ui.hud(s.hp, over.underground?.name ?? over.room?.spec.name ?? over.currentZone.name, G.mode === 'gather' && chop ? NODES[chop.obj.node!].skill : null);
+    ui.hud(s.hp, over.underground?.name ?? over.room?.spec.name ?? placeName(), G.mode === 'gather' && chop ? NODES[chop.obj.node!].skill : null);
     // In a room, its own hint takes the quest's place at the top.
     ui.questPill(!over.room && !inGarden() && (G.mode === 'world' || G.mode === 'dialog'));
   }

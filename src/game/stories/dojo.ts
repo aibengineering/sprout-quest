@@ -1,7 +1,8 @@
-// A private friendship in Glimmer Hollow, not a public monster arrival in Sowerby.
+// A private friendship, never a public monster arrival in Sowerby: she's met on her trail in Glimmer Hollow, then
+// teaches at the Hidden Training Clearing in the woods outside the village. She's only ever in one place.
 import type { Story } from '../stories';
 import { syncStories } from '../stories';
-import { FOX_DEN, FOX_SIGHT, FOX_TRAIL, foxTrusted } from '../../fox';
+import { FOX_CLEARING, FOX_SIGHT, FOX_TRAIL, foxAtClearing, foxTrusted } from '../../fox';
 import { FOX, foxTrial } from '../fox';
 import { G, paused, persist } from '../context';
 import { say } from '../scenes';
@@ -24,8 +25,9 @@ async function talk() {
     if(!has('fox:catch')) { G.save.flags.push('fox:catch'); persist(); }
     await foxTrial(); syncStories(); return;
   }
+  if(!has('fox:clearing')) { G.save.flags.push('fox:clearing'); persist(); syncStories(); }
   if(G.save.build.training) return visitDojo();
-  await paused(()=>say(FOX,'Your timber friend could bring a few soft targets. Here, by my den. This stays between us, little boots.'));
+  await paused(()=>say(FOX,'Your timber friend could bring a few soft targets. Here, round the old ring. This stays between us, little boots.'));
 }
 export const DOJO_STORY: Story = {
   id:'fox', title:'A Step Between Shadows', icon:'🦊', objs:[],
@@ -35,11 +37,12 @@ export const DOJO_STORY: Story = {
     {id:'sighting',label:'A flicker on the glimmer trail',hidden:true,target:()=>FOX_SIGHT,done:()=>has('fox:seen')},
     {id:'follow',label:'Follow the masked fox along the hidden trail',target:()=>{const a=G.over.actors.get(ID);return a?{x:a.x,y:a.y}:FOX_TRAIL[Math.min(progress(),2)];},done:()=>has('fox:catch')},
     {id:'trial',label:'Watch the glimmer marks and dodge the falling shards',target:()=>FOX_TRAIL[2],done:()=>G.save.perks.includes('shadowscarf')},
+    {id:'clearing',label:'Find the masked fox in the hidden clearing beyond Sowerby',target:()=>FOX_CLEARING,done:()=>has('fox:clearing')||has('fox:met')},
   ],
   cast:()=>{
     const n=progress(), a=G.over.actors.get(ID);
-    const at=G.save.perks.includes('shadowscarf')?FOX_DEN:!has('fox:seen')?FOX_SIGHT:n>=3?FOX_TRAIL[2]:a?.path.length?{x:a.x,y:a.y}:FOX_TRAIL[n];
-    return [{id:ID,name:'Masked Fox',look:{kind:'walker',name:'fox'},...at,face:Math.PI/2,speed:4.6,label:!has('fox:seen')?'Talk':n<3?'Follow the fox':G.save.build.training&&G.save.perks.includes('shadowscarf')?'Train with the fox':'Talk',talk}];
+    const at=foxAtClearing(G.save)?FOX_CLEARING:!has('fox:seen')?FOX_SIGHT:n>=3?FOX_TRAIL[2]:a?.path.length?{x:a.x,y:a.y}:FOX_TRAIL[n];
+    return [{id:ID,name:'Masked Fox',look:{kind:'walker',name:'fox'},...at,face:foxAtClearing(G.save)?Math.PI:Math.PI/2,speed:4.6,label:!has('fox:seen')?'Talk':n<3?'Follow the fox':G.save.build.training&&foxAtClearing(G.save)?'Train with the fox':'Talk',talk}];
   },
   tick:()=>{
     if(!has('fox:seen')||G.mode!=='world'||G.over.room||G.over.underground||G.over.currentZone.id!=='hollow'||has('fox:catch'))return;

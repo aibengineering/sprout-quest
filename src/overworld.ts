@@ -604,7 +604,7 @@ export class Overworld {
       if (crossing) this.shortcutItems(ctx, o, ts, items);
       else if (o.kind === 'fence') this.fenceItems(ctx, o, ts, items);
       else if (o.kind === 'plot' && o.project === 'garden') this.fieldItems(ctx, o, ts, items);
-      else if (o.id === 'ring') this.ringItems(ctx, o, ts, items);
+      else if (o.kind === 'plot' && o.project === 'training' && !this.save.build.training) this.ringItems(ctx, o, ts, items);
       else items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
     }
     for (const r of this.fieldMap ? this.roamers.list : []) {
@@ -1520,7 +1520,7 @@ export class Overworld {
       case 'forge': return { name: forgeArt(lv('forge')), back: 0.42 };
       case 'house': return { name: kitchenLevel(this.save) ? `kitchen${kitchenLevel(this.save)}` : 'house_blue', back: 0.42 };
       case 'fountain': return { name: 'fountain', back: 0.45 };
-      case 'sign': return { name: 'sign', back: 0.05 };
+      case 'sign': return { name: o.id === 'practice' ? 'field_sign' : 'sign', back: 0.05 };
       case 'lair': return { name: 'lair', back: 0.4 };
       case 'camp': return { name: 'campfire', back: 0.05 };
       case 'statue': return { name: `statue_${o.id}`, back: 0.1 };
@@ -1724,8 +1724,9 @@ export class Overworld {
   }
 
   /**
-   * Oswin's practice ring: worn grass roped off between six posts, with a straw target at the back. The back rope and
-   * target sort behind whoever stands in the ring, the front rope and posts in front of them.
+   * The Hidden Training Clearing before Bram builds it up: Oswin's old practice ring, worn grass roped off between posts
+   * with a gap for a gate at the front and a straw target at the back. The back rope and target sort behind whoever
+   * stands in the ring, the front rope and posts in front of them.
    */
   private ringItems(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number, items: { y: number; draw: () => void }[]) {
     if (o.hidden) return;
@@ -1786,8 +1787,10 @@ export class Overworld {
       for (const [x, y] of [[x0, y0], [mx, y0], [x1, y0]]) post(x, y);
     } });
     items.push({ y: o.y + o.h, draw: () => {
-      rope([[x0, y1], [mx, y1], [x1, y1]]);
-      for (const x of [x0, mx, x1]) post(x, y1);
+      const gate = ts * 0.42;
+      rope([[x0, y1], [mx - gate, y1]]);
+      rope([[mx + gate, y1], [x1, y1]]);
+      for (const x of [x0, mx - gate, mx + gate, x1]) post(x, y1);
       this.nameTag(ctx, '🤺 Practice Ring', x0 + (x1 - x0) * 0.36, y0 - ts * 0.55, ts);
     } });
   }

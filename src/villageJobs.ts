@@ -15,7 +15,7 @@ export const VILLAGE_JOBS: VillageJob[] = [
   project('garden1', 'garden', 1, 'Poppy', 'Poppy wants a patch of her own. I’ll put up the fence. She’s already saved the seeds.', 1),
   KITCHEN_EXTENSION,
   home('pip', 1, 'Pip’s been sleeping underground. Reckon we can manage a roof. Clover wants flowers by his door.'),
-  { ...project('training1', 'training', 1, 'Masked Fox', 'You found a quiet teacher up in the Hollow? I can carry a few soft targets there. No need to make a fuss in town.', 1), recruit: 'alder' },
+  { ...project('training1', 'training', 1, 'Masked Fox', 'Your quiet teacher wants a roof over Oswin’s old practice ring? I can carry a few soft targets out there. No need to make a fuss in town.', 1), recruit: 'alder' },
   home('rook', 1, 'Rook’s back from Ember Peak. Wants a lodge, shelves and a board for his commissions. I can do the timber.'),
   project('garden2', 'garden', 2, 'Poppy', 'Poppy’s running out of beds. She wants room for herbs. More plots, same gate.', 1),
   home('pip', 2, 'Pip’s stones are taking over the floor. A study should keep them out of Clover’s kitchen.'),

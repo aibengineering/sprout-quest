@@ -2774,7 +2774,8 @@ scenario('Bram’s new construction chain: garden flowers, Granny’s kitchen ex
   await waitFor(page,'Pip’s welcome and recipe finish',async()=>{await closeDialogs(page,12);return game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('pip:candy')`);},20000);
   await run(page, `g.save.flags.push('fox:seen','fox:trusted','fox:catch','fox:trial');g.save.perks.push('shadowscarf')`);
   await bramJob(page, 'training1'); await handInJob(page, 'training1');
-  check(await game<boolean>(page, `g.save.build.training === 1 && !!g.over.actors.get('fox:fox')`), 'Fox did not remain at her den');
+  check(await game<boolean>(page, `g.save.build.training === 1 && !!g.over.actors.get('fox:fox') && g.over.world.zoneAt(g.over.actors.get('fox:fox').x).id === 'glade' && g.over.actors.get('fox:fox').y > 19`), 'Fox is not waiting at the hidden clearing');
+  check(await game<boolean>(page, `!g.over.world.obj('plot', 'training').walkable && !g.over.world.obj('plot', 'training').hidden`), 'the built clearing is not standing where the ring was');
   await run(page, `const a = g.over.actors.get('fox:fox'); g.over.teleport(a.x, a.y + .6); g.over.face = -Math.PI / 2`);
   await page.waitForTimeout(400); await page.keyboard.press('KeyE');
   await waitFor(page, 'Fox introduces her lessons', async () => {
@@ -2791,7 +2792,7 @@ scenario('Masked Fox’s hidden clearing: clean dodge, once-only XP, safe practi
   s.flags.push('poppy:returned', 'bram:hut', 'alder:met');
   s.build.training = 3; s.build.garden = 3; s.build.cottage = 1; s.build.sawmill = 3;
   s.homes = { pip: 2, rook: 2, moss: 2 }; s.hp = 41; s.potions = 3;
-  s.pos = { x: 192.2, y: 8.4 };
+  s.pos = { x: 11.6, y: 21.7 };
   s.flags.push('fox:seen','fox:trusted','fox:catch','fox:trial'); s.perks.push('shadowscarf');
 }, async (page) => {
   const before = await game<any>(page, `({ hp:g.save.hp, potions:g.save.potions, xp:g.save.xp, mats:g.save.mats, wins:g.save.wins, kills:g.save.questKills })`);
@@ -2821,7 +2822,7 @@ scenario('Masked Fox’s hidden clearing: clean dodge, once-only XP, safe practi
   check(await game<boolean>(page, `JSON.stringify({lv:g.save.lv,xp:g.save.xp,mastery:g.save.mastery}) === ${JSON.stringify(JSON.stringify(earned))} && g.save.hp === ${before.hp}`), 'withdrawing awarded XP or hurt the player');
 });
 
-scenario('sparring: Elder Oswin spars (a win and a loss, nothing spent or gained), and the clearing’s Free spar lists your friends', (g) => {
+scenario('sparring: the Practice sign at the hidden clearing’s ring calls Oswin over (a win and a loss, nothing spent or gained), lists your friends and the fox’s lessons', (g) => {
   const s = g.save; s.lv = 12; s.quest = g.quests.length;
   s.stories = { ...s.stories, poppy: 6, bram: 9, drums: 4, granny: 99, alder: 1 };
   s.flags.push('poppy:returned', 'bram:hut', 'alder:met', 'fox:seen', 'fox:trusted', 'fox:catch', 'fox:trial', 'fox:met');
@@ -2832,12 +2833,26 @@ scenario('sparring: Elder Oswin spars (a win and a loss, nothing spent or gained
   await run(page, 'g.over.roamers.list = []; g.over.roamers.respawn = 1e9');
   const snap = `JSON.stringify({hp:g.save.hp,potions:g.save.potions,lv:g.save.lv,xp:g.save.xp,mats:g.save.mats,wins:g.save.wins,kills:g.save.questKills,mastery:g.save.mastery,bosses:g.save.bosses,quest:g.save.quest,flags:g.save.flags,meals:g.save.meals})`;
   const before = await game<string>(page, snap);
-  const nearElder = `Math.hypot(g.over.x - (g.over.world.obj('elder').x + .35), g.over.y - (g.over.world.obj('elder').y + 1)) < 1.5`;
+  // Oswin's own talk no longer has a Spar button: he points you at his ring instead.
+  await run(page, `const o = g.over.world.obj('elder'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5); g.over.face = -Math.PI / 2`);
+  await page.waitForTimeout(300); await page.keyboard.press('KeyE');
+  await page.waitForSelector('#modal:not([hidden]) .bubble');
+  check(!await page.$('[data-dialog="spar"]') && ((await page.textContent('#modal .sheet')) ?? '').includes('gap in the hedge'), 'Oswin still spars in the square, or never mentions his ring');
+  await closeDialogs(page);
+  const sign = `g.over.world.objs.find((o) => o.id === 'practice')`;
+  const nearSign = `Math.hypot(g.over.x - (${sign}.x + .3), g.over.y - (${sign}.y + 1)) < 1.5`;
+  const pick = async () => {
+    await run(page, `const o = ${sign}; g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.6); g.over.face = -Math.PI / 2`);
+    await page.waitForTimeout(300);
+    check(await game<string>(page, `g.over.nearbyObject()?.label`) === 'Practice', 'the Practice sign is not what you face at the ring');
+    await page.keyboard.press('KeyE');
+    await page.waitForSelector('.sheet.spar-pick');
+  };
   const spar = async () => {
-    await run(page, `const o = g.over.world.obj('elder'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5); g.over.face = -Math.PI / 2`);
-    await page.waitForTimeout(300); await page.keyboard.press('KeyE');
-    await page.waitForSelector('.sheet.elder-talk [data-dialog="spar"]');
-    await page.click('.elder-talk [data-dialog="spar"]');
+    await pick();
+    await page.click('.spar-pick [data-dialog="spar:oswin"]');
+    await waitFor(page, 'Oswin walks over', async () => ((await page.textContent('#modal .sheet')) ?? '').includes('Oswin hobbles over'), 5000);
+    await closeDialogs(page, 2, '.caption');
     await waitFor(page, 'the spar with Oswin', () => game<boolean>(page, `g.mode === 'battle' && g.battle?.setup.spar === 'oswin' && g.battle.intro <= 0`), 12000);
     check(await game<boolean>(page, `g.battle.save !== g.save && g.battle.save.potions === 0 && g.battle.p.hp === g.battle.stats.maxHp && g.battle.enemies.length === 1`), 'the spar did not fight a full-health, potion-free copy of you');
   };
@@ -2847,10 +2862,11 @@ scenario('sparring: Elder Oswin spars (a win and a loss, nothing spent or gained
     check(text.includes(says), `the spar result did not say "${says}": ${text}`);
     await page.click('.spar-result [data-dialog="close"]');
     await waitFor(page, 'back on the map', () => game<boolean>(page, `g.mode === 'world' && !g.battle && !g.trans`), 10000);
-    check(await game<boolean>(page, nearElder), 'not back where you were');
+    check(await game<boolean>(page, nearSign), 'not back at the ring');
     check(await game<string>(page, snap) === before, 'the spar changed your save');
   };
-  check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'ring').hidden`), 'Oswin’s practice ring is not beside him');
+  // The clearing is outside the village, and the fox (only ever there or in the Hollow) is never in Sowerby.
+  check(await game<boolean>(page, `g.over.world.zoneAt(${sign}.x).id === 'glade' && g.over.world.zoneAt(g.over.actors.get('fox:fox').x).id === 'glade'`), 'the clearing or the fox is inside Sowerby');
   // A win: he yields at a fifth of his health (forced), with his line.
   await spar();
   await run(page, `g.battle.enemies[0].hp = 1`);
@@ -2859,17 +2875,43 @@ scenario('sparring: Elder Oswin spars (a win and a loss, nothing spent or gained
   await spar();
   await run(page, `g.battle.p.hp = 1`);
   await result('Oswin wins this one.');
-  // The clearing's Free spar: everyone you've made friends with.
-  await run(page, `void g.over.actors.get('fox:fox').talk()`);
-  await page.waitForSelector('.sheet.dojo [data-dialog="spar"]'); await page.click('.sheet.dojo [data-dialog="spar"]');
-  await page.waitForSelector('.sheet.spar-pick');
+  // Everyone you've made friends with, and the fox's lessons now Bram's built the clearing up.
+  await pick();
   const offered = await page.$$eval('.spar-pick [data-dialog^="spar:"]', (els) => els.map((e) => (e as HTMLElement).dataset.dialog));
   check(JSON.stringify(offered) === JSON.stringify(['spar:oswin', 'spar:bram', 'spar:fox']), `Free spar offered ${offered}`);
+  if (SHOTS) await page.screenshot({ path: `${OUT}practice-sign.png` });
+  await page.click('.spar-pick [data-dialog="lessons"]');
+  await page.waitForSelector('.sheet.dojo');
+  await page.click('.sheet.dojo [data-dialog="spar"]');
+  await page.waitForSelector('.sheet.spar-pick');
   await page.click('[data-dialog="spar:fox"]');
+  await closeDialogs(page, 2, '.caption');
   await waitFor(page, 'the spar with the fox', () => game<boolean>(page, `g.mode === 'battle' && g.battle?.setup.spar === 'fox' && g.battle.intro <= 0`), 12000);
   await page.keyboard.press('KeyR');
   await waitFor(page, 'back outside', () => game<boolean>(page, `g.mode === 'world' && !g.battle && !g.trans`), 12000);
   check(await game<string>(page, snap) === before, 'calling off a spar changed your save');
+});
+
+scenario('sparring: before the fox, the hidden clearing is Oswin’s roped-off ring, reached through the hedge from the home lane', (g) => {
+  const s = g.save; s.lv = 4; s.quest = g.quests.length;
+  s.flags = s.flags.filter((f: string) => f !== 'alder:returned');
+  s.pos = { x: 21.5, y: 22.6 };
+}, async (page) => {
+  await run(page, 'g.over.roamers.list = []; g.over.roamers.respawn = 1e9');
+  check(await game<boolean>(page, `(() => { const o = g.over.world.obj('plot', 'training'); return !o.hidden && o.walkable && o.label === ''; })()`), 'the ring is not open from your arrival, or is not walkable');
+  // Walk west down the lane and through the gap in the hedge.
+  await page.keyboard.down('KeyA');
+  await waitFor(page, 'through the hedge', () => game<boolean>(page, `g.over.x < 13.5`), 8000);
+  await page.keyboard.up('KeyA');
+  check(await game<boolean>(page, `g.over.currentZone.id === 'glade' && g.over.y > 21`), 'the trail did not lead out of the village to the clearing');
+  const sign = `g.over.world.objs.find((o) => o.id === 'practice')`;
+  await run(page, `const o = ${sign}; g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.6); g.over.face = -Math.PI / 2`);
+  await page.waitForTimeout(300); await page.keyboard.press('KeyE');
+  await page.waitForSelector('.sheet.spar-pick');
+  const offered = await page.$$eval('.spar-pick [data-dialog^="spar:"]', (els) => els.map((e) => (e as HTMLElement).dataset.dialog));
+  check(JSON.stringify(offered) === JSON.stringify(['spar:oswin']) && !await page.$('[data-dialog="lessons"]'), `before the fox the sign offered ${offered}`);
+  await page.click('.spar-pick [data-dialog="close"]');
+  check(!await game<boolean>(page, `!!g.over.actors.get('fox:fox')`), 'the fox is somewhere before you have met her');
 });
 
 scenario('Bram’s building quests: welcome Rook and Moss, open the lodge, cook garden recipes, upgrade and reload without duplicate costs', (g) => {
@@ -3423,6 +3465,8 @@ scenario('Route redesign: hidden fox chase, shard trial, scarf dash and private 
   await run(page,`g.save.flags.push('rook:returned');g.save.homes.rook=1;g.over.teleport(192.2,8.4);g.over.roamers.calm=999`);
   await page.waitForTimeout(500);
   check(await game<boolean>(page,`!!g.over.actors.get('fox:fox')&&!g.over.actors.get('journey-alder:alder')`),'Rook exposed or removed the fox');
+  // She's moved on to the hidden clearing outside Sowerby (never into the village), and the journal points you there.
+  check(await game<boolean>(page,`(()=>{const a=g.over.actors.get('fox:fox');return g.over.world.zoneAt(a.x).id==='glade'&&a.y>19;})()`),'the fox is not waiting at the hidden clearing after her gift');
   await run(page,`g.over.teleport(180.5,6.8);g.over.face=0`);await page.waitForTimeout(100);
   const x=await game<number>(page,'g.over.x');await page.click('#btn-dash');await page.waitForTimeout(280);
   check(await game<boolean>(page,`g.over.x>${x+1.5}&&!g.over.world.blocked(g.over.x,g.over.y,.28)`),'scarf dash did not move or passed into scenery');

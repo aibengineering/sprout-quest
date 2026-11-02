@@ -9,18 +9,29 @@ import { celebrate, handlingGain, leveledUp, markLevels } from './rewards';
 import { say, type Speaker } from './scenes';
 import { startBattle } from './fights';
 import { pickSpar } from './spar';
+import { foxAtClearing } from '../fox';
 
 export const ALDER: Speaker = { name: 'Masked Fox', emoji: '🦊', portrait: () => 'npc_fox' };
+/** The fox's lessons: once Bram's built the clearing up and she's there to teach. */
+const lessonsOpen = () => G.save.build.training > 0 && foxAtClearing(G.save);
 let choosing = false;
+
+/** The sign at the ring's gate: spar with a friend, or the fox's lessons once there are any. */
+export async function practiceSign() {
+  if (choosing) return;
+  const r = await pickSpar(lessonsOpen() ? [['lessons', '🦊 The fox’s lessons']] : []);
+  if (r === 'lessons') return visitDojo();
+}
+
 export async function visitDojo() {
-  if (choosing || !G.save.build.training || G.over.room || G.over.underground) return;
+  if (choosing || !lessonsOpen() || G.over.room || G.over.underground) return;
   choosing = true;
   let chosen: string | null = null;
   try {
     chosen = await paused(async () => {
       if (!G.save.flags.includes('fox:met')) {
         await say(ALDER, 'Bram’s posts are wonderfully crooked. I like them. Ready to work on those feet?');
-        await say(ALDER, 'I teach here. Bram only brings the timber. No waving swords at the sleepers behind my den.');
+        await say(ALDER, 'I teach here. Bram only brings the timber. Nobody else comes. Keep it that way.');
         await say(ALDER, 'Soft targets, real tells. Watch first, move second. We stop before anyone gets hurt.');
         G.save.flags.push('fox:met'); persist();
       }
@@ -33,10 +44,10 @@ export async function visitDojo() {
       return r === 'spar' ? r : r.startsWith('dojo:') ? r.slice(5) : null;
     });
   } finally { choosing = false; }
-  if (chosen === 'spar') return pickSpar();
+  if (chosen === 'spar') { await pickSpar(); return; }
   const c = chosen && dojoChallenge(chosen);
   if (!c || dojoLock(G.save, c)) return;
-  startBattle(zoneById('hollow'), dojoSetup(c).foes, false, undefined, dojoSetup(c));
+  startBattle(zoneById('village'), dojoSetup(c).foes, false, undefined, dojoSetup(c));
 }
 export async function finishDojo(o: BattleOutcome, b: Battle) {
   const c = dojoChallenge(b.setup.dojo!);

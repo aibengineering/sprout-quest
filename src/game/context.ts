@@ -20,6 +20,7 @@ import { shortcutById } from '../shortcuts';
 import { seamAvailable, seamOpen, SEAMS } from '../seams';
 import { HUNTS, hunting } from '../hunts';
 import { knows } from '../known';
+import { inHiddenClearing } from '../fox';
 
 /**
  * What the game is doing, which decides what takes input and what's drawn:
@@ -115,8 +116,12 @@ export function menuCtx(atForge = false) {
   return { atForge, inVillage: G.over.currentZone.id === 'village' };
 }
 
+/** Where you are, for the HUD: the area, or the Hidden Training Clearing in the woods at the glade's edge. */
+export const placeName = () => inHiddenClearing(G.over.x, G.over.y) ? 'Hidden Clearing' : G.over.currentZone.name;
+
 export function showZoneBanner(z: Zone) {
   const s = G.save;
+  if (z.id === 'glade' && inHiddenClearing(G.over.x, G.over.y)) return G.ui.banner('Hidden Clearing', 'Quiet · Out of sight of the village');
   const sub = z.id === 'village' ? 'Safe · Home of Elder Oswin' : z.id === 'glade' ? 'A peaceful clearing' : `Monsters Lv ${z.lv[0]}–${z.lv[1]}${s.lv < z.rec ? ' · ⚠️ Dangerous!' : ''}`;
   G.ui.banner(z.name, sub);
   if (!s.visited.includes(z.id)) {
@@ -149,7 +154,11 @@ export function syncWorld() {
       if (o.project === 'cottage') o.label = s.build.cottage ? 'Visit' : 'Ask Bram';
       if (o.project === 'garden') o.label = gardenOpen(s) ? 'Garden' : askBram;
     }
-    if (o.project === 'training') o.label = s.build.training ? 'Train with the fox' : askBram;
+    // Oswin's ring is walked about in until Bram builds it up; the sign at its gate is the way in to practice.
+    if (o.project === 'training') {
+      o.walkable = !s.build.training;
+      o.label = !s.build.training && plotOpen(s, 'training') ? askBram : '';
+    }
     if (o.kind === 'residence') {
       o.hidden = !s.flags.includes('bram:hut') && !homeLevel(s, o.home!);
       o.label = homeLevel(s, o.home!) ? 'Visit' : 'Ask Bram';

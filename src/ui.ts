@@ -98,7 +98,7 @@ export const hasNews = (s: SaveState) => newerThan(VERSION, s.seenVersion);
 const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', meadow: '🌼', woods: '🌲', cave: '🪨', hollow: '💎', peak: '🌋' };
 
 /** Sheets whose Esc means their 'close' button, not the first button (which is a choice, like starting a lesson). */
-const ESC_CLOSES = ['house-plans', 'burrow-travel', 'elder-talk', 'dojo'];
+const ESC_CLOSES = ['house-plans', 'burrow-travel', 'dojo'];
 
 /** Blender-rendered icon with the emoji as a fallback if the image is missing. */
 export function icon(id: string, emoji: string, cls = 'icon') {
@@ -1497,12 +1497,12 @@ export class UI {
   }
 
   /** Elder Oswin's word on what's next; with `spar`, he offers a friendly spar too (resolves 'spar'). */
-  elderSays(text: string, hint?: string, spar = false) {
+  /** Oswin's errand for you, its hint, and anything he adds (his practice ring). */
+  elderSays(text: string, hint?: string, aside?: string) {
     return this.dialog(
       `<div class="speaker">${icon('npc_elder', '🌿', 'icon xl')}<b>Elder Oswin</b></div>
-       <div class="bubble">${esc(text)}</div>${hint ? `<div class="hint">🎯 ${esc(hint)}</div>` : ''}`,
-      spar ? [['spar', '🤺 Spar'], ['close', 'Got it!']] : [['ok', 'Got it!']],
-      spar ? 'elder-talk' : '',
+       <div class="bubble">${esc(text)}</div>${hint ? `<div class="hint">🎯 ${esc(hint)}</div>` : ''}${aside ? `<div class="hint">🤺 ${esc(aside)}</div>` : ''}`,
+      [['ok', 'Got it!']],
     );
   }
 

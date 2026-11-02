@@ -10,7 +10,7 @@ export const VILLAGE_STORY: Story = {
   started:()=>{const j=nextVillageJob(G.save);return !!G.save.buildingJob || !!j && G.save.flags.includes(`building:asked:${j.id}`);},
   steps: [{ id: 'requests', get label() {
     const j = nextVillageJob(G.save), r = j?.recruit;
-    // The fox never moves to town: her place is built once she trusts you, up where her trail begins.
+    // The fox never moves to town: once she trusts you, Bram builds up her Hidden Training Clearing outside it.
     if (r && !neighbourReturned(G.save, r)) return r === 'alder' ? 'Follow the glimmer dust above Glimmer Hollow' : `Bring ${nameOf(G.save, r)} back to Sowerby`;
     return j ? jobGoal(j) : 'Everyone has a place';
   }, cost: () => {

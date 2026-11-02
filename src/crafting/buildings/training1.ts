@@ -5,7 +5,7 @@ export default {
   "duration": 2720,
   "scene": "building",
   "model": "assets/crafting3d/training1.glb",
-  "eyebrow": "GLIMMER HOLLOW · BUILT BY BRAM",
+  "eyebrow": "HIDDEN CLEARING · BUILT BY BRAM",
   "layers": [
     {
       "id": "oak-post"
