@@ -1004,8 +1004,23 @@ scenario('resource trips: walk a pine grove and iron working, gather their nodes
       await page.keyboard.press('KeyE');
       await waitFor(page,'gather at the authored stop',async()=>await game<string>(page,'g.mode')==='gather');
       for(let i=0;i<30&&!(await game<boolean>(page,'g.chop?.game.done ?? true'));i++) {
-        await waitFor(page,'clean gathering hit',async()=>game<boolean>(page,`(() => {const c=g.chop?.game;return !c||c.done||(Math.abs(c.pos-c.center)<c.width*.3&&c.lock<=0);})()`),8000);
-        await page.keyboard.press('KeyE');await page.waitForTimeout(60);
+        // Watch for the sweet spot and strike in the same frame, so a busy machine can't let the marker slip past between polls.
+        const hit=await page.evaluate(async()=>{
+          const g=(window as any).game;const until=performance.now()+8000;
+          while(performance.now()<until){
+            const c=g.chop?.game;
+            if(!c||c.done)return true;
+            if(Math.abs(c.pos-c.center)<c.width*.3&&c.lock<=0){
+              window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyE',bubbles:true}));
+              window.dispatchEvent(new KeyboardEvent('keyup',{code:'KeyE',bubbles:true}));
+              return true;
+            }
+            await new Promise(requestAnimationFrame);
+          }
+          return false;
+        });
+        if(!hit)throw new Error('timed out waiting for clean gathering hit');
+        await page.waitForTimeout(60);
       }
       await waitFor(page,'gathering animation finishes',async()=>await game<string>(page,'g.mode')!=='gather',6000);
       await closeDialogs(page);
