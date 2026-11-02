@@ -26,18 +26,25 @@ function ellipse(ctx: Ctx, x: number, y: number, rx: number, ry: number, fill: s
   ctx.fill();
 }
 
+/** The shadow's fill for each darkness, made once: a circle of radius 1, scaled to each shadow's size. */
+const shadowFills = new Map<number, CanvasGradient>();
+
 /** A soft contact shadow: darkest under the middle, fading out to nothing at its edge (no hard rim). */
 export function shadow(ctx: Ctx, x: number, y: number, r: number, alpha = 0.22) {
+  let g = shadowFills.get(alpha);
+  if (!g) {
+    g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, `rgba(30,20,40,${alpha * 1.6})`);
+    g.addColorStop(0.55, `rgba(30,20,40,${alpha})`);
+    g.addColorStop(1, 'rgba(30,20,40,0)');
+    shadowFills.set(alpha, g);
+  }
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(1, 0.38);
-  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-  g.addColorStop(0, `rgba(30,20,40,${alpha * 1.6})`);
-  g.addColorStop(0.55, `rgba(30,20,40,${alpha})`);
-  g.addColorStop(1, 'rgba(30,20,40,0)');
+  ctx.scale(r, r * 0.38);
   ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
