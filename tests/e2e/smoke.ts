@@ -828,6 +828,41 @@ scenario('a tree falls and a rock breaks all the way, and what you earned lands 
     await page.waitForTimeout(300);
     check(await page.locator('#hud-gather').isHidden() && await page.locator('#hud .hand-row').isVisible(), 'handling was not restored after gathering');
   }
+  // A clean cut, then walking off the moment it gives way: you're free at once and paid exactly once, the XP bar
+  // finishes on the HUD, and the next tree within a few seconds keeps your streak.
+  const besideOak = () => game<boolean>(page, `(() => {
+    const o = g.over, w = o.world;
+    for (const r of w.objs.filter((x) => x.kind === 'node' && x.node === 'oak' && !x.grass && x.id.startsWith('meadow:') && !(g.save.nodes[x.id] > Date.now()))) {
+      for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1]]) {
+        const x = r.x + 0.4 + dx * 0.95, y = r.y + 0.6 + dy * 0.95;
+        if (w.blocked(x, y, 0.28)) continue;
+        o.teleport(x, y);
+        o.roamers.calm = 999;
+        if (o.nearbyObject() === r) return true;
+      }
+    }
+    return false;
+  })()`);
+  check(await besideOak(), 'no second meadow oak');
+  const bark = await game<number>(page, 'g.save.mats.bark'), wood = await game<{ lv: number; xp: number }>(page, '({ ...g.save.skills.wood })');
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'the next oak', () => game<boolean>(page, `g.mode === 'gather'`));
+  for (let i = 0; i < 3; i++) await run(page, `const c = g.chop.game; c.lock = 0; c.pos = c.center; c.strike()`);
+  check(await game<boolean>(page, 'g.chop.game.clean && g.chop.game.done'), 'three perfects in a row did not make a clean cut');
+  await waitFor(page, 'the clean cut pays out', () => game<boolean>(page, '!!g.chop.reward'));
+  const got = await game<{ bark: number; xp: number; streak: number }>(page, '({ bark: g.chop.reward.drops.bark, xp: g.chop.reward.xp, streak: g.chop.game.streak })');
+  await page.keyboard.down('ArrowLeft');
+  await waitFor(page, 'walking straight off', () => game<boolean>(page, `g.mode === 'world' && !g.chop`), 600);
+  check(await page.locator('#hud-gather').isVisible(), 'the XP bar vanished instead of finishing on the HUD');
+  await page.keyboard.up('ArrowLeft');
+  check(await game<boolean>(page, `g.save.mats.bark === ${bark + got.bark} && g.save.skills.wood.lv === ${wood.lv} && g.save.skills.wood.xp === ${wood.xp + got.xp}`), 'walking off paid out wrongly');
+  check(await besideOak(), 'no third meadow oak');
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'chopping with momentum', () => game<boolean>(page, `g.mode === 'gather'`));
+  check(await game<boolean>(page, `g.chop.game.carried === Math.min(5, ${got.streak}) && g.chop.game.carried >= 3`), 'the streak did not carry over to the next tree');
+  if (SHOTS) await page.screenshot({ path: `${OUT}gather-momentum.png` });
+  await page.keyboard.press('Escape');
+  await waitFor(page, 'the HUD settles', async () => (await page.locator('#hud-gather').isHidden()) && game<boolean>(page, `g.mode === 'world' && g.save.mats.bark === ${bark + got.bark}`), 4000);
 });
 
 scenario('seed discoveries: actual finds are highlighted while chopping, without pausing or awarding twice', (g) => {

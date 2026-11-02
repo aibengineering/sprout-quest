@@ -9,7 +9,7 @@ import { MAX_POTIONS, MONSTERS, NODES, QUESTS, ZONES, zoneById, type MonsterKind
 import { G, applySound, busy, menuCtx, persist, placeName, showZoneBanner, syncWorld } from './game/context';
 import { canRun, challengeFoe, coachBattle, startBattle, startFieldBattle } from './game/fights';
 import { revive, spirit } from './game/death';
-import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/gathering';
+import { chop, drawGather, gatherHud, gatherVerb, syncNodes, updateGather } from './game/gathering';
 import { interact } from './game/interact';
 import { doorwayTick, drawRoomHud, enterRoom, leaveRoom, roomTick } from './game/rooms';
 import { enterEchoCave, leaveEchoCave, enterOreGallery, leaveOreGallery, useBurrow, undergroundTick } from './game/underground';
@@ -235,7 +235,7 @@ function worldFrame(dt: number) {
     ctx.fillStyle = 'rgba(42,26,48,0.15)';
     ctx.fillRect(0, 0, vw, vh);
   } else {
-    ui.hud(s.hp, over.underground?.name ?? over.room?.spec.name ?? placeName(), G.mode === 'gather' && chop ? NODES[chop.obj.node!].skill : null);
+    ui.hud(s.hp, over.underground?.name ?? over.room?.spec.name ?? placeName(), gatherHud());
     // In a room, its own hint takes the quest's place at the top.
     ui.questPill(!over.room && !inGarden() && (G.mode === 'world' || G.mode === 'dialog'));
   }

@@ -401,41 +401,41 @@ function gathering(yieldCount: number, xp: number, rare: NodeDef['grass']['rare'
 
 export const NODES: Record<NodeKind, NodeDef> = {
   oak: {
-    name: 'Oak', skill: 'wood', tier: 1, mat: 'bark', hp: 4,
+    name: 'Oak', skill: 'wood', tier: 1, mat: 'bark', hp: 5,
     ...gathering(4, 10, { mat: 'clover', chance: 0.12, n: 1 }),
     seed: { mat: 'berryseed', chance: 0.4 },
   },
   pine: {
-    name: 'Pine', skill: 'wood', tier: 2, mat: 'pine', hp: 6,
+    name: 'Pine', skill: 'wood', tier: 2, mat: 'pine', hp: 8,
     ...gathering(4, 25, { mat: 'clover', chance: 0.1, n: 1 }),
     seed: { mat: 'herbseed', chance: 0.4 },
   },
   glimwood: {
-    name: 'Glimmerwood', skill: 'wood', tier: 3, mat: 'glimwood', hp: 8,
+    name: 'Glimmerwood', skill: 'wood', tier: 3, mat: 'glimwood', hp: 11,
     ...gathering(4, 40, { mat: 'glimmer', chance: 0.1, n: 3 }),
   },
   emberwood: {
-    name: 'Emberwood', skill: 'wood', tier: 4, mat: 'emberwood', hp: 10,
+    name: 'Emberwood', skill: 'wood', tier: 4, mat: 'emberwood', hp: 14,
     ...gathering(4, 70, { mat: 'ember', chance: 0.15, n: 3 }),
   },
   rock: {
-    name: 'Rock', skill: 'mine', tier: 1, mat: 'stone', hp: 4,
+    name: 'Rock', skill: 'mine', tier: 1, mat: 'stone', hp: 5,
     ...gathering(4, 10, { mat: 'clover', chance: 0.08, n: 1 }),
   },
   copper: {
-    name: 'Copper Vein', skill: 'mine', tier: 2, mat: 'copper', hp: 6,
+    name: 'Copper Vein', skill: 'mine', tier: 2, mat: 'copper', hp: 8,
     ...gathering(4, 25, { mat: 'stone', chance: 0.3, n: 3 }),
   },
   iron: {
-    name: 'Iron Vein', skill: 'mine', tier: 3, mat: 'iron', hp: 8,
+    name: 'Iron Vein', skill: 'mine', tier: 3, mat: 'iron', hp: 11,
     ...gathering(4, 40, { mat: 'core', chance: 0.1, n: 1 }),
   },
   crystal: {
-    name: 'Crystal Cluster', skill: 'mine', tier: 4, mat: 'crystal', hp: 10,
+    name: 'Crystal Cluster', skill: 'mine', tier: 4, mat: 'crystal', hp: 14,
     ...gathering(3, 70, { mat: 'glimmer', chance: 0.15, n: 3 }),
   },
   obsidian: {
-    name: 'Obsidian Seam', skill: 'mine', tier: 4, mat: 'obsidian', hp: 12,
+    name: 'Obsidian Seam', skill: 'mine', tier: 4, mat: 'obsidian', hp: 16,
     ...gathering(3, 80, { mat: 'ember', chance: 0.2, n: 3 }),
   },
 };

@@ -1,6 +1,8 @@
 // Gathering minigame: a marker sweeps along a bar; strike while it's inside the sweet spot (the green zone for trees,
-// the glowing seam for rocks). Clean hits build a streak that speeds the marker up and hits harder. A miss never fails
-// the node; it resets the streak and speed, so sloppy chopping or mining is just slower.
+// the glowing seam for rocks). Clean hits build a streak that speeds the marker up and hits harder, and the next spot
+// lights up a little way ahead, so good timing keeps a quick rhythm. Perfects hit twice as hard, and three in a row is
+// a clean cut that finishes the node outright. A miss never fails the node; it resets the streak and speed and moves
+// the spot anywhere, so sloppy chopping or mining is just slower.
 // GatherView draws it: the tree or rock above the bar (nodeart.ts) takes a notch or a crack sized to each strike, the
 // axe or pick for your tool's tier swings at it, chips and dust fly, and when it's done the tree topples or the rock
 // breaks apart and what you earned pops out.
@@ -23,6 +25,20 @@ const MISS_DAMAGE = 0.05;
 /** Seconds you can't strike after a miss, so mashing is slower than timing. */
 const MISS_LOCK = 0.6;
 const HIT_LOCK = 0.1;
+/** Perfects hit this much harder than a plain clean hit. */
+const PERFECT_MULT = 2;
+/** Perfects in a row for a clean cut. */
+const CLEAN_RUN = 3;
+/** After a clean hit, how long (seconds, at the marker's speed) until it reaches the next spot: time to see it coming. */
+const LEAD: [number, number] = [0.3, 0.65];
+/** The most streak that carries over to the next node (momentum). */
+export const CARRY_MAX = 5;
+
+/** Folds a distance travelled along the bar back onto it, the way the marker bounces off the ends. */
+const fold = (p: number) => {
+  const m = ((p % 2) + 2) % 2;
+  return m > 1 ? 2 - m : m;
+};
 
 export class Chop {
   /** Marker position along the bar, 0–1. */
@@ -44,6 +60,11 @@ export class Chop {
   /** Tallies for the play report. */
   strikes = 0;
   perfects = 0;
+  /** Perfects in a row, and whether they finished the node outright (a clean cut). */
+  perfectRun = 0;
+  clean = false;
+  /** Streak carried over from the node before (momentum), shown until the first strike. */
+  readonly carried: number;
 
   constructor(
     readonly hp: number,
@@ -51,12 +72,16 @@ export class Chop {
     readonly width: number,
     private rng: Rng = Math.random,
     readonly requiredStreak = 0,
+    carry = 0,
   ) {
+    this.carried = requiredStreak ? 0 : Math.min(CARRY_MAX, carry);
+    this.streak = this.carried;
+    this.speed = Math.min(MAX_SPEED, BASE_SPEED * SPEED_UP ** this.streak);
     this.moveSpot();
   }
 
   get done() {
-    return this.requiredStreak ? this.streak >= this.requiredStreak : this.dealt >= this.hp;
+    return this.requiredStreak ? this.streak >= this.requiredStreak : this.clean || this.dealt >= this.hp;
   }
 
   get flawless() {
@@ -72,25 +97,36 @@ export class Chop {
     if (this.pos <= 0) { this.pos = -this.pos; this.dir = 1; }
   }
 
+  /** What a strike right now would be, without striking. */
+  judge(): Strike {
+    const off = Math.abs(this.pos - this.center);
+    return off > this.width / 2 ? 'miss' : off <= (this.width * PERFECT_CORE) / 2 ? 'perfect' : 'hit';
+  }
+
   /** Returns null while locked out (just missed) or once the tree is down. */
   strike(): Strike | null {
     if (this.done || this.lock > 0) return null;
-    const off = Math.abs(this.pos - this.center);
     const before = this.dealt;
     this.hitPos = this.pos;
-    let r: Strike;
-    if (off <= this.width / 2) {
-      r = off <= (this.width * PERFECT_CORE) / 2 ? 'perfect' : 'hit';
-      this.dealt += this.power * (1 + 0.25 * this.streak) * (r === 'perfect' ? 1.5 : 1);
+    const r = this.judge();
+    this.strikes++;
+    if (r !== 'miss') {
+      this.dealt += this.power * (1 + 0.25 * this.streak) * (r === 'perfect' ? PERFECT_MULT : 1);
       this.streak++;
+      this.perfectRun = r === 'perfect' ? this.perfectRun + 1 : 0;
       if (this.requiredStreak) this.dealt = this.hp * Math.min(1, this.streak / this.requiredStreak);
+      // A clean cut: three perfects in a row, or every strike perfect on a node that falls sooner.
+      else if (r === 'perfect' && (this.perfectRun >= CLEAN_RUN || (this.dealt >= this.hp && this.perfectRun === this.strikes))) {
+        this.clean = true;
+        this.dealt = Math.max(this.dealt, this.hp);
+      }
       this.speed = Math.min(MAX_SPEED, this.speed * SPEED_UP);
       this.lock = HIT_LOCK;
     } else {
-      r = 'miss';
       this.dealt += this.power * MISS_DAMAGE;
       this.misses++;
       this.streak = 0;
+      this.perfectRun = 0;
       if (this.requiredStreak) this.dealt = 0;
       this.speed = BASE_SPEED;
       this.lock = MISS_LOCK;
@@ -98,19 +134,38 @@ export class Chop {
     this.last = r;
     this.lastT = 0;
     this.lastAmount = Math.max(0, this.dealt - before);
-    this.strikes++;
     if (r === 'perfect') this.perfects++;
-    if (!this.done) this.moveSpot();
+    if (!this.done) {
+      if (r === 'miss') this.moveSpot();
+      else this.spotAhead();
+    }
     return r;
   }
 
   /** New sweet spot somewhere else on the bar, never right under the marker. */
   private moveSpot() {
-    const lo = this.width / 2 + 0.04, hi = 1 - this.width / 2 - 0.04;
+    const lo = this.width / 2 + 0.04, hi = 1 - lo;
     for (let i = 0; i < 8; i++) {
       this.center = lo + this.rng() * (hi - lo);
       if (Math.abs(this.center - this.pos) > 0.25) return;
     }
+  }
+
+  /**
+   * After a clean hit the next spot lights up a little way ahead, where the marker's heading (round the bounce if it's
+   * near the end), so a good rhythm never waits for a whole sweep. Never under the marker.
+   */
+  private spotAhead() {
+    const lo = this.width / 2 + 0.04, hi = 1 - lo;
+    for (let i = 0; i < 8; i++) {
+      const lead = LEAD[0] + this.rng() * (LEAD[1] - LEAD[0]) + i * 0.1;
+      const c = Math.min(hi, Math.max(lo, fold(this.pos + this.dir * (this.width / 2 + this.speed * lead))));
+      if (Math.abs(c - this.pos) > this.width / 2 + 0.03) {
+        this.center = c;
+        return;
+      }
+    }
+    this.moveSpot();
   }
 }
 
@@ -129,12 +184,14 @@ const LOOT_T = 1.05;
 export type Look = { kind: 'wood'; tree: TreeKind; tool: number } | ({ kind: 'mine'; rock: RockKind; tool: number; boulder?: boolean } & RockColors);
 
 /** Sounds the minigame asks for as things happen (the game plays them). */
-export type GatherSound = 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup';
+export type GatherSound = 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup' | 'clean';
 
-const WORDS: Record<Look['kind'], Record<Strike, string>> = {
-  wood: { perfect: 'Perfect!', hit: 'Nice!', miss: 'Miss' },
-  mine: { perfect: 'Crack!', hit: 'Chip!', miss: 'Clang!' },
+const WORDS: Record<Look['kind'], Record<Strike | 'clean', string>> = {
+  wood: { perfect: 'Perfect!', hit: 'Nice!', miss: 'Miss', clean: 'Clean cut!' },
+  mine: { perfect: 'Crack!', hit: 'Chip!', miss: 'Clang!', clean: 'Clean break!' },
 };
+/** Seconds the clean cut's flash lasts on the card. */
+const CLEAN_FLASH = 0.45;
 
 /**
  * The tools as swung: their angle at rest and when they connect (radians, 0 = handle straight up, negative leans the
@@ -168,6 +225,9 @@ export class GatherView {
   private shake = 0;
   /** Seconds left on the white impact star where the tool just connected. */
   private flash = 0;
+  /** The clean cut: waiting for the tool to connect, then seconds left on its flash over the card. */
+  private cleanPending = false;
+  private cleanFlash = 0;
   private prevT = Infinity;
   private gaveWay = false;
   /** What you earned, waiting to pop out; and seconds since it came free (-1: not yet). */
@@ -206,6 +266,7 @@ export class GatherView {
     this.wobble *= Math.exp(-9 * dt);
     this.shake = Math.max(0, this.shake - dt * 40);
     this.flash = Math.max(0, this.flash - dt);
+    this.cleanFlash = Math.max(0, this.cleanFlash - dt);
     if (c.done && !this.pending && !this.gaveWay) {
       this.gaveWay = true;
       this.art.giveWay(this.fx);
@@ -241,6 +302,8 @@ export class GatherView {
     // playtest: Pixel Buds added 73 ms over the phone's reported 29, against the 102 ms swing to the hit.
     const b = this.pending;
     this.onSound(b.kind === 'miss' ? 'glance' : this.look.kind === 'wood' ? 'chop' : 'clink');
+    this.cleanPending = c.clean;
+    if (c.clean) this.onSound('clean');
   }
 
   /** The tool connects: the notch or crack, chips and dust, the wobble and the shake (its sound was booked at the strike). */
@@ -252,6 +315,16 @@ export class GatherView {
     this.shake = b.kind === 'perfect' ? 6 : b.kind === 'hit' ? 3 : 1;
     this.flash = b.kind === 'miss' ? 0 : 0.1;
     this.art.hit(b, this.progress, this.fx);
+    if (this.cleanPending) {
+      // A clean cut: a flash over the card, a big shower of chips and a ring of sparkles.
+      this.cleanPending = false;
+      this.cleanFlash = CLEAN_FLASH;
+      this.shake = 10;
+      const { x, y } = this.target, rock = this.look.kind === 'mine' ? this.look : null;
+      this.fx.chips(x, y, 18, rock ? [rock.body, rock.body, rock.dark, rock.fleck] : ['#f2d29a', '#e0b070', '#a8743e'], { dir: -Math.PI / 2, spread: 3, speed: [160, 380] }, [3, 7]);
+      this.fx.sparks(x, y, 12, '#fff6c8', { dir: -Math.PI / 2, spread: TAU, speed: [180, 360] });
+      this.fx.twinkle(x, y - 10, 6, '#ffd35a', 26);
+    }
   }
 
   draw(ctx: CanvasRenderingContext2D, c: Chop, vw: number, vh: number, title: string, hint: string) {
@@ -277,6 +350,12 @@ export class GatherView {
       ctx.fillStyle = '#ffd35a';
       ctx.fillText(`🔥 ×${c.streak}`, x + w, top + 22);
       ctx.textAlign = 'center';
+    }
+    // Momentum from the last node, until your first strike here.
+    if (c.carried && !c.strikes) {
+      ctx.font = `800 12px ${FONT}`;
+      ctx.fillStyle = 'rgba(255,211,90,0.9)';
+      ctx.fillText(`Streak ×${c.carried} kept`, vw / 2, top + 42);
     }
     // The stage: a soft light behind, the ground, the tree or rock, the tool, and everything flying about.
     ctx.save();
@@ -338,7 +417,19 @@ export class GatherView {
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
     ctx.font = `800 13px ${FONT}`;
     ctx.fillText(hint, vw / 2, hintY);
-    if (c.last && c.lastT < 0.6) {
+    if (c.clean && c.lastT < 1.1) {
+      // Clean cut! Big and gold across the top of the stage, over the flash.
+      const k = c.lastT / 1.1, pop = Math.min(1, c.lastT / 0.12);
+      ctx.globalAlpha = Math.min(1, (1 - k) * 2.5);
+      ctx.font = `900 ${Math.round(22 + 8 * pop)}px ${FONT}`;
+      ctx.fillStyle = '#ffd35a';
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(42,26,48,0.95)';
+      const ty = top + 58 - k * 10;
+      ctx.strokeText(WORDS[kind].clean, vw / 2, ty);
+      ctx.fillText(WORDS[kind].clean, vw / 2, ty);
+      ctx.globalAlpha = 1;
+    } else if (c.last && c.lastT < 0.6) {
       const k = c.lastT / 0.6;
       ctx.globalAlpha = 1 - k;
       ctx.font = `900 ${20 + (c.last === 'perfect' ? 6 : 0)}px ${FONT}`;
@@ -349,6 +440,12 @@ export class GatherView {
       const tx = vw / 2 + (c.hitPos < 0.5 ? -1 : 1) * Math.min(w / 2 - 44, 110), ty = groundY - (mine ? 84 : 118) - k * 16;
       ctx.strokeText(WORDS[this.look.kind][c.last], tx, ty);
       ctx.fillText(WORDS[this.look.kind][c.last], tx, ty);
+      ctx.globalAlpha = 1;
+    }
+    if (this.cleanFlash > 0) {
+      ctx.fillStyle = `rgba(255,248,220,${0.45 * (this.cleanFlash / CLEAN_FLASH) ** 2})`;
+      rrect(ctx, x - 16, top, w + 32, hintY + 16 - top, 22);
+      ctx.fill();
     }
     ctx.restore();
   }

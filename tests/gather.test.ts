@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { NODES, NODE_SPAWNS, SKILL_MAX, TOOLS, type ZoneId } from '../src/data';
-import { BASE_SPEED, Chop, GatherView } from '../src/gather';
+import { BASE_SPEED, CARRY_MAX, Chop, GatherView } from '../src/gather';
 import { canGather, craftGear, craftTool, gainSkillXp, harvest, skillXpToNext, sweetWidth, toolPower } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
@@ -72,6 +72,62 @@ describe('chopping minigame', () => {
     expect(strikes).toBeLessThanOrEqual(4);
     // A miss barely dents it, so mashing can't race honest timing.
     expect(misses).toBeGreaterThan(strikes * 10);
+  });
+
+  test('perfects hit twice as hard, and three in a row is a clean cut that finishes the node outright', () => {
+    const c = new Chop(100, 1, 0.2, () => 0.5);
+    moveTo(c, c.center);
+    expect(c.strike()).toBe('perfect');
+    expect(c.dealt).toBe(2);
+    c.update(0.15);
+    moveTo(c, c.center);
+    c.strike();
+    expect(c.done).toBe(false);
+    c.update(0.15);
+    moveTo(c, c.center);
+    c.strike();
+    expect(c.clean && c.done).toBe(true);
+    expect(c.dealt).toBe(c.hp);
+    // A clean hit in between breaks the run.
+    const d = new Chop(100, 1, 0.2, () => 0.5);
+    for (const at of [0, 0, 0.08, 0, 0]) {
+      d.update(0.15);
+      moveTo(d, d.center + at);
+      d.strike();
+    }
+    expect(d.clean).toBe(false);
+    expect(d.perfectRun).toBe(2);
+  });
+
+  test('after a clean hit the next spot lights up a little way ahead of the marker, never under it', () => {
+    for (let seed = 1; seed < 200; seed++) {
+      let r = seed;
+      const rng = () => ((r = (Math.imul(r, 1664525) + 1013904223) >>> 0) / 2 ** 32);
+      const c = new Chop(1000, 1, 0.2, rng);
+      c.update(rng() * 3);
+      moveTo(c, c.center);
+      const dir = Math.sign(c.pos - (c.update(0.001), c.pos)) * -1;
+      expect(c.strike()).not.toBe('miss');
+      const off = c.center - c.pos;
+      expect(Math.abs(off)).toBeGreaterThan(c.width / 2);
+      // Ahead of the marker, or just round the bounce at the end it's heading for.
+      const nearEnd = dir > 0 ? c.pos > 0.55 : c.pos < 0.45;
+      if (!nearEnd) expect(Math.sign(off)).toBe(dir);
+      // The marker reaches it in about a second at most, not a sweep there and back.
+      const reach = dir * off > 0 ? Math.abs(off) : dir > 0 ? 2 - c.pos - c.center : c.pos + c.center;
+      expect(reach / c.speed).toBeLessThan(1.25);
+    }
+  });
+
+  test('momentum: a streak carried over from the last node starts the marker faster and hitting harder, up to a cap', () => {
+    const fresh = new Chop(100, 1, 0.2, () => 0.5), kept = new Chop(100, 1, 0.2, () => 0.5, 0, 3), capped = new Chop(100, 1, 0.2, () => 0.5, 0, 50);
+    expect(kept.streak).toBe(3);
+    expect(kept.speed).toBeGreaterThan(fresh.speed);
+    expect(capped.streak).toBe(CARRY_MAX);
+    for (const c of [fresh, kept]) { moveTo(c, c.center); c.strike(); }
+    expect(kept.dealt).toBeGreaterThan(fresh.dealt);
+    // Boulders count their own streak from zero.
+    expect(new Chop(10, 1, 0.2, () => 0.5, 10, 4).streak).toBe(0);
   });
 
   test('the sweet spot grows with skill level', () => {

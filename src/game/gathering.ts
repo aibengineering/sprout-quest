@@ -1,5 +1,5 @@
 // Chopping and mining: starting the timing minigame at a tree or rock, playing it, paying out, and node labels.
-import { MATS, NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind } from '../data';
+import { MATS, NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind, type SkillId } from '../data';
 import { Chop, GatherView, type Look } from '../gather';
 import { BOULDER_COLORS, isTreeKind, type RockKind, type TreeKind } from '../nodeart';
 import { ROCK_PALETTES } from '../resourceVectors';
@@ -15,8 +15,16 @@ import { sweetBoost, miningSweetBoost } from '../kitchen';
 import { seamById, seamAvailable, openSeam } from '../seams';
 import { syncWorld } from './context';
 
-/** The minigame in progress, if any, and what it paid out once the node gave way. */
-export let chop: { game: Chop; obj: WorldObj; view: GatherView; reward?: GatherReward; fromLv?: number; xpFinished?: boolean; shown?: ReturnType<typeof revealed>; noise?: number } | null = null;
+/** The minigame in progress, if any, and what it paid out once the node gave way (and how long ago). */
+export let chop: { game: Chop; obj: WorldObj; view: GatherView; reward?: GatherReward; fromLv?: number; xpFinished?: boolean; shown?: ReturnType<typeof revealed>; noise?: number; since?: number } | null = null;
+
+/** Momentum: start the next node this soon after finishing one and your streak carries over. */
+const MOMENTUM_MS = 4000;
+let momentum = { streak: 0, at: -Infinity };
+/** The skill whose XP bar is still filling on the HUD after you've walked off. */
+let filling: SkillId | null = null;
+/** Taps this soon after the node gives way don't close the card, so the last mashed tap doesn't skip the fall. */
+const TAP_CLOSE = 0.35;
 
 /** How much noise each kind of strike makes, where a story is listening (Bram's camp): 1 brings trouble. */
 const NOISE: Record<'perfect' | 'hit' | 'miss', number> = { perfect: 0, hit: 0.12, miss: 0.4 };
@@ -60,7 +68,8 @@ export function tryGather(o: WorldObj) {
   view.onSound = (sfx) => G.audio.play(sfx);
   // Woodcutter's Stew (Granny's) widens the sweet spot on trees.
   const width = sweetWidth(s.skills[n.skill].lv) * (n.skill === 'wood' ? sweetBoost(s) : miningSweetBoost(s));
-  chop = { game: new Chop(n.hp, toolPower(tool, n.tier), width, Math.random, seam?.streak ?? 0), obj: o, view, noise: storyNoisy(o) ? 0 : undefined };
+  const carry = performance.now() - momentum.at < MOMENTUM_MS ? momentum.streak : 0;
+  chop = { game: new Chop(n.hp, toolPower(tool, n.tier), width, Math.random, seam?.streak ?? 0, carry), obj: o, view, noise: storyNoisy(o) ? 0 : undefined };
   chopStart = performance.now();
   G.over.startChop(o);
   G.mode = 'gather';
@@ -71,6 +80,7 @@ export function tryGather(o: WorldObj) {
 export function cancelGather() {
   if (!chop) return;
   chop = null;
+  momentum.streak = 0;
   G.over.chopping = null;
 }
 
@@ -78,17 +88,19 @@ export function updateGather(dt: number) {
   const c = chop!, input = G.input;
   c.game.update(dt);
   c.view.update(dt, c.game);
+  const a = input.axis(), walking = Math.hypot(a.x, a.y) > 0.6;
   // Once it gives way you've earned it (the view pops out exactly that), then the tree topples or the rock breaks
-  // before the loot and any level up show.
+  // while the XP bar fills. You needn't watch: walk off or tap and you're free (a level up waits for its bell).
   if (c.game.done) {
-    input.flush();
     if (!c.reward) collect(c);
-    if (c.view.finished && c.xpFinished) finishGather();
+    c.since = (c.since ?? 0) + dt;
+    const tapped = c.since > TAP_CLOSE && (input.consume('act') || input.consume('attack') || input.consume('touch'));
+    input.flush();
+    if (c.reward!.levels ? c.view.finished && c.xpFinished : c.view.finished || walking || tapped) finishGather(walking);
     return;
   }
-  const a = input.axis();
   // Walking away (or Esc) cancels; the node stays as it was.
-  if (Math.hypot(a.x, a.y) > 0.6 || input.consume('menu')) {
+  if (walking || input.consume('menu')) {
     cancelGather();
     G.mode = 'world';
     input.reset();
@@ -126,7 +138,11 @@ function collect(c: NonNullable<typeof chop>) {
   c.reward = harvest(s, c.obj.node!, c.obj.id!, !!c.obj.grass, c.game.flawless);
   // Celebrate the actual find while the tree falls, without pausing gathering or rolling another reward.
   if (n.seed && c.reward.drops[n.seed.mat]) G.ui.toast(`🌱 You found ${MATS[n.seed.mat].name}!`, 3200);
-  void G.ui.skillXpGain(n.skill, from, c.reward.xp).then(() => { c.xpFinished = true; });
+  filling = n.skill;
+  void G.ui.skillXpGain(n.skill, from, c.reward.xp).then(() => {
+    c.xpFinished = true;
+    if (filling === n.skill && chop !== c) filling = null;
+  });
   if(c.obj.boulder && openSeam(s,c.obj.boulder,c.game.streak)) {
     syncWorld();
     G.ui.toast(c.obj.boulder==='quarry' ? '⛏️ The boulder gives way! An ore gallery—and a tunnel home.' : '⛏️ A hidden burrow! You can take this tunnel home.',4200);
@@ -135,9 +151,12 @@ function collect(c: NonNullable<typeof chop>) {
   persist();
 }
 
-function finishGather() {
-  const { game, obj, reward: r, fromLv, shown } = chop!;
+/** Back to the map with what you earned. Walking off keeps you walking. */
+function finishGather(walking = false) {
+  const { game, obj, reward: r, fromLv, shown, xpFinished } = chop!;
   chop = null;
+  if (xpFinished) filling = null;
+  momentum = { streak: game.requiredStreak ? 0 : game.streak, at: performance.now() };
   const s = G.save, n = NODES[obj.node!];
   G.over.felled();
   logEvent(s, {
@@ -147,12 +166,16 @@ function finishGather() {
   const toolIcon = TOOLS.find((t) => t.skill === n.skill)!.icon;
   G.ui.loot([...(game.flawless ? [{ icon: '<span class="emo">✨</span>', text: 'Flawless!' }] : []), ...lootLines(r!.drops, [{ n: r!.xp, what: SKILL_NAMES[n.skill], emo: toolIcon }])]);
   G.mode = 'world';
-  G.input.reset();
+  if (walking) G.input.flush();
+  else G.input.reset();
   persist();
   storyFelled(obj);
   if (r!.levels) void celebrateSkill(n.skill, shown!).then(() => progressQuests());
   else void progressQuests();
 }
+
+/** The skill bar the HUD shows: the one you're gathering with, or one still filling after you walked off. */
+export const gatherHud = (): SkillId | null => (G.mode === 'gather' && chop ? NODES[chop.obj.node!].skill : filling);
 
 /** The minigame panel over the map, with a hint until you've got the hang of it. */
 export function drawGather(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
