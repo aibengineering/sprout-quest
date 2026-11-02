@@ -160,7 +160,8 @@ export class TileMap {
     const t = this.tile(Math.floor(x), Math.floor(y));
     if (t === T.OBST || t === T.POOL || t === T.CHASM) return true;
     for (const o of this.objs) {
-      if (o.hidden || o.walkable) continue;
+      // (The solid part is inside the object's box: most are ruled out by that alone.)
+      if (o.hidden || o.walkable || x < o.x || x >= o.x + o.w || y < o.y || y >= o.y + o.h) continue;
       const r = solidPart(o);
       if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return true;
     }
