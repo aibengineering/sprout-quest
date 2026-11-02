@@ -36,6 +36,17 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.11',
+    date: '2026-11-02',
+    title: 'Spar with the Elder',
+    notes: [
+      "🤺 Spar Elder Oswin at his practice ring: nothing won or lost, all good fun",
+      "🧓 Oswin swings his staff for real: bonks, a spry hop, puffing and a chuckle",
+      "🦊 Spar Bram and the masked fox too, at the Training Clearing's Free spar",
+      "🧭 In Echo Cavern the arrow points where you're going, not into a wall",
+    ],
+  },
+  {
     version: '0.3.10',
     date: '2026-10-29',
     title: 'Spirits Find Their Way',
