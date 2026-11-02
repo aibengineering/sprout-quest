@@ -123,10 +123,12 @@ function ribbon(ctx: CanvasRenderingContext2D, kind: Tree) {
 const cached = new Map<string, Frame>();
 /** Same frame contract as the atlas (anchor at the base, pixels per Blender unit). No network or WebGL needed once loaded. */
 export function resourceFrame(name: string, pixelsPerUnit = 128): Frame | undefined {
-  const a = art.get(name), l = a && layers.get(`${a.file}:${a.layer}`);
-  if (!a || !l) return undefined;
+  const a = art.get(name);
+  if (!a) return undefined;
   const key = `${name}:${pixelsPerUnit}`, previous = cached.get(key);
   if (previous) return previous;
+  const l = layers.get(`${a.file}:${a.layer}`);
+  if (!l) return undefined;
   // Canvas pixels per SVG unit: the SVG's 100 units are one Blender unit, drawn at this frame's size.
   const k = (pixelsPerUnit / 100) * a.scale;
   const canvas = document.createElement('canvas');
