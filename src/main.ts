@@ -112,6 +112,8 @@ let movedDist = 0;
 let debugZoom = 0;
 let nodeSync = 1;
 let saveTimer = 0;
+/** What the dash button last showed. */
+let dashShown = '';
 
 /** A fight's frame. It keeps drawing behind the victory popup until the transition out. */
 function battleFrame(b: Battle, dt: number) {
@@ -206,8 +208,14 @@ function worldFrame(dt: number) {
     if (g && !s.bosses.includes(g.kind)) noteReached(s, g.kind);
   }
   ui.setAction(G.mode === 'gather' && chop ? gatherVerb() : prey && !priorityAction ? 'Attack!' : near?.kind === 'bridge' ? null : near ? near.label : null);
-  const dash=document.getElementById('btn-dash')!;dash.hidden=!freeWorld()||!over.fieldMap||!s.perks.includes('shadowscarf');
-  dash.querySelector<HTMLElement>('.cd')!.style.setProperty('--p',over.dashFrac.toFixed(2));
+  // The Shadow Scarf's dash button, touched only when it changes.
+  const dashHidden = !freeWorld() || !over.fieldMap || !s.perks.includes('shadowscarf'), dashP = over.dashFrac.toFixed(2);
+  if (`${dashHidden}|${dashP}` !== dashShown) {
+    dashShown = `${dashHidden}|${dashP}`;
+    const dash = document.getElementById('btn-dash')!;
+    dash.hidden = dashHidden;
+    dash.querySelector<HTMLElement>('.cd')!.style.setProperty('--p', dashP);
+  }
   over.objective = G.mode === 'world' ? objective() : null;
   over.layers = storyLayers;
   over.keyHints = usingKeyboard();

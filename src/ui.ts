@@ -568,8 +568,10 @@ export class UI {
     this.watchUnlocks();
     const s = this.hooks.save();
     const st = playerStats(s);
-    $('hud-gather').hidden = !gathering;
-    ($('hud').querySelector('.hand-row') as HTMLElement).hidden = !!gathering;
+    this.set('gathering', String(!!gathering), () => {
+      $('hud-gather').hidden = !gathering;
+      ($('hud').querySelector('.hand-row') as HTMLElement).hidden = !!gathering;
+    });
     if (gathering && !this.gatherAnim) {
       const sk = s.skills[gathering], max = sk.lv >= SKILL_MAX, need = skillXpToNext(sk.lv);
       this.set('gather', `${gathering}:${sk.lv}:${sk.xp}`, () => {
@@ -832,7 +834,7 @@ export class UI {
   /** A tappable repair plan above the hero, or beside them on short screens. */
   shortcutPrompt(p: Shortcut | null, hero?: { x: number; y: number }, ts = 0) {
     const b = $('shortcut-prompt');
-    b.hidden = !p;
+    this.set('shortcutShown', String(!!p), () => (b.hidden = !p));
     if (!p || !hero) return;
     const s = this.hooks.save(), state = canBuildShortcut(s, p), lock = shortcutLock(s, p);
     const materials = Object.entries(p.cost) as [MatId, number][];
