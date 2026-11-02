@@ -134,6 +134,8 @@ export function pathY(x: number): number {
 export class TileMap {
   readonly tiles: Uint8Array;
   readonly objs: WorldObj[] = [];
+  /** Counts changes to the tiles, so what's drawn from them knows to redraw (see groundCache.ts). */
+  version = 0;
 
   constructor(readonly w: number, readonly h: number, readonly x0 = 0, readonly y0 = 0) {
     this.tiles = new Uint8Array(w * h);
@@ -149,8 +151,9 @@ export class TileMap {
   protected set(x: number, y: number, t: number) {
     x -= this.x0;
     y -= this.y0;
-    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h || this.tiles[y * this.w + x] === t) return;
     this.tiles[y * this.w + x] = t;
+    this.version++;
   }
 
   solidAt(x: number, y: number): boolean {
