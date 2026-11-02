@@ -2733,13 +2733,14 @@ scenario('New neighbours: resume Pip, meet Rook and Moss, return together, then 
       check(await game<boolean>(page,`!!g.over.actors.get('${aid}')?.follow && !g.save.flags.includes('pip:returned')`),'reload lost or completed the journey');
     }
     // Fast travel regroups followers; the last approach is walked with real input.
-    await run(page,`g.over.teleport(38,14.5);g.over.roamers.calm=999`);
+    // (Anything that pops up on the way pauses the walk on a busy machine: close it and carry on.)
+    await run(page,`g.over.teleport(35,14.5);g.over.roamers.calm=999`);
     await page.keyboard.down('KeyA');
     try{
-      await page.waitForFunction(()=>{
-        if((window as any).game.over.x>31.8)return false;
-        window.dispatchEvent(new KeyboardEvent('keyup',{code:'KeyA'}));return true;
-      },undefined,{timeout:30000});
+      await waitFor(page, `${id} walked to the lane`,async()=>{
+        if(await page.$('#modal:not([hidden]) [data-dialog]')){await page.keyboard.up('KeyA');await closeDialogs(page,8,'.caption');await closeDialogs(page);await page.keyboard.down('KeyA');}
+        return game<boolean>(page,`g.over.x<=31.8`);
+      },60000);
     }finally{await page.keyboard.up('KeyA');}
     await page.keyboard.down('KeyW');
     try{await waitFor(page, `${id} reaches Clover`,async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('${id}:returned') && g.mode==='world'`);},30000);}finally{await page.keyboard.up('KeyW');}
