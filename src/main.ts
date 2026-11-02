@@ -227,7 +227,8 @@ function worldFrame(dt: number) {
   const sq = sw ? (sw.dir === 'in' ? sw.t / sw.dur : 1 - sw.t / sw.dur) : 0;
   const ease = sq * sq * (3 - 2 * sq);
   over.zoom = debugZoom || 1 + ease;
-  over.render(ctx, vw, vh);
+  // Under a menu that fills the screen the map isn't drawn again (what little shows at its edges keeps still).
+  if (!(G.mode === 'dialog' && !G.trans && !sw && ui.menuCovers)) over.render(ctx, vw, vh);
   const crossing = freeWorld() && !over.quiet && !over.busyHands && over.alert <= 0 && near?.kind === 'bridge' ? shortcutById(near.id!) : null;
   ui.shortcutPrompt(crossing ?? null, over.toScreen(over.x, over.y), over.ts);
   if (sw) {

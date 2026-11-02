@@ -404,6 +404,13 @@ export class UI {
     return !this.modal.hidden;
   }
 
+  /** Whether the menu is open over (nearly) the whole screen, as on a phone, hiding the map behind it. */
+  get menuCovers() {
+    if (!this.menuOpen || this.modal.hidden) return false;
+    const r = this.sheet.getBoundingClientRect();
+    return r.left <= 12 && r.right >= innerWidth - 12 && r.top <= 12 + innerHeight * 0.05 && r.bottom >= innerHeight - 1;
+  }
+
   // ------------------------------------------------------------ HUD
 
   /** Cheap per-frame setter: only touches the DOM when a value actually changes. */
