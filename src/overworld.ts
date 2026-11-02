@@ -618,7 +618,7 @@ export class Overworld {
         ty0 = Math.max(ty0, yMin); ty1 = Math.min(ty1, yMax);
         const patches = new Map<string, CanvasGradient>();
         for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) this.drawTile(c, x, y, ts, STILL, patches);
-        for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) if (this.rockAt(x, y)) this.drawObstacle(c, x, y, ts, zoneAtX(x).theme);
+        for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) if (this.sceneryTile(x, y) === T.OBST) this.drawObstacle(c, x, y, ts, zoneAtX(x).theme, STILL);
       });
     }
     const patches = new Map<string, CanvasGradient>();
@@ -633,7 +633,7 @@ export class Overworld {
       for (let x = x0; x <= x1; x++)
         if (this.sceneryTile(x, y) === T.OBST && !(cached && this.rockAt(x, y))) {
           const th = zoneAtX(x).theme;
-          items.push({ y: y + 0.9, x0: x - 0.5, x1: x + 1.5, draw: () => this.drawObstacle(ctx, x, y, ts, th) });
+          items.push({ y: y + 0.9, x0: x - 0.5, x1: x + 1.5, draw: () => this.drawObstacle(ctx, x, y, ts, th, cached ? LIVE : STILL | LIVE) });
         }
     for (const o of W.objs) {
       // A crossing's far landing can be visible while its construction stake is off screen.
@@ -1221,9 +1221,14 @@ export class Overworld {
     }
   }
 
-  private drawObstacle(ctx: CanvasRenderingContext2D, x: number, y: number, ts: number, th: Theme) {
+  /**
+   * An obstacle tile: a stretch of rock wall, or a tree, crystal or boulder. `part` as for ground tiles: what lies
+   * still on the ground (the wall, a tree's shadow) or what stands up from it, sorted with everyone (the tree).
+   */
+  private drawObstacle(ctx: CanvasRenderingContext2D, x: number, y: number, ts: number, th: Theme, part = STILL | LIVE) {
     const stone=this.underground?0:x>=CAVE_WEST_EDGE&&x<CAVE_EAST_EDGE?1:caveApproachStone(x,y);
     if (zoneAtX(x).id === 'cave' || stone>=.85) {
+      if (!(part & STILL)) return;
       // Rock is one mass whose edges wander: wherever it meets open ground or trees its outline follows a smooth wobble
       // set by world position (so neighbouring tiles join with no grid lines), corners between two open sides are
       // rounded, and the edge is inked. Inside it's calm stone with now and then a faint flat slab; where the floor is
@@ -1292,11 +1297,13 @@ export class Overworld {
     const v = hash2(x, y, 13);
     const sprite = frame(`env/${th.obstacle}${Math.floor(v * 3)}`);
     if (sprite) {
-      shadow(ctx, cx, by - ts * 0.05, ts * 0.42);
+      if (part & STILL) shadow(ctx, cx, by - ts * 0.05, ts * 0.42);
       const k = loose ? 0.78 + 0.4 * hash2(x, y, 15) : 1;
-      drawFrame(ctx, sprite, cx, by - ts * 0.05, ts / TILE_BU, { flip: v > 0.5, sx: k, sy: k, rot: th.obstacle === 'tree' || th.obstacle === 'pine' ? Math.sin(this.t * 1.2 + x) * 0.012 : 0 });
+      if (part & LIVE) drawFrame(ctx, sprite, cx, by - ts * 0.05, ts / TILE_BU, { flip: v > 0.5, sx: k, sy: k, rot: th.obstacle === 'tree' || th.obstacle === 'pine' ? Math.sin(this.t * 1.2 + x) * 0.012 : 0 });
       return;
     }
+    // (Drawn by hand only until the art is in, and then all live.)
+    if (!(part & LIVE)) return;
     switch (th.obstacle) {
       case 'tree': {
         shadow(ctx, cx, by, ts * 0.42);
