@@ -183,6 +183,7 @@ export const gatherHud = (): SkillId | null => (G.mode === 'gather' && chop ? NO
 const PATTERN_HINTS: Record<Exclude<Pattern, 'sweep'>, string> = {
   double: 'Hit both zones in one pass: Double!',
   drift: 'This one drifts. Follow it!',
+  tempo: 'Strike as the zone pulses for a Perfect!',
 };
 
 /** The minigame panel over the map, with a hint until you've got the hang of it. */

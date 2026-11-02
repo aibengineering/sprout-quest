@@ -196,7 +196,7 @@ export const SECONDS_PER_KILL = 14;
  * off): tougher nodes and weaker tools take longer. Skilled timing is faster (clean cuts), but the economy assumes this.
  */
 export function chopSeconds(kind: NodeKind, toolTier: number): number {
-  return 1.5 + (0.5 * NODES[kind].hp) / toolPower(toolTier, NODES[kind].tier);
+  return 1.8 + (0.4 * NODES[kind].hp) / toolPower(toolTier, NODES[kind].tier);
 }
 /** Walking between trees on open ground. */
 const SAFE_TRIP = 8;

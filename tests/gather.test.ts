@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { NODES, NODE_SPAWNS, SKILL_MAX, TOOLS, type ZoneId } from '../src/data';
-import { BASE_SPEED, CARRY_MAX, Chop, GatherView } from '../src/gather';
+import { BASE_SPEED, CARRY_MAX, Chop, GatherView, TEMPO } from '../src/gather';
 import { canGather, craftGear, craftTool, gainSkillXp, harvest, skillXpToNext, sweetWidth, toolPower } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
@@ -169,6 +169,30 @@ describe('chopping minigame', () => {
     expect(c.center).not.toBe(start);
     expect(seen.size).toBe(2);
     expect(new Chop(100, 1, 0.2).driftV).toBe(0);
+  });
+
+  test('tier 4 tempo: a strike in the zone on the pulse is perfect, off it a plain hit, and the marker reaches each new zone as it pulses', () => {
+    const c = new Chop(1000, 1, 0.2, Math.random, 0, 0, 'tempo');
+    c.pos = c.center + c.width * 0.4;
+    c.beatT = TEMPO.beat * 3 + TEMPO.window * 0.8;
+    expect(c.judge()).toBe('perfect');
+    c.beatT = TEMPO.beat * 3.5;
+    expect(c.judge()).toBe('hit');
+    c.pos = c.center + c.width;
+    expect(c.judge()).toBe('miss');
+    // Every new zone, after a hit or a miss, is crossed during a beat.
+    for (let n = 0; n < 40; n++) {
+      c.update(Math.random() * 0.3);
+      c.perfectRun = 0; // (no clean cut ending it early)
+      const r = n % 5 === 4 ? (c.pos = c.center > 0.5 ? 0.01 : 0.99, c.strike()) : (c.pos = c.center, c.strike());
+      expect(r).not.toBeNull();
+      let onBeat = false;
+      for (let t = 0; t < 3 && !onBeat; t += 0.002) {
+        c.update(0.002);
+        onBeat = c.lock <= 0 && c.judge() === 'perfect';
+      }
+      expect(onBeat).toBe(true);
+    }
   });
 
   test('the sweet spot grows with skill level', () => {

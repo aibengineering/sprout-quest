@@ -1,8 +1,9 @@
 // Chopping and mining, measured: simulated players drive the real minigame (Chop in src/gather.ts) on every node with
 // its own tool and with the tool a tier above, and we report the seconds from the first frame to the node giving way.
 //
-// - good: sees a new sweet spot after 120–220 ms, then aims for the middle of the next perfect moment ±50 ms.
-// - casual: slower to react (200–350 ms) and sloppier (±110 ms).
+// - good: sees a new sweet spot after 120–220 ms, then aims for the middle of the next perfect moment ±50 ms (on a
+//   tempo node, the pulse).
+// - casual: slower to react (200–350 ms), sloppier (±110 ms), and aims for the middle of the zone.
 // - masher: taps about eight times a second without looking.
 //
 // The player plans by running a copy of the minigame forward, so every pattern (drifting spots, beats) is aimed at the
@@ -10,7 +11,7 @@
 //
 //   bun sim/gather.ts [--runs 300] [--lv 5] [--hp 5,8,…]   (--hp tries other toughnesses, in NODES order)
 import { NODES, type NodeKind } from '../src/data';
-import { Chop, PATTERNS, type Pattern } from '../src/gather';
+import { Chop, PATTERNS, TEMPO, type Pattern } from '../src/gather';
 import { sweetWidth, toolPower } from '../src/rules';
 
 const arg = (name: string, fallback: string) => {
@@ -19,12 +20,13 @@ const arg = (name: string, fallback: string) => {
 };
 const RUNS = Number(arg('runs', '300')), LV = Number(arg('lv', '5'));
 const DT = 1 / 120;
+if (process.argv.includes('--tempo')) Object.assign(TEMPO, JSON.parse(arg('tempo', '{}')));
 if (process.argv.includes('--hp')) arg('hp', '').split(',').forEach((v, i) => (Object.values(NODES)[i].hp = Number(v)));
 
-type Who = { name: string; react: [number, number]; jitter: number; mash?: number };
+type Who = { name: string; react: [number, number]; jitter: number; mash?: number; zone?: boolean };
 export const PLAYERS: Who[] = [
   { name: 'good', react: [0.12, 0.22], jitter: 0.05 },
-  { name: 'casual', react: [0.2, 0.35], jitter: 0.11 },
+  { name: 'casual', react: [0.2, 0.35], jitter: 0.11, zone: true },
   { name: 'masher', react: [0, 0], jitter: 0, mash: 0.125 },
 ];
 
@@ -43,13 +45,13 @@ function judge(c: Chop): Judged {
 
 const copy = (c: Chop): Chop => Object.assign(Object.create(Object.getPrototypeOf(c)), structuredClone({ ...c, rng: undefined }), { rng: () => 0.5 });
 
-/** The middle of the next moment a strike would be perfect (or failing that, clean), seconds from now. */
-function plan(c: Chop, from: number): number {
-  for (const want of ['perfect', 'hit'] as const) {
+/** The middle of the next moment a strike would be perfect (or failing that, clean; or just in the zone), seconds from now. */
+function plan(c: Chop, from: number, zone = false): number {
+  for (const want of zone ? ['zone'] : ['perfect', 'hit']) {
     const g = copy(c);
     let start = -1;
     for (let t = 0; t < 4; t += DT) {
-      const ok = t >= from && g.lock <= 0 && judge(g) === want;
+      const j = judge(g), ok = t >= from && g.lock <= 0 && (want === 'zone' ? j !== 'miss' : j === want);
       if (ok && start < 0) start = t;
       if (!ok && start >= 0) return (start + t - DT) / 2;
       g.update(DT);
@@ -63,7 +65,7 @@ export function play(who: Who, hp: number, power: number, width: number, pattern
   const c = new Chop(hp, power, width, rng, 0, carry, pattern);
   let t = 0, at = who.mash ? 0 : between(who.react) + 0.3;
   // First look: you see the bar as the card opens.
-  if (!who.mash) at = plan(c, at) + (rng() * 2 - 1) * who.jitter;
+  if (!who.mash) at = plan(c, at, who.zone) + (rng() * 2 - 1) * who.jitter;
   while (!c.done && t < 120) {
     c.update(DT);
     t += DT;
@@ -76,7 +78,7 @@ export function play(who: Who, hp: number, power: number, width: number, pattern
     // A zone that was already showing needs no reaction, just a quick second tap.
     const known = shown !== undefined && shown === c.center;
     const from = known ? 0.1 : between(who.react);
-    at = t + plan(c, from) + (rng() * 2 - 1) * who.jitter;
+    at = t + plan(c, from, who.zone) + (rng() * 2 - 1) * who.jitter;
   }
   return { secs: t, clean: !!(c as unknown as { clean?: boolean }).clean, streak: c.streak };
 }
