@@ -460,6 +460,10 @@ function drawPartner(b: Battle, ctx: Ctx, e: Enemy) {
   const look = { flash: e.flash > 0 ? 1 : 0, rot, tint: e.state === 'exposed' ? '#ffe07a' : red ? '#ff4a4a' : undefined, tintAmount: e.state === 'exposed' ? 0.3 : red ? (e.windup - 0.5) * 0.5 : 0 };
   const unit = UNIT * HERO_SCALE * (oswin ? 1.15 : who === 'bram' ? 1.05 : 0.95);
   const [anim, phase] = oswin ? oswinClip(b, e) : ['', 0];
+  // Bram's axe handle, gripped in his near hand: raised past upright as he winds up, it's over his back, behind him.
+  const handle = () => drawHandle(ctx, x + side * e.r * 0.85, y - e.r * (0.8 + 0.7 * e.windup), side, e.windup, swing);
+  const raised = e.windup > 0.45;
+  if (who === 'bram' && raised) handle();
   const drawn = oswin
     ? drawIdler(ctx, 'spar-oswin', 'elder', phase, x, y, unit, look, anim, aim)
     : drawWalker(ctx, `npc/${PARTNERS[who].look}`, x, y, unit, aim, moving, b.t, look, `spar-${who}`);
@@ -474,7 +478,7 @@ function drawPartner(b: Battle, ctx: Ctx, e: Enemy) {
     ctx.fillText(PARTNERS[who].emoji, 0, 0);
     ctx.restore();
   }
-  if (who === 'bram') drawHandle(ctx, x + side * e.r * 0.6, y - e.r * 1.5, side, e.windup, swing);
+  if (who === 'bram' && !raised) handle();
 }
 
 /**
@@ -503,10 +507,10 @@ function oswinClip(b: Battle, e: Enemy): [anim: string, phase: number] {
   return Math.hypot(e.vx, e.vy) > 5 ? ['walk', b.t * 1.5] : ['idle', b.t * 0.75];
 }
 
-/** Bram's axe handle: on his shoulder, raised high as he winds up, brought down in front after. */
+/** Bram's axe handle, from his hand at (x, y): held up, raised over his back as he winds up, brought down in front after. */
 function drawHandle(ctx: Ctx, x: number, y: number, side: number, windup: number, swing: number) {
   // Pointing right is 0, straight up -π/2; worked out facing right, then mirrored.
-  const a0 = swing > 0 ? 0.6 * swing + -1.1 * (1 - swing) : -1.1 - windup * 1.6;
+  const a0 = swing > 0 ? 0.6 * swing + -1.1 * (1 - swing) : -1.1 - windup * 1.1;
   const a = side > 0 ? a0 : Math.PI - a0;
   ctx.save();
   ctx.translate(x, y);
