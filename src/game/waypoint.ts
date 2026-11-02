@@ -18,7 +18,9 @@ export function objective(): { x: number; y: number } | null {
   const selected = activeStory();
   if (selected?.step.noArrow?.()) return null;
   const side = selected ? (selected.step.cost && gatherPointer(selected.step.cost())) || selected.step.target?.() || null : null;
-  if (G.over.underground) {
+  // In a side cave (Pebbler Hollow, Pip's ore gallery), a target outside it points at its way out. The main Cavern shares
+  // the map's coordinates, so it needs nothing special: the arrow points at the target itself.
+  if (G.over.underground && G.over.underground !== G.over.cavern) {
     const map=G.over.underground;
     if(!side || side.x<map.x0 || side.x>=map.x0+map.w) return map===G.over.echo ? ECHO_EXIT : {x:G.over.oreGallery.spawn.x,y:14.5};
   }

@@ -8,6 +8,7 @@ import { G, backToWorld, paused, persist, transition } from './context';
 import { celebrate, handlingGain, leveledUp, markLevels } from './rewards';
 import { say, type Speaker } from './scenes';
 import { startBattle } from './fights';
+import { pickSpar } from './spar';
 
 export const ALDER: Speaker = { name: 'Masked Fox', emoji: '🦊', portrait: () => 'npc_fox' };
 let choosing = false;
@@ -27,11 +28,12 @@ export async function visitDojo() {
         const lock = dojoLock(G.save, c), done = dojoCleared(G.save, c.id);
         return `<article class="mcard"><h3>${c.name}</h3><p>${c.hint}</p><p>${done ? '✓ Cleared · free practice' : `⭐ First clear: ${c.reward} combat and handling XP`}</p>${lock ? `<p>${lock}</p>` : ''}<button class="go wide" data-dialog="dojo:${c.id}" ${lock ? 'disabled' : ''}>${done ? 'Practise again' : 'Try the challenge'}</button></article>`;
       }).join('');
-      const r = await G.ui.dialog(`<h2>🦊 The Hidden Clearing</h2><p>Fresh practice HP. Your health and potions stay safe. Each lesson’s XP reward is earned once.</p><div class="dojo-lessons">${cards}</div>`, [...(G.save.build.training<3 ? [['upgrade','Discuss better practice gear'] as [string,string]] : []), ['close', 'Back']], 'dojo');
+      const r = await G.ui.dialog(`<h2>🦊 The Hidden Clearing</h2><p>Fresh practice HP. Your health and potions stay safe. Each lesson’s XP reward is earned once.</p><div class="dojo-lessons">${cards}</div>`, [['spar', '🤺 Free spar'], ...(G.save.build.training<3 ? [['upgrade','Discuss better practice gear'] as [string,string]] : []), ['close', 'Back']], 'dojo');
       if(r==='upgrade') await offerVillageUpgrade('Masked Fox');
-      return r.startsWith('dojo:') ? r.slice(5) : null;
+      return r === 'spar' ? r : r.startsWith('dojo:') ? r.slice(5) : null;
     });
   } finally { choosing = false; }
+  if (chosen === 'spar') return pickSpar();
   const c = chosen && dojoChallenge(chosen);
   if (!c || dojoLock(G.save, c)) return;
   startBattle(zoneById('hollow'), dojoSetup(c).foes, false, undefined, dojoSetup(c));

@@ -99,7 +99,8 @@ CHARACTERS = {
     **{f'armor_{a}': (lambda a=a: armor(a)) for a in hero.ARMORS},
     'npc_poppy': lambda: (hero.build_poppy(), walker_anims()),
     'npc_poppy_hug': lambda: (hero.build_poppy(hug=True), {'idle': (lambda P, t: breathe(P, t), 32)}),
-    'npc_elder': lambda: (hero.build_elder(), {'idle': (lambda P, t: breathe(P, t, head='hat'), 32)}),
+    # Oswin also spars (src/battle/render.ts): his staff clips, beside the map's idle.
+    'npc_elder': lambda: (hero.build_elder(), {'idle': (lambda P, t: breathe(P, t, head='hat'), 32), **hero.elder_clips()}),
     'npc_granny': lambda: (hero.build_granny(), {'idle': (lambda P, t: breathe(P, t, head='head'), 32)}),
     'npc_bram': lambda: (hero.build_bram(), walker_anims()),
     'npc_bram_hurt': lambda: (hero.build_bram('hurt', hurt=True), walker_anims()),

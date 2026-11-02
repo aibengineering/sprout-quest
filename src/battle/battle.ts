@@ -12,6 +12,8 @@ import type { SaveState } from '../state';
 import { CHARGE, ECHO, MOVESETS, RIPOSTE, SKILL_DATA, STAGGER, chargePower, chargeTime, hasTrick, pace, skillAt, strikeTime, tierScale, type Moveset, type SkillRank, type Strike, type Trick } from '../weapons';
 import { BURN_COLOR, ELEMENTS, type ElementDef, type HitWorld } from './elements';
 import { MONSTER_AI, blinkAway, type FoeWorld } from './monsters';
+import { FOE_AI } from './partners';
+import { PARTNERS, SPAR_YIELD, partnerDef, pick, sparStats } from '../spar';
 import { lashCrackAt, lashEnd, lashRope, pose } from './pose';
 import { battleWeapon } from './weaponPose';
 import {
@@ -119,6 +121,9 @@ export class Battle implements FoeWorld, HitWorld {
   private riposteShown = 0;
   /** …and whose "Clang!" or "Exposed!". */
   private clangShown = 0;
+  /** A sparring partner's last remark (src/spar.ts), and how long it's been up. */
+  quip: { text: string; t: number } | null = null;
+  private quipCd = 0;
   /** Running tallies for the play report. */
   readonly afterimages: {x:number;y:number;face:number;t:number}[] = [];
   readonly log: BattleLog = { time: 0, swings: 0, hits: 0, crits: 0, skills: 0, dodges: 0, potions: 0, dealt: 0, taken: 0, critDealt: 0, cooling: 0, rested: 0, lastHitBy: '' };
@@ -146,6 +151,7 @@ export class Battle implements FoeWorld, HitWorld {
     this.p.dodgeCds = Array(dodgeCharges(save)).fill(0);
     // Regular fights swoop in and get going at once; bosses keep their dramatic "Boss battle!" beat.
     this.intro = this.dramatic ? 1.2 : ZOOM_T + 0.1;
+    if (setup.spar) this.spawnPartner();
     const n = setup.foes.length;
     setup.foes.forEach((f, i) => {
       const a = n === 1 ? -Math.PI / 2 : -Math.PI * 0.8 + (i / (n - 1)) * Math.PI * 0.6;
@@ -158,7 +164,7 @@ export class Battle implements FoeWorld, HitWorld {
 
   /** Guardian and prologue fights open with a "Boss battle!" / "Ready… Fight!" beat instead of the swoop. */
   get dramatic() {
-    return this.setup.boss || this.setup.foes.some((f) => f.gentle);
+    return this.setup.boss || !!this.setup.spar || this.setup.foes.some((f) => f.gentle);
   }
 
   private spawn(f: Foe, x: number, y: number, minion: boolean): Enemy {
@@ -184,6 +190,27 @@ export class Battle implements FoeWorld, HitWorld {
     };
     this.enemies.push(e);
     return e;
+  }
+
+  /**
+   * A sparring partner, matched to you (see sparStats), squaring up across the clearing. Their last flash is long past,
+   * so Oswin doesn't open with a flinch (render.ts oswinClip).
+   */
+  private spawnPartner() {
+    const who = this.setup.spar!, st = sparStats(this.stats, who), def = partnerDef(who), y = -130;
+    this.enemies.push({
+      kind: who, def, lv: this.stats.lv, golden: false, hp: st.hp, maxHp: st.hp, atk: st.atk, dfn: st.def, xp: 0, spd: def.spd,
+      x: 0, y, vx: 0, vy: 0, kx: 0, ky: 0, r: def.r, z: 0, state: FOE_AI[who].start, t: 0.8, dir: 0, face: 1, orb: Math.PI / 2 * 3, sub: 0, last: null,
+      windup: 0, flash: -1, stun: 0, evadeCd: 0, dead: false, deathT: 0, seed: Math.random() * 10, hitId: 0,
+      burn: 0, burnDmg: 0, burnTick: 0, dotColor: BURN_COLOR, slow: 0, squash: 0, tx: 0, ty: 0, flag: false, minion: false,
+    });
+  }
+
+  /** The sparring partner says something (now and then, so it doesn't chatter; `force` always). */
+  private remark(lines: string | string[], force = false) {
+    if (!force && (this.quipCd > 0 || Math.random() < 0.4)) return;
+    this.quip = { text: typeof lines === 'string' ? lines : pick(lines), t: 0 };
+    this.quipCd = 3;
   }
 
   get skillFrac() { return Math.max(0, this.p.skillCd) / (this.skillNow?.cd ?? SKILL_CD); }
@@ -229,6 +256,8 @@ export class Battle implements FoeWorld, HitWorld {
     for (const s of this.sparks) s.t += dt;
     this.sparks = this.sparks.filter((s) => s.t < 0.22);
     for (const e of this.enemies) if (e.dead) e.deathT -= dt;
+    if (this.quip) this.quip.t += dt;
+    this.quipCd -= dt;
     if (this.done) return;
     if (this.intro > 0) {
       this.intro -= dt;
@@ -496,7 +525,7 @@ export class Battle implements FoeWorld, HitWorld {
     if (riposte) p.riposte = 0;
     // Monsters that read your attacks (Impy) blink out of the way as you start one near them, now and then.
     for (const e of this.enemies) {
-      if (e.dead || e.stun > 0 || e.evadeCd > 0 || !MONSTER_AI[e.kind].evades || Math.hypot(e.x - p.x, e.y - p.y) > 170) continue;
+      if (e.dead || e.stun > 0 || e.evadeCd > 0 || !FOE_AI[e.kind].evades || Math.hypot(e.x - p.x, e.y - p.y) > 170) continue;
       blinkAway(e, this);
       e.evadeCd = 5;
     }
@@ -875,7 +904,7 @@ export class Battle implements FoeWorld, HitWorld {
     }
     if (this.runCd > 0) return;
     // Out of a Battle Tower fight you always get back to the camp, guardians included.
-    if (this.setup.dojo || this.setup.tower || Math.random() < 0.7) {
+    if (this.setup.dojo || this.setup.spar || this.setup.tower || Math.random() < 0.7) {
       this.fx.text(p.x, p.y - 40, 'Got away!', '#ffffff', 16);
       this.finish({ result: 'run', hp: p.hp, xp: 0, drops: {}, defeated: [], log: this.log }, 0.5);
     } else {
@@ -901,7 +930,7 @@ export class Battle implements FoeWorld, HitWorld {
     const riposte = !!this.p.swing?.riposte && this.p.swing.id === strikeId;
     const critChance = riposte ? 1 : 0.08 + st.luck * 0.2 + (this.el.crit ?? 0);
     // Some monsters shrug off hits at times and are wide open at others (a Pebblor's stone skin, then its slam).
-    const takes = MONSTER_AI[e.kind].takes?.(e) ?? 1;
+    const takes = FOE_AI[e.kind].takes?.(e) ?? 1;
     if (takes < 1 && strikeId !== this.clangShown) {
       this.clangShown = strikeId;
       this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Clang!', '#c8ccd8', 13);
@@ -941,6 +970,7 @@ export class Battle implements FoeWorld, HitWorld {
     this.audio.play(crit ? 'crit' : 'hit');
     this.hitstop = Math.max(this.hitstop, hitstop * (crit ? 1.4 : 1));
     this.shakeAtLeast((crit ? 5 : 3) * (heavy ? 1.6 : 1) * (1 + this.tier * 0.08));
+    if (this.setup.spar) this.remark(PARTNERS[this.setup.spar].hit);
     if (e.hp <= 0) this.kill(e);
   }
 
@@ -953,7 +983,7 @@ export class Battle implements FoeWorld, HitWorld {
       e.stun = Math.max(e.stun, STAGGER.secs * 0.3);
       return;
     }
-    const ai = MONSTER_AI[e.kind];
+    const ai = FOE_AI[e.kind];
     if (e.state !== ai.start || e.windup > 0) {
       this.fx.text(e.x, e.y - e.r * 2.9 - e.z, 'Staggered!', '#ffc890', 14);
       this.staggers++;
@@ -1006,12 +1036,14 @@ export class Battle implements FoeWorld, HitWorld {
 
   /** Defeats a foe: its burst, XP and drops (a guardian's helpers scatter with it). The e2e test calls it too. */
   kill(e: Enemy) {
+    // A sparring partner never goes down: at the yield they call it (checkEnd).
+    if (this.setup.spar) { e.hp = Math.max(1, e.hp); return; }
     e.dead = true;
     e.hp = 0;
     e.deathT = 0.45;
     e.windup = 0;
     e.burn = 0;
-    this.fx.burst(e.x, e.y - e.r * 0.7, e.golden ? '#ffd84a' : MONSTER_AI[e.kind].color, 18, 180, { size: 5 });
+    this.fx.burst(e.x, e.y - e.r * 0.7, e.golden ? '#ffd84a' : FOE_AI[e.kind].color, 18, 180, { size: 5 });
     this.fx.burst(e.x, e.y - e.r * 0.7, '#fff6a0', 8, 120, { star: true, size: 5, grav: -30 });
     this.audio.play('kill');
     if (this.setup.dojo) return; // Practice targets do not grant ordinary loot, kills or monster XP.
@@ -1073,6 +1105,7 @@ export class Battle implements FoeWorld, HitWorld {
     this.shakeAtLeast(7);
     this.hitstop = 0.05;
     if (p.hp <= 0) p.hp = 0;
+    if (this.setup.spar) this.remark(PARTNERS[this.setup.spar].land);
     return true;
   }
 
@@ -1086,6 +1119,7 @@ export class Battle implements FoeWorld, HitWorld {
 
   private checkEnd() {
     if (this.endT >= 0) return;
+    if (this.setup.spar) return this.sparEnd();
     if (this.p.hp <= 0) {
       this.audio.play('lose');
       this.finish({ result: 'lose', hp: 0, xp: 0, drops: {}, defeated: this.defeated, log: this.log }, 1.4);
@@ -1102,11 +1136,25 @@ export class Battle implements FoeWorld, HitWorld {
     }
   }
 
+  /** A spar stops at the yield: the partner calls it, or helps you up. Nothing is won or lost either way. */
+  private sparEnd() {
+    const e = this.enemies[0], partner = PARTNERS[this.setup.spar!];
+    const won = e.hp <= e.maxHp * SPAR_YIELD, lost = this.p.hp <= this.stats.maxHp * SPAR_YIELD;
+    if (!won && !lost) return;
+    this.hazards = [];
+    this.projs = [];
+    e.windup = 0;
+    e.z = 0;
+    this.remark(won ? partner.yields : partner.helps, true);
+    this.audio.play(won ? 'victory' : 'heal');
+    this.finish({ result: won ? 'win' : 'lose', hp: this.p.hp, xp: 0, drops: {}, defeated: [], log: this.log }, 2.2);
+  }
+
   // ---------------------------------------------------------------- enemies
 
   private updateEnemy(e: Enemy, dt: number) {
     if (e.dead) return;
-    const p = this.p, ai = MONSTER_AI[e.kind];
+    const p = this.p, ai = FOE_AI[e.kind];
     e.flash -= dt;
     e.evadeCd -= dt;
     e.squash = Math.max(0, e.squash - dt);
@@ -1163,7 +1211,7 @@ export class Battle implements FoeWorld, HitWorld {
     }
     // Contact damage (slimes mid-hop sail over you).
     const airborne = ai.hops && e.z > 10;
-    if (!airborne && Math.hypot(p.x - e.x, p.y - e.y) < p.r + e.r * 0.85) {
+    if (!airborne && (!ai.armsOnly || fast) && Math.hypot(p.x - e.x, p.y - e.y) < p.r + e.r * 0.85) {
       this.hurtPlayer(e.atk, (e.def.boss ? 0.8 : 1) * (fast ? 1.2 : 1), e.x, e.y, `${e.kind}:contact`);
     }
   }

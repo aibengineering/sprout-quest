@@ -280,7 +280,7 @@ function frame(now: number) {
   if (G.mode !== 'title') {
     G.save.playtime += dt;
     // Granny's meals count down while you play (on the map, fighting, chopping), not while you're in a menu.
-    if ((G.mode === 'world' || G.mode === 'battle' || G.mode === 'gather') && !G.battle?.setup.dojo) mealTick(G.save, dt);
+    if ((G.mode === 'world' || G.mode === 'battle' || G.mode === 'gather') && !G.battle?.setup.dojo && !G.battle?.setup.spar) mealTick(G.save, dt);
     trackTime(G.battle?.setup.zone.id ?? G.over.currentZone.id, ACTIVITY[G.mode], dt);
     // Which menu screen (or other popup) the menu time went to.
     if (G.mode === 'dialog') trackTime(SCREENS, G.ui.openTab ? `menu:${G.ui.openTab}` : 'dialogs', dt);

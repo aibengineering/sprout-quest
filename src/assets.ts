@@ -301,10 +301,11 @@ export const monsterReady = (kind: string) => hasModel(`mon_${kind}`) || !!frame
 
 /**
  * Draws a villager standing in place and breathing (Elder Oswin, Granny, Poppy hugging her bunny): a 3D model once it's
- * loaded, else its 4-frame sprite loop. `phase`: 1 = one breath. Returns false if neither is available.
+ * loaded, else its 4-frame sprite loop. `phase`: 1 = one breath. Returns false if neither is available. With `anim`
+ * (3D only), another of its animations instead (Oswin sparring), `phase` through it, facing `face` (screen angle).
  */
-export function drawIdler(ctx: CanvasRenderingContext2D, slot: string, name: string, phase: number, x: number, y: number, unit: number, o: DrawOpts = {}): boolean {
-  if (drawModel(ctx, slot, `npc_${name}`, { anim: 'idle', phase, yaw: 0 }, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, o))) return true;
+export function drawIdler(ctx: CanvasRenderingContext2D, slot: string, name: string, phase: number, x: number, y: number, unit: number, o: DrawOpts = {}, anim = 'idle', face = Math.PI / 2): boolean {
+  if (drawModel(ctx, slot, `npc_${name}`, { anim, phase, yaw: Math.PI / 2 - face }, x, y, unit, o, (f) => drawFrame(ctx, f, x, y, unit, o))) return true;
   const i = Math.floor((((phase % 1) + 1) % 1) * 4);
   const f = frame(`npc/${name}/${i}`) ?? frame(`npc/${name}/0/${i}`);
   if (!f) return false;

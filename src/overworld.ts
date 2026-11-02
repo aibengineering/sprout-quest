@@ -604,6 +604,7 @@ export class Overworld {
       if (crossing) this.shortcutItems(ctx, o, ts, items);
       else if (o.kind === 'fence') this.fenceItems(ctx, o, ts, items);
       else if (o.kind === 'plot' && o.project === 'garden') this.fieldItems(ctx, o, ts, items);
+      else if (o.id === 'ring') this.ringItems(ctx, o, ts, items);
       else items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
     }
     for (const r of this.fieldMap ? this.roamers.list : []) {
@@ -1720,6 +1721,75 @@ export class Overworld {
         },
       });
     }
+  }
+
+  /**
+   * Oswin's practice ring: worn grass roped off between six posts, with a straw target at the back. The back rope and
+   * target sort behind whoever stands in the ring, the front rope and posts in front of them.
+   */
+  private ringItems(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number, items: { y: number; draw: () => void }[]) {
+    if (o.hidden) return;
+    const x0 = o.x * ts, y0 = o.y * ts, x1 = (o.x + o.w) * ts, y1 = (o.y + o.h) * ts, mx = (x0 + x1) / 2;
+    const ink = '#4e3424', lift = ts * 0.34;
+    const post = (x: number, y: number) => {
+      ctx.fillStyle = ink;
+      rrect(ctx, x - ts * 0.08, y - ts * 0.5, ts * 0.16, ts * 0.56, ts * 0.06);
+      ctx.fill();
+      ctx.fillStyle = '#9a6a42';
+      rrect(ctx, x - ts * 0.05, y - ts * 0.47, ts * 0.1, ts * 0.5, ts * 0.04);
+      ctx.fill();
+      ctx.fillStyle = '#c99b66';
+      ctx.fillRect(x - ts * 0.05, y - ts * 0.47, ts * 0.1, ts * 0.06);
+    };
+    const rope = (pts: [number, number][]) => {
+      for (const [w, c] of [[ts * 0.075, ink], [ts * 0.04, '#e2c48e']] as const) {
+        ctx.strokeStyle = c;
+        ctx.lineWidth = w;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => {
+          if (!i) return ctx.moveTo(x, y - lift);
+          const [px, py] = pts[i - 1];
+          ctx.quadraticCurveTo((px + x) / 2, (py + y) / 2 - lift + ts * 0.12, x, y - lift);
+        });
+        ctx.stroke();
+      }
+    };
+    items.push({ y: o.y, draw: () => {
+      // Trodden earth, then the back and sides of the rope.
+      ctx.fillStyle = 'rgba(176,138,88,0.42)';
+      ctx.beginPath();
+      ctx.ellipse(mx, (y0 + y1) / 2, (x1 - x0) / 2 + ts * 0.05, (y1 - y0) / 2 + ts * 0.02, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(150,112,70,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(mx, (y0 + y1) / 2 + ts * 0.1, (x1 - x0) * 0.3, (y1 - y0) * 0.26, 0, 0, TAU);
+      ctx.fill();
+      // A straw target behind the back rope.
+      const tx = x1 - ts * 0.55, ty = y0 - ts * 0.08;
+      ctx.fillStyle = ink;
+      ctx.fillRect(tx - ts * 0.06, ty - ts * 0.55, ts * 0.12, ts * 0.58);
+      ctx.beginPath();
+      ctx.arc(tx, ty - ts * 0.72, ts * 0.3, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#e6c869';
+      ctx.beginPath();
+      ctx.arc(tx, ty - ts * 0.72, ts * 0.25, 0, TAU);
+      ctx.fill();
+      for (const [r, c] of [[0.16, '#fff3d0'], [0.09, '#d8584a']] as const) {
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.arc(tx, ty - ts * 0.72, ts * r, 0, TAU);
+        ctx.fill();
+      }
+      rope([[x0, y1], [x0, y0], [mx, y0], [x1, y0], [x1, y1]]);
+      for (const [x, y] of [[x0, y0], [mx, y0], [x1, y0]]) post(x, y);
+    } });
+    items.push({ y: o.y + o.h, draw: () => {
+      rope([[x0, y1], [mx, y1], [x1, y1]]);
+      for (const x of [x0, mx, x1]) post(x, y1);
+      this.nameTag(ctx, '🤺 Practice Ring', x0 + (x1 - x0) * 0.36, y0 - ts * 0.55, ts);
+    } });
   }
 
   /** Simple canvas drawings for buildings, used only if the sprites failed to load. */

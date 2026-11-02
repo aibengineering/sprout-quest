@@ -258,7 +258,8 @@ def build_elder():
     bodyp = P['body'] = empty('bodyPivot', root)
     skin, robe = face_skin(), toon('#6ab86a')
     for side in (-1, 1):
-        sphere((0.12 * side, -0.03, 0.05), (0.09, 0.12, 0.06), toon('#6b4a3a'), root)
+        foot = P[f'foot{side}'] = empty(f'foot{side}', root, (0.12 * side, -0.03, 0.05))
+        sphere((0, 0, 0), (0.09, 0.12, 0.06), toon('#6b4a3a'), foot)
     sphere((0, 0, 0.3), (0.3, 0.26, 0.3), robe, bodyp)
     torus((0, 0, 0.18), 0.27, 0.035, toon('#ffd35a'), bodyp)
     head = P['head'] = empty('head', bodyp, (0, 0, 0.76))
@@ -277,7 +278,11 @@ def build_elder():
         sphere((math.cos(a) * 0.28, math.sin(a) * 0.26, 0.02), (0.22, 0.12, 0.05), toon('#5ac85a' if i % 2 else '#7ad85a'), hat, rot=(0, 0, a))
     sphere((0, 0, 0.1), (0.2, 0.2, 0.16), toon('#4aa84a'), hat)
     cone((0, 0, 0.3), 0.04, 0.18, toon('#4aa84a'), hat, seg=8)
-    staff = empty('staff', bodyp, (0.36, -0.05, 0.0))
+    # The staff is held in his hand (`grip`), which the spar clips move (elder_clips); the other hand (`hand`) waits
+    # tucked inside the robe until a clip needs it.
+    grip = P['grip'] = empty('grip', bodyp, ELDER_REST['grip_loc'])
+    sphere((0, 0, 0), 0.065, skin, grip)
+    staff = P['staff'] = empty('staff', grip, (0.06, -0.01, -0.36))
     cylinder((0, 0, 0.55), 0.03, 1.1, toon('#9a6a44'), staff, seg=8)
     # Veyra's sickle crowns the staff, with a golden seed where blade meets pole.
     from env import crescent
@@ -287,8 +292,139 @@ def build_elder():
     # A golden seed pendant on a cord.
     torus((0, 0, 0.52), 0.16, 0.012, toon('#8a5a3a'), bodyp, rot=(0.35, 0, 0), line=0)
     sphere((0, -0.27, 0.38), (0.045, 0.03, 0.06), toon('#ffd35a', emit=0.3), bodyp, line=0.01)
-    sphere((0.3, -0.04, 0.36), 0.065, skin, bodyp)
+    hand = P['hand'] = empty('hand', bodyp, ELDER_REST['hand_loc'])
+    sphere((0, 0, 0), 0.065, skin, hand)
     return P
+
+
+# Elder Oswin's spar clips (src/battle/render.ts oswinPose): key poses, blended. Front is -Y, his staff is on +X;
+# a body lean of +x tips him forward. The rest pose is the idle's, so the map's Oswin is unchanged.
+ELDER_REST = dict(body_rot=(0, 0, 0), body_loc=(0, 0, 0), body_scale=(1, 1, 1), head_rot=(0, 0, 0), hat_rot=(0, 0, 0),
+                  grip_loc=(0.3, -0.04, 0.36), grip_rot=(0, 0, 0), hand_loc=(-0.2, -0.04, 0.3), feet=(0, 0))
+_ELDER_POSES = {
+    # Staff raised high over his head, leaning back.
+    'raised': dict(body_rot=(-0.26, 0, 0.05), body_scale=(0.98, 0.98, 1.05), head_rot=(-0.18, 0, 0), hat_rot=(-0.1, 0, 0),
+                   grip_loc=(0.2, 0.08, 1.3), grip_rot=(-0.75, 0, 0.12)),
+    # The bonk: staff brought down in front, leaning into it.
+    'struck': dict(body_rot=(0.34, 0, -0.04), body_loc=(0, -0.05, -0.02), body_scale=(1.05, 1.05, 0.94), head_rot=(0.15, 0, 0),
+                   grip_loc=(0.16, -0.36, 0.5), grip_rot=(2.0, 0, -0.1)),
+    # Gathering himself for the hop, staff levelled under his arm.
+    'crouch': dict(body_rot=(0.22, 0, 0), body_loc=(0, 0.02, -0.05), body_scale=(1.07, 1.07, 0.85), head_rot=(0.1, 0, 0),
+                   grip_loc=(0.28, 0.16, 0.38), grip_rot=(1.5, 0, 0), hand_loc=(-0.34, -0.06, 0.5)),
+    # In the air: stretched out, feet tucked, a hand up for balance.
+    'air': dict(body_rot=(0.05, 0, 0), body_scale=(0.95, 0.95, 1.1), hat_rot=(-0.25, 0, 0), feet=(0.05, 0.12),
+                grip_loc=(0.28, 0.1, 0.45), grip_rot=(1.5, 0, 0), hand_loc=(-0.38, -0.02, 0.72)),
+    # Landing with a poke.
+    'poke': dict(body_rot=(0.28, 0, 0), body_loc=(0, -0.06, -0.03), body_scale=(1.05, 1.05, 0.92), head_rot=(0.05, 0, 0),
+                 grip_loc=(0.22, -0.44, 0.42), grip_rot=(1.62, 0, 0), hand_loc=(-0.3, -0.12, 0.42)),
+    # Bent double, a hand on his knee and leaning on the staff.
+    'winded': dict(body_rot=(0.42, 0, 0), body_loc=(0, 0, -0.03), head_rot=(-0.25, 0, 0),
+                   grip_loc=(0.4, -0.18, 0.4), grip_rot=(-0.42, 0, -0.1), hand_loc=(-0.18, -0.24, 0.25)),
+    # A hand up, leaning on the staff.
+    'yield': dict(body_rot=(-0.08, 0.12, 0), head_rot=(-0.12, 0.1, 0), hat_rot=(0, 0.08, 0),
+                  grip_loc=(0.31, -0.06, 0.44), grip_rot=(0, -0.12, 0), hand_loc=(-0.44, -0.12, 0.95)),
+    # Ow: rocked back, hand up, staff jolted.
+    'flinch': dict(body_rot=(-0.26, 0, -0.08), body_scale=(0.96, 0.96, 1.04), head_rot=(-0.25, 0.15, 0), hat_rot=(-0.18, 0, 0.15),
+                   grip_loc=(0.32, -0.02, 0.5), grip_rot=(-0.35, 0, 0.1), hand_loc=(-0.34, -0.1, 0.6)),
+}
+
+
+def _elder_pose(name):
+    return {**ELDER_REST, **_ELDER_POSES.get(name, {})}
+
+
+def _blend(a, b, k):
+    return {key: tuple(x + (y - x) * k for x, y in zip(a[key], b[key])) for key in a}
+
+
+def _ease(k):
+    k = min(1.0, max(0.0, k))
+    return k * k * (3 - 2 * k)
+
+
+def _apply_elder(P, q):
+    P['body'].rotation_euler = q['body_rot']
+    P['body'].location = q['body_loc']
+    P['body'].scale = q['body_scale']
+    P['head'].rotation_euler = q['head_rot']
+    P['hat'].rotation_euler = q['hat_rot']
+    P['grip'].location = q['grip_loc']
+    P['grip'].rotation_euler = q['grip_rot']
+    P['hand'].location = q['hand_loc']
+    for side in (-1, 1):
+        P[f'foot{side}'].location = (0.12 * side, -0.03 + q['feet'][0], 0.05 + q['feet'][1])
+
+
+def elder_clips():
+    """Oswin's spar animations, {name: (pose(parts, phase), frames at 24 fps)}. One-shot clips (windup, bonk, hop, hit)
+    reach their end on their last frame; the game plays them through once (see oswinPose). The rest loop."""
+    rest, raised, struck = _elder_pose('rest'), _elder_pose('raised'), _elder_pose('struck')
+    crouch, air, poke = _elder_pose('crouch'), _elder_pose('air'), _elder_pose('poke')
+
+    def once(fn, frames):
+        return (lambda P, t: fn(P, min(1.0, t * frames / (frames - 1))), frames)
+
+    def walk(P, t):
+        # A shuffle: little steps, a bob, the staff swinging forward to plant.
+        s, c = math.sin(t * math.tau), math.cos(t * math.tau)
+        q = dict(rest, body_loc=(0, 0, abs(s) * 0.025), body_rot=(0.06, 0.04 * s, 0),
+                 grip_loc=(0.3, -0.04 - 0.07 * s, 0.36 + 0.02 * c), grip_rot=(0.15 * s, 0, 0))
+        _apply_elder(P, q)
+        for side in (-1, 1):
+            P[f'foot{side}'].location = (0.12 * side, -0.03 + 0.06 * s * side, 0.05 + max(0, 0.04 * c * side))
+
+    def windup(P, u):
+        q = _blend(rest, raised, _ease(u / 0.65))
+        if u > 0.65:
+            # Holding it up there, trembling a little.
+            w = math.sin(u * math.tau * 7) * 0.05
+            q['grip_rot'] = (q['grip_rot'][0] + w, q['grip_rot'][1], q['grip_rot'][2])
+        _apply_elder(P, q)
+
+    def bonk(P, u):
+        # Down in a flash (the game lands it as the strike goes off), a wobble, then slowly back up.
+        if u < 0.135:
+            k = u / 0.135
+            q = _blend(raised, struck, k * k)
+        elif u < 0.5:
+            q = _blend(struck, rest, 0.12 * math.sin((u - 0.135) / 0.365 * math.pi))
+        else:
+            q = _blend(struck, rest, _ease((u - 0.5) / 0.5))
+        _apply_elder(P, q)
+
+    def hop(P, u):
+        # The game's wind-up is the first 55% (the crouch), the hop the rest: up, and a poke as he lands.
+        if u < 0.55:
+            q = _blend(rest, crouch, _ease(u / 0.4))
+        elif u < 0.85:
+            q = _blend(crouch, air, _ease((u - 0.55) / 0.15))
+        else:
+            q = _blend(air, poke, _ease((u - 0.85) / 0.12))
+        _apply_elder(P, q)
+
+    def winded(P, t):
+        q = _elder_pose('winded')
+        s = math.sin(t * math.tau * 2)
+        q['body_scale'] = (1 - 0.02 * s, 1 - 0.02 * s, 1 + 0.04 * s)
+        q['head_rot'] = (q['head_rot'][0] + 0.07 * s, 0, 0)
+        q['hat_rot'] = (0.06 * s, 0, 0)
+        _apply_elder(P, q)
+
+    def hit(P, u):
+        k = _ease(u / 0.25) if u < 0.25 else 1 - _ease((u - 0.25) / 0.75)
+        _apply_elder(P, _blend(rest, _elder_pose('flinch'), k))
+
+    def yielded(P, t):
+        q = _elder_pose('yield')
+        wave, laugh = math.sin(t * math.tau * 2), abs(math.sin(t * math.tau * 3))
+        x, y, z = q['hand_loc']
+        q['hand_loc'] = (x + 0.04 * wave, y, z)
+        q['body_scale'] = (1, 1, 1 + 0.03 * laugh)
+        q['head_rot'] = (q['head_rot'][0] - 0.08 * laugh, q['head_rot'][1], 0)
+        _apply_elder(P, q)
+
+    return {'walk': (walk, 16), 'windup': once(windup, 24), 'bonk': once(bonk, 30), 'hop': once(hop, 24),
+            'winded': (winded, 24), 'hit': once(hit, 8), 'yield': (yielded, 36)}
 
 
 # ----------------------------------------------------------------------------- Poppy's story

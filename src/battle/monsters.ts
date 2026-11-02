@@ -43,6 +43,8 @@ export interface Behaviour {
   takes?(e: Enemy): number;
   /** Blinks out of the way when you start an attack near it, now and then (Impy). */
   evades?: boolean;
+  /** Only its attacks hurt: bumping into it doesn't, except mid-dash (sparring partners). */
+  armsOnly?: boolean;
   /**
    * One step of its plan. `e.t` has already ticked down by `dt`; `dist` and `toP` are the distance and angle to you;
    * `rage` drops from 1 to 0.72 once a guardian is below half health, speeding up its timings.
