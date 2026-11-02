@@ -1,6 +1,6 @@
 // Chopping and mining: starting the timing minigame at a tree or rock, playing it, paying out, and node labels.
 import { MATS, NODES, SKILL_NAMES, SKILL_VERB, TOOLS, type NodeKind, type SkillId } from '../data';
-import { Chop, GatherView, type Look } from '../gather';
+import { Chop, GatherView, PATTERNS, type Look, type Pattern } from '../gather';
 import { BOULDER_COLORS, isTreeKind, type RockKind, type TreeKind } from '../nodeart';
 import { ROCK_PALETTES } from '../resourceVectors';
 import { usingKeyboard } from '../input';
@@ -69,7 +69,8 @@ export function tryGather(o: WorldObj) {
   // Woodcutter's Stew (Granny's) widens the sweet spot on trees.
   const width = sweetWidth(s.skills[n.skill].lv) * (n.skill === 'wood' ? sweetBoost(s) : miningSweetBoost(s));
   const carry = performance.now() - momentum.at < MOMENTUM_MS ? momentum.streak : 0;
-  chop = { game: new Chop(n.hp, toolPower(tool, n.tier), width, Math.random, seam?.streak ?? 0, carry), obj: o, view, noise: storyNoisy(o) ? 0 : undefined };
+  const pattern = seam ? 'sweep' : PATTERNS[n.tier];
+  chop = { game: new Chop(n.hp, toolPower(tool, n.tier), width, Math.random, seam?.streak ?? 0, carry, pattern), obj: o, view, noise: storyNoisy(o) ? 0 : undefined };
   chopStart = performance.now();
   G.over.startChop(o);
   G.mode = 'gather';
@@ -94,7 +95,7 @@ export function updateGather(dt: number) {
   if (c.game.done) {
     if (!c.reward) collect(c);
     c.since = (c.since ?? 0) + dt;
-    const tapped = c.since > TAP_CLOSE && (input.consume('act') || input.consume('attack') || input.consume('touch'));
+    const tapped = input.consume('menu') || (c.since > TAP_CLOSE && (input.consume('act') || input.consume('attack') || input.consume('touch')));
     input.flush();
     if (c.reward!.levels ? c.view.finished && c.xpFinished : c.view.finished || walking || tapped) finishGather(walking);
     return;
@@ -163,6 +164,7 @@ function finishGather(walking = false) {
     kind: 'gather', node: obj.node!, grass: !!obj.grass, seconds: Math.round((performance.now() - chopStart) / 100) / 10, strikes: game.strikes,
     misses: game.misses, perfects: game.perfects, tool: s.tools[n.skill], skillLv: fromLv!, got: r!.drops as Record<string, number>,
   });
+  if (game.pattern !== 'sweep' && !s.tips.includes(`pattern:${game.pattern}`)) s.tips.push(`pattern:${game.pattern}`);
   const toolIcon = TOOLS.find((t) => t.skill === n.skill)!.icon;
   G.ui.loot([...(game.flawless ? [{ icon: '<span class="emo">✨</span>', text: 'Flawless!' }] : []), ...lootLines(r!.drops, [{ n: r!.xp, what: SKILL_NAMES[n.skill], emo: toolIcon }])]);
   G.mode = 'world';
@@ -177,16 +179,23 @@ function finishGather(walking = false) {
 /** The skill bar the HUD shows: the one you're gathering with, or one still filling after you walked off. */
 export const gatherHud = (): SkillId | null => (G.mode === 'gather' && chop ? NODES[chop.obj.node!].skill : filling);
 
+/** The first time you meet each pattern, the hint says what's new. */
+const PATTERN_HINTS: Record<Exclude<Pattern, 'sweep'>, string> = {
+  double: 'Hit both zones in one pass: Double!',
+  drift: 'This one drifts. Follow it!',
+};
+
 /** The minigame panel over the map, with a hint until you've got the hang of it. */
 export function drawGather(ctx: CanvasRenderingContext2D, vw: number, vh: number) {
   if (!chop) return;
-  const n = NODES[chop.obj.node!];
+  const n = NODES[chop.obj.node!], p = chop.game.pattern;
   const mine = n.skill === 'mine';
   const seen = G.save.tips.includes(mine ? 'mined' : 'chopped');
   const how = mine ? 'when the pick lines up with the seam!' : 'in the green!';
-  const hint = seen ? 'Walk away to stop' : usingKeyboard() ? `Press E, Space or click ${how}` : `Tap ${how}`;
+  const fresh = seen && p !== 'sweep' && !G.save.tips.includes(`pattern:${p}`);
+  const hint = fresh ? PATTERN_HINTS[p as Exclude<Pattern, 'sweep'>] : seen ? 'Walk away to stop' : usingKeyboard() ? `Press E, Space or click ${how}` : `Tap ${how}`;
   const icon = TOOLS.find((t) => t.skill === n.skill)!.icon;
-  chop.view.draw(ctx, chop.game, vw, vh, chop.obj.boulder ? `${icon} Boulder · streak ${chop.game.streak}/${chop.game.requiredStreak}` : `${icon} ${n.name}`, chop.obj.boulder ? 'Clean hits build the streak. A miss resets it.' : chop.noise !== undefined ? 'Clean hits are quiet. Misses are loud!' : hint);
+  chop.view.draw(ctx, chop.game, vw, vh, chop.obj.boulder ? `${icon} Boulder · streak ${chop.game.streak}/${chop.game.requiredStreak}` : `${icon} ${n.name}`, chop.obj.boulder ? 'Clean hits build the streak. A miss resets it.' : chop.noise !== undefined ? 'Clean hits are quiet. Misses are loud!' : hint, fresh);
   if (chop.noise !== undefined) drawNoise(ctx, vw, chop.noise);
 }
 

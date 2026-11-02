@@ -33,6 +33,14 @@ const CLEAN_RUN = 3;
 const LEAD: [number, number] = [0.3, 0.65];
 /** The most streak that carries over to the next node (momentum). */
 export const CARRY_MAX = 5;
+/** A double's second strike hits this much harder. */
+const DOUBLE_MULT = 1.5;
+/** How fast a drifting spot slides along the bar (bars per second). */
+const DRIFT: [number, number] = [0.1, 0.18];
+
+/** What you time, by the node's tier: a plain sweep; two zones in a row (hit both in one pass for a double); a zone that drifts along the bar. */
+export type Pattern = 'sweep' | 'double' | 'drift';
+export const PATTERNS: Record<number, Pattern> = { 1: 'sweep', 2: 'double', 3: 'drift', 4: 'sweep' };
 
 /** Folds a distance travelled along the bar back onto it, the way the marker bounces off the ends. */
 const fold = (p: number) => {
@@ -51,6 +59,13 @@ export class Chop {
   lock = 0;
   /** Sweet spot center, 0–1. */
   center = 0.5;
+  /** A double's second zone, showing while you go for the first. */
+  next: number | undefined;
+  /** Seconds left to hit the second zone for a double (0: not on offer); and whether the last strike was one. */
+  doubleT = 0;
+  double = false;
+  /** A drifting spot's speed along the bar (bars per second, signed). */
+  driftV = 0;
   /** Last strike, for feedback, and how long ago it happened. */
   last: Strike | null = null;
   lastT = 0;
@@ -73,11 +88,12 @@ export class Chop {
     private rng: Rng = Math.random,
     readonly requiredStreak = 0,
     carry = 0,
+    readonly pattern: Pattern = 'sweep',
   ) {
     this.carried = requiredStreak ? 0 : Math.min(CARRY_MAX, carry);
     this.streak = this.carried;
     this.speed = Math.min(MAX_SPEED, BASE_SPEED * SPEED_UP ** this.streak);
-    this.moveSpot();
+    this.place(this.moveSpot());
   }
 
   get done() {
@@ -92,9 +108,18 @@ export class Chop {
     this.lastT += dt;
     if (this.done) return;
     this.lock = Math.max(0, this.lock - dt);
+    this.doubleT = Math.max(0, this.doubleT - dt);
     this.pos += this.dir * this.speed * dt;
     if (this.pos >= 1) { this.pos = 2 - this.pos; this.dir = -1; }
     if (this.pos <= 0) { this.pos = -this.pos; this.dir = 1; }
+    if (this.driftV) {
+      const lo = this.width / 2 + 0.04, hi = 1 - lo;
+      this.center += this.driftV * dt;
+      if (this.center > hi || this.center < lo) {
+        this.center = Math.min(hi, Math.max(lo, this.center));
+        this.driftV = -this.driftV;
+      }
+    }
   }
 
   /** What a strike right now would be, without striking. */
@@ -110,8 +135,10 @@ export class Chop {
     this.hitPos = this.pos;
     const r = this.judge();
     this.strikes++;
+    this.double = r !== 'miss' && this.doubleT > 0;
+    this.doubleT = 0;
     if (r !== 'miss') {
-      this.dealt += this.power * (1 + 0.25 * this.streak) * (r === 'perfect' ? PERFECT_MULT : 1);
+      this.dealt += this.power * (1 + 0.25 * this.streak) * (r === 'perfect' ? PERFECT_MULT : 1) * (this.double ? DOUBLE_MULT : 1);
       this.streak++;
       this.perfectRun = r === 'perfect' ? this.perfectRun + 1 : 0;
       if (this.requiredStreak) this.dealt = this.hp * Math.min(1, this.streak / this.requiredStreak);
@@ -136,19 +163,46 @@ export class Chop {
     this.lastAmount = Math.max(0, this.dealt - before);
     if (r === 'perfect') this.perfects++;
     if (!this.done) {
-      if (r === 'miss') this.moveSpot();
-      else this.spotAhead();
+      if (r !== 'miss' && this.next !== undefined) {
+        // The first of a pair: the second lights up, on offer for a double until the marker's past it.
+        this.center = this.next;
+        this.next = undefined;
+        this.doubleT = (this.path(this.center) + this.width / 2) / this.speed + 0.15;
+      } else this.place(r === 'miss' ? this.moveSpot() : this.spotAhead());
     }
     return r;
   }
 
-  /** New sweet spot somewhere else on the bar, never right under the marker. */
+  /** How far the marker travels (bouncing off the ends) before it reaches `x`. */
+  private path(x: number) {
+    if ((x - this.pos) * this.dir >= 0) return Math.abs(x - this.pos);
+    return this.dir > 0 ? 2 - this.pos - x : this.pos + x;
+  }
+
+  /** Sets up the pattern around a new spot `d` along the marker's path: a double's second zone, or a drift. */
+  private place(d: number) {
+    this.next = undefined;
+    this.driftV = 0;
+    if (this.pattern === 'drift') this.driftV = (this.rng() < 0.5 ? -1 : 1) * (DRIFT[0] + this.rng() * (DRIFT[1] - DRIFT[0]));
+    if (this.pattern !== 'double') return;
+    const lo = this.width / 2 + 0.04, hi = 1 - lo;
+    for (let i = 0; i < 6; i++) {
+      const b = Math.min(hi, Math.max(lo, fold(this.pos + this.dir * (d + this.width * 1.25 + 0.04 + this.rng() * 0.08 + i * 0.1))));
+      if (Math.abs(b - this.center) >= this.width * 1.1) {
+        this.next = b;
+        return;
+      }
+    }
+  }
+
+  /** New sweet spot somewhere else on the bar, never right under the marker; returns how far the marker has to go. */
   private moveSpot() {
     const lo = this.width / 2 + 0.04, hi = 1 - lo;
     for (let i = 0; i < 8; i++) {
       this.center = lo + this.rng() * (hi - lo);
-      if (Math.abs(this.center - this.pos) > 0.25) return;
+      if (Math.abs(this.center - this.pos) > 0.25) break;
     }
+    return this.path(this.center);
   }
 
   /**
@@ -162,10 +216,10 @@ export class Chop {
       const c = Math.min(hi, Math.max(lo, fold(this.pos + this.dir * (this.width / 2 + this.speed * lead))));
       if (Math.abs(c - this.pos) > this.width / 2 + 0.03) {
         this.center = c;
-        return;
+        return this.path(c);
       }
     }
-    this.moveSpot();
+    return this.moveSpot();
   }
 }
 
@@ -186,9 +240,9 @@ export type Look = { kind: 'wood'; tree: TreeKind; tool: number } | ({ kind: 'mi
 /** Sounds the minigame asks for as things happen (the game plays them). */
 export type GatherSound = 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup' | 'clean';
 
-const WORDS: Record<Look['kind'], Record<Strike | 'clean', string>> = {
-  wood: { perfect: 'Perfect!', hit: 'Nice!', miss: 'Miss', clean: 'Clean cut!' },
-  mine: { perfect: 'Crack!', hit: 'Chip!', miss: 'Clang!', clean: 'Clean break!' },
+const WORDS: Record<Look['kind'], Record<Strike | 'clean' | 'double', string>> = {
+  wood: { perfect: 'Perfect!', hit: 'Nice!', miss: 'Miss', clean: 'Clean cut!', double: 'Double!' },
+  mine: { perfect: 'Crack!', hit: 'Chip!', miss: 'Clang!', clean: 'Clean break!', double: 'Double!' },
 };
 /** Seconds the clean cut's flash lasts on the card. */
 const CLEAN_FLASH = 0.45;
@@ -327,7 +381,8 @@ export class GatherView {
     }
   }
 
-  draw(ctx: CanvasRenderingContext2D, c: Chop, vw: number, vh: number, title: string, hint: string) {
+  /** `fresh`: the hint is teaching something new, so it's picked out in gold. */
+  draw(ctx: CanvasRenderingContext2D, c: Chop, vw: number, vh: number, title: string, hint: string, fresh = false) {
     const kind = this.look.kind, mine = kind === 'mine';
     const w = Math.min(vw - 48, 360), barH = mine ? 40 : 28;
     // The tall quest slab needs extra headroom so its pick never covers the streak title.
@@ -388,8 +443,19 @@ export class GatherView {
       ctx.fillStyle = 'rgba(255,255,255,0.14)';
       rrect(ctx, x, barY, w, barH, barH / 2);
       ctx.fill();
-      const zx = x + (c.center - c.width / 2) * w, zw = c.width * w;
-      const dim = c.lock > 0 && c.last === 'miss';
+      const zw = c.width * w, dim = c.lock > 0 && c.last === 'miss';
+      // A double's second zone waits, outlined, just past the first.
+      if (c.next !== undefined) {
+        ctx.fillStyle = 'rgba(126,224,122,0.22)';
+        rrect(ctx, x + (c.next - c.width / 2) * w, barY + 3, zw, barH - 6, 8);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(216,255,200,0.7)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      const zx = x + (c.center - c.width / 2) * w;
       ctx.fillStyle = dim ? 'rgba(126,224,122,0.35)' : '#7ee07a';
       rrect(ctx, zx, barY + 3, zw, barH - 6, 8);
       ctx.fill();
@@ -398,6 +464,7 @@ export class GatherView {
       rrect(ctx, x + c.center * w - cw / 2, barY + 3, cw, barH - 6, 6);
       ctx.fill();
     }
+    drawDrift(ctx, c, x, barY, w, barH);
     // Aim line through the bar, with a marker above it.
     if (!c.done) {
       ctx.strokeStyle = 'rgba(255,255,255,0.85)';
@@ -414,9 +481,9 @@ export class GatherView {
       ctx.closePath();
       ctx.fill();
     }
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillStyle = fresh ? '#ffd35a' : 'rgba(255,255,255,0.75)';
     ctx.font = `800 13px ${FONT}`;
-    ctx.fillText(hint, vw / 2, hintY);
+    ctx.fillText(hint, vw / 2, hintY, w + 24);
     if (c.clean && c.lastT < 1.1) {
       // Clean cut! Big and gold across the top of the stage, over the flash.
       const k = c.lastT / 1.1, pop = Math.min(1, c.lastT / 0.12);
@@ -432,14 +499,15 @@ export class GatherView {
     } else if (c.last && c.lastT < 0.6) {
       const k = c.lastT / 0.6;
       ctx.globalAlpha = 1 - k;
-      ctx.font = `900 ${20 + (c.last === 'perfect' ? 6 : 0)}px ${FONT}`;
-      ctx.fillStyle = c.last === 'perfect' ? '#ffd35a' : c.last === 'hit' ? '#9af0a0' : '#ff8a8a';
+      ctx.font = `900 ${20 + (c.last === 'perfect' || c.double ? 6 : 0)}px ${FONT}`;
+      ctx.fillStyle = c.last === 'perfect' || c.double ? '#ffd35a' : c.last === 'hit' ? '#9af0a0' : '#ff8a8a';
       ctx.lineWidth = 4;
       ctx.strokeStyle = 'rgba(42,26,48,0.9)';
       // Beside the tree or rock (on the side you struck), so it never hides the cut you just made.
       const tx = vw / 2 + (c.hitPos < 0.5 ? -1 : 1) * Math.min(w / 2 - 44, 110), ty = groundY - (mine ? 84 : 118) - k * 16;
-      ctx.strokeText(WORDS[this.look.kind][c.last], tx, ty);
-      ctx.fillText(WORDS[this.look.kind][c.last], tx, ty);
+      const word = WORDS[kind][c.double ? 'double' : c.last];
+      ctx.strokeText(word, tx, ty);
+      ctx.fillText(word, tx, ty);
       ctx.globalAlpha = 1;
     }
     if (this.cleanFlash > 0) {
@@ -561,16 +629,43 @@ function drawRockFace(ctx: CanvasRenderingContext2D, c: Chop, x: number, y: numb
   ctx.fillStyle = 'rgba(255,255,255,0.14)';
   rrect(ctx, x + 6, y + 3, w - 12, 6, 3);
   ctx.fill();
-  const sx = x + c.center * w, half = (c.width * w) / 2, dim = c.lock > 0 && c.last === 'miss';
-  const seam = (width: number, color: string) => {
-    ctx.fillStyle = color;
+  const half = (c.width * w) / 2, dim = c.lock > 0 && c.last === 'miss';
+  let sx = x + c.center * w;
+  const seam = (width: number, color: string, outline = false) => {
     ctx.beginPath();
     const steps = 5;
     for (let i = 0; i <= steps; i++) ctx.lineTo(sx - width + (i % 2 ? 3 : -3), y + 2 + (i / steps) * (h - 8));
     for (let i = steps; i >= 0; i--) ctx.lineTo(sx + width + (i % 2 ? 3 : -3), y + 2 + (i / steps) * (h - 8));
     ctx.closePath();
-    ctx.fill();
+    if (outline) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
   };
   seam(half, dim ? 'rgba(255,210,120,0.25)' : 'rgba(255,210,120,0.6)');
   seam(half * PERFECT_CORE, dim ? 'rgba(255,245,200,0.4)' : '#fff6c8');
+  // A double's second seam, outlined, waiting just past the first.
+  if (c.next !== undefined) {
+    sx = x + c.next * w;
+    seam(half, 'rgba(255,240,190,0.85)', true);
+  }
+}
+
+/** A drifting zone's little arrow, just past its leading edge. */
+function drawDrift(ctx: CanvasRenderingContext2D, c: Chop, x: number, y: number, w: number, h: number) {
+  if (!c.driftV) return;
+  const d = Math.sign(c.driftV), tip = x + (c.center + (d * c.width) / 2) * w + d * 11, mid = y + h / 2;
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.beginPath();
+  ctx.moveTo(tip, mid);
+  ctx.lineTo(tip - d * 7, mid - 6);
+  ctx.lineTo(tip - d * 7, mid + 6);
+  ctx.closePath();
+  ctx.fill();
 }

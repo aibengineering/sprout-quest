@@ -10,7 +10,7 @@
 //
 //   bun sim/gather.ts [--runs 300] [--lv 5] [--hp 5,8,…]   (--hp tries other toughnesses, in NODES order)
 import { NODES, type NodeKind } from '../src/data';
-import { Chop } from '../src/gather';
+import { Chop, PATTERNS, type Pattern } from '../src/gather';
 import { sweetWidth, toolPower } from '../src/rules';
 
 const arg = (name: string, fallback: string) => {
@@ -59,8 +59,8 @@ function plan(c: Chop, from: number): number {
 }
 
 /** Seconds to fell one node, or Infinity. `carry` starts with a streak (momentum from the last node). */
-export function play(who: Who, hp: number, power: number, width: number, carry = 0): { secs: number; clean: boolean; streak: number } {
-  const c = new Chop(hp, power, width, rng, 0, carry);
+export function play(who: Who, hp: number, power: number, width: number, pattern: Pattern = 'sweep', carry = 0): { secs: number; clean: boolean; streak: number } {
+  const c = new Chop(hp, power, width, rng, 0, carry, pattern);
   let t = 0, at = who.mash ? 0 : between(who.react) + 0.3;
   // First look: you see the bar as the card opens.
   if (!who.mash) at = plan(c, at) + (rng() * 2 - 1) * who.jitter;
@@ -91,9 +91,9 @@ if (import.meta.main) {
     const n = NODES[kind];
     for (const tool of [n.tier, n.tier + 1].filter((t) => t <= 4)) {
       const cells = PLAYERS.map((who) => {
-        const rs = Array.from({ length: RUNS }, () => play(who, n.hp, toolPower(tool, n.tier), width));
+        const rs = Array.from({ length: RUNS }, () => play(who, n.hp, toolPower(tool, n.tier), width, PATTERNS[n.tier]));
         const s = rs.map((r) => r.secs), clean = rs.filter((r) => r.clean).length / RUNS;
-        return `${q(s, 0.5).toFixed(1)} (${q(s, 0.1).toFixed(1)}–${q(s, 0.9).toFixed(1)})${clean ? ` ${Math.round(clean * 100)}%` : ''}`.padEnd(22);
+        return `${q(s, 0.5).toFixed(1)} (${q(s, 0.1).toFixed(1)}–${q(s, 0.9).toFixed(1)})${clean >= 0.005 ? ` ${Math.round(clean * 100)}%` : ''}`.padEnd(22);
       });
       console.log(`${kind.padEnd(10)} ${String(tool).padEnd(5)} ${cells.join('')}`);
     }

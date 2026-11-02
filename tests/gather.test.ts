@@ -130,6 +130,47 @@ describe('chopping minigame', () => {
     expect(new Chop(10, 1, 0.2, () => 0.5, 10, 4).streak).toBe(0);
   });
 
+  test('tier 2 doubles: hit the first zone and the second lights up just ahead; hit it in the same pass for a double', () => {
+    const c = new Chop(100, 1, 0.2, () => 0.3, 0, 0, 'double');
+    const second = c.next!;
+    expect(Math.abs(second - c.center)).toBeGreaterThanOrEqual(c.width);
+    moveTo(c, c.center);
+    c.strike();
+    expect(c.center).toBe(second);
+    expect(c.next).toBeUndefined();
+    expect(c.doubleT).toBeGreaterThan(0);
+    const before = c.dealt;
+    // Straight on to it, in the same pass.
+    for (let i = 0; i < 2000 && Math.abs(c.pos - c.center) > 0.004; i++) c.update(0.001);
+    expect(c.doubleT).toBeGreaterThan(0);
+    expect(c.strike()).toBe('perfect');
+    expect(c.double).toBe(true);
+    expect(c.dealt - before).toBeCloseTo(1 * (1 + 0.25) * 2 * 1.5);
+    // …and a new pair waits ahead.
+    expect(c.next).toBeDefined();
+    // Too slow: the double lapses and it's an ordinary strike.
+    moveTo(c, c.center);
+    c.strike();
+    c.update(3);
+    moveTo(c, c.center);
+    c.strike();
+    expect(c.double).toBe(false);
+  });
+
+  test('tier 3 drifts: the zone slides along the bar and bounces off its ends', () => {
+    const c = new Chop(100, 1, 0.2, Math.random, 0, 0, 'drift');
+    const seen = new Set<number>(), start = c.center;
+    for (let i = 0; i < 2000; i++) {
+      c.update(0.005);
+      expect(c.center).toBeGreaterThanOrEqual(c.width / 2 + 0.04 - 1e-9);
+      expect(c.center).toBeLessThanOrEqual(1 - c.width / 2 - 0.04 + 1e-9);
+      seen.add(Math.sign(c.driftV));
+    }
+    expect(c.center).not.toBe(start);
+    expect(seen.size).toBe(2);
+    expect(new Chop(100, 1, 0.2).driftV).toBe(0);
+  });
+
   test('the sweet spot grows with skill level', () => {
     expect(sweetWidth(SKILL_MAX)).toBeGreaterThan(sweetWidth(1));
   });
