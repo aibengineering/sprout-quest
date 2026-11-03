@@ -109,7 +109,9 @@ elif GROUP == 'homes':
             continue
         lib.clear_objects()
         buildings.whole(name)
-        shot(f'env/{name}', 320, 288, 64, fit_origin=.86)
+        # The Kitchen's back wing and chimney stand taller than the other homes: a taller frame, same ground line.
+        tall = name.startswith('kitchen')
+        shot(f'env/{name}', 320, 400 if tall else 288, 64, fit_origin=.9 if tall else .86)
         shot(f'icon/b_{name}', 128, 128, 30, fit_origin=.82)
     for name, fn in (('rook', residents.build_rook), ('moss', residents.build_moss), ('alder', residents.build_alder), ('fox', residents.build_fox)):
         if not wanted(name):
