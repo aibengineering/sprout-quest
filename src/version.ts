@@ -36,6 +36,22 @@ export function noteProblems(p: PatchNote): string[] {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.12',
+    date: '2026-11-04',
+    title: 'Clean Cuts',
+    notes: [
+      "🪓 Perfect chops hit twice as hard, and three in a row fells the tree at once",
+      "⛏️ Each tree and rock tier has its own timing: double zones, drift and a beat",
+      "⏩ Walk off the moment a node falls, and keep your streak on the next one",
+      "🌲 The Training Clearing now hides west of Sowerby, past a gap in the hedge",
+      "🪧 A signpost and Bram point the way to practice",
+      "🧭 Quest arrows follow people as they move",
+      "🏠 Walk round the back of buildings, under their roofs",
+      "🚀 Smoother on phones, especially in Echo Cavern",
+      "🔧 Fixes: Bram's stick sits in his hand, and Granny's Kitchen shows its roof",
+    ],
+  },
+  {
     version: '0.3.11',
     date: '2026-11-02',
     title: 'Spar with the Elder',
