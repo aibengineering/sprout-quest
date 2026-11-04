@@ -11,7 +11,7 @@ export class Cavern extends TileMap {
     this.sync();
   }
   sync() {
-    for(let y=0;y<this.h;y++) for(let x=0;x<this.w;x++) this.tiles[y*this.w+x]=this.source.tile(this.x0+x,y);
+    for(let y=0;y<this.h;y++) for(let x=0;x<this.w;x++) this.set(this.x0+x,y,this.source.tile(this.x0+x,y));
     // Objects retain their identity: story visibility, regrowth, hunts and paid bridges update together.
     this.objs.splice(0,this.objs.length,...this.source.objs.filter(o=>o.x+o.w>this.x0&&o.x<this.x0+this.w+.1));
   }

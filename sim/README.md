@@ -30,6 +30,7 @@ hitboxes or weapon effects. Do not treat a successful simulated playthrough as a
 bun run sim -- --class whip --runs 30        # the typical playthrough: per quest fights, minutes, levels (median and range)
 bun run sim:compare -- ~/me/downloads/sprout-quest-report-….json   # a real report against the simulation
 bun run sim:smoke                            # every class reaches the Emberwyrm
+bun sim/gather.ts                            # seconds per tree or rock for a good, a casual and a mashing player
 ```
 
 `simulate` also writes its first run's full report, in the play report's own format, to `sim/out/`.

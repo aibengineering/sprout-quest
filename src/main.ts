@@ -6,10 +6,10 @@ import { liveView } from './itemview';
 import type { Battle } from './battle/battle';
 import { drawBattle } from './battle/render';
 import { MAX_POTIONS, MONSTERS, NODES, QUESTS, ZONES, zoneById, type MonsterKind, type ZoneId } from './data';
-import { G, applySound, busy, menuCtx, persist, showZoneBanner, syncWorld } from './game/context';
+import { G, applySound, busy, menuCtx, persist, placeName, showZoneBanner, syncWorld } from './game/context';
 import { canRun, challengeFoe, coachBattle, startBattle, startFieldBattle } from './game/fights';
 import { revive, spirit } from './game/death';
-import { chop, drawGather, gatherVerb, syncNodes, updateGather } from './game/gathering';
+import { chop, drawGather, gatherHud, gatherVerb, syncNodes, updateGather } from './game/gathering';
 import { interact } from './game/interact';
 import { doorwayTick, drawRoomHud, enterRoom, leaveRoom, roomTick } from './game/rooms';
 import { enterEchoCave, leaveEchoCave, enterOreGallery, leaveOreGallery, useBurrow, undergroundTick } from './game/underground';
@@ -18,7 +18,7 @@ import { drawGardenHud, gardenDebug, gardenTick, inGarden } from './game/gardenW
 import { millSoundTick, sawmillDebug } from './game/sawmillRoom';
 import { menuHooks } from './game/menu';
 import { arriveAtVillage, maybeAutoTalk, progressQuests } from './game/story';
-import { checkStories, storyLayers, tickStories } from './game/stories';
+import { checkStories, storyLayers, storyLog, tickStories } from './game/stories';
 import { drumsDebug } from './game/stories/drums';
 import { boot, setUpTitle } from './game/title';
 import { objective } from './game/waypoint';
@@ -112,13 +112,15 @@ let movedDist = 0;
 let debugZoom = 0;
 let nodeSync = 1;
 let saveTimer = 0;
+/** What the dash button last showed. */
+let dashShown = '';
 
 /** A fight's frame. It keeps drawing behind the victory popup until the transition out. */
 function battleFrame(b: Battle, dt: number) {
   const s = G.save, ui = G.ui;
   b.update(busy() ? 0 : dt);
   drawBattle(b, ctx, vw, vh);
-  ui.hud(G.mode === 'battle' ? b.p.hp : s.hp, G.over.currentZone.name);
+  ui.hud(G.mode === 'battle' ? b.p.hp : s.hp, placeName());
   ui.questPill(false);
   ui.dock(false);
   ui.dragHint(false);
@@ -206,8 +208,14 @@ function worldFrame(dt: number) {
     if (g && !s.bosses.includes(g.kind)) noteReached(s, g.kind);
   }
   ui.setAction(G.mode === 'gather' && chop ? gatherVerb() : prey && !priorityAction ? 'Attack!' : near?.kind === 'bridge' ? null : near ? near.label : null);
-  const dash=document.getElementById('btn-dash')!;dash.hidden=!freeWorld()||!over.fieldMap||!s.perks.includes('shadowscarf');
-  dash.querySelector<HTMLElement>('.cd')!.style.setProperty('--p',over.dashFrac.toFixed(2));
+  // The Shadow Scarf's dash button, touched only when it changes.
+  const dashHidden = !freeWorld() || !over.fieldMap || !s.perks.includes('shadowscarf'), dashP = over.dashFrac.toFixed(2);
+  if (`${dashHidden}|${dashP}` !== dashShown) {
+    dashShown = `${dashHidden}|${dashP}`;
+    const dash = document.getElementById('btn-dash')!;
+    dash.hidden = dashHidden;
+    dash.querySelector<HTMLElement>('.cd')!.style.setProperty('--p', dashP);
+  }
   over.objective = G.mode === 'world' ? objective() : null;
   over.layers = storyLayers;
   over.keyHints = usingKeyboard();
@@ -219,7 +227,8 @@ function worldFrame(dt: number) {
   const sq = sw ? (sw.dir === 'in' ? sw.t / sw.dur : 1 - sw.t / sw.dur) : 0;
   const ease = sq * sq * (3 - 2 * sq);
   over.zoom = debugZoom || 1 + ease;
-  over.render(ctx, vw, vh);
+  // Under a menu that fills the screen the map isn't drawn again (what little shows at its edges keeps still).
+  if (!(G.mode === 'dialog' && !G.trans && !sw && ui.menuCovers)) over.render(ctx, vw, vh);
   const crossing = freeWorld() && !over.quiet && !over.busyHands && over.alert <= 0 && near?.kind === 'bridge' ? shortcutById(near.id!) : null;
   ui.shortcutPrompt(crossing ?? null, over.toScreen(over.x, over.y), over.ts);
   if (sw) {
@@ -235,7 +244,7 @@ function worldFrame(dt: number) {
     ctx.fillStyle = 'rgba(42,26,48,0.15)';
     ctx.fillRect(0, 0, vw, vh);
   } else {
-    ui.hud(s.hp, over.underground?.name ?? over.room?.spec.name ?? over.currentZone.name, G.mode === 'gather' && chop ? NODES[chop.obj.node!].skill : null);
+    ui.hud(s.hp, over.underground?.name ?? over.room?.spec.name ?? placeName(), gatherHud());
     // In a room, its own hint takes the quest's place at the top.
     ui.questPill(!over.room && !inGarden() && (G.mode === 'world' || G.mode === 'dialog'));
   }
@@ -345,6 +354,10 @@ requestAnimationFrame(frame);
   get audio() { return G.audio; },
   /** The Pebblors' procession in Echo Cavern (game/stories/drums.ts). */
   get drums() { return drumsDebug(); },
+  /** The side quests in the Journal (game/stories.ts storyLog): set `save.trackedQuest` to an id to follow one. */
+  get stories() { return storyLog(); },
+  /** Where the quest arrow points just now (game/waypoint.ts), worked out afresh. */
+  objective,
   get sound() { return G.sound; },
   /** The room you're in ('kitchen', 'sawmill') or null, and ways in and out of them (game/rooms.ts). */
   get room() { return G.over.room?.id ?? null; },

@@ -26,7 +26,7 @@ function spar(who: PartnerId, lv = 8) {
 }
 
 describe('sparring partners', () => {
-  test('who will spar: Oswin once you reach Sowerby, Bram once he has his cabin, the fox once she trusts you', () => {
+  test('who will spar: Oswin once you reach Sowerby, Bram once he has his cabin, the fox once she waits at the clearing', () => {
     const s = newState();
     expect(sparPartners(s)).toEqual([]);
     s.flags.push('village');
@@ -35,7 +35,10 @@ describe('sparring partners', () => {
     expect(sparPartners(s)).toEqual(['oswin']);
     s.flags.push('bram:hut');
     expect(sparPartners(s)).toEqual(['oswin', 'bram']);
+    // An old save can be trusted before her scarf: she's still out on her trail in the Hollow, not at the clearing.
     s.flags.push('fox:trusted');
+    expect(sparPartners(s)).toEqual(['oswin', 'bram']);
+    s.perks.push('shadowscarf');
     expect(sparPartners(s)).toEqual(['oswin', 'bram', 'fox']);
     // Nobody you haven't met: every partner on offer is someone you know by name (the fox has none to give).
     for (const who of sparPartners(s)) if (who !== 'fox') expect(knows(s, who)).toBe(true);
@@ -108,14 +111,22 @@ describe('sparring partners', () => {
     }
   });
 
-  test("Oswin's practice ring is roped off beside him in Sowerby once you arrive, and you can walk across it", () => {
-    const w = new World(), ring = w.objs.find((o) => o.id === 'ring')!, elder = w.obj('elder')!;
-    expect(ring.shown!(newState())).toBe(false);
+  test('the practice ring is the Hidden Training Clearing: outside Sowerby from your arrival, walked into, with the Practice sign at its gate', () => {
+    const w = new World(), ring = w.obj('plot', 'training')!, sign = w.objs.find((o) => o.id === 'practice')!;
+    expect(w.objs.filter((o) => o.project === 'training')).toHaveLength(1);
+    expect(w.objs.some((o) => o.id === 'ring')).toBe(false);
     const s = newState();
+    expect(ring.shown!(s)).toBe(false);
+    expect(sign.shown!(s)).toBe(false);
     s.flags.push('village');
     expect(ring.shown!(s)).toBe(true);
-    expect(Math.hypot(ring.x - (elder.x + elder.w), ring.y + ring.h / 2 - (elder.y + elder.h / 2))).toBeLessThan(1);
-    expect(ring.label).toBe('');
+    expect(sign.shown!(s)).toBe(true);
+    expect(w.zoneAt(ring.x + ring.w / 2).id).not.toBe('village');
     expect(w.blocked(ring.x + ring.w / 2, ring.y + ring.h / 2, 0.28)).toBe(false);
+    expect(sign.kind).toBe('sign');
+    expect(sign.label).toBe('Practice');
+    // The sign stands at the front of the ring, beside its gate, where the trail comes in.
+    expect(sign.y).toBeGreaterThanOrEqual(ring.y + ring.h);
+    expect(Math.abs(sign.x - (ring.x + ring.w / 2))).toBeLessThan(1.5);
   });
 });

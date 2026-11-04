@@ -9,7 +9,8 @@ export const NEIGHBOURS = {
     lead: 'Hear that tapping under the Old Quarry? Someone’s digging down there, in Echo Cavern. Go and have a look.',
     meet: ['I’m Pip! There’s a lovely rock through here. I can feel it in my whiskers.', 'This big one needs ten clean hits together. Miss, and the seam settles. You swing; I’ll count.'],
     arrived: 'A tunnel to Sowerby! Clover’s saved me a chair. Never had one of those underground.' },
-  // Legacy construction key retained so old dojo levels and queued jobs survive. She never escorts into town.
+  // Legacy construction key retained so old dojo levels and queued jobs survive. She never escorts into town: she
+  // teaches at the Hidden Training Clearing outside it (src/fox.ts).
   alder: { name: 'Masked Fox', icon: '🦊', place: 'the hidden glimmer trail', at: FOX_SIGHT, town: FOX_DEN,
     lead: 'There’s a little trail above Glimmer Hollow. Follow the glimmer dust. Whoever lives there seems to prefer her own company.',
     meet: ['Keep up, little boots.'], arrived: 'This clearing will do. Keep it quiet.' },

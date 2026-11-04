@@ -98,7 +98,7 @@ export const hasNews = (s: SaveState) => newerThan(VERSION, s.seenVersion);
 const ZONE_EMOJI: Record<ZoneId, string> = { glade: '🌳', village: '🏡', meadow: '🌼', woods: '🌲', cave: '🪨', hollow: '💎', peak: '🌋' };
 
 /** Sheets whose Esc means their 'close' button, not the first button (which is a choice, like starting a lesson). */
-const ESC_CLOSES = ['house-plans', 'burrow-travel', 'elder-talk', 'dojo'];
+const ESC_CLOSES = ['house-plans', 'burrow-travel', 'dojo'];
 
 /** Blender-rendered icon with the emoji as a fallback if the image is missing. */
 export function icon(id: string, emoji: string, cls = 'icon') {
@@ -404,6 +404,13 @@ export class UI {
     return !this.modal.hidden;
   }
 
+  /** Whether the menu is open over (nearly) the whole screen, as on a phone, hiding the map behind it. */
+  get menuCovers() {
+    if (!this.menuOpen || this.modal.hidden) return false;
+    const r = this.sheet.getBoundingClientRect();
+    return r.left <= 12 && r.right >= innerWidth - 12 && r.top <= 12 + innerHeight * 0.05 && r.bottom >= innerHeight - 1;
+  }
+
   // ------------------------------------------------------------ HUD
 
   /** Cheap per-frame setter: only touches the DOM when a value actually changes. */
@@ -568,8 +575,10 @@ export class UI {
     this.watchUnlocks();
     const s = this.hooks.save();
     const st = playerStats(s);
-    $('hud-gather').hidden = !gathering;
-    ($('hud').querySelector('.hand-row') as HTMLElement).hidden = !!gathering;
+    this.set('gathering', String(!!gathering), () => {
+      $('hud-gather').hidden = !gathering;
+      ($('hud').querySelector('.hand-row') as HTMLElement).hidden = !!gathering;
+    });
     if (gathering && !this.gatherAnim) {
       const sk = s.skills[gathering], max = sk.lv >= SKILL_MAX, need = skillXpToNext(sk.lv);
       this.set('gather', `${gathering}:${sk.lv}:${sk.xp}`, () => {
@@ -832,7 +841,7 @@ export class UI {
   /** A tappable repair plan above the hero, or beside them on short screens. */
   shortcutPrompt(p: Shortcut | null, hero?: { x: number; y: number }, ts = 0) {
     const b = $('shortcut-prompt');
-    b.hidden = !p;
+    this.set('shortcutShown', String(!!p), () => (b.hidden = !p));
     if (!p || !hero) return;
     const s = this.hooks.save(), state = canBuildShortcut(s, p), lock = shortcutLock(s, p);
     const materials = Object.entries(p.cost) as [MatId, number][];
@@ -1497,12 +1506,12 @@ export class UI {
   }
 
   /** Elder Oswin's word on what's next; with `spar`, he offers a friendly spar too (resolves 'spar'). */
-  elderSays(text: string, hint?: string, spar = false) {
+  /** Oswin's errand for you, its hint, and anything he adds (his practice ring). */
+  elderSays(text: string, hint?: string, aside?: string) {
     return this.dialog(
       `<div class="speaker">${icon('npc_elder', '🌿', 'icon xl')}<b>Elder Oswin</b></div>
-       <div class="bubble">${esc(text)}</div>${hint ? `<div class="hint">🎯 ${esc(hint)}</div>` : ''}`,
-      spar ? [['spar', '🤺 Spar'], ['close', 'Got it!']] : [['ok', 'Got it!']],
-      spar ? 'elder-talk' : '',
+       <div class="bubble">${esc(text)}</div>${hint ? `<div class="hint">🎯 ${esc(hint)}</div>` : ''}${aside ? `<div class="hint">🤺 ${esc(aside)}</div>` : ''}`,
+      [['ok', 'Got it!']],
     );
   }
 

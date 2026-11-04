@@ -1,6 +1,5 @@
 // Sowerby: a north-side work yard, an open green, a kitchen/garden neighbourhood, and a quiet southern home lane.
 // Footprints and paths share tile coordinates; paths stop at fronts, never cross a lot.
-import { FOX_TRAINING } from './fox';
 import { ZONES } from './data';
 import type { HomeId } from './housing';
 const V = ZONES.find((z) => z.id === 'village')!.x0;
@@ -17,8 +16,6 @@ export const TOWN_FORGE = { x: V + 5, y: 8, w: 4, h: 3 };
 export const TOWN_SAWMILL = { x: V + 1.8, y: 5, w: 3.4, h: 2 };
 export const TOWN_CABIN = { x: V + 6.5, y: 4.6, w: 2, h: 1.4 };
 export const TOWN_WAYSTONE = { x: V + 17.8, y: 10.5, w: 1.4, h: 1.5 };
-// Kept under the original export for saved project compatibility; this is outside Sowerby.
-export const TOWN_TRAINING = FOX_TRAINING;
 export const TOWN_HOME = { x: V + 3, y: 18, w: 3, h: 3 };
 export const TOWN_SPRING = { x: V + 12, y: 16, w: 2, h: 2 };
 

@@ -191,9 +191,12 @@ export const MAX_DRAGON_FIGHTS = 4;
 // Rough real-time costs, so fighting and chopping compare fairly.
 /** One kill, including the walk through grass, the fight and the transitions. */
 export const SECONDS_PER_KILL = 14;
-/** Seconds to fell a tree or break a rock with decent timing: tougher nodes and weaker tools take longer. */
+/**
+ * Seconds to fell a tree or break a rock with casual timing (fit to `bun sim/gather.ts`'s casual player, plus walking
+ * off): tougher nodes and weaker tools take longer. Skilled timing is faster (clean cuts), but the economy assumes this.
+ */
 export function chopSeconds(kind: NodeKind, toolTier: number): number {
-  return 1.5 + (0.9 * NODES[kind].hp) / (toolPower(toolTier, NODES[kind].tier) * 1.3);
+  return 1.8 + (0.4 * NODES[kind].hp) / toolPower(toolTier, NODES[kind].tier);
 }
 /** Walking between trees on open ground. */
 const SAFE_TRIP = 8;

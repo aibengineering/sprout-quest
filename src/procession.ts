@@ -136,10 +136,14 @@ const sightBlocked = (world: TileMap, objs: WorldObj[], x: number, y: number) =>
   return tile === T.OBST || tile === T.POOL || tile === T.CHASM || objs.some((o) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h);
 };
 
-/** The same ray stops both the eye beam and sight detection at solid geometry. */
-export function beamEnd(world: TileMap, eye: P, facing: number, range = SIGHT.range): P {
+/** What could block any ray from `eye` out to `range` (for casting many: see beamEnd). */
+export const objectsAround = (world: TileMap, eye: P, range: number) =>
+  sightObjects(world, { x: eye.x - range, y: eye.y - range }, { x: eye.x + range, y: eye.y + range });
+
+/** The same ray stops both the eye beam and sight detection at solid geometry. `objs`: what could block it, if known. */
+export function beamEnd(world: TileMap, eye: P, facing: number, range = SIGHT.range, objs?: WorldObj[]): P {
   const dx = Math.cos(facing), dy = Math.sin(facing);
-  const objs = sightObjects(world, eye, { x: eye.x + dx * range, y: eye.y + dy * range });
+  objs ??= sightObjects(world, eye, { x: eye.x + dx * range, y: eye.y + dy * range });
   let d = 0;
   for (let next = 0.04; next <= range + 1e-6; next += 0.04) {
     if (sightBlocked(world, objs, eye.x + dx * next, eye.y + dy * next)) break;

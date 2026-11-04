@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { FoxTrial, claimFoxScarf, FOX_DEN, FOX_SIGHT, FOX_TRAIL, FOX_TRAINING, foxTrusted } from '../src/fox';
+import { FoxTrial, claimFoxScarf, FOX_CLEARING, FOX_DEN, FOX_SIGHT, FOX_TRAIL, PRACTICE_SIGN, TRAINING_PLOT, foxAtClearing, foxTrusted } from '../src/fox';
 import { newState, loadState, saveState } from '../src/state';
 import { dodgeCharges, dodgeMotion } from '../src/rules';
 import { neighbourAvailable, neighbourReturned } from '../src/neighbours';
@@ -32,8 +32,32 @@ describe('the masked fox’s private friendship',()=>{
    expect(reach[Math.floor(p.y)*w.w+Math.floor(p.x)]).toBe(1);
    expect(w.zoneAt(p.x).id).toBe('hollow');
   }
-  expect(w.obj('plot','training')!.x).toBe(FOX_TRAINING.x);
-  expect(w.objs.filter(o=>o.project==='training'&&w.zoneAt(o.x).id==='village')).toHaveLength(0);
+  // The Hollow has no practice plot any more: her den is just for her own story.
+  expect(w.objs.filter(o=>o.project==='training'&&w.zoneAt(o.x).id==='hollow')).toHaveLength(0);
+ });
+ test('the Hidden Training Clearing is just outside Sowerby: reached through the hedge from the village, sealed off from the glade, never in the village',()=>{
+  const w=new World(), reach=w.reachable(), at=(p:{x:number;y:number})=>reach[Math.floor(p.y)*w.w+Math.floor(p.x)];
+  const plot=w.obj('plot','training')!;
+  expect(plot.x).toBe(TRAINING_PLOT.x);
+  for(const p of [FOX_CLEARING,{x:PRACTICE_SIGN.x+PRACTICE_SIGN.w/2,y:PRACTICE_SIGN.y+PRACTICE_SIGN.h+.5},{x:plot.x+plot.w/2,y:plot.y+plot.h/2}]){
+   expect(w.blocked(p.x,p.y,.28),JSON.stringify(p)).toBe(false);
+   expect(at(p),JSON.stringify(p)).toBe(1);
+  }
+  // The only way in is from the village: the prologue's glade (behind its two monsters) stays out of reach.
+  expect(at({x:3.5,y:13.9})).toBe(0);
+  // Wherever she is, the fox is never inside Sowerby (Rook must never see her).
+  for(const p of [FOX_SIGHT,...FOX_TRAIL,FOX_DEN,FOX_CLEARING,plot,PRACTICE_SIGN]) expect(w.zoneAt(p.x).id).not.toBe('village');
+  for(const o of w.objs.filter(o=>o.project==='training'||o.id==='practice'||o.id==='fox:den')) expect(w.zoneAt(o.x+o.w).id).not.toBe('village');
+ });
+ test('old saves keep their practice level at the new clearing; she waits there once she has given you her scarf',()=>{
+  const store:Record<string,string>={};globalThis.localStorage={getItem:(k:string)=>store[k]??null,setItem:(k:string,v:string)=>{store[k]=v;},removeItem:(k:string)=>{delete store[k];}} as Storage;
+  const old=newState();old.build.training=2;old.flags.push('village','fox:met','dojo:clear:footwork');
+  saveState(old);const s=loadState()!;
+  expect(s.build.training).toBe(2);expect(foxTrusted(s)).toBe(true);
+  const plot=new World().obj('plot','training')!;
+  expect(plot.shown!(s)).toBe(true);expect(plot.x).toBe(TRAINING_PLOT.x);
+  // Trusted from an old save but no scarf yet: she's still on her trail, so her lessons wait until she's at the clearing.
+  expect(foxAtClearing(s)).toBe(false);claimFoxScarf(s);expect(foxAtClearing(s)).toBe(true);
  });
  test('Bram builds only after trust; existing practice tiers remain valid without granting the new field reward',()=>{
   const s=newState();s.flags.push('bram:hut','granny:extension','pip:returned');s.build.sawmill=4;s.build.garden=1;s.build.cottage=1;

@@ -126,7 +126,7 @@ function hollow() {
   .path([[28,10],[34,10],[34,5]],1).box(32,3,5,5,'.')
   .path([[6,10],[6,7],[13,7],[13,5],[20,5]],1)
   .box(18,3,7,5,'.') // secluded fox trial, off the main ridge
-  .path([[23,5],[25,5],[25,7]],1).box(24,4,6,5,'.'); // den + training gear
+  .path([[23,5],[25,5],[25,7]],1).box(24,4,6,5,'.'); // the fox's den
  r.grass(30,13,4,5).grass(3,33,4,3).grass(18,28,3,6).grass(9,12,7,4).grass(29,25,4,4);
  r.mark(3,18,'C').mark(3,12,'S');
  return r.gates();

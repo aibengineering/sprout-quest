@@ -1,6 +1,8 @@
 // Gathering minigame: a marker sweeps along a bar; strike while it's inside the sweet spot (the green zone for trees,
-// the glowing seam for rocks). Clean hits build a streak that speeds the marker up and hits harder. A miss never fails
-// the node; it resets the streak and speed, so sloppy chopping or mining is just slower.
+// the glowing seam for rocks). Clean hits build a streak that speeds the marker up and hits harder, and the next spot
+// lights up a little way ahead, so good timing keeps a quick rhythm. Perfects hit twice as hard, and three in a row is
+// a clean cut that finishes the node outright. Tougher tiers change what you time (see Pattern). A miss never fails the
+// node; it resets the streak and speed and moves the spot anywhere, so sloppy chopping or mining is just slower.
 // GatherView draws it: the tree or rock above the bar (nodeart.ts) takes a notch or a crack sized to each strike, the
 // axe or pick for your tool's tier swings at it, chips and dust fly, and when it's done the tree topples or the rock
 // breaks apart and what you earned pops out.
@@ -23,6 +25,37 @@ const MISS_DAMAGE = 0.05;
 /** Seconds you can't strike after a miss, so mashing is slower than timing. */
 const MISS_LOCK = 0.6;
 const HIT_LOCK = 0.1;
+/** Perfects hit this much harder than a plain clean hit. */
+const PERFECT_MULT = 2;
+/** Perfects in a row for a clean cut. */
+const CLEAN_RUN = 3;
+/** After a clean hit, how long (seconds, at the marker's speed) until it reaches the next spot: time to see it coming. */
+const LEAD: [number, number] = [0.3, 0.65];
+/** The most streak that carries over to the next node (momentum). */
+export const CARRY_MAX = 5;
+/** A double's second strike hits this much harder. */
+const DOUBLE_MULT = 1.5;
+/** How fast a drifting spot slides along the bar (bars per second). */
+const DRIFT: [number, number] = [0.1, 0.18];
+
+/**
+ * What you time, by the node's tier: a plain sweep; two zones in a row (hit both in one pass for a double); a zone that
+ * drifts along the bar; or a zone that pulses on a beat (strike on the pulse for a perfect; the marker always crosses a
+ * new zone on a beat, though not always at its middle).
+ */
+export type Pattern = 'sweep' | 'double' | 'drift' | 'tempo';
+export const PATTERNS: Record<number, Pattern> = { 1: 'sweep', 2: 'double', 3: 'drift', 4: 'tempo' };
+/**
+ * Tempo: seconds per beat; how far off the beat (either way) still counts as on it, generous for touch screens' lag;
+ * and how far from a zone's middle the beat can fall, as a share of its half-width.
+ */
+export const TEMPO = { beat: 0.6, window: 0.09, offset: 0.9 };
+
+/** Folds a distance travelled along the bar back onto it, the way the marker bounces off the ends. */
+const fold = (p: number) => {
+  const m = ((p % 2) + 2) % 2;
+  return m > 1 ? 2 - m : m;
+};
 
 export class Chop {
   /** Marker position along the bar, 0–1. */
@@ -35,6 +68,15 @@ export class Chop {
   lock = 0;
   /** Sweet spot center, 0–1. */
   center = 0.5;
+  /** A double's second zone, showing while you go for the first. */
+  next: number | undefined;
+  /** Seconds left to hit the second zone for a double (0: not on offer); and whether the last strike was one. */
+  doubleT = 0;
+  double = false;
+  /** A drifting spot's speed along the bar (bars per second, signed). */
+  driftV = 0;
+  /** Seconds since the minigame started, for the tempo's beat. */
+  beatT = 0;
   /** Last strike, for feedback, and how long ago it happened. */
   last: Strike | null = null;
   lastT = 0;
@@ -44,6 +86,11 @@ export class Chop {
   /** Tallies for the play report. */
   strikes = 0;
   perfects = 0;
+  /** Perfects in a row, and whether they finished the node outright (a clean cut). */
+  perfectRun = 0;
+  clean = false;
+  /** Streak carried over from the node before (momentum), shown until the first strike. */
+  readonly carried: number;
 
   constructor(
     readonly hp: number,
@@ -51,12 +98,17 @@ export class Chop {
     readonly width: number,
     private rng: Rng = Math.random,
     readonly requiredStreak = 0,
+    carry = 0,
+    readonly pattern: Pattern = 'sweep',
   ) {
-    this.moveSpot();
+    this.carried = requiredStreak ? 0 : Math.min(CARRY_MAX, carry);
+    this.streak = this.carried;
+    this.speed = Math.min(MAX_SPEED, BASE_SPEED * SPEED_UP ** this.streak);
+    this.place(this.pattern === 'tempo' ? this.spotAhead() : this.moveSpot());
   }
 
   get done() {
-    return this.requiredStreak ? this.streak >= this.requiredStreak : this.dealt >= this.hp;
+    return this.requiredStreak ? this.streak >= this.requiredStreak : this.clean || this.dealt >= this.hp;
   }
 
   get flawless() {
@@ -67,30 +119,61 @@ export class Chop {
     this.lastT += dt;
     if (this.done) return;
     this.lock = Math.max(0, this.lock - dt);
+    this.doubleT = Math.max(0, this.doubleT - dt);
+    this.beatT += dt;
     this.pos += this.dir * this.speed * dt;
     if (this.pos >= 1) { this.pos = 2 - this.pos; this.dir = -1; }
     if (this.pos <= 0) { this.pos = -this.pos; this.dir = 1; }
+    if (this.driftV) {
+      const lo = this.width / 2 + 0.04, hi = 1 - lo;
+      this.center += this.driftV * dt;
+      if (this.center > hi || this.center < lo) {
+        this.center = Math.min(hi, Math.max(lo, this.center));
+        this.driftV = -this.driftV;
+      }
+    }
+  }
+
+  /** What a strike right now would be, without striking. */
+  judge(): Strike {
+    const off = Math.abs(this.pos - this.center);
+    if (off > this.width / 2) return 'miss';
+    if (this.pattern === 'tempo') return Math.abs(this.offBeat) <= TEMPO.window ? 'perfect' : 'hit';
+    return off <= (this.width * PERFECT_CORE) / 2 ? 'perfect' : 'hit';
+  }
+
+  /** Seconds from the nearest beat (negative: before it). */
+  get offBeat() {
+    const p = this.beatT % TEMPO.beat;
+    return p > TEMPO.beat / 2 ? p - TEMPO.beat : p;
   }
 
   /** Returns null while locked out (just missed) or once the tree is down. */
   strike(): Strike | null {
     if (this.done || this.lock > 0) return null;
-    const off = Math.abs(this.pos - this.center);
     const before = this.dealt;
     this.hitPos = this.pos;
-    let r: Strike;
-    if (off <= this.width / 2) {
-      r = off <= (this.width * PERFECT_CORE) / 2 ? 'perfect' : 'hit';
-      this.dealt += this.power * (1 + 0.25 * this.streak) * (r === 'perfect' ? 1.5 : 1);
+    const r = this.judge();
+    this.strikes++;
+    this.double = r !== 'miss' && this.doubleT > 0;
+    this.doubleT = 0;
+    if (r !== 'miss') {
+      this.dealt += this.power * (1 + 0.25 * this.streak) * (r === 'perfect' ? PERFECT_MULT : 1) * (this.double ? DOUBLE_MULT : 1);
       this.streak++;
+      this.perfectRun = r === 'perfect' ? this.perfectRun + 1 : 0;
       if (this.requiredStreak) this.dealt = this.hp * Math.min(1, this.streak / this.requiredStreak);
+      // A clean cut: three perfects in a row, or every strike perfect on a node that falls sooner.
+      else if (r === 'perfect' && (this.perfectRun >= CLEAN_RUN || (this.dealt >= this.hp && this.perfectRun === this.strikes))) {
+        this.clean = true;
+        this.dealt = Math.max(this.dealt, this.hp);
+      }
       this.speed = Math.min(MAX_SPEED, this.speed * SPEED_UP);
       this.lock = HIT_LOCK;
     } else {
-      r = 'miss';
       this.dealt += this.power * MISS_DAMAGE;
       this.misses++;
       this.streak = 0;
+      this.perfectRun = 0;
       if (this.requiredStreak) this.dealt = 0;
       this.speed = BASE_SPEED;
       this.lock = MISS_LOCK;
@@ -98,19 +181,83 @@ export class Chop {
     this.last = r;
     this.lastT = 0;
     this.lastAmount = Math.max(0, this.dealt - before);
-    this.strikes++;
     if (r === 'perfect') this.perfects++;
-    if (!this.done) this.moveSpot();
+    if (!this.done) {
+      if (r !== 'miss' && this.next !== undefined) {
+        // The first of a pair: the second lights up, on offer for a double until the marker's past it.
+        this.center = this.next;
+        this.next = undefined;
+        this.doubleT = (this.path(this.center) + this.width / 2) / this.speed + 0.15;
+      } else this.place(r === 'miss' && this.pattern !== 'tempo' ? this.moveSpot() : this.spotAhead());
+    }
     return r;
   }
 
-  /** New sweet spot somewhere else on the bar, never right under the marker. */
+  /** How far the marker travels (bouncing off the ends) before it reaches `x`. */
+  private path(x: number) {
+    if ((x - this.pos) * this.dir >= 0) return Math.abs(x - this.pos);
+    return this.dir > 0 ? 2 - this.pos - x : this.pos + x;
+  }
+
+  /** Sets up the pattern around a new spot `d` along the marker's path: a double's second zone, or a drift. */
+  private place(d: number) {
+    this.next = undefined;
+    this.driftV = 0;
+    if (this.pattern === 'drift') this.driftV = (this.rng() < 0.5 ? -1 : 1) * (DRIFT[0] + this.rng() * (DRIFT[1] - DRIFT[0]));
+    if (this.pattern !== 'double') return;
+    const lo = this.width / 2 + 0.04, hi = 1 - lo;
+    for (let i = 0; i < 6; i++) {
+      const b = Math.min(hi, Math.max(lo, fold(this.pos + this.dir * (d + this.width * 1.25 + 0.04 + this.rng() * 0.08 + i * 0.1))));
+      if (Math.abs(b - this.center) >= this.width * 1.1) {
+        this.next = b;
+        return;
+      }
+    }
+  }
+
+  /** New sweet spot somewhere else on the bar, never right under the marker; returns how far the marker has to go. */
   private moveSpot() {
-    const lo = this.width / 2 + 0.04, hi = 1 - this.width / 2 - 0.04;
+    const lo = this.width / 2 + 0.04, hi = 1 - lo;
     for (let i = 0; i < 8; i++) {
       this.center = lo + this.rng() * (hi - lo);
-      if (Math.abs(this.center - this.pos) > 0.25) return;
+      if (Math.abs(this.center - this.pos) > 0.25) break;
     }
+    return this.path(this.center);
+  }
+
+  /**
+   * After a clean hit the next spot lights up a little way ahead, where the marker's heading (round the bounce if it's
+   * near the end), so a good rhythm never waits for a whole sweep. Never under the marker.
+   */
+  private spotAhead() {
+    const lo = this.width / 2 + 0.04, hi = 1 - lo;
+    if (this.pattern === 'tempo') {
+      // The marker (nudged a little faster or slower) crosses the new spot as it pulses, though not always at its
+      // middle: strike on the pulse, not the middle, for a perfect.
+      const v = Math.min(MAX_SPEED, BASE_SPEED * SPEED_UP ** this.streak);
+      const early = (this.rng() * 2 - 1) * TEMPO.offset * (this.width / 2 / v);
+      let t = TEMPO.beat - (this.beatT % TEMPO.beat);
+      while (t < LEAD[0] + this.lock) t += TEMPO.beat;
+      for (let i = 0; i < 3; i++, t += TEMPO.beat) {
+        for (const k of [0, 1, -1, 2, -2, 3, -3]) {
+          const d = v * (t + early) * (1 + k * 0.08), c = fold(this.pos + this.dir * d);
+          if (c >= lo && c <= hi && Math.abs(c - this.pos) > this.width / 2 + 0.03) {
+            this.center = c;
+            this.speed = d / (t + early);
+            return d;
+          }
+        }
+      }
+    }
+    for (let i = 0; i < 8; i++) {
+      const lead = LEAD[0] + this.rng() * (LEAD[1] - LEAD[0]) + i * 0.1;
+      const c = Math.min(hi, Math.max(lo, fold(this.pos + this.dir * (this.width / 2 + this.speed * lead))));
+      if (Math.abs(c - this.pos) > this.width / 2 + 0.03) {
+        this.center = c;
+        return this.path(c);
+      }
+    }
+    return this.moveSpot();
   }
 }
 
@@ -129,12 +276,14 @@ const LOOT_T = 1.05;
 export type Look = { kind: 'wood'; tree: TreeKind; tool: number } | ({ kind: 'mine'; rock: RockKind; tool: number; boulder?: boolean } & RockColors);
 
 /** Sounds the minigame asks for as things happen (the game plays them). */
-export type GatherSound = 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup';
+export type GatherSound = 'chop' | 'clink' | 'glance' | 'creak' | 'thud' | 'crumble' | 'pickup' | 'clean' | 'beat';
 
-const WORDS: Record<Look['kind'], Record<Strike, string>> = {
-  wood: { perfect: 'Perfect!', hit: 'Nice!', miss: 'Miss' },
-  mine: { perfect: 'Crack!', hit: 'Chip!', miss: 'Clang!' },
+const WORDS: Record<Look['kind'], Record<Strike | 'clean' | 'double', string>> = {
+  wood: { perfect: 'Perfect!', hit: 'Nice!', miss: 'Miss', clean: 'Clean cut!', double: 'Double!' },
+  mine: { perfect: 'Crack!', hit: 'Chip!', miss: 'Clang!', clean: 'Clean break!', double: 'Double!' },
 };
+/** Seconds the clean cut's flash lasts on the card. */
+const CLEAN_FLASH = 0.45;
 
 /**
  * The tools as swung: their angle at rest and when they connect (radians, 0 = handle straight up, negative leans the
@@ -150,6 +299,27 @@ const TOOL_UNIT = 100;
 const SCALE = 0.82;
 /** Card height from its top down to the ground the tree or rock stands on. */
 const STAGE = { wood: 204, mine: 160 };
+
+/**
+ * A tempo zone's pulse: `glow` is 1 on the beat and fades to 0 at the edge of the window that counts as on it, and
+ * `ring` runs 1 → 0 toward the next beat (a ring closes in on the zone as it comes). Both 0 for other patterns.
+ */
+function pulse(c: Chop) {
+  if (c.pattern !== 'tempo') return { glow: 0, ring: 0 };
+  const left = TEMPO.beat - (c.beatT % TEMPO.beat);
+  return { glow: Math.max(0, 1 - Math.abs(c.offBeat) / TEMPO.window), ring: left / TEMPO.beat };
+}
+
+/** The ring closing in on a tempo zone before each beat. */
+function drawRing(ctx: CanvasRenderingContext2D, c: Chop, x: number, y: number, w: number, h: number) {
+  const { ring } = pulse(c);
+  if (!ring || c.done) return;
+  const grow = ring * 16, zx = x + (c.center - c.width / 2) * w;
+  ctx.strokeStyle = `rgba(255,236,150,${0.95 * (1 - ring)})`;
+  ctx.lineWidth = 2.5;
+  rrect(ctx, zx - grow, y + 1 - grow * 0.5, c.width * w + grow * 2, h - 2 + grow, 9 + grow / 2);
+  ctx.stroke();
+}
 
 const turn = (p: { x: number; y: number }, a: number) => ({ x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) });
 
@@ -168,7 +338,12 @@ export class GatherView {
   private shake = 0;
   /** Seconds left on the white impact star where the tool just connected. */
   private flash = 0;
+  /** The clean cut: waiting for the tool to connect, then seconds left on its flash over the card. */
+  private cleanPending = false;
+  private cleanFlash = 0;
   private prevT = Infinity;
+  /** Where in the beat the last frame was (to tick on each one). */
+  private prevBeat = 0;
   private gaveWay = false;
   /** What you earned, waiting to pop out; and seconds since it came free (-1: not yet). */
   private drops: [string, number][] = [];
@@ -206,6 +381,12 @@ export class GatherView {
     this.wobble *= Math.exp(-9 * dt);
     this.shake = Math.max(0, this.shake - dt * 40);
     this.flash = Math.max(0, this.flash - dt);
+    this.cleanFlash = Math.max(0, this.cleanFlash - dt);
+    if (c.pattern === 'tempo' && !c.done) {
+      const b = c.beatT % TEMPO.beat;
+      if (b < this.prevBeat) this.onSound('beat');
+      this.prevBeat = b;
+    }
     if (c.done && !this.pending && !this.gaveWay) {
       this.gaveWay = true;
       this.art.giveWay(this.fx);
@@ -241,6 +422,8 @@ export class GatherView {
     // playtest: Pixel Buds added 73 ms over the phone's reported 29, against the 102 ms swing to the hit.
     const b = this.pending;
     this.onSound(b.kind === 'miss' ? 'glance' : this.look.kind === 'wood' ? 'chop' : 'clink');
+    this.cleanPending = c.clean;
+    if (c.clean) this.onSound('clean');
   }
 
   /** The tool connects: the notch or crack, chips and dust, the wobble and the shake (its sound was booked at the strike). */
@@ -252,9 +435,20 @@ export class GatherView {
     this.shake = b.kind === 'perfect' ? 6 : b.kind === 'hit' ? 3 : 1;
     this.flash = b.kind === 'miss' ? 0 : 0.1;
     this.art.hit(b, this.progress, this.fx);
+    if (this.cleanPending) {
+      // A clean cut: a flash over the card, a big shower of chips and a ring of sparkles.
+      this.cleanPending = false;
+      this.cleanFlash = CLEAN_FLASH;
+      this.shake = 10;
+      const { x, y } = this.target, rock = this.look.kind === 'mine' ? this.look : null;
+      this.fx.chips(x, y, 18, rock ? [rock.body, rock.body, rock.dark, rock.fleck] : ['#f2d29a', '#e0b070', '#a8743e'], { dir: -Math.PI / 2, spread: 3, speed: [160, 380] }, [3, 7]);
+      this.fx.sparks(x, y, 12, '#fff6c8', { dir: -Math.PI / 2, spread: TAU, speed: [180, 360] });
+      this.fx.twinkle(x, y - 10, 6, '#ffd35a', 26);
+    }
   }
 
-  draw(ctx: CanvasRenderingContext2D, c: Chop, vw: number, vh: number, title: string, hint: string) {
+  /** `fresh`: the hint is teaching something new, so it's picked out in gold. */
+  draw(ctx: CanvasRenderingContext2D, c: Chop, vw: number, vh: number, title: string, hint: string, fresh = false) {
     const kind = this.look.kind, mine = kind === 'mine';
     const w = Math.min(vw - 48, 360), barH = mine ? 40 : 28;
     // The tall quest slab needs extra headroom so its pick never covers the streak title.
@@ -278,6 +472,12 @@ export class GatherView {
       ctx.fillText(`🔥 ×${c.streak}`, x + w, top + 22);
       ctx.textAlign = 'center';
     }
+    // Momentum from the last node, until your first strike here.
+    if (c.carried && !c.strikes) {
+      ctx.font = `800 12px ${FONT}`;
+      ctx.fillStyle = 'rgba(255,211,90,0.9)';
+      ctx.fillText(`Streak ×${c.carried} kept`, vw / 2, top + 42);
+    }
     // The stage: a soft light behind, the ground, the tree or rock, the tool, and everything flying about.
     ctx.save();
     ctx.translate(vw / 2, groundY);
@@ -297,6 +497,7 @@ export class GatherView {
     ctx.ellipse(0, 0, mine ? 76 : 42, 8, 0, 0, TAU);
     ctx.fill();
     this.art.draw(ctx, this.progress, this.wobble * Math.sin(performance.now() / 30));
+    if (this.look.kind === 'mine' && !c.done) this.drawSeams(ctx, c, this.look);
     // The tool swings at the tree or rock itself (it's put away once the node gives way).
     if (!c.done || this.pending || (!this.art.finished && this.freed < 0 && !this.gaveWay)) this.drawTool(ctx, c);
     if (this.flash > 0) this.drawImpactStar(ctx, this.flash / 0.1);
@@ -309,16 +510,36 @@ export class GatherView {
       ctx.fillStyle = 'rgba(255,255,255,0.14)';
       rrect(ctx, x, barY, w, barH, barH / 2);
       ctx.fill();
-      const zx = x + (c.center - c.width / 2) * w, zw = c.width * w;
-      const dim = c.lock > 0 && c.last === 'miss';
+      const zw = c.width * w, dim = c.lock > 0 && c.last === 'miss';
+      // A double's second zone waits, outlined, just past the first.
+      if (c.next !== undefined) {
+        ctx.fillStyle = 'rgba(126,224,122,0.22)';
+        rrect(ctx, x + (c.next - c.width / 2) * w, barY + 3, zw, barH - 6, 8);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(216,255,200,0.7)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      const zx = x + (c.center - c.width / 2) * w;
       ctx.fillStyle = dim ? 'rgba(126,224,122,0.35)' : '#7ee07a';
       rrect(ctx, zx, barY + 3, zw, barH - 6, 8);
       ctx.fill();
-      const cw = zw * PERFECT_CORE;
-      ctx.fillStyle = dim ? 'rgba(216,255,200,0.4)' : '#d8ffc8';
-      rrect(ctx, x + c.center * w - cw / 2, barY + 3, cw, barH - 6, 6);
-      ctx.fill();
+      if (c.pattern === 'tempo') {
+        // No perfect core: the whole zone lights up on the beat instead.
+        ctx.fillStyle = `rgba(255,250,190,${(dim ? 0.4 : 1) * pulse(c).glow})`;
+        rrect(ctx, zx, barY + 3, zw, barH - 6, 8);
+        ctx.fill();
+      } else {
+        const cw = zw * PERFECT_CORE;
+        ctx.fillStyle = dim ? 'rgba(216,255,200,0.4)' : '#d8ffc8';
+        rrect(ctx, x + c.center * w - cw / 2, barY + 3, cw, barH - 6, 6);
+        ctx.fill();
+      }
     }
+    drawDrift(ctx, c, x, barY, w, barH);
+    drawRing(ctx, c, x, barY, w, barH);
     // Aim line through the bar, with a marker above it.
     if (!c.done) {
       ctx.strokeStyle = 'rgba(255,255,255,0.85)';
@@ -335,22 +556,76 @@ export class GatherView {
       ctx.closePath();
       ctx.fill();
     }
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillStyle = fresh ? '#ffd35a' : 'rgba(255,255,255,0.75)';
     ctx.font = `800 13px ${FONT}`;
-    ctx.fillText(hint, vw / 2, hintY);
-    if (c.last && c.lastT < 0.6) {
+    ctx.fillText(hint, vw / 2, hintY, w + 24);
+    if (c.clean && c.lastT < 1.1) {
+      // Clean cut! Big and gold across the top of the stage, over the flash.
+      const k = c.lastT / 1.1, pop = Math.min(1, c.lastT / 0.12);
+      ctx.globalAlpha = Math.min(1, (1 - k) * 2.5);
+      ctx.font = `900 ${Math.round(22 + 8 * pop)}px ${FONT}`;
+      ctx.fillStyle = '#ffd35a';
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(42,26,48,0.95)';
+      const ty = top + 58 - k * 10;
+      ctx.strokeText(WORDS[kind].clean, vw / 2, ty);
+      ctx.fillText(WORDS[kind].clean, vw / 2, ty);
+      ctx.globalAlpha = 1;
+    } else if (c.last && c.lastT < 0.6) {
       const k = c.lastT / 0.6;
       ctx.globalAlpha = 1 - k;
-      ctx.font = `900 ${20 + (c.last === 'perfect' ? 6 : 0)}px ${FONT}`;
-      ctx.fillStyle = c.last === 'perfect' ? '#ffd35a' : c.last === 'hit' ? '#9af0a0' : '#ff8a8a';
+      ctx.font = `900 ${20 + (c.last === 'perfect' || c.double ? 6 : 0)}px ${FONT}`;
+      ctx.fillStyle = c.last === 'perfect' || c.double ? '#ffd35a' : c.last === 'hit' ? '#9af0a0' : '#ff8a8a';
       ctx.lineWidth = 4;
       ctx.strokeStyle = 'rgba(42,26,48,0.9)';
       // Beside the tree or rock (on the side you struck), so it never hides the cut you just made.
       const tx = vw / 2 + (c.hitPos < 0.5 ? -1 : 1) * Math.min(w / 2 - 44, 110), ty = groundY - (mine ? 84 : 118) - k * 16;
-      ctx.strokeText(WORDS[this.look.kind][c.last], tx, ty);
-      ctx.fillText(WORDS[this.look.kind][c.last], tx, ty);
+      const word = WORDS[kind][c.double ? 'double' : c.last];
+      ctx.strokeText(word, tx, ty);
+      ctx.fillText(word, tx, ty);
+      ctx.globalAlpha = 1;
+    }
+    if (this.cleanFlash > 0) {
+      ctx.fillStyle = `rgba(255,248,220,${0.45 * (this.cleanFlash / CLEAN_FLASH) ** 2})`;
+      rrect(ctx, x - 16, top, w + 32, hintY + 16 - top, 22);
+      ctx.fill();
     }
     ctx.restore();
+  }
+
+  /**
+   * Mining: the seam you're aiming for glows as a crack in the rock itself, right where the bar's seam says (and where
+   * the pick will crack it), with a double's second seam faint beside it and a tempo seam flaring on the beat.
+   */
+  private drawSeams(ctx: CanvasRenderingContext2D, c: Chop, look: RockColors) {
+    const dim = c.lock > 0 && c.last === 'miss';
+    const crack = (at: number, alpha: number) => {
+      const p = this.art.target(at, this.progress), half = c.width * 55;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      // A soft band the width of the seam, fading down into the rock…
+      const band = ctx.createLinearGradient(0, p.y, 0, p.y + 40);
+      band.addColorStop(0, 'rgba(255,236,170,0.6)');
+      band.addColorStop(1, 'rgba(255,236,170,0)');
+      ctx.fillStyle = band;
+      ctx.fillRect(p.x - half, p.y - 2, half * 2, 42);
+      // …and a bright glowing crack down its middle, edged dark so it reads on pale stone too.
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      [[0, 0], [-4, 9], [4, 18], [-3, 28], [2, 38]].forEach(([dx, dy], i) => (i ? ctx.lineTo(p.x + dx, p.y + dy) : ctx.moveTo(p.x + dx, p.y + dy)));
+      ctx.strokeStyle = 'rgba(42,26,48,0.7)';
+      ctx.lineWidth = 7;
+      ctx.stroke();
+      ctx.shadowColor = look.fleck;
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = '#fff6c8';
+      ctx.lineWidth = 3.5;
+      ctx.stroke();
+      ctx.restore();
+    };
+    if (c.next !== undefined) crack(c.next, 0.4);
+    crack(c.center, (dim ? 0.4 : 0.85) + 0.15 * pulse(c).glow);
   }
 
   /** A quick white star where the tool connects (`k` fades 1 → 0). */
@@ -464,16 +739,45 @@ function drawRockFace(ctx: CanvasRenderingContext2D, c: Chop, x: number, y: numb
   ctx.fillStyle = 'rgba(255,255,255,0.14)';
   rrect(ctx, x + 6, y + 3, w - 12, 6, 3);
   ctx.fill();
-  const sx = x + c.center * w, half = (c.width * w) / 2, dim = c.lock > 0 && c.last === 'miss';
-  const seam = (width: number, color: string) => {
-    ctx.fillStyle = color;
+  const half = (c.width * w) / 2, dim = c.lock > 0 && c.last === 'miss';
+  let sx = x + c.center * w;
+  const seam = (width: number, color: string, outline = false) => {
     ctx.beginPath();
     const steps = 5;
     for (let i = 0; i <= steps; i++) ctx.lineTo(sx - width + (i % 2 ? 3 : -3), y + 2 + (i / steps) * (h - 8));
     for (let i = steps; i >= 0; i--) ctx.lineTo(sx + width + (i % 2 ? 3 : -3), y + 2 + (i / steps) * (h - 8));
     ctx.closePath();
-    ctx.fill();
+    if (outline) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
   };
   seam(half, dim ? 'rgba(255,210,120,0.25)' : 'rgba(255,210,120,0.6)');
-  seam(half * PERFECT_CORE, dim ? 'rgba(255,245,200,0.4)' : '#fff6c8');
+  // A tempo seam has no bright core: it flares all across on the beat instead.
+  if (c.pattern === 'tempo') seam(half, `rgba(255,246,200,${(dim ? 0.4 : 1) * pulse(c).glow})`);
+  else seam(half * PERFECT_CORE, dim ? 'rgba(255,245,200,0.4)' : '#fff6c8');
+  // A double's second seam, outlined, waiting just past the first.
+  if (c.next !== undefined) {
+    sx = x + c.next * w;
+    seam(half, 'rgba(255,240,190,0.85)', true);
+  }
+}
+
+/** A drifting zone's little arrow, just past its leading edge. */
+function drawDrift(ctx: CanvasRenderingContext2D, c: Chop, x: number, y: number, w: number, h: number) {
+  if (!c.driftV) return;
+  const d = Math.sign(c.driftV), tip = x + (c.center + (d * c.width) / 2) * w + d * 11, mid = y + h / 2;
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.beginPath();
+  ctx.moveTo(tip, mid);
+  ctx.lineTo(tip - d * 7, mid - 6);
+  ctx.lineTo(tip - d * 7, mid + 6);
+  ctx.closePath();
+  ctx.fill();
 }

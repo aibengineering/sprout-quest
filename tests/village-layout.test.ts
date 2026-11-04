@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { ZONES } from '../src/data';
-import { T, World } from '../src/world';
+import { T, World, solidPart } from '../src/world';
 import { RESIDENT_PLOTS, TOWN_CABIN, TOWN_SAWMILL, residentDoor } from '../src/villageLayout';
 
 type Rect = { x: number; y: number; w: number; h: number };
@@ -45,6 +45,22 @@ describe('Sowerby’s lots and paths', () => {
       if (world.tile(x, y) !== T.PATH) continue;
       // A front step may meet its path; the house and roof behind it may not.
       expect(overlaps({ ...b, h: Math.min(b.h, b.front - b.y) }, { x, y, w: 1, h: 1 }), `${b.name} covers path ${x - V},${y}`).toBe(false);
+    }
+  });
+
+  test('you can walk round the back of a building under its roof, bump into its front, and use it from there', () => {
+    const world = new World(), forge = world.obj('forge')!, cx = forge.x + forge.w / 2;
+    expect(world.blocked(cx, forge.y + 0.7, 0.28)).toBe(false);
+    expect(world.blocked(cx, forge.y + forge.h - 0.05, 0.28)).toBe(true);
+    expect(world.nearestObj(cx, forge.y + forge.h + 0.5, 1.4)).toBe(forge);
+    // Every building's walls stand on the front of its plot: solid there, at least a tile deep, open at the back.
+    const buildings = world.objs.filter((o) => o.x >= V && o.x < V + 31 && !o.walkable && ['forge', 'house', 'plot', 'residence'].includes(o.kind));
+    expect(buildings.length).toBeGreaterThanOrEqual(8);
+    for (const o of buildings) {
+      const r = solidPart(o), name = o.home ?? o.project ?? o.kind;
+      expect(r.y + r.h, `${name}'s front`).toBe(o.y + o.h);
+      expect(r.h, `${name}'s walls`).toBeGreaterThanOrEqual(Math.min(1, o.h));
+      if (o.h > 1.5) expect(r.y, `${name}'s back`).toBeGreaterThan(o.y + 0.5);
     }
   });
 

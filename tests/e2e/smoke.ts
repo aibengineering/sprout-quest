@@ -20,6 +20,7 @@ import { browserEnv } from './browser-env';
 import { SHORTCUTS, shortcutWorldPoint } from '../../src/shortcuts';
 import { NEIGHBOURS } from '../../src/neighbours';
 import { HOMES } from '../../src/housing';
+import { PRESETS } from '../../src/dev/presets';
 
 const SHOTS = process.argv.includes('--shots');
 const env = browserEnv(SHOTS);
@@ -213,7 +214,7 @@ async function winFight(page: Page) {
 /** Scenarios run from a queue, a few at a time (each has its own browser context, so their saves don't mix). */
 const queue: { name: string; run: () => Promise<void> }[] = [];
 /** The long ones start first, so none is left running alone at the end. */
-const SLOW = ['Poppy', "Bram's story", 'drums in the dark', 'every monster', 'characters are drawn in 3D', 'prologue', 'waits between strikes', 'play report'];
+const SLOW = ['quest arrows', 'Poppy', "Bram's story", 'drums in the dark', 'every monster', 'characters are drawn in 3D', 'prologue', 'waits between strikes', 'play report'];
 const weight = (name: string) => { const i = SLOW.findIndex((s) => name.includes(s)); return i < 0 ? SLOW.length : i; };
 
 function scenario(name: string, seed: Seed | null, body: (page: Page) => Promise<void>, opts: { webgl?: boolean } = {}) {
@@ -303,11 +304,15 @@ scenario('a new game plays through the prologue to Elder Oswin', null, async (pa
   await page.keyboard.down('KeyD');
   await waitFor(page, 'arriving in the village', async () => game<boolean>(page, `g.over.currentZone.id === 'village' && g.mode === 'dialog'`), 4000);
   await page.keyboard.up('KeyD');
+  const tour: string[] = [];
   for (let i = 0; i < 12 && !(await game<boolean>(page, `g.save.flags.includes('village')`)); i++) {
+    tour.push((await page.textContent('#modal:not([hidden]) .caption-text').catch(() => null)) ?? '');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(900);
   }
   check(await game(page, `g.save.flags.includes('village')`), 'arriving in the village did not finish the welcome');
+  // He points out his practice ring (the fox is never mentioned in the village).
+  check(tour.some((t) => t.includes('practice ring')) && !tour.some((t) => /fox/i.test(t)), `the tour never pointed out the practice ring: ${tour.join(' | ')}`);
   check(await game(page, `g.save.flags.includes('oldtools')`), 'Elder Oswin did not hand over his old tools');
   await closeDialogs(page);
   await page.waitForTimeout(500);
@@ -823,6 +828,41 @@ scenario('a tree falls and a rock breaks all the way, and what you earned lands 
     await page.waitForTimeout(300);
     check(await page.locator('#hud-gather').isHidden() && await page.locator('#hud .hand-row').isVisible(), 'handling was not restored after gathering');
   }
+  // A clean cut, then walking off the moment it gives way: you're free at once and paid exactly once, the XP bar
+  // finishes on the HUD, and the next tree within a few seconds keeps your streak.
+  const besideOak = () => game<boolean>(page, `(() => {
+    const o = g.over, w = o.world;
+    for (const r of w.objs.filter((x) => x.kind === 'node' && x.node === 'oak' && !x.grass && x.id.startsWith('meadow:') && !(g.save.nodes[x.id] > Date.now()))) {
+      for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1]]) {
+        const x = r.x + 0.4 + dx * 0.95, y = r.y + 0.6 + dy * 0.95;
+        if (w.blocked(x, y, 0.28)) continue;
+        o.teleport(x, y);
+        o.roamers.calm = 999;
+        if (o.nearbyObject() === r) return true;
+      }
+    }
+    return false;
+  })()`);
+  check(await besideOak(), 'no second meadow oak');
+  const bark = await game<number>(page, 'g.save.mats.bark'), wood = await game<{ lv: number; xp: number }>(page, '({ ...g.save.skills.wood })');
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'the next oak', () => game<boolean>(page, `g.mode === 'gather'`));
+  for (let i = 0; i < 3; i++) await run(page, `const c = g.chop.game; c.lock = 0; c.pos = c.center; c.strike()`);
+  check(await game<boolean>(page, 'g.chop.game.clean && g.chop.game.done'), 'three perfects in a row did not make a clean cut');
+  await waitFor(page, 'the clean cut pays out', () => game<boolean>(page, '!!g.chop.reward'));
+  const got = await game<{ bark: number; xp: number; streak: number }>(page, '({ bark: g.chop.reward.drops.bark, xp: g.chop.reward.xp, streak: g.chop.game.streak })');
+  await page.keyboard.down('ArrowLeft');
+  await waitFor(page, 'walking straight off', () => game<boolean>(page, `g.mode === 'world' && !g.chop`), 600);
+  check(await page.locator('#hud-gather').isVisible(), 'the XP bar vanished instead of finishing on the HUD');
+  await page.keyboard.up('ArrowLeft');
+  check(await game<boolean>(page, `g.save.mats.bark === ${bark + got.bark} && g.save.skills.wood.lv === ${wood.lv} && g.save.skills.wood.xp === ${wood.xp + got.xp}`), 'walking off paid out wrongly');
+  check(await besideOak(), 'no third meadow oak');
+  await page.keyboard.press('KeyE');
+  await waitFor(page, 'chopping with momentum', () => game<boolean>(page, `g.mode === 'gather'`));
+  check(await game<boolean>(page, `g.chop.game.carried === Math.min(5, ${got.streak}) && g.chop.game.carried >= 3`), 'the streak did not carry over to the next tree');
+  if (SHOTS) await page.screenshot({ path: `${OUT}gather-momentum.png` });
+  await page.keyboard.press('Escape');
+  await waitFor(page, 'the HUD settles', async () => (await page.locator('#hud-gather').isHidden()) && game<boolean>(page, `g.mode === 'world' && g.save.mats.bark === ${bark + got.bark}`), 4000);
 });
 
 scenario('seed discoveries: actual finds are highlighted while chopping, without pausing or awarding twice', (g) => {
@@ -964,8 +1004,23 @@ scenario('resource trips: walk a pine grove and iron working, gather their nodes
       await page.keyboard.press('KeyE');
       await waitFor(page,'gather at the authored stop',async()=>await game<string>(page,'g.mode')==='gather');
       for(let i=0;i<30&&!(await game<boolean>(page,'g.chop?.game.done ?? true'));i++) {
-        await waitFor(page,'clean gathering hit',async()=>game<boolean>(page,`(() => {const c=g.chop?.game;return !c||c.done||(Math.abs(c.pos-c.center)<c.width*.3&&c.lock<=0);})()`),8000);
-        await page.keyboard.press('KeyE');await page.waitForTimeout(60);
+        // Watch for the sweet spot and strike in the same frame, so a busy machine can't let the marker slip past between polls.
+        const hit=await page.evaluate(async()=>{
+          const g=(window as any).game;const until=performance.now()+8000;
+          while(performance.now()<until){
+            const c=g.chop?.game;
+            if(!c||c.done)return true;
+            if(Math.abs(c.pos-c.center)<c.width*.3&&c.lock<=0){
+              window.dispatchEvent(new KeyboardEvent('keydown',{code:'KeyE',bubbles:true}));
+              window.dispatchEvent(new KeyboardEvent('keyup',{code:'KeyE',bubbles:true}));
+              return true;
+            }
+            await new Promise(requestAnimationFrame);
+          }
+          return false;
+        });
+        if(!hit)throw new Error('timed out waiting for clean gathering hit');
+        await page.waitForTimeout(60);
       }
       await waitFor(page,'gathering animation finishes',async()=>await game<string>(page,'g.mode')!=='gather',6000);
       await closeDialogs(page);
@@ -2476,6 +2531,48 @@ scenario('dev builds: a preset plays in its own slot, and your real save is unto
   check(/preset-poppy-chase/.test(panel) && /Sandbox/.test(panel), 'the dev panel is missing slots or presets');
 });
 
+/**
+ * Every preset, with each quest you could follow (the main story and each side quest in the Journal): its arrow must
+ * point somewhere you can stand, in the space you're in (not into a wall, rock or building, nor into a cave you're not
+ * in), and when it marks a person it must follow them as they wander, not stay on the spot they started from.
+ */
+scenario('quest arrows: on every preset, each quest points at open ground, and stays on the person it marks as they move', null, async (page) => {
+  const url = page.url().split('?')[0], problems: string[] = [];
+  for (const { id } of PRESETS) {
+    await page.goto(`${url}?preset=${id}`);
+    await waitFor(page, `the ${id} preset`, () => game<boolean>(page, `localStorage.getItem('sprout-quest-slot') === 'preset-${id}' && !!g.over && g.mode !== 'title'`), 20000);
+    await page.waitForTimeout(300);
+    problems.push(...await game<string[]>(page, `(() => {
+      const o = g.over, out = [], tracked = g.save.trackedQuest;
+      // Open ground where you are: in a side cave (Pebbler Hollow, Pip's gallery), in it; otherwise above ground or in the
+      // Cavern, which shares the map's coordinates.
+      const here = o.underground && o.underground !== o.cavern ? [o.underground] : [o.world, o.cavern];
+      const inside = (m, p) => p.x >= m.x0 && p.x < m.x0 + m.w && p.y >= m.y0 && p.y < m.y0 + m.h;
+      const open = (p) => here.some((m) => inside(m, p) && !m.blocked(p.x, p.y, 0.28));
+      const people = [...o.actors.list, ...o.echo.actors.list, ...o.oreGallery.actors.list];
+      const fmt = (p) => p.x.toFixed(1) + ',' + p.y.toFixed(1);
+      for (const quest of [undefined, ...g.stories.filter((st) => st.trackable).map((st) => st.id)]) {
+        g.save.trackedQuest = quest;
+        const p = g.objective(), what = '${id} / ' + (quest ?? 'main story');
+        if (!p) continue;
+        if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !open(p)) { out.push(what + ': the arrow points into a wall at ' + fmt(p)); continue; }
+        // Someone it marks: move them a step (somewhere open) and the arrow must go with them.
+        for (const a of people.filter((a) => Math.hypot(a.x - p.x, a.y - p.y) < 1)) {
+          const x0 = a.x, y0 = a.y, step = [[1.2, 0], [-1.2, 0], [0, 1.2], [0, -1.2]].map(([dx, dy]) => ({ x: x0 + dx, y: y0 + dy })).find(open);
+          if (!step) continue;
+          Object.assign(a, step);
+          const q = g.objective();
+          Object.assign(a, { x: x0, y: y0 });
+          if (!q || Math.hypot(q.x - step.x, q.y - step.y) > 1) out.push(what + ': the arrow stayed at ' + fmt(p) + ' when ' + a.id + ' moved to ' + fmt(step));
+        }
+      }
+      g.save.trackedQuest = tracked;
+      return out;
+    })()`));
+  }
+  check(!problems.length, `quest arrows off target:\n    ${problems.join('\n    ')}`);
+});
+
 // Fluffy Vest presentation exercises the real transaction; every scenario starts with an unowned vest.
 const fluffySeed = (g: any) => {
   g.save.lv = 4;
@@ -2686,13 +2783,14 @@ scenario('New neighbours: resume Pip, meet Rook and Moss, return together, then 
       check(await game<boolean>(page,`!!g.over.actors.get('${aid}')?.follow && !g.save.flags.includes('pip:returned')`),'reload lost or completed the journey');
     }
     // Fast travel regroups followers; the last approach is walked with real input.
-    await run(page,`g.over.teleport(38,14.5);g.over.roamers.calm=999`);
+    // (Anything that pops up on the way pauses the walk on a busy machine: close it and carry on.)
+    await run(page,`g.over.teleport(35,14.5);g.over.roamers.calm=999`);
     await page.keyboard.down('KeyA');
     try{
-      await page.waitForFunction(()=>{
-        if((window as any).game.over.x>31.8)return false;
-        window.dispatchEvent(new KeyboardEvent('keyup',{code:'KeyA'}));return true;
-      },undefined,{timeout:30000});
+      await waitFor(page, `${id} walked to the lane`,async()=>{
+        if(await page.$('#modal:not([hidden]) [data-dialog]')){await page.keyboard.up('KeyA');await closeDialogs(page,8,'.caption');await closeDialogs(page);await page.keyboard.down('KeyA');}
+        return game<boolean>(page,`g.over.x<=31.8`);
+      },60000);
     }finally{await page.keyboard.up('KeyA');}
     await page.keyboard.down('KeyW');
     try{await waitFor(page, `${id} reaches Clover`,async()=>{await closeDialogs(page,8,'.caption');return game<boolean>(page,`g.save.flags.includes('${id}:returned') && g.mode==='world'`);},30000);}finally{await page.keyboard.up('KeyW');}
@@ -2774,7 +2872,8 @@ scenario('Bram’s new construction chain: garden flowers, Granny’s kitchen ex
   await waitFor(page,'Pip’s welcome and recipe finish',async()=>{await closeDialogs(page,12);return game<boolean>(page,`g.mode==='world'&&g.save.flags.includes('pip:candy')`);},20000);
   await run(page, `g.save.flags.push('fox:seen','fox:trusted','fox:catch','fox:trial');g.save.perks.push('shadowscarf')`);
   await bramJob(page, 'training1'); await handInJob(page, 'training1');
-  check(await game<boolean>(page, `g.save.build.training === 1 && !!g.over.actors.get('fox:fox')`), 'Fox did not remain at her den');
+  check(await game<boolean>(page, `g.save.build.training === 1 && !!g.over.actors.get('fox:fox') && g.over.world.zoneAt(g.over.actors.get('fox:fox').x).id === 'glade' && g.over.actors.get('fox:fox').y > 19`), 'Fox is not waiting at the hidden clearing');
+  check(await game<boolean>(page, `!g.over.world.obj('plot', 'training').walkable && !g.over.world.obj('plot', 'training').hidden`), 'the built clearing is not standing where the ring was');
   await run(page, `const a = g.over.actors.get('fox:fox'); g.over.teleport(a.x, a.y + .6); g.over.face = -Math.PI / 2`);
   await page.waitForTimeout(400); await page.keyboard.press('KeyE');
   await waitFor(page, 'Fox introduces her lessons', async () => {
@@ -2791,7 +2890,7 @@ scenario('Masked Fox’s hidden clearing: clean dodge, once-only XP, safe practi
   s.flags.push('poppy:returned', 'bram:hut', 'alder:met');
   s.build.training = 3; s.build.garden = 3; s.build.cottage = 1; s.build.sawmill = 3;
   s.homes = { pip: 2, rook: 2, moss: 2 }; s.hp = 41; s.potions = 3;
-  s.pos = { x: 192.2, y: 8.4 };
+  s.pos = { x: 11.6, y: 21.7 };
   s.flags.push('fox:seen','fox:trusted','fox:catch','fox:trial'); s.perks.push('shadowscarf');
 }, async (page) => {
   const before = await game<any>(page, `({ hp:g.save.hp, potions:g.save.potions, xp:g.save.xp, mats:g.save.mats, wins:g.save.wins, kills:g.save.questKills })`);
@@ -2821,7 +2920,7 @@ scenario('Masked Fox’s hidden clearing: clean dodge, once-only XP, safe practi
   check(await game<boolean>(page, `JSON.stringify({lv:g.save.lv,xp:g.save.xp,mastery:g.save.mastery}) === ${JSON.stringify(JSON.stringify(earned))} && g.save.hp === ${before.hp}`), 'withdrawing awarded XP or hurt the player');
 });
 
-scenario('sparring: Elder Oswin spars (a win and a loss, nothing spent or gained), and the clearing’s Free spar lists your friends', (g) => {
+scenario('sparring: the Practice sign at the hidden clearing’s ring calls Oswin over (a win and a loss, nothing spent or gained), lists your friends and the fox’s lessons', (g) => {
   const s = g.save; s.lv = 12; s.quest = g.quests.length;
   s.stories = { ...s.stories, poppy: 6, bram: 9, drums: 4, granny: 99, alder: 1 };
   s.flags.push('poppy:returned', 'bram:hut', 'alder:met', 'fox:seen', 'fox:trusted', 'fox:catch', 'fox:trial', 'fox:met');
@@ -2832,12 +2931,26 @@ scenario('sparring: Elder Oswin spars (a win and a loss, nothing spent or gained
   await run(page, 'g.over.roamers.list = []; g.over.roamers.respawn = 1e9');
   const snap = `JSON.stringify({hp:g.save.hp,potions:g.save.potions,lv:g.save.lv,xp:g.save.xp,mats:g.save.mats,wins:g.save.wins,kills:g.save.questKills,mastery:g.save.mastery,bosses:g.save.bosses,quest:g.save.quest,flags:g.save.flags,meals:g.save.meals})`;
   const before = await game<string>(page, snap);
-  const nearElder = `Math.hypot(g.over.x - (g.over.world.obj('elder').x + .35), g.over.y - (g.over.world.obj('elder').y + 1)) < 1.5`;
+  // Oswin's own talk no longer has a Spar button: he points you at his ring instead.
+  await run(page, `const o = g.over.world.obj('elder'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5); g.over.face = -Math.PI / 2`);
+  await page.waitForTimeout(300); await page.keyboard.press('KeyE');
+  await page.waitForSelector('#modal:not([hidden]) .bubble');
+  check(!await page.$('[data-dialog="spar"]') && ((await page.textContent('#modal .sheet')) ?? '').includes('gap in the hedge'), 'Oswin still spars in the square, or never mentions his ring');
+  await closeDialogs(page);
+  const sign = `g.over.world.objs.find((o) => o.id === 'practice')`;
+  const nearSign = `Math.hypot(g.over.x - (${sign}.x + .3), g.over.y - (${sign}.y + 1)) < 1.5`;
+  const pick = async () => {
+    await run(page, `const o = ${sign}; g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.6); g.over.face = -Math.PI / 2`);
+    await page.waitForTimeout(300);
+    check(await game<string>(page, `g.over.nearbyObject()?.label`) === 'Practice', 'the Practice sign is not what you face at the ring');
+    await page.keyboard.press('KeyE');
+    await page.waitForSelector('.sheet.spar-pick');
+  };
   const spar = async () => {
-    await run(page, `const o = g.over.world.obj('elder'); g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.5); g.over.face = -Math.PI / 2`);
-    await page.waitForTimeout(300); await page.keyboard.press('KeyE');
-    await page.waitForSelector('.sheet.elder-talk [data-dialog="spar"]');
-    await page.click('.elder-talk [data-dialog="spar"]');
+    await pick();
+    await page.click('.spar-pick [data-dialog="spar:oswin"]');
+    await waitFor(page, 'Oswin walks over', async () => ((await page.textContent('#modal .sheet')) ?? '').includes('Oswin hobbles over'), 5000);
+    await closeDialogs(page, 2, '.caption');
     await waitFor(page, 'the spar with Oswin', () => game<boolean>(page, `g.mode === 'battle' && g.battle?.setup.spar === 'oswin' && g.battle.intro <= 0`), 12000);
     check(await game<boolean>(page, `g.battle.save !== g.save && g.battle.save.potions === 0 && g.battle.p.hp === g.battle.stats.maxHp && g.battle.enemies.length === 1`), 'the spar did not fight a full-health, potion-free copy of you');
   };
@@ -2847,10 +2960,11 @@ scenario('sparring: Elder Oswin spars (a win and a loss, nothing spent or gained
     check(text.includes(says), `the spar result did not say "${says}": ${text}`);
     await page.click('.spar-result [data-dialog="close"]');
     await waitFor(page, 'back on the map', () => game<boolean>(page, `g.mode === 'world' && !g.battle && !g.trans`), 10000);
-    check(await game<boolean>(page, nearElder), 'not back where you were');
+    check(await game<boolean>(page, nearSign), 'not back at the ring');
     check(await game<string>(page, snap) === before, 'the spar changed your save');
   };
-  check(await game<boolean>(page, `!g.over.world.objs.find((o) => o.id === 'ring').hidden`), 'Oswin’s practice ring is not beside him');
+  // The clearing is outside the village, and the fox (only ever there or in the Hollow) is never in Sowerby.
+  check(await game<boolean>(page, `g.over.world.zoneAt(${sign}.x).id === 'glade' && g.over.world.zoneAt(g.over.actors.get('fox:fox').x).id === 'glade'`), 'the clearing or the fox is inside Sowerby');
   // A win: he yields at a fifth of his health (forced), with his line.
   await spar();
   await run(page, `g.battle.enemies[0].hp = 1`);
@@ -2859,17 +2973,45 @@ scenario('sparring: Elder Oswin spars (a win and a loss, nothing spent or gained
   await spar();
   await run(page, `g.battle.p.hp = 1`);
   await result('Oswin wins this one.');
-  // The clearing's Free spar: everyone you've made friends with.
-  await run(page, `void g.over.actors.get('fox:fox').talk()`);
-  await page.waitForSelector('.sheet.dojo [data-dialog="spar"]'); await page.click('.sheet.dojo [data-dialog="spar"]');
-  await page.waitForSelector('.sheet.spar-pick');
+  // Everyone you've made friends with, and the fox's lessons now Bram's built the clearing up.
+  await pick();
   const offered = await page.$$eval('.spar-pick [data-dialog^="spar:"]', (els) => els.map((e) => (e as HTMLElement).dataset.dialog));
   check(JSON.stringify(offered) === JSON.stringify(['spar:oswin', 'spar:bram', 'spar:fox']), `Free spar offered ${offered}`);
+  if (SHOTS) await page.screenshot({ path: `${OUT}practice-sign.png` });
+  await page.click('.spar-pick [data-dialog="lessons"]');
+  await page.waitForSelector('.sheet.dojo');
+  await page.click('.sheet.dojo [data-dialog="spar"]');
+  await page.waitForSelector('.sheet.spar-pick');
   await page.click('[data-dialog="spar:fox"]');
+  await closeDialogs(page, 2, '.caption');
   await waitFor(page, 'the spar with the fox', () => game<boolean>(page, `g.mode === 'battle' && g.battle?.setup.spar === 'fox' && g.battle.intro <= 0`), 12000);
   await page.keyboard.press('KeyR');
   await waitFor(page, 'back outside', () => game<boolean>(page, `g.mode === 'world' && !g.battle && !g.trans`), 12000);
   check(await game<string>(page, snap) === before, 'calling off a spar changed your save');
+});
+
+scenario('sparring: before the fox, the hidden clearing is Oswin’s roped-off ring, reached through the hedge from the home lane', (g) => {
+  const s = g.save; s.lv = 4; s.quest = g.quests.length;
+  s.flags = s.flags.filter((f: string) => f !== 'alder:returned');
+  s.pos = { x: 21.5, y: 22.6 };
+}, async (page) => {
+  await run(page, 'g.over.roamers.list = []; g.over.roamers.respawn = 1e9');
+  check(await game<boolean>(page, `(() => { const o = g.over.world.obj('plot', 'training'); return !o.hidden && o.walkable && o.label === ''; })()`), 'the ring is not open from your arrival, or is not walkable');
+  // A signpost where the lane meets the hedge points the way, in the village (and says nothing of the fox).
+  check(await game<boolean>(page, `(() => { const o = g.over.world.objs.find((o) => o.id === 'practice:way'); return !!o && !o.hidden && g.over.world.zoneAt(o.x).id === 'village' && o.text.includes('practice ring') && !/fox/i.test(o.text); })()`), 'no signpost to the practice ring at the end of the lane');
+  // Walk west down the lane and through the gap in the hedge.
+  await page.keyboard.down('KeyA');
+  await waitFor(page, 'through the hedge', () => game<boolean>(page, `g.over.x < 13.5`), 8000);
+  await page.keyboard.up('KeyA');
+  check(await game<boolean>(page, `g.over.currentZone.id === 'glade' && g.over.y > 21`), 'the trail did not lead out of the village to the clearing');
+  const sign = `g.over.world.objs.find((o) => o.id === 'practice')`;
+  await run(page, `const o = ${sign}; g.over.teleport(o.x + o.w / 2, o.y + o.h + 0.6); g.over.face = -Math.PI / 2`);
+  await page.waitForTimeout(300); await page.keyboard.press('KeyE');
+  await page.waitForSelector('.sheet.spar-pick');
+  const offered = await page.$$eval('.spar-pick [data-dialog^="spar:"]', (els) => els.map((e) => (e as HTMLElement).dataset.dialog));
+  check(JSON.stringify(offered) === JSON.stringify(['spar:oswin']) && !await page.$('[data-dialog="lessons"]'), `before the fox the sign offered ${offered}`);
+  await page.click('.spar-pick [data-dialog="close"]');
+  check(!await game<boolean>(page, `!!g.over.actors.get('fox:fox')`), 'the fox is somewhere before you have met her');
 });
 
 scenario('Bram’s building quests: welcome Rook and Moss, open the lodge, cook garden recipes, upgrade and reload without duplicate costs', (g) => {
@@ -3423,6 +3565,8 @@ scenario('Route redesign: hidden fox chase, shard trial, scarf dash and private 
   await run(page,`g.save.flags.push('rook:returned');g.save.homes.rook=1;g.over.teleport(192.2,8.4);g.over.roamers.calm=999`);
   await page.waitForTimeout(500);
   check(await game<boolean>(page,`!!g.over.actors.get('fox:fox')&&!g.over.actors.get('journey-alder:alder')`),'Rook exposed or removed the fox');
+  // She's moved on to the hidden clearing outside Sowerby (never into the village), and the journal points you there.
+  check(await game<boolean>(page,`(()=>{const a=g.over.actors.get('fox:fox');return g.over.world.zoneAt(a.x).id==='glade'&&a.y>19;})()`),'the fox is not waiting at the hidden clearing after her gift');
   await run(page,`g.over.teleport(180.5,6.8);g.over.face=0`);await page.waitForTimeout(100);
   const x=await game<number>(page,'g.over.x');await page.click('#btn-dash');await page.waitForTimeout(280);
   check(await game<boolean>(page,`g.over.x>${x+1.5}&&!g.over.world.blocked(g.over.x,g.over.y,.28)`),'scarf dash did not move or passed into scenery');

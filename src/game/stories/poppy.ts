@@ -12,7 +12,7 @@ import { knows } from '../../known';
 import { FIELD, type WorldObj } from '../../world';
 import { G, paused, persist, syncWorld } from '../context';
 import { bubble, follow, lookAt, narrate, pan, say, scene, walk, wait, type Speaker } from '../scenes';
-import { stopWaiting, syncStories, waitAt, type Story } from '../stories';
+import { actorAt, stopWaiting, syncStories, waitAt, type Story } from '../stories';
 import { GRANNY, GRANNY_ID } from './granny';
 
 export const POPPY_TALK: Speaker = { name: 'Poppy', emoji: '👧', portrait: (m) => (m === 'happy' ? 'npc_poppy' : m === 'hug' ? 'npc_poppy_hug' : `npc_poppy_${m}`) };
@@ -215,7 +215,7 @@ export const POPPY: Story = {
     },
     {
       id: 'return', label: 'Bring Mr. Floppers home to Poppy',
-      target: () => HOME,
+      target: () => actorAt(POPPY_ID, HOME),
       done: () => has('poppy:returned'),
       async then() {
         await scene(async () => {

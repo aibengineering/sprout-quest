@@ -5,13 +5,14 @@ import { FIELD_COLS, FIELD_ROWS } from './garden';
 import { ROUTES } from './routes';
 import { POPPY_GROVE, poppyTrailOpen } from './poppyGrove';
 import type { HomeId } from './housing';
-import { RESIDENT_PLOTS, TOWN_CABIN, TOWN_FORGE, TOWN_HOME, TOWN_SAWMILL, TOWN_SPRING, TOWN_TRAINING, TOWN_WAYSTONE, VILLAGE_PATHS } from './villageLayout';
+import { RESIDENT_PLOTS, TOWN_CABIN, TOWN_FORGE, TOWN_HOME, TOWN_SAWMILL, TOWN_SPRING, TOWN_WAYSTONE, VILLAGE_PATHS } from './villageLayout';
 import type { SaveState } from './state';
 import { SHORTCUTS, shortcutBuilt } from './shortcuts';
 import { LANDMARK_SIGNS, ROUTE_GUIDES } from './mapDesign';
 import { SEAMS, TUNNEL_HOME } from './seams';
 import { HUNTS } from './hunts';
 import { CAVE_WEST_MOUTH, CAVE_EAST_MOUTH } from './caveEntrance';
+import { HIDDEN_CLEARING, HIDDEN_TRAIL, LANE_SIGN, PRACTICE_SIGN, TRAINING_PLOT } from './fox';
 
 export const T = {
   GROUND: 0,
@@ -96,6 +97,19 @@ export interface WorldObj {
   shown?: (s: SaveState) => boolean;
 }
 
+/** Buildings: only the front of the plot is solid (their walls meet the ground there), so you can walk round the back. */
+const BUILDINGS: ObjKind[] = ['forge', 'house', 'plot', 'residence'];
+
+/**
+ * The part of an object you bump into. A building's roof is drawn up over the back of its plot, so you can walk round
+ * behind it (and are drawn behind it there): only its front stands solid, about half its depth and at least a tile.
+ */
+export function solidPart(o: WorldObj): { x: number; y: number; w: number; h: number } {
+  if (!BUILDINGS.includes(o.kind) && o.id !== 'bramhut') return o;
+  const h = Math.min(o.h, Math.max(1, o.h * 0.55));
+  return { x: o.x, y: o.y + o.h - h, w: o.w, h };
+}
+
 export function hash2(x: number, y: number, seed: number): number {
   let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(seed, 1442695041);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
@@ -120,6 +134,8 @@ export function pathY(x: number): number {
 export class TileMap {
   readonly tiles: Uint8Array;
   readonly objs: WorldObj[] = [];
+  /** Counts changes to the tiles, so what's drawn from them knows to redraw (see groundCache.ts). */
+  version = 0;
 
   constructor(readonly w: number, readonly h: number, readonly x0 = 0, readonly y0 = 0) {
     this.tiles = new Uint8Array(w * h);
@@ -135,14 +151,20 @@ export class TileMap {
   protected set(x: number, y: number, t: number) {
     x -= this.x0;
     y -= this.y0;
-    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h || this.tiles[y * this.w + x] === t) return;
     this.tiles[y * this.w + x] = t;
+    this.version++;
   }
 
   solidAt(x: number, y: number): boolean {
     const t = this.tile(Math.floor(x), Math.floor(y));
     if (t === T.OBST || t === T.POOL || t === T.CHASM) return true;
-    for (const o of this.objs) if (!o.hidden && !o.walkable && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
+    for (const o of this.objs) {
+      // (The solid part is inside the object's box: most are ruled out by that alone.)
+      if (o.hidden || o.walkable || x < o.x || x >= o.x + o.w || y < o.y || y >= o.y + o.h) continue;
+      const r = solidPart(o);
+      if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return true;
+    }
     return false;
   }
 
@@ -157,8 +179,9 @@ export class TileMap {
     let bestD = maxDist;
     for (const o of this.objs) {
       if (!o.label || o.hidden) continue;
-      const cx = Math.max(o.x, Math.min(x, o.x + o.w));
-      const cy = Math.max(o.y, Math.min(y, o.y + o.h));
+      const r = solidPart(o);
+      const cx = Math.max(r.x, Math.min(x, r.x + r.w));
+      const cy = Math.max(r.y, Math.min(y, r.y + r.h));
       const d = Math.hypot(cx - x, cy - y);
       if (d < bestD) {
         bestD = d;
@@ -241,6 +264,11 @@ export class World extends TileMap {
     for (const p of Object.values(NEIGHBOURS).filter(p=>p.name==='Moss')) for (let y=Math.floor(p.at.y)-1;y<=Math.ceil(p.at.y)+1;y++) for (let x=Math.floor(p.at.x)-1;x<=Math.ceil(p.at.x)+1;x++) {
       if (this.tile(x,y)!==T.PATH) this.set(x,y,T.GROUND);
     }
+    // The Hidden Training Clearing in the woods west of Sowerby, and the gap in the hedge at the end of the home lane.
+    const c = HIDDEN_CLEARING, t = HIDDEN_TRAIL;
+    for (let y = Math.floor(c.y - c.ry); y <= c.y + c.ry; y++) for (let x = Math.floor(c.x - c.rx); x <= c.x + c.rx; x++)
+      if (Math.hypot((x + .5 - c.x) / c.rx, (y + .5 - c.y) / c.ry) <= 1) this.set(x, y, hash2(x, y, seed + 41) < 0.12 ? T.DECOR : T.GROUND);
+    for (let y = t.y; y < t.y + t.h; y++) for (let x = t.x; x < t.x + t.w; x++) if (this.tile(x, y) !== T.PATH) this.set(x, y, T.GROUND);
     this.placeObjects();
   }
 
@@ -283,10 +311,13 @@ export class World extends TileMap {
     add({ kind: 'forge', ...TOWN_FORGE, label: 'Forge', text: 'The Forge' });
     add({ kind: 'house', x: V + 13, y: 4.3, w: 3, h: 5.2, label: '' });
     add({ kind: 'elder', x: V + 10.1, y: 10.3, w: 0.7, h: 0.5, label: 'Talk', text: 'Elder Oswin' });
-    // His old practice ring, roped off beside him: he spars you there once you've reached Sowerby (src/game/spar.ts).
-    add({ kind: 'prop', id: 'ring', x: V + 11.1, y: 9.9, w: 2.4, h: 1.9, label: '', walkable: true, shown: (s) => s.flags.includes('village') });
     add({ kind: 'plot', project: 'home', ...TOWN_HOME, label: 'Build', text: 'Home' });
-    add({ kind: 'plot', project: 'training', ...TOWN_TRAINING, label: 'Build', text: 'Hidden Training Clearing', shown: s => s.flags.includes('fox:trusted') || s.build.training > 0 });
+    // Oswin's old practice ring in the Hidden Training Clearing, open once you've reached Sowerby; Bram builds it up for
+    // the fox (src/villageJobs.ts). The sign at its gate is the practice menu (src/game/dojo.ts practiceSign).
+    const practice = (s: SaveState) => s.flags.includes('village') || s.build.training > 0;
+    add({ kind: 'plot', project: 'training', ...TRAINING_PLOT, label: '', text: 'Hidden Training Clearing', walkable: true, shown: practice }, false);
+    add({ kind: 'sign', id: 'practice', ...PRACTICE_SIGN, label: 'Practice', shown: practice }, false);
+    add({ kind: 'sign', id: 'practice:way', ...LANE_SIGN, label: 'Read', text: '⚔️ To the practice ring: through the gap in the hedge. Friendly bouts only. Mind the old man’s staff.' }, false);
     add({kind:'prop',id:'fox:den',x:zoneById('hollow').x0+26.5,y:3.2,w:1.6,h:1.4,label:''},false);
     add({ kind: 'plot', project: 'warp', ...TOWN_WAYSTONE, label: 'Build', text: 'Waystone' });
     // Bram lives beside his mill, across the work yard from the Forge. His cabin

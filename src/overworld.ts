@@ -11,7 +11,8 @@ import { hasModel, loadModel } from './models';
 import { carriedMount, carriedWeapon, heroBody, projectWeaponPoint } from './weaponPose';
 import { Vector3 } from 'three';
 import { forgeArt } from './ui';
-import { drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, heroIn3d, monsterReady, slotOf } from './assets';
+import { assetsReady, drawFrame, drawHero, drawIdler, drawMonsterAt, drawWalker, frame, heroIn3d, monsterReady, slotOf } from './assets';
+import { GroundCache } from './groundCache';
 import { spriteScale } from './battle/monsters';
 import { Roamers, type Roamer } from './roamers';
 import { MOVESETS } from './weapons';
@@ -19,7 +20,7 @@ import { Fx } from './fx';
 import type { Input } from './input';
 import { drawPlayer, rrect, shadow } from './sprites';
 import type { SaveState } from './state';
-import { hash2, T, type TileMap, type World, type WorldObj } from './world';
+import { hash2, solidPart, T, type TileMap, type World, type WorldObj } from './world';
 import { WALL_RISE, type Room } from './room';
 import { EchoCave, ECHO_OUTSIDE } from './echoCave';
 import { Cavern } from './cavern';
@@ -38,6 +39,10 @@ import { drawBoulder } from './nodeart';
 import { seamAvailable } from './seams';
 
 const TAU = Math.PI * 2;
+/** What of a ground tile to draw (see drawTile): what never changes, what moves. */
+const STILL = 1, LIVE = 2;
+/** Something drawn in depth order on the map, and the columns it covers (if known). */
+type Item = { y: number; draw: () => void; x0?: number; x1?: number };
 /** Chip colors when mining each kind of rock. */
 const ROCK_CHIPS: Partial<Record<string, string>> = { rock: '#9a9aa8', copper: '#e8904a', iron: '#b8c8e0', obsidian: '#ff8a3a' };
 /** The leaves a felled tree sheds on the map (green by default). */
@@ -133,6 +138,8 @@ export class Overworld {
   private dashDir=0;
   private dashCds:number[]=[];
   private afterimages:{x:number;y:number;face:number;t:number}[]=[];
+  /** The map's ground and rock walls, painted in chunks (see drawScene). */
+  private ground = new GroundCache();
   get dashFrac() { return this.dashCds.some(t=>t<=0)?0:Math.max(0,Math.min(...this.dashCds))/.9; }
   private crossingRaisedAt: Record<string, number> = {};
 
@@ -518,6 +525,74 @@ export class Overworld {
     return (x >= CAVE_WEST_EDGE && x < CAVE_EAST_EDGE) || zoneAtX(x).id === 'cave' || caveApproachStone(x, y) >= .85;
   }
 
+  /** Whether this is an obstacle drawn as a wall of rock (cave walls, the cliff round a cave mouth), not a tree or boulder. */
+  private rockAt(x: number, y: number) {
+    if (this.sceneryTile(x, y) !== T.OBST) return false;
+    const stone = this.underground ? 0 : x >= CAVE_WEST_EDGE && x < CAVE_EAST_EDGE ? 1 : caveApproachStone(x, y);
+    return zoneAtX(x).id === 'cave' || stone >= .85;
+  }
+
+  /**
+   * One tile of ground: what never changes (STILL: its colour, shading, paths, pools, flowers), what moves (LIVE: grass
+   * swaying, water glinting, a bridge going up), or both. `patches` shares each four-tile colour patch between tiles.
+   */
+  private drawTile(ctx: CanvasRenderingContext2D, x: number, y: number, ts: number, part: number, patches: Map<string, CanvasGradient>) {
+    // Above ground, the ground under the cliff past a cave mouth is the neighbouring land's, not the cavern's.
+    const inCave = !this.underground && x >= CAVE_WEST_EDGE && x < CAVE_EAST_EDGE;
+    const th = zoneAtX(inCave ? (x < (CAVE_WEST_EDGE + CAVE_EAST_EDGE) / 2 ? CAVE_WEST_EDGE - 1 : CAVE_EAST_EDGE) : x).theme;
+    const t = this.sceneryTile(x, y);
+    const px = x * ts, py = y * ts;
+    if (part & STILL) this.drawStill(ctx, x, y, px, py, ts, t, th, patches);
+    if (!(part & LIVE)) return;
+    if (t === T.POOL) this.drawPool(ctx, x, y, px, py, ts, th, LIVE);
+    else if (t === T.BRIDGE) {
+      if (this.crossingAt(x, y)?.gap !== 'chasm') this.drawPool(ctx, x, y, px, py, ts, th, LIVE);
+      this.drawBridge(ctx, x, y, px, py, ts);
+    } else if (t === T.GRASS) this.drawGrass(ctx, x, y, px, py, ts, th, LIVE);
+  }
+
+  /** The part of a ground tile that never changes (see drawTile). */
+  private drawStill(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, t: number, th: Theme, patches: Map<string, CanvasGradient>) {
+    const W = this.map;
+    // Broad, soft colour patches replace the conspicuous checkerboard of individual tiles.
+    ctx.fillStyle = th.ground;
+    ctx.fillRect(px, py, ts + 1, ts + 1);
+    const gx=Math.floor(x/4),gy=Math.floor(y/4),patchKey=`${zoneAtX(x).id}:${gx}:${gy}`;
+    let patch=patches.get(patchKey);
+    if(!patch){
+      const cx=(gx*4+1.8+hash2(gx,gy,71)*.4)*ts,cy=(gy*4+1.8+hash2(gx,gy,72)*.4)*ts;
+      patch=ctx.createRadialGradient(cx,cy,0,cx,cy,ts*1.7);
+      patch.addColorStop(0,th.ground2);patch.addColorStop(1,th.ground);patches.set(patchKey,patch);
+    }
+    ctx.fillStyle=patch;ctx.fillRect(px,py,ts+1,ts+1);
+    const stone=!this.underground?caveApproachStone(x,y):0;
+    if(stone>0){
+      ctx.fillStyle=`rgba(116,119,105,${stone*.72})`;ctx.fillRect(px,py,ts+1,ts+1);
+      if(t===T.GROUND&&hash2(x,y,84)<stone*.45){
+        ctx.fillStyle='#b4b6a2';ctx.beginPath();ctx.ellipse(px+ts*(.2+hash2(x,y,85)*.6),py+ts*(.3+hash2(x,y,86)*.4),ts*.045,ts*.028,0,0,TAU);ctx.fill();
+      }
+    }
+    // Shade the floor beside solid scenery, rather than treating it as a flat tile grid.
+    if(t!==T.OBST&&t!==T.POOL&&t!==T.CHASM){
+      // Only under cliffs and rock: trees cast their own soft shadows, and a band under a row of them looks boxy.
+      if(W.tile(x,y-1)===T.OBST&&this.isRock(x,y-1)){
+        const shade=ctx.createLinearGradient(px,py,px,py+ts*.3);
+        shade.addColorStop(0,'rgba(24,32,40,.16)');shade.addColorStop(1,'rgba(24,32,40,0)');
+        ctx.fillStyle=shade;ctx.fillRect(px,py,ts,ts*.3);
+      }
+      if(t===T.GROUND&&hash2(x,y,73)<.10)this.drawDecor(ctx,x,y,px,py,ts,th);
+    }
+    if (t === T.PATH) this.drawPath(ctx, x, y, px, py, ts, stone>.5?{...th,path:'#a9a28f'}:th);
+    else if (t === T.POOL) this.drawPool(ctx, x, y, px, py, ts, th, STILL);
+    else if (t === T.CHASM) this.drawChasm(ctx, x, y, px, py, ts);
+    else if (t === T.BRIDGE) {
+      if (this.crossingAt(x, y)?.gap === 'chasm') this.drawChasm(ctx, x, y, px, py, ts);
+      else this.drawPool(ctx, x, y, px, py, ts, th, STILL);
+    }
+    else if (t === T.GRASS) this.drawGrass(ctx, x, y, px, py, ts, th, STILL);
+    else if (t === T.DECOR) this.drawDecor(ctx, x, y, px, py, ts, th);
+  }
+
   private drawScene(ctx: CanvasRenderingContext2D, left: number, top: number, ts: number, vw: number, vh: number) {
     const W = this.map;
     const camX = Math.round(left * ts), camY = Math.round(top * ts);
@@ -531,68 +606,34 @@ export class Overworld {
 
     const x0 = Math.max(bounds.x0, Math.floor(camX / ts) - 1), x1 = Math.min(bounds.x0 + bounds.w - 1, Math.ceil((camX + vw) / ts) + 1);
     // Rows past the map's edges are forest (World.tile calls them obstacles).
-    const y0 = Math.max(W.y0 - Math.ceil(OVERSCROLL.top + this.headroom) - 1, Math.floor(camY / ts) - 1), y1 = Math.min(W.y0 + W.h + Math.ceil(OVERSCROLL.bottom), Math.ceil((camY + vh) / ts) + 2);
+    const yMin = W.y0 - Math.ceil(OVERSCROLL.top + this.headroom) - 1, yMax = W.y0 + W.h + Math.ceil(OVERSCROLL.bottom);
+    const y0 = Math.max(yMin, Math.floor(camY / ts) - 1), y1 = Math.min(yMax, Math.ceil((camY + vh) / ts) + 2);
 
-    // Four-tile patches keep adjacent ground continuous, without a checkerboard or per-tile gradients.
-    const groundPatches = new Map<string, CanvasGradient>();
-    // Ground layer
-    for (let y = y0; y <= y1; y++) {
-      for (let x = x0; x <= x1; x++) {
-        // Above ground, the ground under the cliff past a cave mouth is the neighbouring land's, not the cavern's.
-        const inCave = !this.underground && x >= CAVE_WEST_EDGE && x < CAVE_EAST_EDGE;
-        const th = zoneAtX(inCave ? (x < (CAVE_WEST_EDGE + CAVE_EAST_EDGE) / 2 ? CAVE_WEST_EDGE - 1 : CAVE_EAST_EDGE) : x).theme;
-        const t = this.sceneryTile(x, y);
-        const px = x * ts, py = y * ts;
-        // Broad, soft colour patches replace the conspicuous checkerboard of individual tiles.
-        ctx.fillStyle = th.ground;
-        ctx.fillRect(px, py, ts + 1, ts + 1);
-        const gx=Math.floor(x/4),gy=Math.floor(y/4),patchKey=`${zoneAtX(x).id}:${gx}:${gy}`;
-        let patch=groundPatches.get(patchKey);
-        if(!patch){
-          const cx=(gx*4+1.8+hash2(gx,gy,71)*.4)*ts,cy=(gy*4+1.8+hash2(gx,gy,72)*.4)*ts;
-          patch=ctx.createRadialGradient(cx,cy,0,cx,cy,ts*1.7);
-          patch.addColorStop(0,th.ground2);patch.addColorStop(1,th.ground);groundPatches.set(patchKey,patch);
-        }
-        ctx.fillStyle=patch;ctx.fillRect(px,py,ts+1,ts+1);
-        const stone=!this.underground?caveApproachStone(x,y):0;
-        if(stone>0){
-          ctx.fillStyle=`rgba(116,119,105,${stone*.72})`;ctx.fillRect(px,py,ts+1,ts+1);
-          if(t===T.GROUND&&hash2(x,y,84)<stone*.45){
-            ctx.fillStyle='#b4b6a2';ctx.beginPath();ctx.ellipse(px+ts*(.2+hash2(x,y,85)*.6),py+ts*(.3+hash2(x,y,86)*.4),ts*.045,ts*.028,0,0,TAU);ctx.fill();
-          }
-        }
-        // Shade the floor beside solid scenery, rather than treating it as a flat tile grid.
-        if(t!==T.OBST&&t!==T.POOL&&t!==T.CHASM){
-          const shade=ctx.createLinearGradient(px,py,px,py+ts*.3);
-          shade.addColorStop(0,'rgba(24,32,40,.16)');shade.addColorStop(1,'rgba(24,32,40,0)');
-          // Only under cliffs and rock: trees cast their own soft shadows, and a band under a row of them looks boxy.
-          if(W.tile(x,y-1)===T.OBST&&this.isRock(x,y-1)){ctx.fillStyle=shade;ctx.fillRect(px,py,ts,ts*.3);}
-          if(t===T.GROUND&&hash2(x,y,73)<.10)this.drawDecor(ctx,x,y,px,py,ts,th);
-        }
-        if (t === T.PATH) this.drawPath(ctx, x, y, px, py, ts, stone>.5?{...th,path:'#a9a28f'}:th);
-        else if (t === T.POOL) this.drawPool(ctx, x, y, px, py, ts, th);
-        else if (t === T.CHASM) this.drawChasm(ctx, x, y, px, py, ts);
-        else if (t === T.BRIDGE) {
-          const p = this.crossingAt(x, y);
-          if (p?.gap === 'chasm') this.drawChasm(ctx, x, y, px, py, ts);
-          else this.drawPool(ctx, x, y, px, py, ts, th);
-          this.drawBridge(ctx, x, y, px, py, ts);
-        }
-        else if (t === T.GRASS) this.drawGrass(ctx, x, y, px, py, ts, th);
-        else if (t === T.DECOR) this.drawDecor(ctx, x, y, px, py, ts, th);
-      }
+    // The ground is painted once into chunks (with the rock walls on it) and copied each frame; only what moves on it
+    // is drawn live. While zooming (the swoop into a fight) it's drawn directly, as the tile size changes every frame.
+    const cached = this.zoom === 1 && assetsReady();
+    if (cached) {
+      this.ground.draw(ctx, x0, y0, x1, y1, ts, ctx.getTransform().a, W, `${W.version}|${ts}|${yMin}|${yMax}`, (c, tx0, ty0, tx1, ty1) => {
+        tx0 = Math.max(tx0, bounds.x0); tx1 = Math.min(tx1, bounds.x0 + bounds.w - 1);
+        ty0 = Math.max(ty0, yMin); ty1 = Math.min(ty1, yMax);
+        const patches = new Map<string, CanvasGradient>();
+        for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) this.drawTile(c, x, y, ts, STILL, patches);
+        for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) if (this.sceneryTile(x, y) === T.OBST) this.drawObstacle(c, x, y, ts, zoneAtX(x).theme, STILL);
+      });
     }
+    const patches = new Map<string, CanvasGradient>();
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) this.drawTile(ctx, x, y, ts, cached ? LIVE : STILL | LIVE, patches);
 
     if (!this.underground) this.drawFieldGround(ctx, ts);
     this.layers?.ground(ctx, ts);
 
     // Y-sorted: obstacles, buildings and the hero
-    const items: { y: number; draw: () => void }[] = [];
+    const items: Item[] = [];
     for (let y = y0; y <= y1; y++)
       for (let x = x0; x <= x1; x++)
-        if (this.sceneryTile(x, y) === T.OBST) {
+        if (this.sceneryTile(x, y) === T.OBST && !(cached && this.rockAt(x, y))) {
           const th = zoneAtX(x).theme;
-          items.push({ y: y + 0.9, draw: () => this.drawObstacle(ctx, x, y, ts, th) });
+          items.push({ y: y + 0.9, x0: x - 0.5, x1: x + 1.5, draw: () => this.drawObstacle(ctx, x, y, ts, th, cached ? LIVE : STILL | LIVE) });
         }
     for (const o of W.objs) {
       // A crossing's far landing can be visible while its construction stake is off screen.
@@ -601,27 +642,43 @@ export class Overworld {
       const left = deck ? Math.min(o.x, deck.x - .45) : o.x;
       const right = deck ? Math.max(o.x + o.w, deck.x + crossing!.deck.w + .45) : o.x + o.w;
       if (right < x0 - 2 || left > x1 + 2) continue;
+      const from = items.length;
       if (crossing) this.shortcutItems(ctx, o, ts, items);
       else if (o.kind === 'fence') this.fenceItems(ctx, o, ts, items);
       else if (o.kind === 'plot' && o.project === 'garden') this.fieldItems(ctx, o, ts, items);
-      else if (o.id === 'ring') this.ringItems(ctx, o, ts, items);
+      else if (o.kind === 'plot' && o.project === 'training' && !this.save.build.training) this.ringItems(ctx, o, ts, items);
       else items.push({ y: o.y + o.h, draw: () => this.drawObj(ctx, o, ts) });
+      for (let k = from; k < items.length; k++) Object.assign(items[k], { x0: left - 0.5, x1: right + 0.5 });
     }
     for (const r of this.fieldMap ? this.roamers.list : []) {
       if ((r.zone==='cave') !== (this.underground===this.cavern)) continue;
       if (r.x < x0 - 2 || r.x > x1 + 2) continue;
-      items.push({ y: r.y, draw: () => this.drawRoamer(ctx, r, ts) });
+      items.push({ y: r.y, x0: r.x - 1, x1: r.x + 1, draw: () => this.drawRoamer(ctx, r, ts) });
     }
     for (const a of this.cast.list) {
       if (a.x < x0 - 2 || a.x > x1 + 2) continue;
-      items.push({ y: a.y, draw: () => this.drawActor(ctx, a, ts) });
+      items.push({ y: a.y, x0: a.x - 1, x1: a.x + 1, draw: () => this.drawActor(ctx, a, ts) });
     }
-    for(const g of this.afterimages)items.push({y:g.y,draw:()=>drawHero(ctx,this.save.equip.armor,g.x*ts,g.y*ts,ts/1.2,g.face,false,this.t,{alpha:g.t*.9,tint:'#b7a8f1',tintAmount:.6},'hero:map-ghost')});
-    items.push({ y: this.y, draw: () => this.drawHero(ctx, ts) });
+    for(const g of this.afterimages)items.push({y:g.y,x0:g.x-1,x1:g.x+1,draw:()=>drawHero(ctx,this.save.equip.armor,g.x*ts,g.y*ts,ts/1.2,g.face,false,this.t,{alpha:g.t*.9,tint:'#b7a8f1',tintAmount:.6},'hero:map-ghost')});
+    items.push({ y: this.y, x0: this.x - 1, x1: this.x + 1, draw: () => this.drawHero(ctx, ts) });
     const body = this.save.spirit;
-    if (body) items.push({ y: body.y, draw: () => this.drawBody(ctx, body, ts) });
+    if (body) items.push({ y: body.y, x0: body.x - 1, x1: body.x + 1, draw: () => this.drawBody(ctx, body, ts) });
+    // A rock wall in the chunks is under everything: one whose top edge should cover something standing just above it
+    // is drawn again in its place.
+    if (cached) {
+      const near = items.slice();
+      for (let y = y0; y <= y1; y++)
+        for (let x = x0; x <= x1; x++)
+          if (this.rockAt(x, y) && near.some((it) => it.y < y + 0.9 && it.y > y - 0.6 && (it.x1 ?? Infinity) > x && (it.x0 ?? -Infinity) < x + 1)) {
+            const th = zoneAtX(x).theme;
+            items.push({ y: y + 0.9, draw: () => this.drawObstacle(ctx, x, y, ts, th) });
+          }
+    }
     items.sort((a, b) => a.y - b.y);
     for (const it of items) it.draw();
+    // Round the back of a building, a faint you shows through it.
+    if (W.objs.some((o) => !o.hidden && solidPart(o) !== o && this.x > o.x && this.x < o.x + o.w && this.y > o.y - 0.5 && this.y < o.y + o.h))
+      drawHero(ctx, this.save.equip.armor, this.x * ts, this.y * ts, ts / 1.2, this.face, this.moving, this.t, { alpha: 0.35 }, 'hero:behind');
     if (this.carried) drawCarried(ctx, this.x * ts, this.y * ts, ts, this.carried.icon, this.carried.emoji, this.carried.count, this.t);
     this.fx.draw(ctx);
     if(this.underground===this.oreGallery&&!this.oreGallery.opened){
@@ -1023,8 +1080,21 @@ export class Overworld {
     ctx.restore();
   }
 
-  private drawPool(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
+  /** A pool tile: the water (STILL), or the glint moving on it (LIVE). */
+  private drawPool(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme, part: number) {
     const lava = th.pool === 'lava';
+    if (part === LIVE) {
+      const k = Math.sin(this.t * 2 + x * 1.3 + y * 0.7);
+      ctx.fillStyle = lava ? `rgba(255,220,90,${0.5 + k * 0.3})` : `rgba(255,255,255,${0.35 + k * 0.2})`;
+      if (lava) {
+        ctx.beginPath();
+        ctx.arc(px + ts * (0.3 + hash2(x, y, 6) * 0.4), py + ts * 0.5, ts * (0.06 + 0.04 * k), 0, TAU);
+        ctx.fill();
+      } else {
+        ctx.fillRect(px + ts * 0.25 + k * ts * 0.05, py + ts * 0.4, ts * 0.3, ts * 0.05);
+      }
+      return;
+    }
     const W = this.map;
     const inset = ts * 0.14;
     const pool = (dx: number, dy: number) => W.tile(x + dx, y + dy) === T.POOL || W.tile(x + dx, y + dy) === T.BRIDGE;
@@ -1043,23 +1113,20 @@ export class Overworld {
     ctx.arcTo(x0, y1, x0, y0, bl);
     ctx.arcTo(x0, y0, x1, y0, tl);
     ctx.fill();
-    const k = Math.sin(this.t * 2 + x * 1.3 + y * 0.7);
-    ctx.fillStyle = lava ? `rgba(255,220,90,${0.5 + k * 0.3})` : `rgba(255,255,255,${0.35 + k * 0.2})`;
-    if (lava) {
-      ctx.beginPath();
-      ctx.arc(px + ts * (0.3 + hash2(x, y, 6) * 0.4), py + ts * 0.5, ts * (0.06 + 0.04 * k), 0, TAU);
-      ctx.fill();
-    } else {
-      ctx.fillRect(px + ts * 0.25 + k * ts * 0.05, py + ts * 0.4, ts * 0.3, ts * 0.05);
-    }
   }
 
-  private drawGrass(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme) {
-    ctx.fillStyle = th.grass;
-    ctx.globalAlpha = 0.35;
-    ctx.fillRect(px, py, ts + 1, ts + 1);
-    ctx.globalAlpha = 1;
-    if(zoneAtX(x).id==='cave'){
+  /** Tall grass: its tint (STILL), then the tufts swaying in it (LIVE). Underground it's shale, which keeps still. */
+  private drawGrass(ctx: CanvasRenderingContext2D, x: number, y: number, px: number, py: number, ts: number, th: Theme, part: number) {
+    const cave = zoneAtX(x).id === 'cave';
+    if (part === LIVE && cave) return;
+    if (part === STILL) {
+      ctx.fillStyle = th.grass;
+      ctx.globalAlpha = 0.35;
+      ctx.fillRect(px, py, ts + 1, ts + 1);
+      ctx.globalAlpha = 1;
+      if (!cave) return;
+    }
+    if(cave){
       // Encounter pockets underground are shale and pale mineral chips, rather than tall garden grass.
       for(let i=0;i<4;i++){
         const cx=px+ts*(.16+hash2(x,y,91+i)*.68),cy=py+ts*(.25+hash2(x,y,101+i)*.65);
@@ -1154,9 +1221,14 @@ export class Overworld {
     }
   }
 
-  private drawObstacle(ctx: CanvasRenderingContext2D, x: number, y: number, ts: number, th: Theme) {
+  /**
+   * An obstacle tile: a stretch of rock wall, or a tree, crystal or boulder. `part` as for ground tiles: what lies
+   * still on the ground (the wall, a tree's shadow) or what stands up from it, sorted with everyone (the tree).
+   */
+  private drawObstacle(ctx: CanvasRenderingContext2D, x: number, y: number, ts: number, th: Theme, part = STILL | LIVE) {
     const stone=this.underground?0:x>=CAVE_WEST_EDGE&&x<CAVE_EAST_EDGE?1:caveApproachStone(x,y);
     if (zoneAtX(x).id === 'cave' || stone>=.85) {
+      if (!(part & STILL)) return;
       // Rock is one mass whose edges wander: wherever it meets open ground or trees its outline follows a smooth wobble
       // set by world position (so neighbouring tiles join with no grid lines), corners between two open sides are
       // rounded, and the edge is inked. Inside it's calm stone with now and then a faint flat slab; where the floor is
@@ -1225,11 +1297,13 @@ export class Overworld {
     const v = hash2(x, y, 13);
     const sprite = frame(`env/${th.obstacle}${Math.floor(v * 3)}`);
     if (sprite) {
-      shadow(ctx, cx, by - ts * 0.05, ts * 0.42);
+      if (part & STILL) shadow(ctx, cx, by - ts * 0.05, ts * 0.42);
       const k = loose ? 0.78 + 0.4 * hash2(x, y, 15) : 1;
-      drawFrame(ctx, sprite, cx, by - ts * 0.05, ts / TILE_BU, { flip: v > 0.5, sx: k, sy: k, rot: th.obstacle === 'tree' || th.obstacle === 'pine' ? Math.sin(this.t * 1.2 + x) * 0.012 : 0 });
+      if (part & LIVE) drawFrame(ctx, sprite, cx, by - ts * 0.05, ts / TILE_BU, { flip: v > 0.5, sx: k, sy: k, rot: th.obstacle === 'tree' || th.obstacle === 'pine' ? Math.sin(this.t * 1.2 + x) * 0.012 : 0 });
       return;
     }
+    // (Drawn by hand only until the art is in, and then all live.)
+    if (!(part & LIVE)) return;
     switch (th.obstacle) {
       case 'tree': {
         shadow(ctx, cx, by, ts * 0.42);
@@ -1520,7 +1594,7 @@ export class Overworld {
       case 'forge': return { name: forgeArt(lv('forge')), back: 0.42 };
       case 'house': return { name: kitchenLevel(this.save) ? `kitchen${kitchenLevel(this.save)}` : 'house_blue', back: 0.42 };
       case 'fountain': return { name: 'fountain', back: 0.45 };
-      case 'sign': return { name: 'sign', back: 0.05 };
+      case 'sign': return { name: o.id === 'practice' ? 'field_sign' : 'sign', back: 0.05 };
       case 'lair': return { name: 'lair', back: 0.4 };
       case 'camp': return { name: 'campfire', back: 0.05 };
       case 'statue': return { name: `statue_${o.id}`, back: 0.1 };
@@ -1580,6 +1654,9 @@ export class Overworld {
         this.nameTag(ctx, lit ? '⚒ Forge' : '⚒ Old Forge', ax, top, ts);
         break;
       }
+      case 'sign':
+        if (o.id === 'practice:way') this.nameTag(ctx, '⚔️ Practice ←', ax, top, ts);
+        break;
       case 'prop':
         if (o.id === 'prop_cavemouth') this.nameTag(ctx, 'Pebbler Hollow', ax, top, ts);
         if (o.id === 'fox:den') this.nameTag(ctx, 'The Quiet Den', ax, top, ts);
@@ -1724,8 +1801,9 @@ export class Overworld {
   }
 
   /**
-   * Oswin's practice ring: worn grass roped off between six posts, with a straw target at the back. The back rope and
-   * target sort behind whoever stands in the ring, the front rope and posts in front of them.
+   * The Hidden Training Clearing before Bram builds it up: Oswin's old practice ring, worn grass roped off between posts
+   * with a gap for a gate at the front and a straw target at the back. The back rope and target sort behind whoever
+   * stands in the ring, the front rope and posts in front of them.
    */
   private ringItems(ctx: CanvasRenderingContext2D, o: WorldObj, ts: number, items: { y: number; draw: () => void }[]) {
     if (o.hidden) return;
@@ -1786,8 +1864,10 @@ export class Overworld {
       for (const [x, y] of [[x0, y0], [mx, y0], [x1, y0]]) post(x, y);
     } });
     items.push({ y: o.y + o.h, draw: () => {
-      rope([[x0, y1], [mx, y1], [x1, y1]]);
-      for (const x of [x0, mx, x1]) post(x, y1);
+      const gate = ts * 0.42;
+      rope([[x0, y1], [mx - gate, y1]]);
+      rope([[mx + gate, y1], [x1, y1]]);
+      for (const x of [x0, mx - gate, mx + gate, x1]) post(x, y1);
       this.nameTag(ctx, '🤺 Practice Ring', x0 + (x1 - x0) * 0.36, y0 - ts * 0.55, ts);
     } });
   }

@@ -70,13 +70,17 @@ export class Fx {
     for (const t of this.texts) {
       const pop = t.t < 0.12 ? 0.6 + (t.t / 0.12) * 0.6 : 1.2 - Math.min(0.2, (t.t - 0.12) * 0.5);
       ctx.globalAlpha = t.t > 0.6 ? 1 - (t.t - 0.6) / 0.3 : 1;
-      ctx.font = `900 ${t.size * pop}px ui-rounded, "Nunito", system-ui, sans-serif`;
-      const y = t.y - t.t * 40;
-      ctx.lineWidth = t.size * 0.25;
+      // Popping by scaling, not by a new font size each frame (each of which the browser lays out afresh).
+      ctx.font = `900 ${t.size}px ui-rounded, "Nunito", system-ui, sans-serif`;
+      ctx.save();
+      ctx.translate(t.x, t.y - t.t * 40);
+      ctx.scale(pop, pop);
+      ctx.lineWidth = (t.size * 0.25) / pop;
       ctx.strokeStyle = 'rgba(40,20,50,0.85)';
-      ctx.strokeText(t.text, t.x, y);
+      ctx.strokeText(t.text, 0, 0);
       ctx.fillStyle = t.color;
-      ctx.fillText(t.text, t.x, y);
+      ctx.fillText(t.text, 0, 0);
+      ctx.restore();
     }
     ctx.globalAlpha = 1;
   }

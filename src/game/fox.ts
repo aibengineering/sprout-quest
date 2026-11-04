@@ -51,6 +51,7 @@ export async function foxTrial() {
         await say(FOX, 'There. You listened. Most people come up here waving something sharp.');
         await say(FOX, 'Take this. It remembers the way between shadows. And keep this little place to yourself. There are others asleep behind those stones.');
         await G.ui.itemFound('glimmershawl','Shadow Scarf','Your dodge travels farther and faster, leaving an afterimage. You can dash along paths too. The Echo Anklet still gives you two charges.','🧣','A quiet gift');
+        await say(FOX, 'There’s a clearing in the woods past your village hedge. Old rope, crooked posts. Find me there, if you want lessons.');
         return;
       }
       retry = await G.ui.dialog('<h2>Almost!</h2><p>A little dust on your hat. Watch where the glow settles, then move out of that lane.</p>',[['retry','Try again'],['leave','Another time']],'fox-retry')==='retry';

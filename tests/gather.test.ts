@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { NODES, NODE_SPAWNS, SKILL_MAX, TOOLS, type ZoneId } from '../src/data';
-import { BASE_SPEED, Chop, GatherView } from '../src/gather';
+import { BASE_SPEED, CARRY_MAX, Chop, GatherView, TEMPO } from '../src/gather';
 import { canGather, craftGear, craftTool, gainSkillXp, harvest, skillXpToNext, sweetWidth, toolPower } from '../src/rules';
 import { newState } from '../src/state';
 import { T, World } from '../src/world';
@@ -72,6 +72,127 @@ describe('chopping minigame', () => {
     expect(strikes).toBeLessThanOrEqual(4);
     // A miss barely dents it, so mashing can't race honest timing.
     expect(misses).toBeGreaterThan(strikes * 10);
+  });
+
+  test('perfects hit twice as hard, and three in a row is a clean cut that finishes the node outright', () => {
+    const c = new Chop(100, 1, 0.2, () => 0.5);
+    moveTo(c, c.center);
+    expect(c.strike()).toBe('perfect');
+    expect(c.dealt).toBe(2);
+    c.update(0.15);
+    moveTo(c, c.center);
+    c.strike();
+    expect(c.done).toBe(false);
+    c.update(0.15);
+    moveTo(c, c.center);
+    c.strike();
+    expect(c.clean && c.done).toBe(true);
+    expect(c.dealt).toBe(c.hp);
+    // A clean hit in between breaks the run.
+    const d = new Chop(100, 1, 0.2, () => 0.5);
+    for (const at of [0, 0, 0.08, 0, 0]) {
+      d.update(0.15);
+      moveTo(d, d.center + at);
+      d.strike();
+    }
+    expect(d.clean).toBe(false);
+    expect(d.perfectRun).toBe(2);
+  });
+
+  test('after a clean hit the next spot lights up a little way ahead of the marker, never under it', () => {
+    for (let seed = 1; seed < 200; seed++) {
+      let r = seed;
+      const rng = () => ((r = (Math.imul(r, 1664525) + 1013904223) >>> 0) / 2 ** 32);
+      const c = new Chop(1000, 1, 0.2, rng);
+      c.update(rng() * 3);
+      moveTo(c, c.center);
+      const dir = Math.sign(c.pos - (c.update(0.001), c.pos)) * -1;
+      expect(c.strike()).not.toBe('miss');
+      const off = c.center - c.pos;
+      expect(Math.abs(off)).toBeGreaterThan(c.width / 2);
+      // Ahead of the marker, or just round the bounce at the end it's heading for.
+      const nearEnd = dir > 0 ? c.pos > 0.55 : c.pos < 0.45;
+      if (!nearEnd) expect(Math.sign(off)).toBe(dir);
+      // The marker reaches it in about a second at most, not a sweep there and back.
+      const reach = dir * off > 0 ? Math.abs(off) : dir > 0 ? 2 - c.pos - c.center : c.pos + c.center;
+      expect(reach / c.speed).toBeLessThan(1.25);
+    }
+  });
+
+  test('momentum: a streak carried over from the last node starts the marker faster and hitting harder, up to a cap', () => {
+    const fresh = new Chop(100, 1, 0.2, () => 0.5), kept = new Chop(100, 1, 0.2, () => 0.5, 0, 3), capped = new Chop(100, 1, 0.2, () => 0.5, 0, 50);
+    expect(kept.streak).toBe(3);
+    expect(kept.speed).toBeGreaterThan(fresh.speed);
+    expect(capped.streak).toBe(CARRY_MAX);
+    for (const c of [fresh, kept]) { moveTo(c, c.center); c.strike(); }
+    expect(kept.dealt).toBeGreaterThan(fresh.dealt);
+    // Boulders count their own streak from zero.
+    expect(new Chop(10, 1, 0.2, () => 0.5, 10, 4).streak).toBe(0);
+  });
+
+  test('tier 2 doubles: hit the first zone and the second lights up just ahead; hit it in the same pass for a double', () => {
+    const c = new Chop(100, 1, 0.2, () => 0.3, 0, 0, 'double');
+    const second = c.next!;
+    expect(Math.abs(second - c.center)).toBeGreaterThanOrEqual(c.width);
+    moveTo(c, c.center);
+    c.strike();
+    expect(c.center).toBe(second);
+    expect(c.next).toBeUndefined();
+    expect(c.doubleT).toBeGreaterThan(0);
+    const before = c.dealt;
+    // Straight on to it, in the same pass.
+    for (let i = 0; i < 2000 && Math.abs(c.pos - c.center) > 0.004; i++) c.update(0.001);
+    expect(c.doubleT).toBeGreaterThan(0);
+    expect(c.strike()).toBe('perfect');
+    expect(c.double).toBe(true);
+    expect(c.dealt - before).toBeCloseTo(1 * (1 + 0.25) * 2 * 1.5);
+    // …and a new pair waits ahead.
+    expect(c.next).toBeDefined();
+    // Too slow: the double lapses and it's an ordinary strike.
+    moveTo(c, c.center);
+    c.strike();
+    c.update(3);
+    moveTo(c, c.center);
+    c.strike();
+    expect(c.double).toBe(false);
+  });
+
+  test('tier 3 drifts: the zone slides along the bar and bounces off its ends', () => {
+    const c = new Chop(100, 1, 0.2, Math.random, 0, 0, 'drift');
+    const seen = new Set<number>(), start = c.center;
+    for (let i = 0; i < 2000; i++) {
+      c.update(0.005);
+      expect(c.center).toBeGreaterThanOrEqual(c.width / 2 + 0.04 - 1e-9);
+      expect(c.center).toBeLessThanOrEqual(1 - c.width / 2 - 0.04 + 1e-9);
+      seen.add(Math.sign(c.driftV));
+    }
+    expect(c.center).not.toBe(start);
+    expect(seen.size).toBe(2);
+    expect(new Chop(100, 1, 0.2).driftV).toBe(0);
+  });
+
+  test('tier 4 tempo: a strike in the zone on the pulse is perfect, off it a plain hit, and the marker reaches each new zone as it pulses', () => {
+    const c = new Chop(1000, 1, 0.2, Math.random, 0, 0, 'tempo');
+    c.pos = c.center + c.width * 0.4;
+    c.beatT = TEMPO.beat * 3 + TEMPO.window * 0.8;
+    expect(c.judge()).toBe('perfect');
+    c.beatT = TEMPO.beat * 3.5;
+    expect(c.judge()).toBe('hit');
+    c.pos = c.center + c.width;
+    expect(c.judge()).toBe('miss');
+    // Every new zone, after a hit or a miss, is crossed during a beat.
+    for (let n = 0; n < 40; n++) {
+      c.update(Math.random() * 0.3);
+      c.perfectRun = 0; // (no clean cut ending it early)
+      const r = n % 5 === 4 ? (c.pos = c.center > 0.5 ? 0.01 : 0.99, c.strike()) : (c.pos = c.center, c.strike());
+      expect(r).not.toBeNull();
+      let onBeat = false;
+      for (let t = 0; t < 3 && !onBeat; t += 0.002) {
+        c.update(0.002);
+        onBeat = c.lock <= 0 && c.judge() === 'perfect';
+      }
+      expect(onBeat).toBe(true);
+    }
   });
 
   test('the sweet spot grows with skill level', () => {

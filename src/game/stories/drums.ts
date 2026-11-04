@@ -7,7 +7,7 @@ import { zoneById } from '../../data';
 import type { MapLayers } from '../../overworld';
 import {
   BARRIERS, BENDS, CATCH_AT, CLIMB, FORMATION, LANDING, LAY_AT, MOUTH, NEW_TOTEM, POPPY_AT, POPPY_PATH, POPPY_START, PACE, Procession, REAR, RING, SIGHT, TOTEMS,
-  along, beamEnd, clearLine, drumsOpen, drumsStep, inPocket, inSideArea, rejoinAt, sees, type ProcessionEvent,
+  along, beamEnd, clearLine, objectsAround, drumsOpen, drumsStep, inPocket, inSideArea, rejoinAt, sees, type ProcessionEvent,
 } from '../../procession';
 import { hash2, type WorldObj } from '../../world';
 import { busy, G, persist, syncWorld, tip, transition } from '../context';
@@ -290,17 +290,26 @@ function drawDark(ctx: CanvasRenderingContext2D, ts: number, view: { x: number; 
   const w = Math.ceil(view.w), h = Math.ceil(view.h);
   if (darkCanvas.width !== w || darkCanvas.height !== h) { darkCanvas.width = w; darkCanvas.height = h; }
   const m = darkCtx;
-  m.clearRect(0, 0, w, h);
+  m.globalCompositeOperation = 'copy';
   m.fillStyle = `rgba(7,9,20,${dim})`; m.fillRect(0, 0, w, h);
+  m.globalCompositeOperation = 'source-over';
   const lights: { x: number; y: number; radius: number }[] = [];
+  // Where the mask isn't plain dark (round the lights): only that part is copied over, the rest is filled plainly.
+  const lit = { x0: w, y0: h, x1: 0, y1: 0 };
+  const opened = (x: number, y: number, r: number) => {
+    lit.x0 = Math.min(lit.x0, x - r); lit.y0 = Math.min(lit.y0, y - r);
+    lit.x1 = Math.max(lit.x1, x + r); lit.y1 = Math.max(lit.y1, y + r);
+  };
   const light = (p: { x: number; y: number }, radius: number, strength: number) => {
     lights.push({ ...p, radius });
     const eye = { x: p.x, y: p.y - .3 };
     const x = eye.x * ts - view.x, y = eye.y * ts - view.y;
     if (x < -radius * ts || x > w + radius * ts || y < -radius * ts || y > h + radius * ts) return;
+    opened(x, y, radius * ts);
     m.save(); m.beginPath();
+    const objs = objectsAround(G.over.map, eye, radius);
     for (let i = 0; i <= 64; i++) {
-      const end = beamEnd(G.over.map, eye, i / 64 * TAU, radius);
+      const end = beamEnd(G.over.map, eye, i / 64 * TAU, radius, objs);
       const ex = end.x * ts - view.x, ey = end.y * ts - view.y;
       if (!i) m.moveTo(ex, ey); else m.lineTo(ex, ey);
     }
@@ -310,7 +319,7 @@ function drawDark(ctx: CanvasRenderingContext2D, ts: number, view: { x: number; 
     glow.addColorStop(0, `rgba(0,0,0,${strength})`);
     glow.addColorStop(.55, `rgba(0,0,0,${strength * .75})`);
     glow.addColorStop(1, 'rgba(0,0,0,0)');
-    m.fillStyle = glow; m.fillRect(0, 0, w, h); m.restore();
+    m.fillStyle = glow; m.fillRect(x - radius * ts, y - radius * ts, radius * ts * 2, radius * ts * 2); m.restore();
   };
   light(me, underground ? 3.3 : 4.8, .9);
   if (!underground) light(MOUTH, 4, .8);
@@ -330,8 +339,17 @@ function drawDark(ctx: CanvasRenderingContext2D, ts: number, view: { x: number; 
     const body = m.createRadialGradient(x, y, ts * .14, x, y, ts * .65);
     body.addColorStop(0, 'rgba(0,0,0,.85)'); body.addColorStop(1, 'rgba(0,0,0,0)');
     m.fillStyle = body; m.fillRect(x - ts * .65, y - ts * .65, ts * 1.3, ts * 1.3); m.restore();
+    opened(x, y, ts * .65);
   }
-  ctx.drawImage(darkCanvas, view.x, view.y);
+  const x0 = Math.max(0, Math.floor(lit.x0) - 2), y0 = Math.max(0, Math.floor(lit.y0) - 2);
+  const x1 = Math.min(w, Math.ceil(lit.x1) + 2), y1 = Math.min(h, Math.ceil(lit.y1) + 2);
+  ctx.fillStyle = `rgba(7,9,20,${dim})`;
+  if (x1 <= x0 || y1 <= y0) { ctx.fillRect(view.x, view.y, w, h); return; }
+  ctx.drawImage(darkCanvas, x0, y0, x1 - x0, y1 - y0, view.x + x0, view.y + y0, x1 - x0, y1 - y0);
+  ctx.fillRect(view.x, view.y, w, y0);
+  ctx.fillRect(view.x, view.y + y1, w, h - y1);
+  ctx.fillRect(view.x, view.y + y0, x0, y1 - y0);
+  ctx.fillRect(view.x + x1, view.y + y0, w - x1, y1 - y0);
 }
 
 const layers: Partial<MapLayers> = {

@@ -1,31 +1,45 @@
-// Friendly spars (src/spar.ts): Elder Oswin offers one when you talk to him, at the practice ring beside him in
-// Sowerby, and the fox's clearing has a Free spar with anyone who'll have you. You fight as a copy of yourself (see fights.ts begin), so nothing sticks.
+// Friendly spars (src/spar.ts), at the practice ring in the Hidden Training Clearing: pick a friend at the sign by its
+// gate (src/game/dojo.ts practiceSign) and Oswin or Bram walks over from the village; the fox is already there. You fight
+// as a copy of yourself (see fights.ts begin), so nothing sticks.
 import { PARTNERS, sparPartners, type PartnerId } from '../spar';
 import { zoneById } from '../data';
 import type { BattleOutcome } from '../battle/types';
 import { esc, icon } from '../ui';
 import { G, backToWorld, paused, transition } from './context';
 import { startBattle } from './fights';
+import { narrate } from './scenes';
 
 const portrait = (who: PartnerId) => icon(`npc_${PARTNERS[who].look}`, PARTNERS[who].emoji, 'icon lg');
 
-/** A spar at Oswin's practice ring in Sowerby, or at the fox's clearing: either way on a timber practice floor. */
-export function startSpar(who: PartnerId, at: 'village' | 'hollow' = 'village') {
+/** How your partner turns up at the ring. */
+const COMES: Record<PartnerId, string> = {
+  oswin: 'Oswin hobbles over from the village, staff in hand.',
+  bram: 'Bram’s on his way. Grumbling.',
+  fox: 'The fox is already in the ring. Of course she is.',
+};
+
+/** A spar on the ring's timber practice floor. */
+export function startSpar(who: PartnerId) {
   if (!sparPartners(G.save).includes(who)) return;
-  startBattle(zoneById(at), [], false, undefined, { spar: who });
+  startBattle(zoneById('village'), [], false, undefined, { spar: who });
 }
 
-/** The clearing's Free spar: pick anyone you've made friends with. */
-export async function pickSpar() {
+/** Free spar: pick anyone you've made friends with, and they come to the ring. Returns the button pressed. */
+export async function pickSpar(extra: [string, string][] = []): Promise<string> {
   const cards = sparPartners(G.save).map((who) => {
     const p = PARTNERS[who];
     return `<article class="mcard"><h3>${portrait(who)} ${esc(p.name)}</h3><p>${esc(p.blurb)}</p><button class="go wide" data-dialog="spar:${who}">Spar</button></article>`;
   }).join('');
   const r = await paused(() => G.ui.dialog(
-    `<h2>🤺 Free spar</h2><p>Practice with a friend. Fresh HP, no potions, nothing won or lost. Whoever drops to a fifth of their health calls it.</p><div class="dojo-lessons">${cards}</div>`,
-    [['close', 'Back']], 'dojo spar-pick',
+    `<h2>🤺 Practice</h2><p>Spar with a friend. Fresh HP, no potions, nothing won or lost. Whoever drops to a fifth of their health calls it.</p><div class="dojo-lessons">${cards}</div>`,
+    [...extra, ['close', 'Back']], 'dojo spar-pick',
   ));
-  if (r.startsWith('spar:')) startSpar(r.slice(5) as PartnerId, 'hollow');
+  if (r.startsWith('spar:')) {
+    const who = r.slice(5) as PartnerId;
+    await paused(() => narrate(COMES[who]));
+    startSpar(who);
+  }
+  return r;
 }
 
 /** How it went: who won and their last word, then back where you were. */
